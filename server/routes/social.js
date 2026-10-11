@@ -187,6 +187,31 @@ export function socialPostRoutes(r, ctx) {
     return out;
   }
 
+  // A song attached to any post, Instagram-style: title and artist, plus an optional link.
+  // undefined = leave as is, null = remove.
+  function musicInput(music) {
+    if (music === undefined) return undefined;
+    if (music === null || music === '') return null;
+    if (typeof music !== 'object') fail(400, 'Song must be an object');
+    const title = str(music.title, 'Song title', { max: 120 }) ?? '';
+    const artist = str(music.artist, 'Artist', { max: 120 }) ?? '';
+    let url = str(music.url, 'Song link', { max: 500 }) ?? '';
+    if (!title && !artist && !url) return null;
+    if (!title) fail(400, 'Add the song title');
+    if (url) {
+      let u;
+      try { u = new URL(url); } catch { fail(400, 'Song link must be a web address'); }
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') fail(400, 'Song link must start with https://');
+      url = u.href;
+    }
+    return { title, artist, url };
+  }
+  const withMusic = (meta, music) => {
+    if (music === undefined) return meta;
+    const { music: _old, ...rest } = meta;
+    return music ? { ...rest, music } : rest;
+  };
+
   r.get('/api/social', ({ user, query }) => {
     requireUser(user);
     const characterId = Number(query.get('character')) || null;
@@ -210,7 +235,7 @@ export function socialPostRoutes(r, ctx) {
     if (['photo', 'video', 'voice'].includes(kind) && !media.length) fail(400, `Add a ${kind === 'photo' ? 'photo' : kind === 'video' ? 'video' : 'voice note'} first`);
     if (kind === 'stream' && !title) fail(400, 'Give the stream a title');
     const { lastInsertRowid } = db.prepare('INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(metaInput(kind, body.meta)));
+      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(metaInput(kind, body.meta), musicInput(body.music))));
     return { status: 201, data: { post: toSocial(load(lastInsertRowid, user), user.id) } };
   });
 
@@ -220,7 +245,8 @@ export function socialPostRoutes(r, ctx) {
     if (row.user_id !== user.id) fail(404, 'Post not found');
     const text = str(body.body, 'Caption', { max: 5000 }) ?? row.body;
     const title = str(body.title, 'Title', { max: 120 }) ?? row.title;
-    const meta = body.meta === undefined ? row.meta : JSON.stringify(metaInput(row.kind, body.meta));
+    const base = body.meta === undefined ? JSON.parse(row.meta) : { ...metaInput(row.kind, body.meta), ...(JSON.parse(row.meta).music ? { music: JSON.parse(row.meta).music } : {}) };
+    const meta = JSON.stringify(withMusic(base, musicInput(body.music)));
     db.prepare("UPDATE social_posts SET body = ?, title = ?, meta = ?, edited_at = datetime('now') WHERE id = ?").run(text, title, meta, row.id);
     return { data: { post: toSocial(load(row.id, user), user.id) } };
   });

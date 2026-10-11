@@ -38,8 +38,10 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
 - NUUVI's own palette: Pompadour `#F8769C` and Mimi Pink `#FFDBED`.
   - **Light mode:** `#F5F5F5` / `#B0AEAE`.
   - **Dark mode:** `#48484A` / `#0E0E0F`.
-  - **Light mode** is white with pink only. **Dark mode** is true neutral black and grey, with no blue tint.
-  - **Auto:** follows the device.
+  - Three themes that follow the logo's variants. **NUUVI** (the default) is blush with pink throughout. **Light** is true white and soft grey, and **Dark** is true neutral black with no blue tint. Both keep pink only for highlights: selected tabs, notifications, buttons and media.
+  - **Auto:** switches between Light and Dark with the device.
+- **Logo:** the NUUVI mark sits at the top of the story rail, with a live count of who's online (tap it to see who). The "nuuvi" wordmark heads the sidebar and sign-in page.
+- **Icons:** [Uicons by Flaticon](https://www.flaticon.com/uicons) for the main shortcuts (feed, characters, profile, sign out, menu, follow, music).
 - Any pink surface that carries text uses a deep pink (`#C7366A`) with white text so it stays readable.
 - **Text size:** Normal, Large or Larger, under **You → Settings**. Post text is never justified.
 - The device's own sans-serif font (San Francisco on iPhone and Mac). No web fonts are downloaded.
@@ -47,10 +49,9 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
   - **Computer:** across the top.
   - **Phone:** runs vertically down the slide-out drawer.
   - **Shows:** your avatar, "Welcome back", your stats, and shortcuts (light/dark, feed, alerts, characters, settings, sign out).
-- **Online indicator:** where the logo will go, a pulsing dot shows how many people are online. Tap it to see who.
-- **Threads:** forum-style posts with the character's name in capitals, an "aka" line the owner writes, avatar, star button, and "for …" footer. Each character's owner chooses whether the name sits on the left or the right. Comms and OOC channels read like text messages.
+- **Threads:** forum-style posts with the character's name in capitals, an "aka" line the owner writes, avatar, star button, and "for …" footer. Each character's owner chooses whether the name sits on the left or the right. Bold, italic, underlined and quoted words take the character's own color. Comms and OOC channels read like text messages.
 - **Comms titles are personal:** each person sets their own contact names for the other characters, so the chat is titled with whatever you saved them as.
-- **Character profiles (Instagram style):** cover, portrait, posts/followers/following/threads counts, a verified badge, bio, and tabs for recent posts, threads and details. Owners can set the follower and following numbers shown, for celebrity characters.
+- **Character profiles (Instagram style):** an optional full-width banner, a rounded-square picture, posts/followers/following/threads counts, a verified badge, bio, and tabs for recent posts, threads and details. Owners can set the follower and following numbers shown, for celebrity characters.
 - **Character cards** show the character only; a writer's own page lists their characters.
 
 **Threads & feed**
@@ -62,7 +63,8 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
   - **Complete:** read-only.
 - **A thread can have:** a starring character, tagged characters (who get notified), a plot summary and tags.
 - **The feed** shows only open threads, self paras, character social posts and events. Filters: all, open threads, self paras, social, events and mine. You can also search.
-- **Character social posts:** text, photos, videos, voice notes (record in the app or upload) and streams, with likes and comments made as a character.
+- **Character social posts:** text, photos, videos, voice notes (record in the app or upload) and streams, with likes and comments made as a character. Any post can carry a song (title, artist and an optional link), shown under the character's name like on Instagram.
+- **Feed layout:** every card is the same size on computers, and phones show a two-column grid. Tap a card to open the whole post.
 - **Events page:** upcoming events as cards or as a month calendar.
 - Characters follow other characters, and their owners get notified.
 

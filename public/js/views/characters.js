@@ -25,9 +25,15 @@ function characterForm(c = {}) {
         <div class="stack">
           <label class="btn sm file-btn">Avatar picture<input type="file" accept="image/*" id="pic-file" hidden></label>
           <label class="btn sm file-btn">Portrait (big picture)<input type="file" accept="image/*" id="portrait-file" hidden></label>
-          <span class="hint" id="portrait-state">${c.portrait ? 'Portrait set ✓' : 'Shown large on their profile'}</span>
+          <span class="hint" id="portrait-state">${c.portrait ? 'Portrait set ✓' : 'Shown large on their character card'}</span>
+          <span class="row-inline">
+            <label class="btn sm file-btn">Profile banner<input type="file" accept="image/*" id="banner-file" hidden></label>
+            <button type="button" class="sm" id="banner-clear" ${c.banner ? '' : 'hidden'}>Remove banner</button>
+          </span>
+          <span class="hint" id="banner-state">${c.banner ? 'Banner set ✓' : 'Optional — a wide picture across the top of their profile'}</span>
           <input type="hidden" name="avatar" value="${c.avatar || ''}">
           <input type="hidden" name="portrait" value="${c.portrait || ''}">
+          <input type="hidden" name="banner" value="${c.banner || ''}">
         </div>
       </div>
       <div class="row">
@@ -81,6 +87,16 @@ export function editCharacter(c = {}) {
         form.portrait.value = url;
         $('#portrait-state', d).textContent = 'Portrait set ✓';
         if (!form.avatar.value) { form.avatar.value = url; showPic(); }
+      });
+      upload('#banner-file', 1800, (url) => {
+        form.banner.value = url;
+        $('#banner-state', d).textContent = 'Banner set ✓';
+        $('#banner-clear', d).hidden = false;
+      });
+      $('#banner-clear', d).addEventListener('click', (e) => {
+        form.banner.value = '';
+        $('#banner-state', d).textContent = 'No banner';
+        e.currentTarget.hidden = true;
       });
       form.color.addEventListener('input', showPic);
       const list = $('#details', d);
@@ -178,8 +194,8 @@ export async function viewCharacter(id) {
     subtitle: c.tagline,
     actions: html`<button class="icon-btn" id="char-more" aria-label="More">${icons.more}</button>`,
     body: html`
-      <article class="ig-profile" data-color="${c.color}">
-        ${c.portrait ? html`<div class="ig-cover"><img src="${c.portrait}" alt=""></div>` : html`<div class="ig-cover none"></div>`}
+      ${c.banner ? html`<div class="ig-banner"><img src="${c.banner}" alt=""></div>` : ''}
+      <article class="ig-profile ${c.banner ? 'has-banner' : ''}" data-color="${c.color}">
         <header class="ig-head">
           <span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>
           <div class="ig-stats">
@@ -196,7 +212,7 @@ export async function viewCharacter(id) {
         </div>
         <div class="ig-actions">
           ${own ? html`<button id="edit">Edit profile</button><button class="primary" id="new-post">${icons.plus} New post</button>`
-            : html`<button class="${following ? '' : 'primary'}" id="follow">${following ? 'Following' : 'Follow'}</button>
+            : html`<button class="${following ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>
               <button id="start-thread">${icons.quill} Start a thread</button>`}
         </div>
         <nav class="ig-tabs" role="tablist">

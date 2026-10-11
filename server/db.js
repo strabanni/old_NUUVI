@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -325,6 +325,8 @@ const MIGRATIONS = [
    DROP TABLE notifications;
    ALTER TABLE notifications_v4 RENAME TO notifications;
    CREATE INDEX notifications_user_idx ON notifications(user_id, id);`,
+  // v5: optional profile banner for characters (separate from the portrait on their card).
+  `ALTER TABLE characters ADD COLUMN banner TEXT;`,
 ];
 
 export function openDb(path) {

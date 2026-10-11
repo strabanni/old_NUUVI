@@ -11,7 +11,7 @@ export const toUser = (r, prefix = '') => ({
 export function toCharacter(r) {
   return {
     id: r.id, userId: r.user_id, name: r.name, tagline: r.tagline, bio: r.bio,
-    color: r.color, avatar: r.avatar, portrait: r.portrait ?? null,
+    color: r.color, avatar: r.avatar, portrait: r.portrait ?? null, banner: r.banner ?? null,
     details: r.details ? JSON.parse(r.details) : [], createdAt: r.created_at,
     aka: r.aka ?? '', postAlign: r.post_align ?? 'right', verified: !!r.verified,
     followersDisplay: r.followers_display ?? null, followingDisplay: r.following_display ?? null,

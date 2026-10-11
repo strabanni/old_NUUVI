@@ -275,15 +275,17 @@ export function accountRoutes(r, ctx) {
   };
 
   // Styling and profile extras, applied after insert/update.
-  function applyExtras(characterId, body, existing = {}) {
+  function applyExtras(characterId, userId, body, existing = {}) {
     const aka = str(body.aka, 'AKA line', { max: 200 }) ?? existing.aka ?? '';
     const align = oneOf(body.postAlign, 'Name position', ['left', 'right']) ?? existing.post_align ?? 'right';
     const followers = countInput(body.followersDisplay, 'Followers');
     const following = countInput(body.followingDisplay, 'Following');
     const verified = body.verified === undefined ? existing.verified ?? 0 : body.verified ? 1 : 0;
-    db.prepare('UPDATE characters SET aka = ?, post_align = ?, followers_display = ?, following_display = ?, verified = ? WHERE id = ?')
+    const banner = uploadRef(db, body.banner, userId);
+    db.prepare('UPDATE characters SET aka = ?, post_align = ?, followers_display = ?, following_display = ?, verified = ?, banner = ? WHERE id = ?')
       .run(aka, align, followers === undefined ? existing.followers_display ?? null : followers,
-        following === undefined ? existing.following_display ?? null : following, verified, characterId);
+        following === undefined ? existing.following_display ?? null : following, verified,
+        banner === undefined ? existing.banner ?? null : banner, characterId);
   }
 
   const characterFields = (body, existing = {}) => ({
@@ -303,7 +305,7 @@ export function accountRoutes(r, ctx) {
     const details = JSON.stringify(detailsInput(body.details) ?? []);
     const { lastInsertRowid } = db.prepare('INSERT INTO characters (user_id, name, tagline, bio, color, avatar, portrait, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run(user.id, f.name, f.tagline, f.bio, f.color, avatar, portrait, details);
-    applyExtras(Number(lastInsertRowid), body);
+    applyExtras(Number(lastInsertRowid), user.id, body);
     return { status: 201, data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(lastInsertRowid)) } };
   });
 
@@ -318,7 +320,7 @@ export function accountRoutes(r, ctx) {
     db.prepare('UPDATE characters SET name = ?, tagline = ?, bio = ?, color = ?, avatar = ?, portrait = ?, details = ? WHERE id = ?')
       .run(f.name, f.tagline, f.bio, f.color, avatar === undefined ? existing.avatar : avatar,
         portrait === undefined ? existing.portrait : portrait, details === undefined ? existing.details : JSON.stringify(details), existing.id);
-    applyExtras(existing.id, body, existing);
+    applyExtras(existing.id, user.id, body, existing);
     return { data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(existing.id)) } };
   });
 

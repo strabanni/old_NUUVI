@@ -31,6 +31,15 @@ function mediaHtml(p, { full = false } = {}) {
   return '';
 }
 
+// The song attached to a post, under the poster's name (like Instagram). Links open in a new tab.
+export function songLine(m) {
+  if (!m?.title) return '';
+  const label = html`${icons.music}<span class="song-t">${m.title}</span>${m.artist ? html`<span class="song-a"> · ${m.artist}</span>` : ''}`;
+  return m.url
+    ? html`<a class="song" href="${m.url}" target="_blank" rel="noopener noreferrer nofollow" title="Listen: ${m.title}${m.artist ? ` by ${m.artist}` : ''}">${label}</a>`
+    : html`<span class="song">${label}</span>`;
+}
+
 // A post as shown in the feed and on profiles.
 export function socialCard(p, { full = false } = {}) {
   const ch = p.character;
@@ -38,7 +47,11 @@ export function socialCard(p, { full = false } = {}) {
   return html`
     <article class="sm-card kind-${p.kind}" data-social="${p.id}" data-color="${ch.color}">
       <header class="sm-head">
-        <a href="#/c/${ch.id}" class="sm-who">${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })}${nameBadge(ch)}</a>
+        ${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })}
+        <div class="sm-id">
+          <a href="#/c/${ch.id}" class="sm-who">${nameBadge(ch)}</a>
+          ${songLine(p.meta.music)}
+        </div>
         <a class="sm-when" href="#/p/${p.id}">${timeAgo(p.createdAt)}</a>
         <button class="icon-btn sm sm-more" data-sm="more" aria-label="Post options">${icons.more}</button>
       </header>
@@ -64,6 +77,9 @@ export function bindSocial(root, posts, redraw) {
   root.addEventListener('click', async (e) => {
     const vn = e.target.closest('.vn-play');
     if (vn) return playVoice(vn.closest('.voice-note'));
+    // In the feed grid long captions are cut off, so tapping one opens the whole post.
+    const cut = e.target.closest('.feed-grid .sm-body');
+    if (cut && !e.target.closest('a, .spoiler')) { location.hash = `#/p/${cut.closest('[data-social]').dataset.social}`; return; }
     const b = e.target.closest('[data-sm]');
     if (!b) return;
     const card = b.closest('[data-social]');
@@ -73,7 +89,7 @@ export function bindSocial(root, posts, redraw) {
       const mine = p.userId === state.user.id;
       menu(b, [
         { label: 'Open post', action: () => { location.hash = `#/p/${p.id}`; } },
-        mine && { label: 'Edit caption', action: () => editCaption(p, redraw) },
+        mine && { label: p.meta.music ? 'Edit post or song' : 'Edit post / add a song', action: () => editCaption(p, redraw) },
         p.kind === 'stream' && mine && { label: p.meta.live === false ? 'Mark as live again' : 'End stream', action: () => updatePost(p, { meta: { ...p.meta, live: p.meta.live === false } }, redraw) },
         (mine || state.user.isAdmin) && { label: 'Delete post', danger: true, action: () => deletePost(p, card) },
       ]);
@@ -120,11 +136,34 @@ async function updatePost(p, body, redraw) {
   try { redraw((await api(`/api/social/${p.id}`, { method: 'PUT', body })).post); } catch (err) { toast(err.message); }
 }
 
+// Song fields shared by the composer and the editor.
+const songFields = (m = {}) => html`
+  <details class="song-fields" ${m.title ? 'open' : ''}>
+    <summary>${icons.music} Add a song</summary>
+    <div class="row">
+      <div><label for="s-song">Song title</label><input id="s-song" name="songTitle" maxlength="120" value="${m.title || ''}" placeholder="Ditto"></div>
+      <div><label for="s-artist">Artist</label><input id="s-artist" name="songArtist" maxlength="120" value="${m.artist || ''}" placeholder="NewJeans"></div>
+    </div>
+    <label for="s-link">Link <span class="muted small">(optional — Spotify, Apple Music, YouTube…)</span></label>
+    <input id="s-link" name="songUrl" type="url" maxlength="500" value="${m.url || ''}" placeholder="https://">
+  </details>`;
+const songFrom = (data) => {
+  const music = { title: (data.songTitle || '').trim(), artist: (data.songArtist || '').trim(), url: (data.songUrl || '').trim() };
+  return music.title || music.artist || music.url ? music : null;
+};
+
 async function editCaption(p, redraw) {
-  const res = await modal(html`<form><h2>Edit caption</h2><textarea name="body" rows="5" maxlength="5000">${p.body}</textarea>
+  const res = await modal(html`<form><h2>Edit post</h2><label for="e-body">Caption</label><textarea id="e-body" name="body" rows="5" maxlength="5000">${p.body}</textarea>
     ${p.kind === 'stream' ? html`<label>Stream title</label><input name="title" maxlength="120" value="${p.title}">` : ''}
-    <div class="error"></div><div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`);
-  if (res) updatePost(p, res, redraw);
+    ${songFields(p.meta.music)}
+    <div class="error"></div><div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, {
+    submit: async (data) => {
+      const body = { body: data.body, music: songFrom(data) };
+      if (p.kind === 'stream') body.title = data.title;
+      return (await api(`/api/social/${p.id}`, { method: 'PUT', body })).post;
+    },
+  });
+  if (res) redraw(res);
 }
 
 async function deletePost(p, card) {
@@ -159,6 +198,7 @@ export async function openSocialComposer({ characterId = null } = {}) {
       </div>
       <label for="s-body" id="s-body-label">What's happening?</label>
       <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work"></textarea>
+      ${songFields()}
       <div class="error"></div>
       <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Post</button></div>
     </form>`, {
@@ -232,6 +272,8 @@ export async function openSocialComposer({ characterId = null } = {}) {
     },
     submit: async (data) => {
       const payload = { characterId: Number(data.characterId), kind, body: data.body, media };
+      const music = songFrom(data);
+      if (music) payload.music = music;
       if (kind === 'stream') {
         payload.title = data.title;
         payload.meta = { viewers: Number(String(data.viewers || '0').replace(/[,\s]/g, '')) || 0, live: true };

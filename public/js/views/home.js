@@ -54,8 +54,8 @@ export async function viewHome() {
         <nav class="quick-tiles" aria-label="Shortcuts">
           <a class="tile" href="#/new" title="Start a story" aria-label="Start a story">${icons.plus}</a>
           <a class="tile" href="#/notifications" title="Notifications" aria-label="Notifications">${icons.bell}${state.home.notificationsUnread ? html`<span class="badge">${state.home.notificationsUnread}</span>` : ''}</a>
-          <a class="tile" href="#/feed" title="Feed" aria-label="Feed">${icons.sliders}</a>
-          <a class="tile" href="#/u/${u.id}" title="Your profile" aria-label="Your profile">${icons.users}</a>
+          <a class="tile" href="#/feed" title="Feed" aria-label="Feed">${icons.apps}</a>
+          <a class="tile" href="#/u/${u.id}" title="Your profile" aria-label="Your profile">${icons.user}</a>
           <a class="tile" href="#/settings" title="Settings" aria-label="Settings">${icons.gear}</a>
         </nav>
       </section>

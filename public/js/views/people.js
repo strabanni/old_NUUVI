@@ -121,6 +121,8 @@ export async function viewSettings() {
           <label>Text size</label>
           <div class="seg" role="group" aria-label="Text size">${[['', 'Default'], ['large', 'Large'], ['larger', 'Larger']].map(([k, label]) => html`
             <button type="button" data-text-size="${k}" aria-pressed="${(document.documentElement.dataset.text || '') === k}">${label}</button>`)}</div>
+          <p class="hint">NUUVI is pink throughout. Light and Dark keep pink just for highlights. Auto follows your device's light or dark setting.</p>
+          <p class="hint">Icons: <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer">Uicons by Flaticon</a>.</p>
         </section>
 
         <section class="card">

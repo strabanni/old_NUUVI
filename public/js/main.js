@@ -1,6 +1,6 @@
 // App shell: Discord-style chrome (story rail, sidebar, members panel, mobile drawer + tab bar),
 // routing, and the live event connection.
-import { html, raw, render, api, $, $$, store, toast, avatar, icons, menu, confirmModal } from './lib.js';
+import { html, raw, render, api, $, $$, store, toast, avatar, icons, menu, confirmModal, logoMark, wordmark } from './lib.js';
 import { viewLanding, viewReset } from './views/auth.js';
 import { viewHome, viewDiscover, viewNewStory, viewJoin } from './views/home.js';
 import { viewChannel } from './views/channel.js';
@@ -86,16 +86,19 @@ export async function refreshBlocks() {
 }
 
 // ---------- Look & feel ----------
-export const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
-const THEME_COLORS = { light: '#F5F5F5', dark: '#0E0E0F' };
+export const THEMES = [['base', 'NUUVI'], ['light', 'Light'], ['dark', 'Dark'], ['auto', 'Auto']];
+const THEME_COLORS = { base: '#F8EFEF', light: '#FFFFFF', dark: '#0E0E0F' };
+// The user bar's theme button steps through these.
+const THEME_CYCLE = { base: 'light', light: 'dark', dark: 'base' };
+const THEME_NAMES = { base: 'NUUVI pink', light: 'Light mode', dark: 'Dark mode' };
 
 export function currentThemePick() {
   const v = store.get('nuuvi:theme');
-  return v === 'light' || v === 'dark' ? v : 'auto';
+  return ['light', 'dark', 'auto'].includes(v) ? v : 'base';
 }
 
 export function applyTheme(pick = currentThemePick()) {
-  store.set('nuuvi:theme', pick === 'auto' ? null : pick);
+  store.set('nuuvi:theme', pick === 'base' ? null : pick);
   const light = window.matchMedia('(prefers-color-scheme: light)').matches;
   const theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick;
   document.documentElement.dataset.theme = theme;
@@ -124,7 +127,7 @@ const fmt = (n) => Number(n || 0).toLocaleString();
 // The Blue Hour-style user bar. Horizontal across the top on computers; on phones it runs
 // vertically down the drawer, where the story rail is.
 function userTiles({ vertical = false } = {}) {
-  const dark = document.documentElement.dataset.theme === 'dark';
+  const next = THEME_CYCLE[document.documentElement.dataset.theme] || 'light';
   const n = state.home.notificationsUnread;
   const tile = (attrs, label, icon, badge = 0) => html`
     <${raw(attrs.href ? 'a' : 'button')} class="ub-tile" ${raw(attrs.href ? `href="${attrs.href}"` : `type="button" data-ub="${attrs.act}"`)} title="${label}" aria-label="${label}">
@@ -132,12 +135,12 @@ function userTiles({ vertical = false } = {}) {
     </${raw(attrs.href ? 'a' : 'button')}>`;
   return html`
     <nav class="ub-tiles ${vertical ? 'vertical' : ''}" aria-label="Your shortcuts">
-      ${tile({ act: 'theme' }, dark ? 'Light mode' : 'Dark mode', dark ? icons.sun : icons.moon)}
-      ${tile({ href: '#/feed' }, 'Feed', icons.sliders)}
+      ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon, base: icons.sparkle }[next])}
+      ${tile({ href: '#/feed' }, 'Feed', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
-      ${tile({ href: '#/characters' }, 'Characters', icons.mask)}
-      ${tile({ href: '#/settings' }, 'Settings', icons.gear)}
-      ${tile({ act: 'logout' }, 'Sign out', icons.logout)}
+      ${tile({ href: '#/characters' }, 'Characters', icons.fingerprint)}
+      ${tile({ href: '#/settings' }, 'You & settings', icons.user)}
+      ${tile({ act: 'logout' }, 'Sign out', icons.power)}
     </nav>`;
 }
 
@@ -155,8 +158,9 @@ function renderUserbar() {
   const bar = $('#userbar');
   if (!state.user) return render(bar, html``);
   const u = state.user;
+  const crumb = $('#crumb')?.textContent || '';
   render(bar, html`
-    <div class="ub-crumb"><a href="#/home">NUUVI</a><i>···</i><span id="crumb"></span></div>
+    <div class="ub-crumb"><a href="#/home">NUUVI</a><i>···</i><span id="crumb">${crumb}</span></div>
     <div class="ub-main">
       <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'square' })}</a>
       ${welcomeText()}
@@ -175,9 +179,9 @@ function renderRail() {
       ${userTiles({ vertical: true })}
       <div class="rail-sep"></div>
     </div>
-    <button type="button" class="rail-item online-indicator ${state.online.length > 1 ? 'others' : ''}" id="online-btn"
-      title="${state.online.length} online" aria-label="${state.online.length} people online">
-      <span class="pulse"></span><b>${state.online.length || ''}</b>
+    <button type="button" class="rail-item rail-logo ${state.online.length > 1 ? 'others' : ''}" id="online-btn"
+      title="NUUVI · ${state.online.length} online" aria-label="NUUVI — ${state.online.length} people online">
+      ${logoMark}<span class="online-badge"><span class="pulse"></span>${state.online.length || ''}</span>
     </button>
     <a href="#/home" class="rail-item home-link ${!active ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
     <div class="rail-sep"></div>
@@ -235,12 +239,12 @@ function renderSidebar() {
       <a href="${href}" class="nav-link ${hash === href ? 'active' : ''}">${icon}<span>${label}</span>${badge ? html`<span class="badge">${badge}</span>` : ''}</a>`;
     render(side, html`
       ${mobileWelcome}
-      <div class="side-head"><span>NUUVI</span><span class="script muted">your stories</span></div>
+      <div class="side-head"><a href="#/home" class="side-brand" aria-label="NUUVI home">${wordmark}</a><span class="script muted">your stories</span></div>
       <div class="side-scroll">
         ${link('#/home', 'Home', icons.home)}
-        ${link('#/feed', 'Feed', icons.sliders)}
+        ${link('#/feed', 'Feed', icons.apps)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
-        ${link('#/characters', 'Characters', icons.mask)}
+        ${link('#/characters', 'Characters', icons.fingerprint)}
         ${link('#/discover', 'Discover', icons.compass)}
         ${state.user.isAdmin ? link('#/admin', 'Admin', icons.shield, state.home.reportsOpen) : ''}
         <div class="side-section"><span>Your stories</span><a href="#/new" class="icon-btn sm" title="Start a story" aria-label="Start a story">${icons.plus}</a></div>
@@ -335,7 +339,7 @@ function setupDrawer() {
     if (e.target.closest('#online-btn')) { showOnline(e.target.closest('#online-btn')); return; }
     const ub = e.target.closest('[data-ub]');
     if (ub?.dataset.ub === 'theme') {
-      applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+      applyTheme(THEME_CYCLE[document.documentElement.dataset.theme] || 'light');
       return;
     }
     if (ub?.dataset.ub === 'logout') {

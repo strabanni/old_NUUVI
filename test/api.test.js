@@ -469,6 +469,31 @@ test('character social posts: create, feed, like, comment, notifications', async
   assert.equal((await a(`/api/social?character=${star.id}`)).data.posts.length, 2);
 });
 
+test('songs on social posts and optional character banners', async () => {
+  const a = await app.signUp('music_a');
+  const c = (await a('/api/characters', { method: 'POST', body: { name: 'Singer' } })).data.character;
+  assert.equal(c.banner, null);
+  const song = { title: 'Ditto', artist: 'NewJeans', url: 'https://open.spotify.com/track/abc' };
+  const p = await a('/api/social', { method: 'POST', body: { characterId: c.id, body: 'on repeat', music: song } });
+  assert.equal(p.status, 201, JSON.stringify(p.data));
+  assert.deepEqual(p.data.post.meta.music, song);
+  for (const bad of [{ title: 'x', url: 'javascript:alert(1)' }, { artist: 'no title' }, { title: 'x', url: 'not a link' }]) {
+    assert.equal((await a('/api/social', { method: 'POST', body: { characterId: c.id, body: 'x', music: bad } })).status, 400);
+  }
+  const edited = await a(`/api/social/${p.data.post.id}`, { method: 'PUT', body: { body: 'still on repeat' } });
+  assert.deepEqual(edited.data.post.meta.music, song);
+  const cleared = await a(`/api/social/${p.data.post.id}`, { method: 'PUT', body: { music: null } });
+  assert.equal(cleared.data.post.meta.music, undefined);
+
+  const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+  const img = (await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png })).data.url;
+  const withBanner = await a(`/api/characters/${c.id}`, { method: 'PUT', body: { banner: img } });
+  assert.equal(withBanner.data.character.banner, img);
+  assert.equal((await a(`/api/characters/${c.id}`, { method: 'PUT', body: { name: 'Singer 2' } })).data.character.banner, img);
+  assert.equal((await a(`/api/characters/${c.id}`, { method: 'PUT', body: { banner: '' } })).data.character.banner, null);
+  assert.equal((await a(`/api/characters/${c.id}`, { method: 'PUT', body: { banner: '/uploads/nope.png' } })).status, 400);
+});
+
 test('stars, contact names and audio uploads with range requests', async () => {
   const a = await app.signUp('star_a');
   const { story, main } = await makeStory(a);

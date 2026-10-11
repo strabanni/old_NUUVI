@@ -1,5 +1,5 @@
 // Admin panel: reports, people, invites, stories, moderation log.
-import { html, render, api, $, $$, bindForm, toast, avatar, confirmModal, promptModal, modal, timeAgo, formatPost } from '../lib.js';
+import { html, render, api, $, $$, bindForm, toast, avatar, confirmModal, promptModal, modal, timeAgo, formatPost, icons } from '../lib.js';
 import { state, page, refreshHome, copyText, routeAlive, ensureAlive } from '../main.js';
 
 const TABS = [['reports', 'Reports'], ['users', 'People'], ['invites', 'Invites'], ['stories', 'Stories'], ['log', 'Log']];
@@ -131,7 +131,7 @@ async function invites(pane) {
         <div class="fixed"><label for="inv-days">Expires (days)</label><input id="inv-days" name="expiresDays" type="number" min="0" max="365" value="7"></div>
       </div>
       <div class="error"></div>
-      <div class="actions"><button type="submit" class="primary">Create invite link</button></div>
+      <div class="actions"><button type="submit" class="primary">${icons.userAdd} Create invite link</button></div>
     </form>
     <div class="stack">${list.map((i) => html`
       <div class="row-item wrap ${i.active ? '' : 'inactive'}" data-id="${i.id}" data-code="${i.code}">
