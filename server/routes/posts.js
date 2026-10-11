@@ -1,6 +1,5 @@
 // Posts inside channels, plus reporting posts and users.
 import { fail, str, oneOf, countWords } from '../http.js';
-import { rollDice } from '../dice.js';
 import { toPost, POST_SELECT, requireUser, channelAccess, storyAccess, membership, turnState } from '../model.js';
 
 const MAX_POST_CHARS = 30000;
@@ -30,23 +29,27 @@ export function postRoutes(r, ctx) {
     requireUser(user);
     const { channel, story, role } = channelAccess(db, params.id, user);
     if (!role) fail(403, 'Join the story to write in it');
-    const kind = oneOf(body.kind, 'Kind', ['ic', 'ooc', 'narration', 'roll']) ?? 'ic';
-    const text = str(body.body, 'Post', { min: kind === 'roll' ? 0 : 1, max: MAX_POST_CHARS, required: kind !== 'roll' }) ?? '';
+    if (!ctx.canPost(channel, role, user)) {
+      fail(403, channel.status === 'complete' ? 'This thread is complete' : 'This thread is private to the characters in it');
+    }
+    const kind = oneOf(body.kind, 'Kind', ['ic', 'ooc', 'narration']) ?? 'ic';
+    const text = str(body.body, 'Post', { min: 1, max: MAX_POST_CHARS, required: true });
     const cw = str(body.cw, 'Content warning', { max: 100 }) ?? '';
-    const roll = kind === 'roll' ? JSON.stringify(rollDice(body.dice)) : null;
 
     let characterId = null;
     if (kind === 'ic' && body.characterId == null) fail(400, 'Pick a character to write in-character');
-    if ((kind === 'ic' || kind === 'roll') && body.characterId != null) {
+    if (kind === 'ic') {
       const c = db.prepare('SELECT id FROM characters WHERE id = ? AND user_id = ?').get(Number(body.characterId), user.id);
       if (!c) fail(400, 'Choose one of your own characters');
       characterId = c.id;
     }
 
-    const { lastInsertRowid } = db.prepare(`INSERT INTO posts (story_id, channel_id, user_id, character_id, kind, body, cw, roll, word_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(story.id, channel.id, user.id, characterId, kind, text, cw, roll, countWords(text));
+    const { lastInsertRowid } = db.prepare(`INSERT INTO posts (story_id, channel_id, user_id, character_id, kind, body, cw, word_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(story.id, channel.id, user.id, characterId, kind, text, cw, countWords(text));
     const postId = Number(lastInsertRowid);
     db.prepare("UPDATE stories SET updated_at = datetime('now') WHERE id = ?").run(story.id);
+    db.prepare("UPDATE channels SET last_post_at = datetime('now') WHERE id = ?").run(channel.id);
+    if (characterId) db.prepare('INSERT OR IGNORE INTO channel_characters (channel_id, character_id) VALUES (?, ?)').run(channel.id, characterId);
     db.prepare(`INSERT INTO channel_reads (user_id, channel_id, last_read_id) VALUES (?, ?, ?)
       ON CONFLICT(user_id, channel_id) DO UPDATE SET last_read_id = excluded.last_read_id`).run(user.id, channel.id, postId);
 
@@ -64,7 +67,7 @@ export function postRoutes(r, ctx) {
     requireUser(user);
     const existing = db.prepare('SELECT * FROM posts WHERE id = ?').get(params.id);
     if (!existing || existing.user_id !== user.id) fail(404, 'Post not found');
-    const text = str(body.body, 'Post', { min: existing.kind === 'roll' ? 0 : 1, max: MAX_POST_CHARS, required: true });
+    const text = str(body.body, 'Post', { min: 1, max: MAX_POST_CHARS, required: true });
     const cw = str(body.cw, 'Content warning', { max: 100 }) ?? existing.cw;
     db.prepare("UPDATE posts SET body = ?, cw = ?, word_count = ?, edited_at = datetime('now') WHERE id = ?")
       .run(text, cw, countWords(text), existing.id);

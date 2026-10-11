@@ -9,6 +9,7 @@ import { viewCharacters, viewCharacter } from './views/characters.js';
 import { viewUser, viewSettings } from './views/people.js';
 import { viewNotifications } from './views/notifications.js';
 import { viewAdmin } from './views/admin.js';
+import { viewFeed, openThreadForm } from './views/threads.js';
 
 export const state = {
   user: null,
@@ -42,6 +43,7 @@ export function ensureAlive(alive) {
 export async function refreshHome() {
   if (!state.user) return;
   state.home = await api('/api/home');
+  renderUserbar();
   renderRail();
   renderSidebar();
   renderTabbar();
@@ -56,8 +58,13 @@ export async function loadStory(id) {
   return state.story;
 }
 
+// Cached briefly so a character made on another device shows up within a minute.
+let charactersAt = 0;
 export async function myCharacters(force = false) {
-  if (!state.characters || force) state.characters = (await api('/api/characters')).characters;
+  if (!state.characters || force || Date.now() - charactersAt > 60000) {
+    state.characters = (await api('/api/characters')).characters;
+    charactersAt = Date.now();
+  }
   return state.characters;
 }
 
@@ -67,17 +74,21 @@ export async function refreshBlocks() {
 }
 
 // ---------- Look & feel ----------
-export const THEMES = [['auto', 'Auto'], ['dusk', 'Dusk'], ['midnight', 'Midnight'], ['bluehour', 'Blue hour'], ['aurora', 'Aurora'], ['mist', 'Mist']];
-const THEME_COLORS = { dusk: '#2b2830', midnight: '#0a0a0c', bluehour: '#1e1d22', aurora: '#fbe7dc', mist: '#dcdbd8' };
+export const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
+const THEME_COLORS = { light: '#F5F5F5', dark: '#0E0E0F' };
 
-export function currentThemePick() { return store.get('nuuvi:theme') || 'auto'; }
+export function currentThemePick() {
+  const v = store.get('nuuvi:theme');
+  return v === 'light' || v === 'dark' ? v : 'auto';
+}
 
 export function applyTheme(pick = currentThemePick()) {
   store.set('nuuvi:theme', pick === 'auto' ? null : pick);
   const light = window.matchMedia('(prefers-color-scheme: light)').matches;
-  const theme = pick === 'auto' ? (light ? 'mist' : 'dusk') : pick;
+  const theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick;
   document.documentElement.dataset.theme = theme;
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', THEME_COLORS[theme]);
+  if (state.user) { renderUserbar(); renderRail(); }
 }
 
 // The blurred picture behind everything (a story's banner, a profile's portrait…).
@@ -103,14 +114,64 @@ const storyIcon = (s) => (s.icon
   ? html`<img src="${s.icon}" alt="">`
   : html`<span data-color="${s.color}">${s.title.trim().slice(0, 2)}</span>`);
 
+const fmt = (n) => Number(n || 0).toLocaleString();
+
+// The Blue Hour-style user bar. Horizontal across the top on computers; on phones it runs
+// vertically down the drawer, where the story rail is.
+function userTiles({ vertical = false } = {}) {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  const n = state.home.notificationsUnread;
+  const tile = (attrs, label, icon, badge = 0) => html`
+    <${raw(attrs.href ? 'a' : 'button')} class="ub-tile" ${raw(attrs.href ? `href="${attrs.href}"` : `type="button" data-ub="${attrs.act}"`)} title="${label}" aria-label="${label}">
+      ${icon}${badge ? html`<span class="badge">${badge}</span>` : ''}
+    </${raw(attrs.href ? 'a' : 'button')}>`;
+  return html`
+    <nav class="ub-tiles ${vertical ? 'vertical' : ''}" aria-label="Your shortcuts">
+      ${tile({ act: 'theme' }, dark ? 'Light mode' : 'Dark mode', dark ? icons.sun : icons.moon)}
+      ${tile({ href: '#/feed' }, 'Feed', icons.sliders)}
+      ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
+      ${tile({ href: '#/characters' }, 'Characters', icons.mask)}
+      ${tile({ href: '#/settings' }, 'Settings', icons.gear)}
+      ${tile({ act: 'logout' }, 'Sign out', icons.logout)}
+    </nav>`;
+}
+
+function welcomeText() {
+  const u = state.user;
+  const st = state.home.stats || {};
+  return html`
+    <div class="ub-text">
+      <h2>Welcome back, <span class="grad-text">${u.displayName}</span></h2>
+      <p>You have <b>${fmt(st.posts)}</b> posts and <b>${fmt(st.characters)}</b> characters</p>
+    </div>`;
+}
+
+function renderUserbar() {
+  const bar = $('#userbar');
+  if (!state.user) return render(bar, html``);
+  const u = state.user;
+  render(bar, html`
+    <div class="ub-crumb"><a href="#/home">NUUVI</a><i>···</i><span id="crumb"></span></div>
+    <div class="ub-main">
+      <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'square' })}</a>
+      ${welcomeText()}
+      ${userTiles()}
+    </div>`);
+}
+
 function renderRail() {
   const rail = $('#rail');
   if (!state.user) return render(rail, html``);
   const active = state.route.storyId;
+  const u = state.user;
   render(rail, html`
+    <div class="rail-user only-mobile">
+      <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'square' })}</a>
+      ${userTiles({ vertical: true })}
+      <div class="rail-sep"></div>
+    </div>
     <a href="#/home" class="rail-item home ${!active ? 'active' : ''}" title="Home" aria-label="Home">
       <img src="/icon.svg" alt="">
-      ${state.home.notificationsUnread ? html`<span class="badge">${state.home.notificationsUnread}</span>` : ''}
     </a>
     <div class="rail-sep"></div>
     ${state.home.stories.map((s) => html`
@@ -122,24 +183,19 @@ function renderRail() {
     <a href="#/discover" class="rail-item action" title="Discover stories" aria-label="Discover stories">${icons.compass}</a>`);
 }
 
-function userPanel() {
-  const u = state.user;
-  return html`
-    <footer class="user-panel">
-      <a href="#/u/${u.id}" class="me">${avatar({ name: u.displayName, src: u.avatar, color: '#7c5cff' })}
-        <span><strong>${u.displayName}</strong><small>@${u.username}</small></span></a>
-      <a href="#/settings" class="icon-btn" title="Settings" aria-label="Settings">${icons.gear}</a>
-    </footer>`;
-}
+export const KIND_LABELS = { thread: 'Threads', comms: 'Comms', event: 'Events', ooc: 'Out of character' };
+export const kindIcon = (kind) => ({ thread: icons.quill, comms: icons.chat, event: icons.calendar, ooc: icons.hash })[kind] || icons.hash;
 
 function renderSidebar() {
   const side = $('#sidebar');
   if (!state.user) return render(side, html``);
   const hash = location.hash || '#/';
   const s = state.story;
+  const mobileWelcome = html`<div class="side-welcome only-mobile">${welcomeText()}</div>`;
   if (state.route.storyId && s && s.story.id === state.route.storyId) {
-    const isOwner = s.role === 'owner';
+    const groups = ['thread', 'comms', 'event', 'ooc'].map((k) => [k, s.channels.filter((c) => c.kind === k)]).filter(([, list]) => list.length);
     render(side, html`
+      ${mobileWelcome}
       <button class="side-head story-head-btn ${s.story.banner ? 'has-banner' : ''}" id="story-menu">
         ${s.story.banner ? html`<img src="${s.story.banner}" alt="">` : ''}
         <span>${s.story.title}</span>${icons.chevron}
@@ -148,44 +204,45 @@ function renderSidebar() {
         ${!s.role ? html`<div class="join-hint">
             <p>You're reading as a guest.</p>
             ${s.story.status === 'open' ? html`<button class="primary block" id="side-join">Join this story</button>` : html`<p class="muted small">Closed to new writers.</p>`}
-          </div>` : ''}
-        <div class="side-section">
-          <span>Channels</span>
-          ${isOwner ? html`<a href="#/s/${s.story.id}/settings" class="icon-btn sm" title="Add or edit channels" aria-label="Add or edit channels">${icons.plus}</a>` : ''}
-        </div>
-        ${s.channels.map((c) => {
-          const myTurn = c.turns.enabled && c.turns.current === state.user.id;
-          return html`
-          <a href="#/s/${s.story.id}/${c.id}" class="chan ${state.route.channelId === c.id ? 'active' : ''} ${c.unread ? 'unread' : ''}">
-            <span class="hash">${icons.hash}</span><span class="name">${c.name}</span>
-            ${myTurn ? html`<span class="turn-dot" title="Your turn">${icons.hourglass}</span>` : ''}
-            ${c.mentions ? html`<span class="badge">${c.mentions}</span>` : ''}
-          </a>`;
-        })}
-      </div>
-      ${userPanel()}`);
+          </div>` : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New thread</button>`}
+        ${groups.map(([kind, list]) => html`
+          <div class="side-section"><span>${KIND_LABELS[kind]}</span></div>
+          ${list.map((c) => {
+            const myTurn = c.turns.enabled && c.turns.current === state.user.id;
+            return html`
+            <a href="#/s/${s.story.id}/${c.id}" class="chan ${state.route.channelId === c.id ? 'active' : ''} ${c.unread ? 'unread' : ''} status-${c.status}">
+              <span class="hash">${kindIcon(c.kind)}</span><span class="name">${c.name}</span>
+              ${c.kind !== 'ooc' && c.status !== 'open' ? html`<span class="chan-status" title="${c.status === 'closed' ? 'Private thread' : 'Complete'}">${c.status === 'closed' ? icons.lock : icons.check}</span>` : ''}
+              ${myTurn ? html`<span class="turn-dot" title="Your turn">${icons.hourglass}</span>` : ''}
+              ${c.mentions ? html`<span class="badge">${c.mentions}</span>` : ''}
+            </a>`;
+          })}`)}
+      </div>`);
     $('#story-menu').addEventListener('click', (e) => storyMenu(e.currentTarget));
     $('#side-join')?.addEventListener('click', joinCurrentStory);
+    $('#new-thread')?.addEventListener('click', async () => {
+      openThreadForm({ storyId: s.story.id });
+    });
   } else {
     const link = (href, label, icon, badge = 0) => html`
       <a href="${href}" class="nav-link ${hash === href ? 'active' : ''}">${icon}<span>${label}</span>${badge ? html`<span class="badge">${badge}</span>` : ''}</a>`;
     render(side, html`
+      ${mobileWelcome}
       <div class="side-head"><span>NUUVI</span><span class="script muted">your stories</span></div>
       <div class="side-scroll">
         ${link('#/home', 'Home', icons.home)}
+        ${link('#/feed', 'Feed', icons.sliders)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
-        ${link('#/discover', 'Discover', icons.compass)}
         ${link('#/characters', 'Characters', icons.mask)}
+        ${link('#/discover', 'Discover', icons.compass)}
         ${state.user.isAdmin ? link('#/admin', 'Admin', icons.shield, state.home.reportsOpen) : ''}
-        ${link('#/settings', 'Settings', icons.gear)}
         <div class="side-section"><span>Your stories</span><a href="#/new" class="icon-btn sm" title="Start a story" aria-label="Start a story">${icons.plus}</a></div>
         ${state.home.stories.length ? state.home.stories.map((st) => html`
           <a href="#/s/${st.id}" class="nav-link story-link ${st.unread ? 'unread' : ''}">
             <span class="mini-icon">${storyIcon(st)}</span><span>${st.title}</span>
             ${st.mentions ? html`<span class="badge">${st.mentions}</span>` : ''}
           </a>`) : html`<p class="muted small pad">No stories yet.</p>`}
-      </div>
-      ${userPanel()}`);
+      </div>`);
   }
 }
 
@@ -215,9 +272,10 @@ function renderTabbar() {
     <a href="${href}" class="${hash.startsWith(match) ? 'active' : ''}">${icon}<span>${label}</span>${badge ? html`<span class="badge">${badge}</span>` : ''}</a>`;
   render(bar, html`
     ${tab('#/home', 'Home', icons.home)}
+    ${tab('#/feed', 'Feed', icons.sliders)}
     ${tab('#/notifications', 'Alerts', icons.bell, state.home.notificationsUnread)}
     ${tab('#/characters', 'Characters', icons.mask)}
-    ${tab('#/settings', 'You', avatar({ name: state.user.displayName, src: state.user.avatar, color: '#7c5cff', size: 'xs' }))}`);
+    ${tab(`#/u/${state.user.id}`, 'You', avatar({ name: state.user.displayName, src: state.user.avatar, color: '#F8769C', size: 'xs' }))}`);
 }
 
 async function joinCurrentStory() {
@@ -272,13 +330,27 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
       <div class="head-actions">${actions}${state.route.storyId ? html`<button class="icon-btn" data-members aria-label="Members" title="Members">${icons.users}</button>` : ''}</div>
     </header>
     <div class="main-body ${className}">${body}</div>`);
+  const crumb = $('#crumb');
+  if (crumb) crumb.textContent = $('.head-title h1', main)?.textContent.trim() || '';
   return $('.main-body', main);
 }
 
 // ---------- Mobile drawer ----------
 const closeDrawers = () => document.body.classList.remove('drawer-open', 'members-open');
 function setupDrawer() {
-  document.addEventListener('click', (e) => {
+  document.addEventListener('click', async (e) => {
+    const ub = e.target.closest('[data-ub]');
+    if (ub?.dataset.ub === 'theme') {
+      applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+      return;
+    }
+    if (ub?.dataset.ub === 'logout') {
+      if (!(await confirmModal('Sign out of NUUVI on this device?', { ok: 'Sign out' }))) return;
+      await api('/api/auth/logout', { method: 'POST', body: {} });
+      closeDrawers();
+      signedOut();
+      return;
+    }
     if (e.target.closest('[data-drawer]')) { document.body.classList.add('drawer-open'); return; }
     if (e.target.closest('[data-members]')) {
       const wide = window.matchMedia('(min-width: 1200px)').matches;
@@ -387,6 +459,7 @@ const routes = [
   [/^#\/reset\/([\w-]+)$/, (token) => viewReset(token)],
   [/^#\/home$/, viewHome, true],
   [/^#\/discover$/, viewDiscover],
+  [/^#\/feed$/, viewFeed, true],
   [/^#\/new$/, viewNewStory, true],
   [/^#\/notifications$/, viewNotifications, true],
   [/^#\/characters$/, viewCharacters, true],
@@ -412,6 +485,7 @@ export async function router() {
   setAmbient(state.route.storyId && state.story ? state.story.story.banner || state.story.story.icon : null);
 
   document.body.classList.toggle('guest', !state.user);
+  renderUserbar();
   document.body.classList.toggle('in-channel', !!state.route.channelId);
   document.body.classList.remove('members-open');
   renderRail();

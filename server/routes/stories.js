@@ -8,7 +8,7 @@ import {
 } from '../model.js';
 
 const inviteCode = () => randomBytes(6).toString('base64url');
-const STORY_COLORS = ['#7c5cff', '#e0559b', '#2fa8a0', '#d9822b', '#4a8be0', '#c94f4f', '#5aa65a', '#9a6ad6'];
+const STORY_COLORS = ['#F8769C', '#e0628c', '#c96f8f', '#d98aa5', '#f2a7c0', '#48484A', '#6e6c6d', '#8f8d8e'];
 
 function warnings(value) {
   if (value === undefined) return undefined;
@@ -107,9 +107,10 @@ export function storyRoutes(r, ctx) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(user.id, title, fields.summary, fields.genre, fields.rating, fields.cw, fields.visibility, fields.color, fields.icon, fields.banner, inviteCode()).lastInsertRowid);
       db.prepare("INSERT INTO story_members (story_id, user_id, role) VALUES (?, ?, 'owner')").run(sid, user.id);
-      const ins = db.prepare('INSERT INTO channels (story_id, name, topic, position) VALUES (?, ?, ?, ?)');
-      ins.run(sid, 'main-story', 'The story itself — write in character here.', 0);
-      ins.run(sid, 'ooc-chat', 'Out-of-character planning and chatter.', 1);
+      const ins = db.prepare(`INSERT INTO channels (story_id, name, topic, position, kind, created_by, last_post_at)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`);
+      ins.run(sid, 'main-story', 'The story itself — write in character here.', 0, 'thread', user.id);
+      ins.run(sid, 'ooc-chat', 'Out-of-character planning and chatter.', 1, 'ooc', user.id);
       return sid;
     });
     const story = toStory(db.prepare(`${STORY_SELECT} WHERE s.id = ?`).get(storyId));
@@ -216,51 +217,6 @@ export function storyRoutes(r, ctx) {
   });
 
   // ---------- Channels ----------
-  r.post('/api/stories/:id/channels', ({ user, body, params }) => {
-    requireUser(user);
-    const { row, role } = storyAccess(db, params.id, user);
-    requireOwner(role, user);
-    if (db.prepare('SELECT COUNT(*) AS n FROM channels WHERE story_id = ?').get(row.id).n >= 50) fail(400, 'A story can have at most 50 channels');
-    const name = str(body.name, 'Channel name', { min: 1, max: 40, required: true });
-    const topic = str(body.topic, 'Topic', { max: 300 }) ?? '';
-    const position = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM channels WHERE story_id = ?').get(row.id).p;
-    const { lastInsertRowid } = db.prepare('INSERT INTO channels (story_id, name, topic, position) VALUES (?, ?, ?, ?)').run(row.id, name, topic, position);
-    storyChanged(row.id);
-    return { status: 201, data: { channel: toChannel(db.prepare('SELECT * FROM channels WHERE id = ?').get(lastInsertRowid)) } };
-  });
-
-  r.put('/api/channels/:id', ({ user, body, params }) => {
-    requireUser(user);
-    const { channel, role } = channelAccess(db, params.id, user);
-    requireOwner(role, user);
-    const name = str(body.name, 'Channel name', { min: 1, max: 40 }) ?? channel.name;
-    const topic = str(body.topic, 'Topic', { max: 300 }) ?? channel.topic;
-    let position = channel.position;
-    if (body.move === 'up' || body.move === 'down') {
-      const neighbour = db.prepare(`SELECT * FROM channels WHERE story_id = ? AND position ${body.move === 'up' ? '<' : '>'} ?
-        ORDER BY position ${body.move === 'up' ? 'DESC' : 'ASC'} LIMIT 1`).get(channel.story_id, channel.position);
-      if (neighbour) {
-        db.prepare('UPDATE channels SET position = ? WHERE id = ?').run(channel.position, neighbour.id);
-        position = neighbour.position;
-      }
-    }
-    db.prepare('UPDATE channels SET name = ?, topic = ?, position = ? WHERE id = ?').run(name, topic, position, channel.id);
-    storyChanged(channel.story_id);
-    return { data: { channel: toChannel(db.prepare('SELECT * FROM channels WHERE id = ?').get(channel.id)) } };
-  });
-
-  r.delete('/api/channels/:id', ({ user, params }) => {
-    requireUser(user);
-    const { channel, role } = channelAccess(db, params.id, user);
-    requireOwner(role, user);
-    if (db.prepare('SELECT COUNT(*) AS n FROM channels WHERE story_id = ?').get(channel.story_id).n <= 1) {
-      fail(400, 'A story needs at least one channel');
-    }
-    db.prepare('DELETE FROM channels WHERE id = ?').run(channel.id);
-    storyChanged(channel.story_id);
-    return { data: { ok: true } };
-  });
-
   r.post('/api/channels/:id/read', ({ user, body, params }) => {
     requireUser(user);
     const { channel, role } = channelAccess(db, params.id, user);

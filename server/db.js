@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -202,6 +202,55 @@ const MIGRATIONS = [
    ALTER TABLE characters ADD COLUMN details TEXT NOT NULL DEFAULT '[]';
    ALTER TABLE characters ADD COLUMN portrait TEXT;
    ALTER TABLE stories ADD COLUMN banner TEXT;`,
+  // v3: channels become typed threads (thread / comms / event / ooc), character follows,
+  // tagged thread participants, and more notification types.
+  `ALTER TABLE channels ADD COLUMN kind TEXT NOT NULL DEFAULT 'thread';
+   ALTER TABLE channels ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+   ALTER TABLE channels ADD COLUMN summary TEXT NOT NULL DEFAULT '';
+   ALTER TABLE channels ADD COLUMN tags TEXT NOT NULL DEFAULT '';
+   ALTER TABLE channels ADD COLUMN event_at TEXT;
+   ALTER TABLE channels ADD COLUMN created_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+   ALTER TABLE channels ADD COLUMN starter_character_id INTEGER REFERENCES characters(id) ON DELETE SET NULL;
+   ALTER TABLE channels ADD COLUMN last_post_at TEXT;
+   UPDATE channels SET kind = 'ooc' WHERE name LIKE '%ooc%';
+   UPDATE channels SET last_post_at = (SELECT MAX(created_at) FROM posts p WHERE p.channel_id = channels.id);
+   UPDATE channels SET created_by = (SELECT owner_id FROM stories s WHERE s.id = channels.story_id);
+
+   CREATE TABLE channel_characters (
+     channel_id   INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     PRIMARY KEY (channel_id, character_id)
+   );
+   INSERT OR IGNORE INTO channel_characters (channel_id, character_id)
+     SELECT DISTINCT channel_id, character_id FROM posts WHERE character_id IS NOT NULL;
+
+   CREATE TABLE character_follows (
+     follower_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     followed_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (follower_id, followed_id)
+   );
+   CREATE INDEX follows_followed_idx ON character_follows(followed_id);
+
+   CREATE TABLE notifications_v3 (
+     id         INTEGER PRIMARY KEY,
+     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     type       TEXT NOT NULL CHECK (type IN ('post', 'mention', 'turn', 'report', 'follow', 'tag')),
+     actor_id   INTEGER REFERENCES users(id) ON DELETE CASCADE,
+     story_id   INTEGER REFERENCES stories(id) ON DELETE CASCADE,
+     channel_id INTEGER REFERENCES channels(id) ON DELETE CASCADE,
+     post_id    INTEGER REFERENCES posts(id) ON DELETE SET NULL,
+     character_id INTEGER REFERENCES characters(id) ON DELETE CASCADE,
+     count      INTEGER NOT NULL DEFAULT 1,
+     text       TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+     read_at    TEXT
+   );
+   INSERT INTO notifications_v3 (id, user_id, type, actor_id, story_id, channel_id, post_id, count, text, created_at, read_at)
+     SELECT id, user_id, type, actor_id, story_id, channel_id, post_id, count, text, created_at, read_at FROM notifications;
+   DROP TABLE notifications;
+   ALTER TABLE notifications_v3 RENAME TO notifications;
+   CREATE INDEX notifications_user_idx ON notifications(user_id, id);`,
 ];
 
 export function openDb(path) {

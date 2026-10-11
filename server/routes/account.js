@@ -235,28 +235,16 @@ export function accountRoutes(r, ctx) {
   // ---------- Characters ----------
   r.get('/api/characters', ({ user }) => {
     requireUser(user);
-    const rows = db.prepare('SELECT * FROM characters WHERE user_id = ? ORDER BY name COLLATE NOCASE').all(user.id);
-    return { data: { characters: rows.map(toCharacter) } };
-  });
-
-  r.get('/api/characters/:id', ({ params }) => {
-    const row = db.prepare('SELECT c.*, u.username, u.display_name, u.avatar AS user_avatar FROM characters c JOIN users u ON u.id = c.user_id WHERE c.id = ?').get(params.id);
-    if (!row) fail(404, 'Character not found');
-    return {
-      data: {
-        character: {
-          ...toCharacter(row),
-          owner: { id: row.user_id, username: row.username, displayName: row.display_name, avatar: row.user_avatar },
-        },
-      },
-    };
+    const rows = db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id) AS followers
+      FROM characters c WHERE c.user_id = ? ORDER BY c.name COLLATE NOCASE`).all(user.id);
+    return { data: { characters: rows.map((c) => ({ ...toCharacter(c), followers: c.followers })) } };
   });
 
   const characterFields = (body, existing = {}) => ({
     name: str(body.name, 'Name', { min: 1, max: 60, required: !existing.name }) ?? existing.name,
     tagline: str(body.tagline, 'Tagline', { max: 140 }) ?? existing.tagline ?? '',
     bio: str(body.bio, 'Bio', { max: 20000 }) ?? existing.bio ?? '',
-    color: color(body.color) ?? existing.color ?? '#7c5cff',
+    color: color(body.color) ?? existing.color ?? '#F8769C',
   });
 
   r.post('/api/characters', ({ user, body }) => {

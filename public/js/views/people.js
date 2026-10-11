@@ -32,7 +32,7 @@ export async function viewUser(id) {
       <section class="profile-hero ${u.banner ? '' : 'no-img'}">
         ${u.banner ? html`<img class="hero-img" src="${u.banner}" alt="">` : ''}
         <div class="hero-row">
-          ${avatar({ name: u.displayName, src: u.avatar, color: '#9b7bff', size: 'xxl square' })}
+          ${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'xxl square' })}
           <div>
             <h1 class="big-name">${u.displayName}</h1>
             <div class="handle">@${u.username} · joined ${timeAgo(u.joinedAt)}
@@ -125,7 +125,7 @@ export async function viewSettings() {
           <h2>Profile</h2>
           <form id="profile">
             <div class="char-pic-row">
-              <div id="me-pic">${avatar({ name: u.displayName, src: u.avatar, color: '#9b7bff', size: 'xl square' })}</div>
+              <div id="me-pic">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'xl square' })}</div>
               <div class="stack">
                 <label class="btn sm file-btn">Profile picture<input type="file" accept="image/*" id="me-file" hidden></label>
                 <label class="btn sm file-btn">Banner<input type="file" accept="image/*" id="banner-file" hidden></label>

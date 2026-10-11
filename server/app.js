@@ -13,6 +13,8 @@ import { accountRoutes } from './routes/account.js';
 import { storyRoutes } from './routes/stories.js';
 import { postRoutes } from './routes/posts.js';
 import { adminRoutes } from './routes/admin.js';
+import { threadRoutes } from './routes/threads.js';
+import { socialRoutes } from './routes/social.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 const MAX_JSON_BYTES = 256 * 1024;
@@ -102,17 +104,18 @@ export function createApp({
     story: row.story_id ? { id: row.story_id, title: row.story_title } : null,
     channel: row.channel_id ? { id: row.channel_id, name: row.channel_name } : null,
     postId: row.post_id,
-    url: row.type === 'report' ? '#/admin' : row.story_id && row.channel_id ? `#/s/${row.story_id}/${row.channel_id}` : '#/notifications',
+    characterId: row.character_id ?? null,
+    url: row.type === 'report' ? '#/admin' : row.type === 'follow' && row.character_id ? `#/c/${row.character_id}`
+      : row.story_id && row.channel_id ? `#/s/${row.story_id}/${row.channel_id}` : '#/notifications',
   });
 
   const snippet = (post) => {
     if (post.cw) return `CW: ${post.cw}`;
-    if (post.roll) return `🎲 ${post.roll.expr} → ${post.roll.total}${post.body ? ` — ${post.body}` : ''}`;
     const text = post.body.replace(/[*_~`>]/g, '').replace(/\s+/g, ' ').trim();
     return text.length > 140 ? text.slice(0, 139) + '…' : text;
   };
 
-  function createNotification({ userId, type, actorId = null, storyId = null, channelId = null, postId = null, text = '' }) {
+  function createNotification({ userId, type, actorId = null, storyId = null, channelId = null, postId = null, characterId = null, text = '' }) {
     let notificationId;
     const existing = type === 'post' && db.prepare(`SELECT id FROM notifications
       WHERE user_id = ? AND type = 'post' AND channel_id = ? AND read_at IS NULL`).get(userId, channelId);
@@ -121,8 +124,8 @@ export function createApp({
         .run(actorId, postId, text, existing.id);
       notificationId = existing.id;
     } else {
-      notificationId = Number(db.prepare(`INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, text)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`).run(userId, type, actorId, storyId, channelId, postId, text).lastInsertRowid);
+      notificationId = Number(db.prepare(`INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, character_id, text)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(userId, type, actorId, storyId, channelId, postId, characterId, text).lastInsertRowid);
     }
     const n = ctx.toNotification(db.prepare(`
       SELECT n.*, a.username AS a_username, a.display_name AS a_display_name, a.avatar AS a_avatar, a.id AS a_id,
@@ -141,9 +144,13 @@ export function createApp({
       mention: () => ({ title: `${n.actor?.displayName} mentioned you`, body: `${where} · ${n.story?.title}: ${text}` }),
       turn: () => ({ title: `Your turn in ${n.story?.title}`, body: `${where}${text ? ` — ${text}` : ''}` }),
       report: () => ({ title: 'New report', body: text }),
+      follow: () => ({ title: 'New follower', body: text }),
+      tag: () => ({ title: `${n.actor?.displayName} tagged you in a thread`, body: `${where} · ${n.story?.title}` }),
     }[type]();
     ctx.pusher.send(userId, { ...push, url: `/${n.url}`, tag: n.channel ? `channel-${n.channel.id}` : `n-${n.id}` });
   }
+
+  ctx.notify = createNotification;
 
   ctx.notifyPost = (post, story, channel) => {
     const members = db.prepare(`SELECT m.user_id, m.notify, u.username FROM story_members m JOIN users u ON u.id = m.user_id
@@ -201,6 +208,8 @@ export function createApp({
   storyRoutes(router, ctx);
   postRoutes(router, ctx);
   adminRoutes(router, ctx);
+  threadRoutes(router, ctx);
+  socialRoutes(router, ctx);
 
   // ---------- Live updates ----------
   function handleEvents(req, res, user, query) {

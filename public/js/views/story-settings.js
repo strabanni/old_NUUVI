@@ -2,6 +2,7 @@
 import { html, render, api, $, bindForm, toast, avatar, icons, confirmModal, promptModal } from '../lib.js';
 import { state, page, loadStory, refreshHome, copyText, routeAlive, ensureAlive } from '../main.js';
 import { storyFields, bindIconUpload } from './home.js';
+import { openThreadForm } from './threads.js';
 
 export async function viewStorySettings(idStr) {
   const alive = routeAlive();
@@ -34,10 +35,10 @@ export async function viewStorySettings(idStr) {
         </section>
 
         <section class="card">
-          <h2>Channels</h2>
+          <h2>Threads & channels</h2>
           <p class="muted small">Use channels for chapters, locations or side scenes — like channels in a Discord server.</p>
           <div id="channels" class="stack"></div>
-          <div class="actions"><button id="add-channel">${icons.plus} Add channel</button></div>
+          <div class="actions"><button id="add-channel">${icons.plus} New thread or channel</button></div>
         </section>
 
         <section class="card">
@@ -100,10 +101,8 @@ export async function viewStorySettings(idStr) {
       if (btn.dataset.act === 'up' || btn.dataset.act === 'down') {
         await api(`/api/channels/${cid}`, { method: 'PUT', body: { move: btn.dataset.act } });
       } else if (btn.dataset.act === 'edit') {
-        const name = await promptModal('Rename channel', { label: 'Name', value: c.name, maxlength: 40 });
-        if (name === null) return;
-        const topic = await promptModal('Channel topic', { label: 'Shown under the channel name', value: c.topic, maxlength: 300, multiline: true, required: false });
-        await api(`/api/channels/${cid}`, { method: 'PUT', body: { name, topic: topic ?? c.topic } });
+        const { participants } = await api(`/api/channels/${cid}`);
+        if (!(await openThreadForm({ storyId: id, channel: { ...c, participantIds: participants.map((x) => x.id) } }))) return;
       } else if (btn.dataset.act === 'delete') {
         if (!(await confirmModal(`Delete #${c.name} and all of its posts?`, { ok: 'Delete', danger: true }))) return;
         await api(`/api/channels/${cid}`, { method: 'DELETE' });
@@ -113,16 +112,7 @@ export async function viewStorySettings(idStr) {
       drawTurnChannels();
     } catch (err) { toast(err.message); }
   });
-  $('#add-channel', body).addEventListener('click', async () => {
-    const name = await promptModal('New channel', { label: 'Name', placeholder: 'chapter-2', maxlength: 40, ok: 'Create' });
-    if (!name) return;
-    try {
-      await api(`/api/stories/${id}/channels`, { method: 'POST', body: { name } });
-      await loadStory(id);
-      drawChannels();
-      drawTurnChannels();
-    } catch (err) { toast(err.message); }
-  });
+  $('#add-channel', body).addEventListener('click', () => openThreadForm({ storyId: id }));
 
   // ----- Turn order -----
   const turnSelect = $('#turn-channel', body);

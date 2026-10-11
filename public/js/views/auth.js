@@ -13,7 +13,7 @@ export async function viewLanding({ invite = '' } = {}) {
         <img src="/icon.svg" alt="" width="64" height="64">
         <div class="script">hola, storytellers</div>
         <h1>Write <span>together</span></h1>
-        <p>A private home for your roleplay group. Characters, scenes and long-form posts — without handing your data to anyone else.</p>
+        <p>A private home for your roleplay group. Characters, threads and long-form posts — without handing your data to anyone else.</p>
       </section>
       <section class="card auth">
         ${status.firstUser ? html`<p class="notice">Welcome! This is a brand-new NUUVI. The first account you create becomes the <strong>admin</strong> account.</p>` : ''}
@@ -40,7 +40,7 @@ export async function viewLanding({ invite = '' } = {}) {
       <section class="features">
         <div><h3>Stories & scenes</h3><p>Each story gets its own channels, like a server — one for the scene, one for OOC chat, add as many as you like.</p></div>
         <div><h3>Characters</h3><p>Pictures, colors, bios. Post as any of them, or as the narrator.</p></div>
-        <div><h3>Turns & dice</h3><p>Optional turn order with "your turn" alerts, and server-rolled dice nobody can fudge.</p></div>
+        <div><h3>Threads & feed</h3><p>Open and private threads, comms and events — all in one feed, tagged and easy to find.</p></div>
       </section>
     </div>`);
 

@@ -8,6 +8,8 @@ function describe(n) {
     case 'mention': return html`<strong>${n.actor?.displayName}</strong> mentioned you in ${where}`;
     case 'turn': return html`It's your turn in ${where}`;
     case 'report': return html`${n.text}`;
+    case 'follow': return html`<strong>${n.text}</strong>`;
+    case 'tag': return html`<strong>${n.actor?.displayName}</strong> tagged your character in ${where}`;
     default: return n.text;
   }
 }
@@ -25,7 +27,7 @@ export async function viewNotifications() {
             <span class="notif-icon">${n.type === 'turn' ? icons.hourglass : n.type === 'report' ? icons.shield : avatar({ name: n.actor?.displayName, src: n.actor?.avatar })}</span>
             <span class="grow">
               <span>${describe(n)}</span>
-              ${n.text && n.type !== 'report' ? html`<span class="notif-text">${n.text}</span>` : ''}
+              ${n.text && !['report', 'follow', 'tag'].includes(n.type) ? html`<span class="notif-text">${n.text}</span>` : ''}
               <span class="small muted">${timeAgo(n.createdAt)}</span>
             </span>
           </a>`)}</div>`

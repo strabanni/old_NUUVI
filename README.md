@@ -19,7 +19,6 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
   - `"dialogue"`
   - `> quotes`
   - `@mentions`
-- Dice: the 🎲 button, or type `/roll 2d6+3 what for`. The server rolls the dice, so nobody can fudge a result.
 - Content warnings on stories (readers confirm before entering) and on single posts (tap to reveal).
 - Drafts save automatically per channel, and word counts show as you type. Ctrl/⌘+Enter posts.
 - Turn order per channel. Whoever's turn it is gets notified, and posting in character passes the turn on. The writer whose turn it is can pass, and the owner can skip.
@@ -36,13 +35,28 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
 - Per-story notification level: every post, mentions and turns only, or nothing.
 
 **Look and feel**
-- Frosted-glass panels over a soft gradient backdrop. Inside a story, its banner shows blurred behind everything; on profiles, the person's banner or character portrait does.
-- Five themes, chosen per device under **Settings → Appearance**: Dusk, Midnight, Blue Hour, Aurora and Mist. **Auto** follows the device's light or dark mode.
-- Story posts are glass cards, and OOC chat shows as message bubbles, with your own on the right.
-- Profiles:
-  - **People:** banner, stats, pronouns, time zone, activity, plot status, writing-style meters, "looking for", and limits.
-  - **Characters:** a large portrait, custom details (age, face claim and so on), and a biography.
-- Fonts: [Poppins](https://fonts.google.com/specimen/Poppins) and [Instrument Serif](https://fonts.google.com/specimen/Instrument+Serif), bundled in `public/fonts` under the SIL Open Font License.
+- NUUVI's own palette: Pompadour `#F8769C` and Mimi Pink `#FFDBED`.
+  - **Light mode:** `#F5F5F5` / `#B0AEAE`.
+  - **Dark mode:** `#48484A` / `#0E0E0F`.
+  - **Auto:** follows the device.
+- The device's own sans-serif font (San Francisco on iPhone and Mac). No web fonts are downloaded.
+- **User bar (Blue Hour style):**
+  - **Computer:** across the top.
+  - **Phone:** runs vertically down the slide-out drawer.
+  - **Shows:** your avatar, "Welcome back", your stats, and shortcuts (light/dark, feed, alerts, characters, settings, sign out).
+- **Threads:** forum-style posts with the character's name, "aka" line, avatar, quote button, and "for …" footer. Comms and OOC channels read like text messages.
+- **Character profiles:** a big portrait, follow button, following/followers/active-thread counts, details, biography, and their threads.
+
+**Threads & feed**
+- Each story's channels are typed: **thread**, **comms** (texts and socials), **event** (with a date) and **OOC**.
+- Any writer can start a thread or comms. Story owners make events and OOC channels.
+- **Threads can be:**
+  - **Open:** anyone in the story can write.
+  - **Private:** only the tagged characters can write.
+  - **Complete:** read-only.
+- **A thread can have:** a starring character, tagged characters (who get notified), a plot summary and tags.
+- **The feed lists every thread you can see**, grouped by day. Filters: open threads, my threads, threads, comms, events and OOC. You can also search.
+- Characters follow other characters, and their owners get notified.
 
 **Safety and privacy**
 - **Invite-only sign-up.** The first account becomes the admin. Everyone after that needs an invite code from an admin.
@@ -124,10 +138,9 @@ npm run admin -- invite "note"           # print an invite code
 server/
   index.js          starts the server (reads environment variables)
   app.js            HTTP server, live updates (Server-Sent Events), notifications, file serving
-  routes/           account.js · stories.js · posts.js · admin.js
+  routes/           account.js · stories.js · threads.js · social.js · posts.js · admin.js
   model.js          database row mapping and access checks
   push.js           Web Push encryption and signing (no third-party packages)
-  dice.js           dice parser and roller
   db.js             SQLite schema
   admin-cli.js      command-line admin tools
 public/

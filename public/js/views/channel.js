@@ -1,9 +1,12 @@
 // A channel inside a story: the post feed, turn order bar and composer.
 import {
-  html, render, applyColors, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
+  html, raw, render, applyColors, api, $, store, toast, avatar, icons, menu, confirmModal, promptModal,
   formatPost, timeStamp, minutesBetween, words, bindForm,
 } from '../lib.js';
-import { state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive } from '../main.js';
+import {
+  state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon,
+} from '../main.js';
+import { statusPill, openThreadForm } from './threads.js';
 
 const nameOf = (u) => u?.displayName ?? 'someone';
 
@@ -61,7 +64,13 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const role = s.role;
   const characters = role ? await myCharacters() : [];
   const unreadAtOpen = channel().unread;
-  const { posts: initial, hasMore: initialMore } = await api(`/api/channels/${channelId}/posts`);
+  const [{ posts: initial, hasMore: initialMore }, detail] = await Promise.all([
+    api(`/api/channels/${channelId}/posts`),
+    api(`/api/channels/${channelId}`),
+  ]);
+  const participants = detail.participants;
+  // Threads and events read like a forum; comms and OOC read like a chat.
+  const storyStyle = () => ['thread', 'event'].includes(channel().kind);
   const posts = new Map(initial.map((p) => [p.id, p]));
   let hasMore = initialMore;
 
@@ -79,8 +88,9 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const c = channel();
   const body = page({
     alive,
-    title: html`<span class="hash-title">${icons.hash}</span>${c.name}`,
-    subtitle: c.topic,
+    title: html`<span class="hash-title">${kindIcon(c.kind)}</span>${c.name}`,
+    subtitle: c.topic || (c.kind === 'ooc' ? 'Out of character' : `${KIND_LABELS[c.kind]} · ${({ open: 'open', closed: 'private', complete: 'complete' })[c.status]}`),
+    actions: detail.canManage && c.kind !== 'ooc' ? html`<button class="icon-btn" id="edit-thread" title="Thread details" aria-label="Thread details">${icons.gear}</button>` : '',
     className: 'channel-body',
     body: html`
       <div class="feed-scroll" id="feed-scroll">
@@ -94,60 +104,107 @@ export async function viewChannel(storyIdStr, channelIdStr) {
 
   // ---------- Feed rendering ----------
   const blocked = (p) => state.blocks.has(p.userId);
-  const identityKey = (p) => `${p.userId}:${p.kind}:${p.character?.id ?? ''}`;
 
-  function postHeader(p) {
-    if (p.kind === 'ic' && p.character) {
-      return html`<a href="#/c/${p.character.id}" class="name" data-color="${p.character.color}">${p.character.name}</a>
-        <span class="by">played by <a href="#/u/${p.userId}">${p.author.displayName}</a></span>`;
-    }
-    if (p.kind === 'narration') return html`<span class="name narrator">Narrator</span><span class="by">by <a href="#/u/${p.userId}">${p.author.displayName}</a></span>`;
-    if (p.kind === 'roll' && p.character) {
-      return html`<a href="#/c/${p.character.id}" class="name" data-color="${p.character.color}">${p.character.name}</a>
-        <span class="by">rolled by <a href="#/u/${p.userId}">${p.author.displayName}</a></span>`;
-    }
-    return html`<a href="#/u/${p.userId}" class="name plain">${p.author.displayName}</a>${p.kind === 'ooc' ? html`<span class="ooc-badge">OOC</span>` : ''}`;
+  const charLink = (ch) => html`<a href="#/c/${ch.id}">${ch.name}</a>`;
+
+  // "AKA ✱ THE PRODIGY, (HE/HIM) ; TWENTY8 ; CEO OF …" from the character's tagline and details.
+  function akaLine(ch) {
+    const bits = [];
+    if (ch.tagline) bits.push(html`<b class="accent">${ch.tagline}</b>`);
+    for (const d of ch.details || []) bits.push(html`<span title="${d.label}">${d.value}</span>`);
+    return bits.length ? html`<div class="tp-aka"><span class="muted">aka</span> ✱ ${bits.map((b2, i) => html`${i ? raw(' ; ') : ''}${b2}`)}</div>` : '';
   }
 
-  function postAvatar(p) {
-    if ((p.kind === 'ic' || p.kind === 'roll') && p.character) return avatar({ name: p.character.name, src: p.character.avatar, color: p.character.color, size: 'lg' });
-    if (p.kind === 'narration') return html`<span class="avatar lg narrator-av" aria-hidden="true">${icons.mask}</span>`;
-    return avatar({ name: p.author.displayName, src: p.author.avatar, color: '#6b6880', size: 'lg' });
-  }
-
-  function rollHtml(r) {
-    const parts = r.terms.map((t, i) => {
-      const sign = i === 0 ? (t.sign < 0 ? '−' : '') : t.sign < 0 ? ' − ' : ' + ';
-      return t.dice ? html`${sign}${t.dice} <span class="rolls">[${t.rolls.join(', ')}]</span>` : html`${sign}${t.value}`;
-    });
-    return html`<div class="roll-card">${icons.dice}<span class="expr">${parts}</span><span class="total">${r.total}</span></div>`;
-  }
-
-  function postBody(p) {
-    const content = html`
-      ${p.roll ? rollHtml(p.roll) : ''}
-      ${p.body ? html`<div class="body">${formatPost(p.body)}</div>` : ''}`;
+  function cwWrap(p, content) {
     return p.cw ? html`<div class="cw-wrap"><button class="cw-toggle" type="button">${icons.warn} CW: ${p.cw} — tap to show</button><div class="cw-content">${content}</div></div>` : content;
+  }
+
+  const menuBtn = html`<button class="icon-btn sm post-menu" data-act="menu" aria-label="Post options">${icons.more}</button>`;
+
+  // Forum-style thread post (in-character or narration in a thread / event).
+  function threadPost(p) {
+    const ch = p.kind === 'ic' ? p.character : null;
+    const others = participants.filter((x) => x.id !== ch?.id);
+    const pic = ch?.avatar || ch?.portrait;
+    return html`
+      <article class="tpost ${p.userId === state.user?.id ? 'mine' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"` : ''}>
+        <header class="tp-head">
+          <div class="tp-id">
+            ${ch ? html`<a class="tp-name" href="#/c/${ch.id}">${ch.name}</a>${akaLine(ch)}`
+              : html`<span class="tp-name narrator">the narrator</span><div class="tp-aka"><span class="muted">written by</span> <a href="#/u/${p.userId}">${p.author.displayName}</a></div>`}
+          </div>
+          ${ch ? html`<a class="tp-avatar" href="#/c/${ch.id}" aria-label="${ch.name}">${pic ? html`<img src="${pic}" alt="">` : avatar({ name: ch.name, color: ch.color, size: 'xl square' })}</a>`
+            : html`<span class="tp-avatar narrator-av">${icons.mask}</span>`}
+        </header>
+        <div class="tp-bar">
+          <span class="tp-when">${icons.broadcast}<time title="${p.createdAt} UTC">${timeStamp(p.createdAt)}</time>${p.editedAt ? ' · edited' : ''}</span>
+          ${ch ? html`<a href="#/c/${ch.id}" class="tp-act">${icons.profile}<span>Open profile</span></a>` : html`<a href="#/u/${p.userId}" class="tp-act">${icons.profile}<span>Open profile</span></a>`}
+          <button class="tp-act" type="button" data-act="quote">${icons.quote}<span>Quote</span></button>
+          ${menuBtn}
+        </div>
+        <div class="tp-body">
+          <div class="tp-star">${icons.star}</div>
+          ${cwWrap(p, html`<div class="body">${formatPost(p.body)}</div>`)}
+          <footer class="tp-foot">
+            <span>${p.wordCount} words · played by <a href="#/u/${p.userId}">${p.author.displayName}</a></span>
+            ${others.length ? html`<span>for ${others.map((o, i) => html`${i ? ', ' : ''}${charLink(o)}`)}</span>` : ''}
+          </footer>
+        </div>
+      </article>`;
+  }
+
+  // Chat bubble (comms texts, OOC chatter, and OOC asides inside threads).
+  function bubble(p, prev) {
+    const mine = p.userId === state.user?.id;
+    const ch = p.kind === 'ic' ? p.character : null;
+    const name = ch ? ch.name : p.kind === 'narration' ? 'Narrator' : p.author.displayName;
+    const key = (x) => `${x.userId}:${x.kind}:${x.character?.id ?? ''}`;
+    const grouped = prev && !blocked(prev) && key(prev) === key(p) && minutesBetween(prev.createdAt, p.createdAt) < 10 && p.id !== dividerBefore && dayLabel(prev.createdAt) === dayLabel(p.createdAt);
+    const av = ch ? avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' }) : avatar({ name: p.author.displayName, src: p.author.avatar, color: '#48484A', size: 'sm' });
+    return html`
+      <article class="bubble ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''} kind-${p.kind}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"` : ''}>
+        ${mine ? '' : html`<a class="b-av" href="${ch ? `#/c/${ch.id}` : `#/u/${p.userId}`}">${grouped ? '' : av}</a>`}
+        <div class="b-col">
+          ${grouped ? '' : html`<div class="b-name">${ch ? html`<a href="#/c/${ch.id}" class="cast-name" data-color="${ch.color}">${name}</a>` : html`<a href="#/u/${p.userId}">${name}</a>`}${p.kind === 'ooc' && storyStyle() ? html` <span class="ooc-badge">OOC</span>` : ''}</div>`}
+          <div class="b-bubble">
+            ${cwWrap(p, html`<div class="body">${formatPost(p.body)}</div>`)}
+            <span class="b-time">${timeStamp(p.createdAt).replace(/^Today at /, '')}${p.editedAt ? ' · edited' : ''}</span>
+            ${menuBtn}
+          </div>
+        </div>
+      </article>`;
   }
 
   function postHtml(p, prev) {
     if (blocked(p)) {
       return html`<article class="post blocked" id="post-${p.id}" data-id="${p.id}">
         <div class="blocked-note">Post from a blocked user. <button class="link" data-act="reveal">Show</button></div>
-        <div class="hidden-content">${postBody(p)}</div></article>`;
+        <div class="hidden-content">${cwWrap(p, html`<div class="body">${formatPost(p.body)}</div>`)}</div></article>`;
     }
-    const grouped = prev && !blocked(prev) && identityKey(prev) === identityKey(p) && minutesBetween(prev.createdAt, p.createdAt) < 10 && p.id !== dividerBefore && dayLabel(prev.createdAt) === dayLabel(p.createdAt);
-    const color = (p.kind === 'ic' || p.kind === 'roll') && p.character ? p.character.color : '';
+    return storyStyle() && p.kind !== 'ooc' ? threadPost(p) : bubble(p, prev);
+  }
+
+  // Top of a thread: title, status, tags, cast and the plot box.
+  function threadHead() {
+    const ch = channel();
+    const when = ch.eventAt ? new Date(ch.eventAt) : null;
+    if (!storyStyle() && ch.kind !== 'comms') {
+      return html`<div class="channel-start"><div class="big-hash">${kindIcon(ch.kind)}</div><h2>Welcome to #${ch.name}</h2><p class="muted">${ch.topic || 'This is the beginning of the channel.'}</p></div>`;
+    }
     return html`
-      <article class="post kind-${p.kind} ${grouped ? 'grouped' : ''} ${p.userId === state.user?.id ? 'mine' : ''}" id="post-${p.id}" data-id="${p.id}" ${color ? html`data-color="${color}"` : ''}>
-        <div class="gutter">${grouped ? html`<time class="hover-time">${timeStamp(p.createdAt).replace(/^.* at /, '')}</time>` : postAvatar(p)}</div>
-        <div class="content">
-          ${grouped ? '' : html`<header>${postHeader(p)}<time title="${p.createdAt} UTC">${timeStamp(p.createdAt)}</time></header>`}
-          ${postBody(p)}
-          <footer class="post-meta">${p.wordCount ? html`<span>${p.wordCount} words</span>` : ''}${p.editedAt ? html`<span>edited</span>` : ''}<span class="meta-time">${timeStamp(p.createdAt).replace(/^Today at /, '')}</span></footer>
-          <button class="icon-btn sm post-menu" data-act="menu" aria-label="Post options">${icons.more}</button>
+      <section class="thread-head">
+        ${when ? html`<div class="event-date"><span>${when.toLocaleDateString(undefined, { month: 'short' })}</span><b>${when.getDate()}</b></div>` : ''}
+        <span class="eyebrow">${KIND_LABELS[ch.kind]} · ${state.story.story.title}</span>
+        <h1 class="th-title">${ch.name}</h1>
+        <div class="th-meta">
+          ${statusPill(ch)}
+          ${when ? html`<span class="pill-tag">${when.toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>` : ''}
+          ${ch.tags.map((t) => html`<span class="tag">#${t}</span>`)}
         </div>
-      </article>`;
+        ${participants.length ? html`<div class="th-cast">${participants.map((x) => html`<a class="chip-link" href="#/c/${x.id}">${avatar({ name: x.name, src: x.avatar, color: x.color, size: 'xs' })}${x.name}</a>`)}</div>` : ''}
+        ${ch.summary ? html`<div class="plot-box"><span class="plot-star">${icons.star}</span>
+          ${participants.length ? html`<b class="plot-title">${participants.slice(0, 3).map((x) => x.name).join(' × ')}</b> ` : ''}${ch.summary}</div>` : ''}
+      </section>`;
   }
 
   function drawFeed({ keepScroll = false } = {}) {
@@ -156,7 +213,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     let prev = null;
     const items = [];
     if (hasMore) items.push(html`<div class="load-more"><button id="load-more">Load earlier posts</button></div>`);
-    else items.push(html`<div class="channel-start"><div class="big-hash">${icons.hash}</div><h2>Welcome to #${channel().name}</h2><p class="muted">${channel().topic || 'This is the beginning of the channel.'}</p></div>`);
+    else items.push(threadHead());
     for (const p of list) {
       const day = dayLabel(p.createdAt);
       if (day !== dayLabel(prev?.createdAt)) items.push(html`<div class="day-pill"><span>${day}</span></div>`);
@@ -164,6 +221,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       items.push(postHtml(p, prev));
       prev = p;
     }
+    feed.classList.toggle('chat-style', !storyStyle());
     render(feed, html`${items}`);
     if (keepScroll) scroller.scrollTop = scroller.scrollHeight - before;
   }
@@ -212,18 +270,20 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     if (cw) { cw.parentElement.classList.toggle('open'); return; }
     const btn = e.target.closest('[data-act]');
     if (!btn) return;
-    const article = btn.closest('.post');
+    const article = btn.closest('[data-id]');
     const p = posts.get(Number(article.dataset.id));
     if (btn.dataset.act === 'reveal') { article.classList.toggle('revealed'); return; }
     if (btn.dataset.act === 'menu') postMenu(btn, p, article);
+    if (btn.dataset.act === 'quote') quote(p);
   });
 
   function postMenu(anchor, p, article) {
     const mine = p.userId === state.user?.id;
     const canDelete = mine || role === 'owner' || state.user?.isAdmin;
     menu(anchor, [
-      mine && p.kind !== 'roll' && { label: 'Edit', action: () => editPost(p, article) },
-      { label: 'Copy text', action: () => copyText(p.body || `${p.roll?.expr} → ${p.roll?.total}`, 'Copied') },
+      mine && { label: 'Edit', action: () => editPost(p, article) },
+      { label: 'Quote', action: () => quote(p) },
+      { label: 'Copy text', action: () => copyText(p.body, 'Copied') },
       !mine && state.user && { label: `Reply to ${p.author.displayName}`, action: () => mention(p.author.username) },
       !mine && state.user && { label: 'Report post', action: () => reportPost(p) },
       !mine && state.user && (state.blocks.has(p.userId)
@@ -234,7 +294,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   }
 
   function editPost(p, article) {
-    const content = $('.content', article);
+    const content = $('.tp-body, .b-bubble, .content', article);
     render(content, html`
       <form class="edit-form">
         <textarea name="body" maxlength="30000" rows="6">${p.body}</textarea>
@@ -310,7 +370,10 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   // ---------- Composer ----------
   const wrap = $('#composer-wrap', body);
   let mention = () => {};
-  if (!role) {
+  let quote = () => toast('Join the story to reply');
+  if (role && !detail.canPost) {
+    render(wrap, html`<div class="composer-locked">${channel().status === 'complete' ? 'This thread is complete — it\'s read-only now.' : 'This is a private thread for the characters in it.'}</div>`);
+  } else if (!role) {
     render(wrap, state.user
       ? html`<div class="composer-locked">${story.status === 'open' ? html`You're reading as a guest. <button class="primary sm" id="join-here">Join to write</button>` : 'This story is closed to new writers.'}</div>`
       : html`<div class="composer-locked"><a href="#/">Sign in</a> to write.</div>`);
@@ -322,7 +385,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   function setupComposer() {
     const draftKey = `nuuvi:draft:${channelId}`;
     const asKey = `nuuvi:as:${storyId}`;
-    const isOocChannel = /ooc/i.test(channel().name);
+    const isOocChannel = channel().kind === 'ooc';
     // identity: "c:<id>" | "narration" | "ooc"
     let identity = store.get(asKey) || '';
     const valid = (v) => v === 'narration' || v === 'ooc' || (v.startsWith('c:') && characters.some((ch) => `c:${ch.id}` === v));
@@ -339,7 +402,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
           <span class="hint" id="wc">0 words</span>
         </div>
         <div class="composer-box">
-          <div class="composer-tools"><button type="button" class="icon-btn" id="more-btn" title="Dice & content warnings" aria-label="More options">${icons.plus}</button></div>
+          <div class="composer-tools"><button type="button" class="icon-btn" id="more-btn" title="Content warning & more" aria-label="More options">${icons.plus}</button></div>
           <textarea id="post-body" name="body" rows="1" maxlength="30000" aria-label="Write a post"></textarea>
           <div class="composer-tools"><button type="submit" class="icon-btn send" title="Post (Ctrl+Enter)" aria-label="Post">${icons.send}</button></div>
         </div>
@@ -399,8 +462,9 @@ export async function viewChannel(storyIdStr, channelIdStr) {
 
     const moreBtn = $('#more-btn', form);
     moreBtn.addEventListener('click', () => menu(moreBtn, [
-      { label: '🎲  Roll dice', action: () => rollDialog() },
-      { label: `⚠  ${cw ? 'Change' : 'Add'} content warning`, action: askCw },
+      { label: `${cw ? 'Change' : 'Add'} content warning`, action: askCw },
+      detail.canManage && channel().kind !== 'ooc' && { label: 'Thread details…', action: editThread },
+      { label: 'Formatting help', action: () => toast('*action*  **bold**  "dialogue"  ||spoiler||  > quote  @mention') },
     ]));
 
     async function sendPost(payload) {
@@ -411,48 +475,29 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       toBottom();
     }
 
-    function payloadBase(kindIfCharacter = 'ic') {
-      if (identity.startsWith('c:')) return { kind: kindIfCharacter, characterId: Number(identity.slice(2)) };
-      return { kind: kindIfCharacter === 'roll' ? 'roll' : identity };
-    }
-
-    async function rollDialog(prefill = '') {
-      const res = await modal(html`
-        <form>
-          <h2>Roll dice</h2>
-          <label for="dice-expr">Dice</label>
-          <input id="dice-expr" name="dice" required maxlength="60" placeholder="1d20+5" value="${prefill || store.get('nuuvi:last-dice') || '1d20'}" autocomplete="off">
-          <div class="dice-quick">${['1d20', '2d6', '1d100', '4d6', '1d8+2'].map((d) => html`<button type="button" class="sm" data-dice="${d}">${d}</button>`)}</div>
-          <label for="dice-note">What for? <span class="muted small">(optional)</span></label>
-          <input id="dice-note" name="note" maxlength="300" placeholder="Stealth check">
-          <div class="error"></div>
-          <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Roll</button></div>
-        </form>`, {
-        init: (d) => {
-          $$('[data-dice]', d).forEach((b) => b.addEventListener('click', () => { d.querySelector('#dice-expr').value = b.dataset.dice; }));
-          d.querySelector('#dice-expr').select();
-        },
-        submit: async (data) => {
-          await sendPost({ ...payloadBase('roll'), dice: data.dice, body: data.note, cw });
-          store.set('nuuvi:last-dice', data.dice);
-          return true;
-        },
-      });
-      if (res) ta.focus();
+    function payloadBase() {
+      if (identity.startsWith('c:')) return { kind: 'ic', characterId: Number(identity.slice(2)) };
+      return { kind: identity };
     }
 
     bindForm(form, async () => {
       const text = ta.value.trim();
       if (!text) return;
-      const rollCmd = text.match(/^\/(?:r|roll)\s+(\S+)\s*([\s\S]*)$/i);
-      if (rollCmd) await sendPost({ ...payloadBase('roll'), dice: rollCmd[1], body: rollCmd[2], cw });
-      else await sendPost({ ...payloadBase(), body: text, cw });
+      await sendPost({ ...payloadBase(), body: text, cw });
       ta.value = '';
       cw = '';
       cwChip.hidden = true;
       store.set(draftKey, null);
       update();
     });
+
+    quote = (p) => {
+      const who = p.character?.name || p.author.displayName;
+      const excerpt = p.body.split(/\n+/).filter(Boolean).slice(0, 2).join(' ').slice(0, 280);
+      ta.value = `> **${who}:** ${excerpt}\n\n${ta.value}`;
+      update();
+      ta.focus();
+    };
 
     mention = (username) => {
       const insert = `@${username} `;
@@ -468,6 +513,12 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       form.prepend(note);
     }
   }
+
+  async function editThread() {
+    const updated = await openThreadForm({ storyId, channel: { ...channel(), participantIds: participants.map((x) => x.id) } });
+    if (updated) viewChannel(storyIdStr, channelIdStr);
+  }
+  $('#main #edit-thread')?.addEventListener('click', editThread);
 
   // ---------- Live updates ----------
   const on = (type, fn) => {

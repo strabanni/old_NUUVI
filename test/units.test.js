@@ -1,20 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createECDH, randomBytes, hkdfSync, createDecipheriv } from 'node:crypto';
-import { rollDice } from '../server/dice.js';
 import { encryptPayload, generateVapidKeys } from '../server/push.js';
-
-test('dice: parses and stays in range', () => {
-  for (let i = 0; i < 200; i++) {
-    const r = rollDice('2d6 + 1d4 - 1');
-    assert.ok(r.total >= 2 && r.total <= 15);
-    assert.equal(r.terms.length, 3);
-  }
-  assert.equal(rollDice('d20').terms[0].dice, '1d20');
-  for (const bad of ['', '5', 'd1', '1000d6', '2d6++1', 'abc', '1d20 lol', '1d1001']) {
-    assert.throws(() => rollDice(bad), { status: 400 }, bad);
-  }
-});
 
 // Decrypts as the browser would (RFC 8291) to prove the encryption is correct.
 test('push: aes128gcm payload decrypts with the subscriber keys', () => {

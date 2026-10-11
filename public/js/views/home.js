@@ -1,5 +1,6 @@
 import { html, render, api, $, bindForm, timeAgo, toast, uploadImage, avatar, icons } from '../lib.js';
 import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive } from '../main.js';
+import { feedCard } from './threads.js';
 
 export function storyCard(s) {
   return html`
@@ -32,7 +33,7 @@ export async function viewHome() {
   const alive = routeAlive();
   await refreshHome();
   const { stories, stats = {} } = state.home;
-  const [characters] = await Promise.all([myCharacters(true)]);
+  const [characters, mine] = await Promise.all([myCharacters(true), api('/api/feed?filter=mine').catch(() => ({ items: [] }))]);
   const turns = [];
   // Stories where it's your turn somewhere.
   await Promise.all(stories.filter((s) => s.mentions).map(async (s) => {
@@ -44,8 +45,8 @@ export async function viewHome() {
     alive,
     title: html`<span class="script">home</span>`,
     body: html`
-      <section class="card welcome">
-        ${avatar({ name: u.displayName, src: u.avatar, color: '#9b7bff', size: 'xl square' })}
+      <section class="card welcome phone-only">
+        ${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'xl square' })}
         <div>
           <h1>Welcome back, <span class="grad-text">${u.displayName}</span></h1>
           <p class="stats-line">You have <b>${fmt(stats.posts)}</b> posts, <b>${fmt(stats.words)}</b> words and <b>${fmt(stats.characters)}</b> characters</p>
@@ -53,7 +54,7 @@ export async function viewHome() {
         <nav class="quick-tiles" aria-label="Shortcuts">
           <a class="tile" href="#/new" title="Start a story" aria-label="Start a story">${icons.plus}</a>
           <a class="tile" href="#/notifications" title="Notifications" aria-label="Notifications">${icons.bell}${state.home.notificationsUnread ? html`<span class="badge">${state.home.notificationsUnread}</span>` : ''}</a>
-          <a class="tile" href="#/discover" title="Discover" aria-label="Discover">${icons.compass}</a>
+          <a class="tile" href="#/feed" title="Feed" aria-label="Feed">${icons.sliders}</a>
           <a class="tile" href="#/u/${u.id}" title="Your profile" aria-label="Your profile">${icons.users}</a>
           <a class="tile" href="#/settings" title="Settings" aria-label="Settings">${icons.gear}</a>
         </nav>
@@ -62,6 +63,10 @@ export async function viewHome() {
       ${turns.length ? html`<section class="stack spaced">
         ${turns.map((t) => html`<a class="card turn-card" href="#/s/${t.story.id}/${t.channel.id}">${icons.hourglass}<span>It's your turn in <strong>#${t.channel.name}</strong> · ${t.story.title}</span></a>`)}
       </section>` : ''}
+
+      <h2 class="section-title">Your threads <a class="see-all" href="#/feed">See all</a></h2>
+      ${mine.items.length ? html`<div class="feed-grid">${mine.items.slice(0, 4).map(feedCard)}</div>`
+        : html`<div class="card empty small"><p>No threads yet. Open a story and tap <b>New thread</b>, or browse the <a href="#/feed">feed</a> for open ones.</p></div>`}
 
       <h2 class="section-title">Your cast</h2>
       <div class="cast-row no-swipe">
@@ -120,7 +125,7 @@ export function storyFields(s = {}) {
     <label for="contentWarnings">Content warnings <span class="muted small">(comma separated — readers see these before entering)</span></label>
     <input id="contentWarnings" name="contentWarnings" maxlength="800" placeholder="e.g. violence, character death" value="${(s.contentWarnings || []).join(', ')}">
     <div class="row">
-      <div class="fixed"><label for="color">Icon color</label><input type="color" id="color" name="color" value="${s.color || '#7c5cff'}"></div>
+      <div class="fixed"><label for="color">Icon color</label><input type="color" id="color" name="color" value="${s.color || '#F8769C'}"></div>
       <div><label for="icon-file">Icon picture</label>
         <input type="file" id="icon-file" accept="image/*"><input type="hidden" name="icon" value="${s.icon || ''}"></div>
     </div>

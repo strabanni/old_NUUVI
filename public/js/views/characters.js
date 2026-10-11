@@ -1,5 +1,6 @@
-import { html, render, api, $, $$, toast, avatar, icons, modal, confirmModal, uploadImage, formatPost } from '../lib.js';
-import { state, page, myCharacters, setAmbient, routeAlive, ensureAlive } from '../main.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo } from '../lib.js';
+import { state, page, myCharacters, setAmbient, routeAlive, ensureAlive, kindIcon } from '../main.js';
+import { openThreadForm } from './threads.js';
 
 const DETAIL_SUGGESTIONS = ['Age', 'Pronouns', 'Face claim', 'Occupation', 'Species', 'Height', 'Birthday', 'Alignment'];
 
@@ -19,7 +20,7 @@ function characterForm(c = {}) {
       <span class="script muted">${c.id ? 'edit' : 'a new'} character</span>
       <h2>${c.name || 'Who are they?'}</h2>
       <div class="char-pic-row">
-        <div id="pic-preview">${avatar({ name: c.name || '?', src: c.avatar, color: c.color || '#c6b2f0', size: 'xl' })}</div>
+        <div id="pic-preview">${avatar({ name: c.name || '?', src: c.avatar, color: c.color || '#F8769C', size: 'xl' })}</div>
         <div class="stack">
           <label class="btn sm file-btn">Avatar picture<input type="file" accept="image/*" id="pic-file" hidden></label>
           <label class="btn sm file-btn">Portrait (big picture)<input type="file" accept="image/*" id="portrait-file" hidden></label>
@@ -30,7 +31,7 @@ function characterForm(c = {}) {
       </div>
       <div class="row">
         <div><label for="c-name">Name</label><input id="c-name" name="name" required maxlength="60" value="${c.name || ''}"></div>
-        <div class="fixed"><label for="c-color">Color</label><input id="c-color" type="color" name="color" value="${c.color || '#c6b2f0'}"></div>
+        <div class="fixed"><label for="c-color">Color</label><input id="c-color" type="color" name="color" value="${c.color || '#F8769C'}"></div>
       </div>
       <label for="c-tag">Tagline</label>
       <input id="c-tag" name="tagline" maxlength="140" placeholder="A wandering bard with a debt to pay" value="${c.tagline || ''}">
@@ -95,7 +96,7 @@ export function characterCard(c, { editable = false } = {}) {
   return html`
     <a class="card char-card" href="#/c/${c.id}" data-color="${c.color}">
       <span class="char-card-pic">${pic ? html`<img src="${pic}" alt="" loading="lazy">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}</span>
-      <span class="char-info"><h3 class="cast-name" data-color="${c.color}">${c.name}</h3>${c.tagline ? html`<p>${c.tagline}</p>` : ''}</span>
+      <span class="char-info"><h3 class="cast-name" data-color="${c.color}">${c.name}</h3><p>${c.followers !== undefined ? `${c.followers} followers${c.tagline ? ' · ' : ''}` : ''}${c.tagline || ''}</p></span>
       ${editable ? html`<button class="sm edit-btn" data-edit="${c.id}">Edit</button>` : ''}
     </a>`;
 }
@@ -120,35 +121,102 @@ export async function viewCharacters() {
   }));
 }
 
+const fmtCount = (n) => (n >= 10000 ? `${Math.round(n / 1000)}K` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K` : String(n));
+
+async function showPeople(title, url) {
+  const { characters } = await api(url);
+  await modal(html`
+    <div>
+      <h2>${title}</h2>
+      ${characters.length ? html`<div class="stack">${characters.map((c) => html`
+        <a class="row-item" href="#/c/${c.id}" data-close>${avatar({ name: c.name, src: c.avatar, color: c.color })}
+          <div class="grow"><strong>${c.name}</strong>${c.tagline ? html`<div class="small muted">${c.tagline}</div>` : ''}</div></a>`)}</div>`
+        : html`<p class="muted">Nobody yet.</p>`}
+      <div class="actions end"><button type="button" data-close>Close</button></div>
+    </div>`);
+}
+
 export async function viewCharacter(id) {
   const alive = routeAlive();
-  const { character: c } = await api(`/api/characters/${id}`);
+  const [{ character: c, stats, threads, followedBy }, mine] = await Promise.all([
+    api(`/api/characters/${id}`),
+    state.user ? myCharacters() : [],
+  ]);
   ensureAlive(alive);
-  const mine = c.owner.id === state.user?.id;
+  const own = c.owner.id === state.user?.id;
   const pic = c.portrait || c.avatar;
+  const following = followedBy.length > 0;
+  const followable = mine.filter((m) => m.id !== c.id);
   page({
     alive,
     title: c.name,
     subtitle: c.tagline,
-    actions: mine ? html`<button class="sm" id="edit">Edit</button>` : '',
+    actions: own ? html`<button class="sm" id="edit">Edit</button>` : '',
     body: html`
-      <div class="char-layout">
-        <div class="portrait" data-color="${c.color}">
+      <article class="social-profile" data-color="${c.color}">
+        <section class="sp-hero">
           ${pic ? html`<img src="${pic}" alt="${c.name}">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}
-          ${c.details.length ? html`<span class="name-tag"><b>${c.name}</b>${c.details[0] ? html` (${c.details[0].value})` : ''}</span>` : ''}
-        </div>
-        <section class="card char-sheet" data-color="${c.color}">
-          <span class="script">character profile</span>
-          <h1 class="big-name cast-name" data-color="${c.color}">${c.name}</h1>
-          ${c.tagline ? html`<p class="muted">${c.tagline}</p>` : ''}
-          <a class="played-by" href="#/u/${c.owner.id}">${avatar({ name: c.owner.displayName, src: c.owner.avatar, size: 'xs' })} played by ${c.owner.displayName}</a>
-          ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
+          <div class="sp-fade"></div>
+          <div class="sp-id">
+            <h1>${c.name}</h1>
+            <a class="sp-handle" href="#/u/${c.owner.id}">played by @${c.owner.username}</a>
+          </div>
         </section>
-      </div>
-      ${c.bio ? html`<section class="card spaced"><span class="eyebrow">Biography</span><div class="prose spaced">${formatPost(c.bio)}</div></section>` : ''}`,
+        <div class="sp-actions">
+          ${own ? html`<button class="sp-follow" id="edit-2">Edit character</button>`
+            : html`<button class="sp-follow ${following ? 'following' : ''}" id="follow">${following ? 'Following' : 'Follow'}</button>`}
+          <button class="icon-btn sp-round" id="start-thread" title="Start a thread with ${c.name}" aria-label="Start a thread with ${c.name}">${icons.chat}</button>
+        </div>
+        <div class="sp-stats">
+          <button type="button" data-list="following"><b>${fmtCount(stats.following)}</b><span>Following</span></button>
+          <button type="button" data-list="followers"><b>${fmtCount(stats.followers)}</b><span>Followers</span></button>
+          <button type="button" id="to-threads"><b>${fmtCount(stats.threads)}</b><span>Active threads</span></button>
+        </div>
+        ${c.tagline || c.bio ? html`<section class="sp-box">
+          ${c.tagline ? html`<p class="sp-tagline">${c.tagline}</p>` : ''}
+          ${c.bio ? html`<div class="prose">${formatPost(c.bio)}</div>` : ''}
+        </section>` : ''}
+        ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
+        <div class="sp-stats small-stats"><span><b>${fmtCount(stats.posts)}</b> posts</span><span><b>${fmtCount(stats.words)}</b> words written</span></div>
+        <h2 class="section-title" id="threads-title">Threads</h2>
+        ${threads.length ? html`<div class="sp-threads">${threads.map((t) => html`
+          <a class="sp-thread status-${t.status}" href="#/s/${t.storyId}/${t.id}">
+            <span class="sp-t-icon">${kindIcon(t.kind)}</span>
+            <span class="grow"><strong>${t.name}</strong><small>${t.storyTitle} · ${t.postCount} posts${t.lastPostAt ? ` · ${timeAgo(t.lastPostAt)}` : ''}</small></span>
+            <span class="pill-tag status-${t.status}">${({ open: 'Open', closed: 'Private', complete: 'Complete' })[t.status]}</span>
+          </a>`)}</div>` : html`<p class="muted">Not in any threads yet.</p>`}
+      </article>`,
   });
   setAmbient(pic);
-  $('#main #edit')?.addEventListener('click', async () => {
-    if (await editCharacter(c)) { state.characters = null; viewCharacter(id); }
+  const reload = () => viewCharacter(id);
+  for (const b of ['#edit', '#edit-2']) {
+    $(`#main ${b}`)?.addEventListener('click', async () => {
+      if (await editCharacter(c)) { state.characters = null; reload(); }
+    });
+  }
+  $$('#main [data-list]').forEach((b) => b.addEventListener('click', () => showPeople(
+    b.dataset.list === 'followers' ? `Following ${c.name}` : `${c.name} follows`, `/api/characters/${c.id}/${b.dataset.list}`,
+  )));
+  $('#main #start-thread').addEventListener('click', async () => {
+    if (!state.user) return toast('Sign in first');
+    openThreadForm({ tag: [c.id] });
+  });
+  $('#main #to-threads').addEventListener('click', () => $('#threads-title').scrollIntoView({ behavior: 'smooth' }));
+  $('#main #follow')?.addEventListener('click', (e) => {
+    if (!state.user) return toast('Sign in first');
+    if (!followable.length) return toast('Create a character first — characters follow characters');
+    const act = async (me) => {
+      const on = followedBy.includes(me.id);
+      try {
+        await api(`/api/characters/${c.id}/${on ? 'unfollow' : 'follow'}`, { method: 'POST', body: { asCharacterId: me.id } });
+        toast(on ? `${me.name} unfollowed ${c.name}` : `${me.name} now follows ${c.name}`);
+        reload();
+      } catch (err) { toast(err.message); }
+    };
+    if (followable.length === 1) return act(followable[0]);
+    menu(e.currentTarget, followable.map((me) => ({
+      label: followedBy.includes(me.id) ? `✓ ${me.name} follows — unfollow` : `Follow as ${me.name}`,
+      action: () => act(me),
+    })));
   });
 }

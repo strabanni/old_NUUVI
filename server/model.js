@@ -40,6 +40,9 @@ export function turnState(r) {
 export function toChannel(r) {
   return {
     id: r.id, storyId: r.story_id, name: r.name, topic: r.topic, position: r.position,
+    kind: r.kind ?? 'thread', status: r.status ?? 'open', summary: r.summary ?? '', tags: splitWarnings(r.tags),
+    eventAt: r.event_at ?? null, createdBy: r.created_by ?? null, starterCharacterId: r.starter_character_id ?? null,
+    createdAt: r.created_at, lastPostAt: r.last_post_at ?? null,
     turns: turnState(r), unread: r.unread ?? 0, mentions: r.mentions ?? 0, lastPostId: r.last_post_id ?? 0,
   };
 }
@@ -51,7 +54,11 @@ export function toPost(r) {
     createdAt: r.created_at, editedAt: r.edited_at,
     author: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.user_avatar },
     character: r.character_id
-      ? { id: r.character_id, name: r.character_name, color: r.character_color, avatar: r.character_avatar }
+      ? {
+        id: r.character_id, name: r.character_name, color: r.character_color, avatar: r.character_avatar,
+        portrait: r.character_portrait ?? null, tagline: r.character_tagline ?? '',
+        details: r.character_details ? JSON.parse(r.character_details) : [],
+      }
       : null,
   };
 }
@@ -64,7 +71,8 @@ export const STORY_SELECT = `
 
 export const POST_SELECT = `
   SELECT p.*, u.username, u.display_name, u.avatar AS user_avatar,
-    c.name AS character_name, c.color AS character_color, c.avatar AS character_avatar
+    c.name AS character_name, c.color AS character_color, c.avatar AS character_avatar,
+    c.portrait AS character_portrait, c.tagline AS character_tagline, c.details AS character_details
   FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters c ON c.id = p.character_id`;
 
 export function requireUser(user) {
