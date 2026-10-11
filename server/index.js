@@ -1,9 +1,18 @@
 import { createApp } from './app.js';
 
-const port = Number(process.env.PORT) || 3000;
-const dbPath = process.env.DATABASE_PATH || 'data/nuuvi.db';
-const secureCookies = process.env.NODE_ENV === 'production';
+const env = process.env;
+const port = Number(env.PORT) || 3000;
+const dbPath = env.DATABASE_PATH || 'data/nuuvi.db';
+const flag = (v) => v === '1' || v === 'true';
 
-createApp({ dbPath, secureCookies }).listen(port, () => {
+createApp({
+  dbPath,
+  uploadDir: env.UPLOAD_DIR,
+  secureCookies: env.NODE_ENV === 'production',
+  openRegistration: flag(env.OPEN_REGISTRATION),
+  trustProxy: flag(env.TRUST_PROXY),
+  // Push services (notably Apple's) want a real contact URL or mailto: here.
+  vapidSubject: env.VAPID_SUBJECT || env.PUBLIC_URL || 'mailto:admin@example.com',
+}).listen(port, () => {
   console.log(`NUUVI is running at http://localhost:${port}`);
 });

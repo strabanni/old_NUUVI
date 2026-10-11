@@ -1,183 +1,334 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createApp } from '../server/app.js';
+import { startApp, sseReader } from './helpers.js';
 
-let server;
-let base;
+let app;
+before(async () => { app = await startApp(); });
+after(() => app.close());
 
-before(async () => {
-  server = createApp({ dbPath: ':memory:' });
-  await new Promise((resolve) => server.listen(0, resolve));
-  base = `http://localhost:${server.address().port}`;
-});
+const post = (c, channelId, body) => c(`/api/channels/${channelId}/posts`, { method: 'POST', body });
 
-after(() => {
-  server.closeAllConnections();
-  server.close();
-});
-
-// Minimal cookie-keeping client, one per simulated user.
-function client() {
-  let cookie = '';
-  return async (path, { method = 'GET', body, headers = {} } = {}) => {
-    const res = await fetch(base + path, {
-      method,
-      headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...headers },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const set = res.headers.get('set-cookie');
-    if (set) cookie = set.split(';')[0];
-    const data = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
-    return { status: res.status, data };
-  };
+async function makeStory(c, body = {}) {
+  const r = await c('/api/stories', { method: 'POST', body: { title: 'A Story', visibility: 'public', ...body } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  return { story: r.data.story, main: r.data.channels[0], ooc: r.data.channels[1] };
 }
 
-async function signUp(username) {
-  const c = client();
-  const r = await c('/api/auth/register', { method: 'POST', body: { username, password: 'correct horse', displayName: username.toUpperCase() } });
-  assert.equal(r.status, 201);
-  return c;
-}
+test('first user becomes admin; everyone after needs an invite', async () => {
+  const admin = await app.signUp('owner_admin');
+  assert.equal(admin.user.isAdmin, true);
+  assert.equal((await app.client()('/api/auth/status')).data.inviteRequired, true);
 
-test('register, me, logout, login', async () => {
-  const c = await signUp('ada');
+  const noInvite = await app.client()('/api/auth/register', { method: 'POST', body: { username: 'gatecrasher', password: 'longenough' } });
+  assert.equal(noInvite.status, 403);
+
+  const { code } = (await admin('/api/admin/invites', { method: 'POST', body: { note: 'for Sam' } })).data;
+  const sam = await app.signUp('sam', { invite: code });
+  assert.equal(sam.user.isAdmin, false);
+  // Single-use by default.
+  const reuse = await app.client()('/api/auth/register', { method: 'POST', body: { username: 'samtwin', password: 'longenough', invite: code } });
+  assert.equal(reuse.status, 403);
+  // Non-admins can't create invites.
+  assert.equal((await sam('/api/admin/invites', { method: 'POST', body: {} })).status, 403);
+});
+
+test('login, logout, password change and validation', async () => {
+  const c = await app.signUp('ada');
   assert.equal((await c('/api/me')).data.user.username, 'ada');
-
-  const dup = await client()('/api/auth/register', { method: 'POST', body: { username: 'ADA', password: 'whatever123' } });
-  assert.equal(dup.status, 409);
-
   await c('/api/auth/logout', { method: 'POST', body: {} });
   assert.equal((await c('/api/me')).data.user, null);
+  assert.equal((await c('/api/auth/login', { method: 'POST', body: { username: 'ada', password: 'nope nope' } })).status, 401);
+  assert.equal((await c('/api/auth/login', { method: 'POST', body: { username: 'ADA', password: 'correct horse' } })).status, 200);
 
-  assert.equal((await c('/api/auth/login', { method: 'POST', body: { username: 'ada', password: 'wrong pass' } })).status, 401);
-  assert.equal((await c('/api/auth/login', { method: 'POST', body: { username: 'ada', password: 'correct horse' } })).status, 200);
-  assert.equal((await c('/api/me')).data.user.username, 'ada');
+  assert.equal((await c('/api/me/password', { method: 'PUT', body: { current: 'wrong', next: 'new password!' } })).status, 400);
+  assert.equal((await c('/api/me/password', { method: 'PUT', body: { current: 'correct horse', next: 'new password!' } })).status, 200);
+  assert.equal((await app.client()('/api/auth/login', { method: 'POST', body: { username: 'ada', password: 'new password!' } })).status, 200);
+
+  const bad = await app.client()('/api/auth/register', { method: 'POST', body: { username: 'bad name!', password: 'longenough', invite: 'x' } });
+  assert.equal(bad.status, 400);
 });
 
-test('validation rejects bad input', async () => {
-  const c = client();
-  assert.equal((await c('/api/auth/register', { method: 'POST', body: { username: 'x', password: 'longenough' } })).status, 400);
-  assert.equal((await c('/api/auth/register', { method: 'POST', body: { username: 'okname', password: 'short' } })).status, 400);
-  assert.equal((await c('/api/auth/register', { method: 'POST', body: { username: 'bad name!', password: 'longenough' } })).status, 400);
-});
-
-test('mutations require JSON content type', async () => {
-  const res = await fetch(base + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{}' });
+test('requests from other sites and non-JSON bodies are rejected', async () => {
+  const c = await app.signUp('csrf_target');
+  const cross = await c('/api/stories', { method: 'POST', body: { title: 'x' }, headers: { Origin: 'https://evil.example' } });
+  assert.equal(cross.status, 403);
+  const res = await fetch(app.base + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{}' });
   assert.equal(res.status, 415);
 });
 
-test('full roleplay flow: characters, stories, posts, permissions', async () => {
-  const owner = await signUp('gm_rose');
-  const partner = await signUp('quill');
-  const stranger = await signUp('lurker');
-  const anon = client();
+test('stories come with channels; members post in character, narration, OOC and dice', async () => {
+  const gm = await app.signUp('gm_rose');
+  const quill = await app.signUp('quill');
+  const anon = app.client();
 
-  // Characters
-  const knight = (await owner('/api/characters', { method: 'POST', body: { name: 'Sir Aldric', tagline: 'Oathbound', color: '#aa3355' } })).data.character;
-  const thief = (await partner('/api/characters', { method: 'POST', body: { name: 'Wren', bio: 'Quick hands.' } })).data.character;
-  assert.equal((await owner('/api/characters', { method: 'POST', body: { name: 'X', color: 'red' } })).status, 400);
-  assert.equal((await owner('/api/characters')).data.characters.length, 1);
-  assert.equal((await partner(`/api/characters/${knight.id}`, { method: 'PUT', body: { name: 'Hijacked' } })).status, 404);
+  const knight = (await gm('/api/characters', { method: 'POST', body: { name: 'Sir Aldric', color: '#aa3355' } })).data.character;
+  const wren = (await quill('/api/characters', { method: 'POST', body: { name: 'Wren' } })).data.character;
+  const { story, main, ooc } = await makeStory(gm, { title: 'The Ashen Road', contentWarnings: 'violence, blood', rating: 'M' });
+  assert.deepEqual(story.contentWarnings, ['violence', 'blood']);
+  assert.equal(main.name, 'main-story');
+  assert.equal(ooc.name, 'ooc-chat');
 
-  // Public story
-  const story = (await owner('/api/stories', { method: 'POST', body: { title: 'The Ashen Road', genre: 'Fantasy', rating: 'T' } })).data.story;
-  assert.equal(story.memberCount, 1);
-  assert.equal((await anon('/api/stories')).data.stories.length, 1);
-  assert.equal((await anon('/api/stories?q=ashen')).data.stories.length, 1);
-  assert.equal((await anon('/api/stories?q=nothing-like-this')).data.stories.length, 0);
-
-  // Owner posts in character; can't post as someone else's character
-  const p1 = await owner(`/api/stories/${story.id}/posts`, { method: 'POST', body: { kind: 'ic', characterId: knight.id, body: '*He draws his sword.* "Who goes there?"' } });
+  const p1 = await post(gm, main.id, { kind: 'ic', characterId: knight.id, body: '*He draws his sword.* "Who goes there?"' });
   assert.equal(p1.status, 201);
-  assert.equal(p1.data.post.wordCount, 7);
   assert.equal(p1.data.post.character.name, 'Sir Aldric');
-  assert.equal((await owner(`/api/stories/${story.id}/posts`, { method: 'POST', body: { kind: 'ic', characterId: thief.id, body: 'nope' } })).status, 400);
+  assert.equal((await post(gm, main.id, { kind: 'ic', characterId: wren.id, body: 'not mine' })).status, 400);
+  assert.equal((await post(quill, main.id, { kind: 'ooc', body: 'hi' })).status, 403);
 
-  // Non-members can read but not write until they join
-  assert.equal((await partner(`/api/stories/${story.id}/posts`, { method: 'POST', body: { kind: 'ooc', body: 'hi!' } })).status, 403);
-  assert.equal((await partner(`/api/stories/${story.id}/join`, { method: 'POST', body: {} })).status, 200);
-  const p2 = await partner(`/api/stories/${story.id}/posts`, { method: 'POST', body: { kind: 'ic', characterId: thief.id, body: 'A shadow drops from the rafters.' } });
-  assert.equal(p2.status, 201);
-  const ooc = await partner(`/api/stories/${story.id}/posts`, { method: 'POST', body: { kind: 'ooc', body: 'brb dinner' } });
-  assert.equal(ooc.data.post.character, null);
+  assert.equal((await quill(`/api/stories/${story.id}/join`, { method: 'POST', body: {} })).status, 200);
+  await post(quill, main.id, { kind: 'ic', characterId: wren.id, body: 'A shadow drops from the rafters.', cw: 'spiders' });
+  await post(quill, ooc.id, { kind: 'ooc', body: 'brb dinner' });
+  const roll = await post(quill, main.id, { kind: 'roll', dice: '1d20+5', body: 'stealth', characterId: wren.id });
+  assert.equal(roll.status, 201);
+  assert.ok(roll.data.post.roll.total >= 6 && roll.data.post.roll.total <= 25);
+  assert.equal((await post(quill, main.id, { kind: 'roll', dice: 'banana' })).status, 400);
 
-  const posts = (await anon(`/api/stories/${story.id}/posts`)).data.posts;
-  assert.deepEqual(posts.map((p) => p.kind), ['ic', 'ic', 'ooc']);
-  assert.equal((await anon(`/api/stories/${story.id}/posts?after=${p2.data.post.id}`)).data.posts.length, 1);
+  const mainPosts = (await anon(`/api/channels/${main.id}/posts`)).data.posts;
+  assert.deepEqual(mainPosts.map((p) => p.kind), ['ic', 'ic', 'roll']);
+  assert.equal(mainPosts[1].cw, 'spiders');
+  assert.equal((await anon(`/api/channels/${ooc.id}/posts`)).data.posts.length, 1);
 
-  // Story detail shows cast; invite code only for owner
-  const detail = (await partner(`/api/stories/${story.id}`)).data;
+  // Editing: only the author. Deleting: author, story owner or admin.
+  assert.equal((await gm(`/api/posts/${mainPosts[1].id}`, { method: 'PUT', body: { body: 'hijack' } })).status, 404);
+  const edited = await quill(`/api/posts/${mainPosts[1].id}`, { method: 'PUT', body: { body: 'A shadow drops silently.' } });
+  assert.ok(edited.data.post.editedAt);
+  assert.equal((await gm(`/api/posts/${mainPosts[2].id}`, { method: 'DELETE' })).status, 200);
+
+  const detail = (await quill(`/api/stories/${story.id}`)).data;
   assert.equal(detail.role, 'writer');
+  assert.equal(detail.channels.length, 2);
   assert.deepEqual(detail.cast.map((c) => c.name), ['Sir Aldric', 'Wren']);
   assert.equal(detail.story.inviteCode, undefined);
-  assert.ok((await owner(`/api/stories/${story.id}`)).data.story.inviteCode);
+});
 
-  // Editing: only the author; deleting: author or story owner
-  assert.equal((await owner(`/api/posts/${p2.data.post.id}`, { method: 'PUT', body: { body: 'edited by owner' } })).status, 404);
-  const edited = await partner(`/api/posts/${p2.data.post.id}`, { method: 'PUT', body: { body: 'A shadow drops silently.' } });
-  assert.ok(edited.data.post.editedAt);
-  assert.equal((await stranger(`/api/posts/${ooc.data.post.id}`, { method: 'DELETE' })).status, 404);
-  assert.equal((await owner(`/api/posts/${ooc.data.post.id}`, { method: 'DELETE' })).status, 200);
+test('channels: owner can add, rename, reorder and delete', async () => {
+  const gm = await app.signUp('chan_gm');
+  const other = await app.signUp('chan_other');
+  const { story, main } = await makeStory(gm);
+  const created = await gm(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'Chapter 2', topic: 'The ball' } });
+  assert.equal(created.status, 201);
+  assert.equal((await other(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'mine' } })).status, 403);
+  await gm(`/api/channels/${created.data.channel.id}`, { method: 'PUT', body: { move: 'up' } });
+  const names = (await gm(`/api/stories/${story.id}`)).data.channels.map((c) => c.name);
+  assert.deepEqual(names, ['main-story', 'Chapter 2', 'ooc-chat']);
+  assert.equal((await gm(`/api/channels/${main.id}`, { method: 'DELETE' })).status, 200);
+});
 
-  // Only owner can change settings; closing blocks joins without invite
-  assert.equal((await partner(`/api/stories/${story.id}`, { method: 'PUT', body: { title: 'Mine now' } })).status, 403);
-  await owner(`/api/stories/${story.id}`, { method: 'PUT', body: { status: 'closed' } });
-  assert.equal((await stranger(`/api/stories/${story.id}/join`, { method: 'POST', body: {} })).status, 403);
+test('unread counts, mentions and notifications', async () => {
+  const gm = await app.signUp('notif_gm');
+  const pal = await app.signUp('notif_pal');
+  const { story, main } = await makeStory(gm);
+  await pal(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
 
-  // Owner can't leave; writer can
-  assert.equal((await owner(`/api/stories/${story.id}/leave`, { method: 'POST', body: {} })).status, 400);
-  assert.equal((await partner(`/api/stories/${story.id}/leave`, { method: 'POST', body: {} })).status, 200);
+  await post(gm, main.id, { kind: 'narration', body: 'The storm rolls in.' });
+  await post(gm, main.id, { kind: 'narration', body: 'Thunder.' });
+  await post(gm, main.id, { kind: 'ooc', body: '@notif_pal your move!' });
+
+  let home = (await pal('/api/home')).data;
+  const mine = home.stories.find((s) => s.id === story.id);
+  assert.equal(mine.unread, 3);
+  assert.equal(mine.mentions, 1);
+
+  const notes = (await pal('/api/notifications')).data;
+  // Two plain posts collapse into one notification; the mention is separate.
+  assert.deepEqual(notes.notifications.map((n) => [n.type, n.count]), [['mention', 1], ['post', 2]]);
+  assert.equal(notes.unread, 2);
+
+  await pal(`/api/channels/${main.id}/read`, { method: 'POST', body: {} });
+  home = (await pal('/api/home')).data;
+  assert.equal(home.stories.find((s) => s.id === story.id).unread, 0);
+  assert.equal(home.notificationsUnread, 0);
+
+  // Muting a story stops plain post notifications.
+  await pal(`/api/stories/${story.id}/notify`, { method: 'PUT', body: { level: 'mentions' } });
+  await post(gm, main.id, { kind: 'narration', body: 'Quiet.' });
+  assert.equal((await pal('/api/notifications')).data.unread, 0);
+});
+
+test('turn order passes along and notifies the next writer', async () => {
+  const gm = await app.signUp('turn_gm');
+  const a = await app.signUp('turn_a');
+  const b = await app.signUp('turn_b');
+  const { story, main } = await makeStory(gm);
+  for (const c of [a, b]) await c(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
+
+  assert.equal((await a(`/api/channels/${main.id}/turns`, { method: 'PUT', body: { enabled: true } })).status, 403);
+  const set = await gm(`/api/channels/${main.id}/turns`, { method: 'PUT', body: { enabled: true, order: [a.user.id, b.user.id, gm.user.id] } });
+  assert.equal(set.data.channel.turns.current, a.user.id);
+  assert.equal((await a('/api/notifications')).data.notifications[0].type, 'turn');
+
+  // Writing in character on your turn passes it on; OOC does not.
+  await post(a, main.id, { kind: 'ooc', body: 'thinking…' });
+  assert.equal((await gm(`/api/stories/${story.id}`)).data.channels[0].turns.current, a.user.id);
+  await post(a, main.id, { kind: 'narration', body: 'She steps forward.' });
+  assert.equal((await gm(`/api/stories/${story.id}`)).data.channels[0].turns.current, b.user.id);
+  assert.equal((await b('/api/notifications')).data.notifications[0].type, 'turn');
+
+  // Only the current writer can pass; the owner can skip.
+  assert.equal((await a(`/api/channels/${main.id}/turns/advance`, { method: 'POST', body: {} })).status, 403);
+  await b(`/api/channels/${main.id}/turns/advance`, { method: 'POST', body: {} });
+  assert.equal((await gm(`/api/stories/${story.id}`)).data.channels[0].turns.current, gm.user.id);
+
+  // Leaving removes you from the order.
+  await b(`/api/stories/${story.id}/leave`, { method: 'POST', body: {} });
+  const turns = (await gm(`/api/stories/${story.id}`)).data.channels[0].turns;
+  assert.deepEqual(turns.order, [a.user.id, gm.user.id]);
+  assert.equal(turns.current, gm.user.id);
 });
 
 test('private stories are hidden except to members and invitees', async () => {
-  const owner = await signUp('secret_keeper');
-  const friend = await signUp('friend');
-  const other = await signUp('outsider');
-
-  const story = (await owner('/api/stories', { method: 'POST', body: { title: 'Hidden Grove', visibility: 'private' } })).data.story;
+  const owner = await app.signUp('secret_keeper');
+  const friend = await app.signUp('friend');
+  const other = await app.signUp('outsider');
+  const { story, main } = await makeStory(owner, { title: 'Hidden Grove', visibility: 'private' });
   const code = (await owner(`/api/stories/${story.id}`)).data.story.inviteCode;
 
   assert.ok(!(await other('/api/stories')).data.stories.some((s) => s.id === story.id));
   assert.equal((await other(`/api/stories/${story.id}`)).status, 404);
-  assert.equal((await other(`/api/stories/${story.id}/posts`)).status, 404);
-  assert.equal((await other(`/api/stories/${story.id}/join`, { method: 'POST', body: {} })).status, 404);
+  assert.equal((await other(`/api/channels/${main.id}/posts`)).status, 404);
   assert.equal((await other(`/api/stories/${story.id}/join`, { method: 'POST', body: { inviteCode: 'wrong' } })).status, 404);
+  assert.equal((await other(`/api/events?story=${story.id}`)).status, 404);
 
   assert.equal((await friend(`/api/stories/${story.id}/join`, { method: 'POST', body: { inviteCode: code } })).status, 200);
   assert.equal((await friend(`/api/stories/${story.id}`)).data.role, 'writer');
-  assert.ok((await friend('/api/stories?scope=mine')).data.stories.some((s) => s.id === story.id));
 
-  // Regenerating the invite invalidates the old link
   await owner(`/api/stories/${story.id}`, { method: 'PUT', body: { regenerateInvite: true } });
   assert.equal((await other(`/api/stories/${story.id}/join`, { method: 'POST', body: { inviteCode: code } })).status, 404);
 });
 
-test('live events stream new posts', async () => {
-  const c = await signUp('streamer');
-  const char = (await c('/api/characters', { method: 'POST', body: { name: 'Echo' } })).data.character;
-  const story = (await c('/api/stories', { method: 'POST', body: { title: 'Live Test' } })).data.story;
+test('owners can remove writers, who then cannot rejoin', async () => {
+  const owner = await app.signUp('kick_owner');
+  const pest = await app.signUp('kick_pest');
+  const { story } = await makeStory(owner);
+  await pest(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
+  assert.equal((await pest(`/api/stories/${story.id}/kick`, { method: 'POST', body: { userId: owner.user.id } })).status, 403);
+  assert.equal((await owner(`/api/stories/${story.id}/kick`, { method: 'POST', body: { userId: pest.user.id } })).status, 200);
+  assert.equal((await pest(`/api/stories/${story.id}`)).data.role, null);
+  assert.equal((await pest(`/api/stories/${story.id}/join`, { method: 'POST', body: {} })).status, 403);
+});
+
+test('blocking hides notifications and stops joining the blocker\'s stories', async () => {
+  const me = await app.signUp('blocker');
+  const them = await app.signUp('blockee');
+  const { story, main } = await makeStory(them);
+  await me(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
+  await me('/api/blocks', { method: 'POST', body: { userId: them.user.id } });
+  assert.deepEqual((await me('/api/blocks')).data.users.map((u) => u.username), ['blockee']);
+
+  await post(them, main.id, { kind: 'ooc', body: '@blocker hello?' });
+  assert.equal((await me('/api/notifications')).data.unread, 0);
+
+  const { story: mine } = await makeStory(me);
+  assert.equal((await them(`/api/stories/${mine.id}/join`, { method: 'POST', body: {} })).status, 403);
+
+  await me(`/api/blocks/${them.user.id}`, { method: 'DELETE' });
+  assert.equal((await me('/api/blocks')).data.users.length, 0);
+});
+
+test('reports reach admins, who can resolve them and suspend users', async () => {
+  const admin = app.admin;
+  const victim = await app.signUp('reporter');
+  const troll = await app.signUp('troll');
+  const { story, ooc } = await makeStory(victim);
+  await troll(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
+  const bad = (await post(troll, ooc.id, { kind: 'ooc', body: 'something awful' })).data.post;
+
+  assert.equal((await victim(`/api/posts/${bad.id}/report`, { method: 'POST', body: { reason: 'harassment' } })).status, 201);
+  assert.equal((await troll('/api/admin/reports')).status, 403);
+  const reports = (await admin('/api/admin/reports')).data.reports;
+  const report = reports.find((r) => r.post?.id === bad.id);
+  assert.equal(report.snapshot.body, 'something awful');
+  assert.equal(report.target.username, 'troll');
+  assert.ok((await admin('/api/notifications')).data.notifications.some((n) => n.type === 'report'));
+
+  // Admin deletes the post, suspends the user, resolves the report.
+  assert.equal((await admin(`/api/posts/${bad.id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await admin(`/api/admin/users/${troll.user.id}/ban`, { method: 'POST', body: { reason: 'harassment' } })).status, 200);
+  assert.equal((await troll('/api/me')).data.user, null);
+  assert.equal((await app.client()('/api/auth/login', { method: 'POST', body: { username: 'troll', password: 'correct horse' } })).status, 403);
+  await admin(`/api/admin/reports/${report.id}`, { method: 'POST', body: { status: 'resolved' } });
+  assert.ok(!(await admin('/api/admin/reports')).data.reports.some((r) => r.id === report.id));
+  assert.ok((await admin('/api/admin/log')).data.entries.some((e) => e.action === 'suspend'));
+
+  // Password reset links work once and sign out old sessions.
+  const { token } = (await admin(`/api/admin/users/${victim.user.id}/reset`, { method: 'POST', body: {} })).data;
+  const fresh = app.client();
+  assert.equal((await fresh('/api/auth/reset', { method: 'POST', body: { token, password: 'brand new pw' } })).status, 200);
+  assert.equal((await victim('/api/me')).data.user, null);
+  assert.equal((await fresh('/api/auth/reset', { method: 'POST', body: { token, password: 'again again' } })).status, 400);
+});
+
+test('image uploads are type-checked and usable as character pictures', async () => {
+  const c = await app.signUp('artist');
+  const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+  const up = await c('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png });
+  assert.equal(up.status, 201);
+  assert.match(up.data.url, /^\/uploads\/[\w-]+\.png$/);
+
+  const fake = await c('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: Buffer.from('<script>') });
+  assert.equal(fake.status, 400);
+  const svg = await c('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/svg+xml' }, raw: Buffer.from('<svg/>') });
+  assert.equal(svg.status, 415);
+
+  const ch = await c('/api/characters', { method: 'POST', body: { name: 'Pic', avatar: up.data.url } });
+  assert.equal(ch.data.character.avatar, up.data.url);
+  // Can't use someone else's (or a made-up) upload.
+  const other = await app.signUp('copycat');
+  assert.equal((await other('/api/characters', { method: 'POST', body: { name: 'X', avatar: up.data.url } })).status, 400);
+
+  const img = await fetch(app.base + up.data.url);
+  assert.equal(img.headers.get('content-type'), 'image/png');
+  assert.equal(img.headers.get('x-content-type-options'), 'nosniff');
+});
+
+test('live events: story watchers get posts, users get notifications', async () => {
+  const gm = await app.signUp('live_gm');
+  const pal = await app.signUp('live_pal');
+  const { story, main } = await makeStory(gm);
+  await pal(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
 
   const controller = new AbortController();
-  const res = await fetch(`${base}/api/stories/${story.id}/events`, { signal: controller.signal });
+  const res = await fetch(`${app.base}/api/events`, { headers: { Cookie: pal.cookie() }, signal: controller.signal });
   assert.equal(res.headers.get('content-type'), 'text/event-stream');
-  const reader = res.body.getReader();
-  await reader.read(); // ": connected"
+  const next = sseReader(res);
 
-  await c(`/api/stories/${story.id}/posts`, { method: 'POST', body: { kind: 'ic', characterId: char.id, body: 'Hello, world.' } });
-  const { value } = await reader.read();
-  const text = new TextDecoder().decode(value);
-  assert.match(text, /event: post/);
-  assert.match(text, /Hello, world\./);
+  await post(gm, main.id, { kind: 'narration', body: 'Hello, world.' });
+  const ev = await next('post');
+  assert.equal(ev.data.body, 'Hello, world.');
+  const note = await next('notification');
+  assert.equal(note.data.type, 'post');
   controller.abort();
 });
 
-test('serves the app shell and blocks path traversal', async () => {
-  const home = await fetch(base + '/');
+test('push subscriptions receive encrypted pushes', async () => {
+  const gm = await app.signUp('push_gm');
+  const pal = await app.signUp('push_pal');
+  const { createECDH, randomBytes } = await import('node:crypto');
+  const ua = createECDH('prime256v1');
+  const subscription = {
+    endpoint: 'https://push.example.com/send/abc',
+    keys: { p256dh: ua.generateKeys().toString('base64url'), auth: randomBytes(16).toString('base64url') },
+  };
+  assert.equal((await pal('/api/push/subscribe', { method: 'POST', body: { subscription } })).status, 200);
+  assert.equal((await pal('/api/push/subscribe', { method: 'POST', body: { subscription: { endpoint: 'http://insecure' } } })).status, 400);
+
+  const { story, main } = await makeStory(gm);
+  await pal(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
+  const before = app.pushes.length;
+  await post(gm, main.id, { kind: 'narration', body: 'ping' });
+  await new Promise((r) => setTimeout(r, 50));
+  const sent = app.pushes.slice(before).find((p) => p.url === subscription.endpoint);
+  assert.ok(sent, 'push was sent');
+  assert.equal(sent.init.headers['Content-Encoding'], 'aes128gcm');
+  assert.match(sent.init.headers.Authorization, /^vapid t=.+, k=.+/);
+});
+
+test('serves the app shell, blocks path traversal, and asks not to be indexed', async () => {
+  const home = await fetch(app.base + '/');
   assert.equal(home.status, 200);
   assert.match(await home.text(), /NUUVI/);
   assert.match(home.headers.get('content-security-policy'), /default-src 'self'/);
-  assert.equal((await fetch(base + '/some/spa/route')).status, 200);
-  assert.equal((await fetch(base + '/manifest.webmanifest')).headers.get('content-type'), 'application/manifest+json');
-  assert.equal((await fetch(base + '/..%2fpackage.json')).status, 404);
-  assert.equal((await fetch(base + '/missing.js')).status, 404);
+  assert.equal(home.headers.get('x-robots-tag'), 'noindex, nofollow');
+  assert.equal((await fetch(app.base + '/some/spa/route')).status, 200);
+  assert.equal((await fetch(app.base + '/..%2fpackage.json')).status, 404);
+  assert.equal((await fetch(app.base + '/uploads/..%2f..%2fetc.png')).status, 404);
 });

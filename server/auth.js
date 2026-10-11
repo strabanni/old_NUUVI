@@ -27,15 +27,23 @@ export function createSession(db, userId) {
 export function userForToken(db, token) {
   if (!token) return null;
   const row = db.prepare(`
-    SELECT u.id, u.username, u.display_name, u.bio, s.expires_at
+    SELECT u.*, s.expires_at
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token = ?`).get(token);
   if (!row) return null;
-  if (row.expires_at < Date.now()) {
+  if (row.expires_at < Date.now() || row.banned_at) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
     return null;
   }
-  return { id: row.id, username: row.username, displayName: row.display_name, bio: row.bio };
+  return toSelf(row);
+}
+
+// The signed-in user's own view of their account.
+export function toSelf(row) {
+  return {
+    id: row.id, username: row.username, displayName: row.display_name, bio: row.bio,
+    avatar: row.avatar, isAdmin: !!row.is_admin,
+  };
 }
 
 export function destroySession(db, token) {

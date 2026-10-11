@@ -1,0 +1,31 @@
+# Fly.io config. Change "app" to the name you pick (it becomes https://<app>.fly.dev),
+# and set PUBLIC_URL to match. See README → "Putting it online".
+app = "nuuvi-change-me"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PUBLIC_URL = "https://nuuvi-change-me.fly.dev"
+  TRUST_PROXY = "1"
+
+[[mounts]]
+  source = "nuuvi_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # Sleeps when nobody is using it (cheaper) and wakes on the next visit.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 500
+    hard_limit = 1000
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

@@ -2,22 +2,30 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="NUUVI — a home for roleplayers to write stories together.">
-  <meta name="theme-color" content="#14121c">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="description" content="A private writing home for roleplayers.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#15141b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="NUUVI">
   <title>NUUVI</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="stylesheet" href="/styles.css">
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/js/main.js"></script>
 </head>
-<body>
-  <header class="topbar">
-    <a href="#/" class="brand"><img src="/icon.svg" alt="NUUVI" width="28" height="28"><span>NUUVI</span></a>
-    <nav id="nav" aria-label="Main"></nav>
-  </header>
-  <main id="view" tabindex="-1"></main>
+<body class="guest">
+  <div class="app" id="app">
+    <nav id="rail" class="rail" aria-label="Stories"></nav>
+    <aside id="sidebar" class="sidebar" aria-label="Channels"></aside>
+    <main id="main" class="main" tabindex="-1"></main>
+    <aside id="members" class="members-panel" aria-label="Members"></aside>
+  </div>
+  <div id="scrim"></div>
+  <nav id="tabbar" class="tabbar" aria-label="Sections"></nav>
   <div id="toast" role="status" aria-live="polite"></div>
 </body>
 </html>

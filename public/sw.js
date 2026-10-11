@@ -1,7 +1,12 @@
-// Caches the app shell so NUUVI opens instantly and works as an installed app.
-// API requests always go to the network so stories stay current.
-const CACHE = 'nuuvi-shell-v1';
-const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/icon.svg', '/manifest.webmanifest'];
+// Service worker: caches the app shell so NUUVI opens instantly as an installed app,
+// and shows push notifications (new posts, @mentions, your turn) when the app is closed.
+const CACHE = 'nuuvi-shell-v2';
+const SHELL = [
+  '/', '/index.html', '/styles.css', '/icon.svg', '/manifest.webmanifest',
+  '/js/main.js', '/js/lib.js',
+  '/js/views/auth.js', '/js/views/home.js', '/js/views/channel.js', '/js/views/story-settings.js',
+  '/js/views/characters.js', '/js/views/people.js', '/js/views/notifications.js', '/js/views/admin.js',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -17,8 +22,9 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
-  // Network first, falling back to the cached shell when offline.
+  if (event.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/')) return;
+  // Network first (so updates show up right away), falling back to the cache when offline.
   event.respondWith(
     fetch(event.request)
       .then((res) => {
@@ -30,4 +36,37 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => caches.match(event.request).then((hit) => hit || caches.match('/index.html'))),
   );
+});
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data?.text() }; }
+  event.waitUntil((async () => {
+    // Skip the popup if the app is open and focused; the in-app badge covers it.
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    if (windows.some((w) => w.focused && w.visibilityState === 'visible')) return;
+    await self.registration.showNotification(data.title || 'NUUVI', {
+      body: data.body || '',
+      tag: data.tag,
+      renotify: !!data.tag,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      data: { url: data.url || '/#/notifications' },
+    });
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/#/notifications';
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const existing = windows.find((w) => new URL(w.url).origin === location.origin);
+    if (existing) {
+      await existing.focus();
+      existing.postMessage({ url: url.replace(/^\//, '') });
+      return;
+    }
+    await self.clients.openWindow(url);
+  })());
 });
