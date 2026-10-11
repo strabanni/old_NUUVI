@@ -32,3 +32,15 @@ test('push: VAPID keys are a 65-byte public key and 32-byte private key', () => 
   assert.equal(Buffer.from(publicKey, 'base64url').length, 65);
   assert.equal(Buffer.from(privateKey, 'base64url').length, 32);
 });
+
+test('usernames: anything goes except spaces and inappropriate words', async () => {
+  const { validUsername, isInappropriate, nameKey } = await import('../server/names.js');
+  for (const ok of ['r', 'rosé', 'ᴿᴼˢᴱ', '✿yoonoh✿', 'x'.repeat(100), '로즈', 'a.b-c!?', 'Ashitaka', 'Cassandra', 'Dickens', 'Semenov', 'therapist']) {
+    assert.equal(validUsername(ok), ok.normalize('NFC'), ok);
+  }
+  for (const bad of ['two words', 'x'.repeat(101), '', '   ', 'tab\there', 'n1gg3r', 'FuckYou', 'big_dick', 'xX_sh1t_Xx']) {
+    assert.throws(() => validUsername(bad), undefined, bad);
+  }
+  assert.equal(isInappropriate('Ｂｉｔｃｈ'), true);
+  assert.equal(nameKey('ＲＯＳÉ'), nameKey('rosé'));
+});

@@ -77,9 +77,6 @@ export function bindSocial(root, posts, redraw) {
   root.addEventListener('click', async (e) => {
     const vn = e.target.closest('.vn-play');
     if (vn) return playVoice(vn.closest('.voice-note'));
-    // In the feed grid long captions are cut off, so tapping one opens the whole post.
-    const cut = e.target.closest('.feed-grid .sm-body');
-    if (cut && !e.target.closest('a, .spoiler')) { location.hash = `#/p/${cut.closest('[data-social]').dataset.social}`; return; }
     const b = e.target.closest('[data-sm]');
     if (!b) return;
     const card = b.closest('[data-social]');

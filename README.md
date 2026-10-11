@@ -7,7 +7,7 @@ A private, invite-only writing home for a roleplay group. It's a **website** and
 - **Feed**: long-form, forum-style posts.
 - **Members panel** (right): who's in the story, plus its cast of characters.
 
-On phones, the rail and channels slide out from the left (tap ☰ or swipe right) and the members list slides in from the right. There is no bottom bar; the vertical user bar in the drawer replaces it.
+On phones the story rail stays on screen at all times, like Discord, with your shortcuts at its bottom. Tap a story (or ☰, or swipe right) and its channels slide out beside the rail. The members list slides in from the right. There is no bottom bar.
 
 ## Features
 
@@ -44,6 +44,8 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
 - **Icons:** [Uicons by Flaticon](https://www.flaticon.com/uicons) for the main shortcuts (feed, characters, profile, sign out, menu, follow, music).
 - Any pink surface that carries text uses a deep pink (`#C7366A`) with white text so it stays readable.
 - **Text size:** Normal, Large or Larger, under **You → Settings**. Post text is never justified.
+- **Interface size (phones and tablets):** Compact (the default, about Discord's scale), Standard or Large, under **You → Settings**.
+- **Greetings:** the "Welcome back" line changes: a hello on your first visit, "long time no see" after a while away, time-of-day greetings, and the odd quirky one.
 - The device's own sans-serif font (San Francisco on iPhone and Mac). No web fonts are downloaded.
 - **User bar (Blue Hour style):**
   - **Computer:** across the top.
@@ -64,11 +66,13 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
 - **A thread can have:** a starring character, tagged characters (who get notified), a plot summary and tags.
 - **The feed** shows only open threads, self paras, character social posts and events. Filters: all, open threads, self paras, social, events and mine. You can also search.
 - **Character social posts:** text, photos, videos, voice notes (record in the app or upload) and streams, with likes and comments made as a character. Any post can carry a song (title, artist and an optional link), shown under the character's name like on Instagram.
-- **Feed layout:** every card is the same size on computers, and phones show a two-column grid. Tap a card to open the whole post.
+- **Feed layout:** a brick wall. Each card is as tall as its content and they pack together in order, in columns on computers and two columns on phones.
 - **Events page:** upcoming events as cards or as a month calendar.
 - Characters follow other characters, and their owners get notified.
 
 **Safety and privacy**
+- **A quiet sign-in page:** just the logo and the form, nothing that describes the site.
+- **Usernames** can use any letters, symbols or emoji at any length (up to 100 characters). They can't have spaces, which would break @mentions; display names can. Slurs and explicit words are turned away, and names are unique regardless of capitals.
 - **Invite-only sign-up.** The first account becomes the admin. Everyone after that needs an invite code from an admin.
 - **No email addresses or phone numbers are collected.** The only personal data is a username and a password hash.
 - Uploads are checked by their actual file contents, and each person has 2 GB of storage.

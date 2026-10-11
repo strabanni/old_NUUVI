@@ -39,6 +39,19 @@ export function feedCard(item) {
     </a>`;
 }
 
+// Brick-wall feed: every card keeps its natural height and the grid packs them in order,
+// left to right. Rows are 2px tall, so each card spans as many rows as it is tall; a
+// ResizeObserver keeps that right as pictures load, text wraps or the window resizes.
+const ROW = 2;
+const fitBrick = (el) => {
+  const gap = parseFloat(getComputedStyle(el).marginBottom) || 0;
+  el.style.gridRowEnd = `span ${Math.max(1, Math.ceil((el.getBoundingClientRect().height + gap) / ROW))}`;
+};
+const bricks = new ResizeObserver((entries) => { for (const e of entries) fitBrick(e.target); });
+export function masonry(root) {
+  for (const el of root.querySelectorAll('.feed-grid > *')) { fitBrick(el); bricks.observe(el); }
+}
+
 const FILTERS = [['all', 'All'], ['open', 'Open threads'], ['para', 'Self paras'], ['social', 'Social'], ['event', 'Events']];
 
 function dayGroup(item) {
@@ -87,12 +100,13 @@ export async function viewFeed() {
       <div class="feed-day"><span class="${g.label === 'Now' ? 'now' : ''}">${g.label}</span></div>
       <div class="feed-grid">${g.items.map((it) => (it.type === 'social' ? socialCard(it) : feedCard(it)))}</div>`)}`);
     styleBars(list);
+    masonry(list);
   };
   const socialPosts = new Map();
   bindSocial(list, socialPosts, (p) => {
     socialPosts.set(p.id, p);
     const el = list.querySelector(`[data-social="${p.id}"]`);
-    if (el) { el.outerHTML = socialCard(p).v; applyColors(list); styleBars(list); }
+    if (el) { el.outerHTML = socialCard(p).v; applyColors(list); styleBars(list); masonry(list); }
   });
   $('#main #new-post').addEventListener('click', async () => { if (await openSocialComposer()) load(); });
   $$('[data-f]', body).forEach((b) => b.addEventListener('click', () => {
@@ -247,10 +261,12 @@ export async function viewEvents() {
     if (layout === 'cards') {
       const upcoming = events.filter((e) => new Date(e.eventAt) >= new Date(Date.now() - 864e5));
       const past = events.filter((e) => new Date(e.eventAt) < new Date(Date.now() - 864e5)).reverse();
-      return render(view, html`
+      render(view, html`
         ${upcoming.length ? html`<h2 class="section-title">Upcoming</h2><div class="event-list">${upcoming.map(card)}</div>` : html`<div class="empty"><p>No upcoming events.</p><p class="small">Story owners can add one from a story's sidebar → New thread → Event.</p></div>`}
         ${past.length ? html`<h2 class="section-title">Past</h2><div class="event-list past">${past.map(card)}</div>` : ''}
         ${undated.length ? html`<h2 class="section-title">No date yet</h2><div class="feed-grid">${undated.map(feedCard)}</div>` : ''}`);
+      masonry(view);
+      return;
     }
     const first = new Date(month);
     const startDay = (first.getDay() + 6) % 7; // weeks start on Monday

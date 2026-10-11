@@ -15,6 +15,7 @@ import { postRoutes } from './routes/posts.js';
 import { adminRoutes } from './routes/admin.js';
 import { threadRoutes } from './routes/threads.js';
 import { socialRoutes, socialPostRoutes } from './routes/social.js';
+import { nameKey } from './names.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 const MAX_JSON_BYTES = 256 * 1024;
@@ -186,12 +187,17 @@ export function createApp({
     const members = db.prepare(`SELECT m.user_id, m.notify, u.username FROM story_members m JOIN users u ON u.id = m.user_id
       WHERE m.story_id = ? AND m.user_id != ?`).all(story.id, post.userId);
     const blockers = new Set(db.prepare('SELECT blocker_id FROM blocks WHERE blocked_id = ?').all(post.userId).map((b) => b.blocker_id));
-    const mentioned = new Set([...post.body.matchAll(/@([a-zA-Z0-9_]{3,24})/g)].map((m) => m[1].toLowerCase()));
+    // @name ends at a space; trailing punctuation ("@rose!") is tried both with and without.
+    const mentioned = new Set();
+    for (const [, raw] of post.body.matchAll(/@([^\s@]+)/g)) {
+      mentioned.add(nameKey(raw));
+      mentioned.add(nameKey(raw.replace(/[.,!?;:)\]}'"’”…*_~|]+$/u, '')));
+    }
     const text = snippet(post);
     for (const m of members) {
       if (blockers.has(m.user_id) || m.notify === 'none') continue;
       const base = { userId: m.user_id, actorId: post.userId, storyId: story.id, channelId: channel.id, postId: post.id, text };
-      if (mentioned.has(m.username.toLowerCase())) createNotification({ ...base, type: 'mention' });
+      if (mentioned.has(nameKey(m.username))) createNotification({ ...base, type: 'mention' });
       else if (m.notify === 'all') createNotification({ ...base, type: 'post' });
     }
   };

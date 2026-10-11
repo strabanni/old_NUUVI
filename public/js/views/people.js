@@ -121,6 +121,10 @@ export async function viewSettings() {
           <label>Text size</label>
           <div class="seg" role="group" aria-label="Text size">${[['', 'Default'], ['large', 'Large'], ['larger', 'Larger']].map(([k, label]) => html`
             <button type="button" data-text-size="${k}" aria-pressed="${(document.documentElement.dataset.text || '') === k}">${label}</button>`)}</div>
+          <label>Interface size <span class="muted small">— phones and tablets</span></label>
+          <div class="seg" role="group" aria-label="Interface size">${[['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']].map(([k, label]) => html`
+            <button type="button" data-ui-size="${k}" aria-pressed="${(document.documentElement.dataset.ui || 'compact') === k}">${label}</button>`)}</div>
+          <p class="hint">Compact fits more on screen. Standard and Large make buttons and text bigger everywhere. The app reloads to apply it.</p>
           <p class="hint">NUUVI is pink throughout. Light and Dark keep pink just for highlights. Auto follows your device's light or dark setting.</p>
           <p class="hint">Icons: <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer">Uicons by Flaticon</a>.</p>
         </section>
@@ -243,6 +247,13 @@ export async function viewSettings() {
       if (v) document.documentElement.dataset.text = v; else delete document.documentElement.dataset.text;
       try { if (v) localStorage.setItem('nuuvi:text', v); else localStorage.removeItem('nuuvi:text'); } catch { /* ignore */ }
       body.querySelectorAll('[data-text-size]').forEach((b) => b.setAttribute('aria-pressed', String(b === ts)));
+      return;
+    }
+    const us = e.target.closest('[data-ui-size]');
+    if (us) {
+      if (us.dataset.uiSize === (document.documentElement.dataset.ui || 'compact')) return;
+      try { localStorage.setItem('nuuvi:ui', us.dataset.uiSize); } catch { /* ignore */ }
+      location.reload();
       return;
     }
     const sw = e.target.closest('[data-theme-pick]');

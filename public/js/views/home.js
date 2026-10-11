@@ -1,6 +1,6 @@
 import { html, render, api, $, bindForm, timeAgo, toast, uploadImage, avatar, icons } from '../lib.js';
-import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive } from '../main.js';
-import { feedCard } from './threads.js';
+import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive, greeting } from '../main.js';
+import { feedCard, masonry } from './threads.js';
 
 export function storyCard(s) {
   return html`
@@ -41,21 +41,21 @@ export async function viewHome() {
     for (const c of d?.channels ?? []) if (c.turns.enabled && c.turns.current === state.user.id) turns.push({ story: s, channel: c });
   }));
   const u = state.user;
-  page({
+  const homeBody = page({
     alive,
     title: html`<span class="script">home</span>`,
     body: html`
       <section class="card welcome phone-only">
         ${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'xl square' })}
         <div>
-          <h1>Welcome back, <span class="grad-text">${u.displayName}</span></h1>
+          <h1>${greeting()}</h1>
           <p class="stats-line">You have <b>${fmt(stats.posts)}</b> posts, <b>${fmt(stats.words)}</b> words and <b>${fmt(stats.characters)}</b> characters</p>
         </div>
         <nav class="quick-tiles" aria-label="Shortcuts">
           <a class="tile" href="#/new" title="Start a story" aria-label="Start a story">${icons.plus}</a>
           <a class="tile" href="#/notifications" title="Notifications" aria-label="Notifications">${icons.bell}${state.home.notificationsUnread ? html`<span class="badge">${state.home.notificationsUnread}</span>` : ''}</a>
           <a class="tile" href="#/feed" title="Feed" aria-label="Feed">${icons.apps}</a>
-          <a class="tile" href="#/u/${u.id}" title="Your profile" aria-label="Your profile">${icons.user}</a>
+          <a class="tile" href="#/u/${u.id}" title="Your profile" aria-label="Your profile">${icons.fingerprint}</a>
           <a class="tile" href="#/settings" title="Settings" aria-label="Settings">${icons.gear}</a>
         </nav>
       </section>
@@ -81,6 +81,7 @@ export async function viewHome() {
           <p><a class="btn primary" href="#/new">Start one</a> &nbsp; <a class="btn" href="#/discover">Find one</a></p>
         </div>`}`,
   });
+  masonry(homeBody);
 }
 
 export async function viewDiscover() {

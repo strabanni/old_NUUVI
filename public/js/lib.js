@@ -121,7 +121,7 @@ export function formatPost(text) {
     .replace(/~~(.+?)~~/g, '<s>$1</s>')
     .replace(/\|\|(.+?)\|\|/g, '<span class="spoiler" tabindex="0">$1</span>')
     .replace(/(&quot;|“)(.+?)(&quot;|”)/g, '<span class="dialogue">$1$2$3</span>')
-    .replace(/(^|[^\w])@([a-zA-Z0-9_]{3,24})/g, '$1<span class="mention">@$2</span>');
+    .replace(/(^|[\s(>])@([^\s@<&]+?)(?=[.,!?;:)\]]*(?:\s|$|<|&))/gu, '$1<span class="mention">@$2</span>');
   return raw(esc(text)
     .split(/\n{2,}/)
     .map((para) => {

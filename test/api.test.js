@@ -32,6 +32,26 @@ test('first user becomes admin; everyone after needs an invite', async () => {
   assert.equal((await sam('/api/admin/invites', { method: 'POST', body: {} })).status, 403);
 });
 
+test('usernames can use any characters, are unique in any case, and @mentions find them', async () => {
+  const owner = await app.signUp('名前_owner');
+  const invite = (await app.admin('/api/admin/invites', { method: 'POST', body: {} })).data.code;
+  const c = app.client();
+  const reg = await c('/api/auth/register', { method: 'POST', body: { username: '✿Rosé✿', password: 'supersecret1', invite } });
+  assert.equal(reg.status, 201, JSON.stringify(reg.data));
+  const invite2 = (await app.admin('/api/admin/invites', { method: 'POST', body: {} })).data.code;
+  const dup = await app.client()('/api/auth/register', { method: 'POST', body: { username: '✿ROSÉ✿', password: 'supersecret1', invite: invite2 } });
+  assert.equal(dup.status, 409);
+  assert.equal((await app.client()('/api/auth/register', { method: 'POST', body: { username: 'has space', password: 'supersecret1', invite: invite2 } })).status, 400);
+  assert.equal((await app.client()('/api/auth/login', { method: 'POST', body: { username: '✿rosé✿', password: 'supersecret1' } })).status, 200);
+
+  const story = (await owner('/api/stories', { method: 'POST', body: { title: 'Names', visibility: 'public' } })).data.story;
+  await c(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
+  const channel = (await owner(`/api/stories/${story.id}`)).data.channels[0];
+  await owner(`/api/channels/${channel.id}/posts`, { method: 'POST', body: { kind: 'ooc', body: 'hey @✿rosé✿! you around?' } });
+  const notes = (await c('/api/notifications')).data.notifications;
+  assert.ok(notes.some((n) => n.type === 'mention'), JSON.stringify(notes));
+});
+
 test('login, logout, password change and validation', async () => {
   const c = await app.signUp('ada');
   assert.equal((await c('/api/me')).data.user.username, 'ada');

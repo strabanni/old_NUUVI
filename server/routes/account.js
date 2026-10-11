@@ -8,6 +8,7 @@ import { toUser, toCharacter, requireUser, uploadRef } from '../model.js';
 import { validateSubscription } from '../push.js';
 import { profileInput, detailsInput, parseProfile } from '../profile.js';
 import { transaction } from '../db.js';
+import { validUsername, validDisplayName, nameKey } from '../names.js';
 
 const MB = 1024 * 1024;
 const MAX_UPLOAD_BYTES = 60 * MB;
@@ -47,6 +48,17 @@ function inviteRow(db, code) {
 export function accountRoutes(r, ctx) {
   const { db, config, authLimiter } = ctx;
 
+  // Exact match first (fast, case-insensitive for plain letters), then the same name in any
+  // case or look-alike form, so "Rosé" and "ROSÉ" are one account.
+  const findByUsername = (name) => {
+    if (!name) return null;
+    const exact = db.prepare('SELECT * FROM users WHERE username = ?').get(name);
+    if (exact) return exact;
+    const key = nameKey(name);
+    const hit = db.prepare('SELECT id, username FROM users').all().find((u) => nameKey(u.username) === key);
+    return hit ? db.prepare('SELECT * FROM users WHERE id = ?').get(hit.id) : null;
+  };
+
   r.get('/api/auth/status', () => {
     const firstUser = !db.prepare('SELECT 1 FROM users LIMIT 1').get();
     return { data: { firstUser, inviteRequired: !firstUser && !config.openRegistration } };
@@ -54,10 +66,9 @@ export function accountRoutes(r, ctx) {
 
   r.post('/api/auth/register', ({ body, ip, setSession }) => {
     if (!authLimiter(ip)) fail(429, 'Too many attempts, try again later');
-    const username = str(body.username, 'Username', { min: 3, max: 24, required: true });
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) fail(400, 'Username may only use letters, numbers and _');
+    const username = validUsername(body.username);
     const password = validPassword(body.password);
-    const displayName = str(body.displayName, 'Display name', { max: 40 }) || username;
+    const displayName = validDisplayName(str(body.displayName, 'Display name', { max: 40 })) || username;
 
     const user = transaction(db, () => {
       const firstUser = !db.prepare('SELECT 1 FROM users LIMIT 1').get();
@@ -66,7 +77,7 @@ export function accountRoutes(r, ctx) {
         invite = inviteRow(db, body.invite);
         if (!invite) fail(403, 'You need a valid invite code to join');
       }
-      if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) fail(409, 'That username is taken');
+      if (findByUsername(username)) fail(409, 'That username is taken');
       const { lastInsertRowid } = db.prepare('INSERT INTO users (username, display_name, password_hash, is_admin) VALUES (?, ?, ?, ?)')
         .run(username, displayName, hashPassword(password), firstUser ? 1 : 0);
       if (invite) db.prepare('UPDATE site_invites SET uses = uses + 1 WHERE id = ?').run(invite.id);
@@ -78,9 +89,7 @@ export function accountRoutes(r, ctx) {
 
   r.post('/api/auth/login', ({ body, ip, setSession }) => {
     if (!authLimiter(ip)) fail(429, 'Too many attempts, try again later');
-    const row = typeof body.username === 'string'
-      ? db.prepare('SELECT * FROM users WHERE username = ?').get(body.username.trim())
-      : null;
+    const row = typeof body.username === 'string' ? findByUsername(body.username.normalize('NFC').trim()) : null;
     if (!row || typeof body.password !== 'string' || !verifyPassword(body.password, row.password_hash)) {
       fail(401, 'Wrong username or password');
     }
@@ -123,7 +132,7 @@ export function accountRoutes(r, ctx) {
 
   r.put('/api/me', ({ user, body }) => {
     requireUser(user);
-    const displayName = str(body.displayName, 'Display name', { min: 1, max: 40 }) ?? user.displayName;
+    const displayName = validDisplayName(str(body.displayName, 'Display name', { min: 1, max: 40 })) ?? user.displayName;
     const bio = str(body.bio, 'Bio', { max: 2000 }) ?? user.bio;
     const avatar = uploadRef(db, body.avatar, user.id);
     const banner = uploadRef(db, body.banner, user.id);

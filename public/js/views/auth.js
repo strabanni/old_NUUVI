@@ -9,21 +9,16 @@ export async function viewLanding({ invite = '' } = {}) {
   const main = $('#main');
   render(main, html`
     <div class="landing">
-      <section class="hero">
-        <div class="hero-logo">${logoMark}${wordmark}</div>
-        <div class="script">hola, storytellers</div>
-        <h1>Write <span>together</span></h1>
-        <p>A private home for your roleplay group. Characters, threads and long-form posts — without handing your data to anyone else.</p>
-      </section>
+      <div class="hero-logo">${logoMark}${wordmark}</div>
       <section class="card auth">
-        ${status.firstUser ? html`<p class="notice">Welcome! This is a brand-new NUUVI. The first account you create becomes the <strong>admin</strong> account.</p>` : ''}
+        ${status.firstUser ? html`<p class="notice">This is a brand-new NUUVI. The first account becomes the <strong>admin</strong>.</p>` : ''}
         <div class="tabs" role="tablist">
           <button type="button" role="tab" data-tab="login">Sign in</button>
           <button type="button" role="tab" data-tab="register">Create account</button>
         </div>
         <form id="auth-form">
           <label for="username">Username</label>
-          <input id="username" name="username" autocomplete="username" autocapitalize="off" required minlength="3" maxlength="24">
+          <input id="username" name="username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required maxlength="100">
           <div class="register-only">
             <label for="displayName">Display name <span class="muted small">(optional)</span></label>
             <input id="displayName" name="displayName" maxlength="40">
@@ -36,11 +31,6 @@ export async function viewLanding({ invite = '' } = {}) {
           <div class="error"></div>
           <button type="submit" class="primary block">Sign in</button>
         </form>
-      </section>
-      <section class="features">
-        <div><h3>Stories & scenes</h3><p>Each story gets its own channels, like a server — one for the scene, one for OOC chat, add as many as you like.</p></div>
-        <div><h3>Characters</h3><p>Pictures, colors, bios. Post as any of them, or as the narrator.</p></div>
-        <div><h3>Threads & feed</h3><p>Open and private threads, comms and events — all in one feed, tagged and easy to find.</p></div>
       </section>
     </div>`);
 

@@ -138,18 +138,54 @@ function userTiles({ vertical = false } = {}) {
       ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon, base: icons.sparkle }[next])}
       ${tile({ href: '#/feed' }, 'Feed', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
-      ${tile({ href: '#/characters' }, 'Characters', icons.fingerprint)}
-      ${tile({ href: '#/settings' }, 'You & settings', icons.user)}
+      ${tile({ href: '#/characters' }, 'Characters', icons.user)}
+      ${tile({ href: '#/settings' }, 'You & settings', icons.fingerprint)}
       ${tile({ act: 'logout' }, 'Sign out', icons.power)}
     </nav>`;
 }
+
+// A little hello that changes: first visit, coming back after a while, time of day, or
+// something quirky. Picked once per visit so it doesn't change while you click around.
+// {n} marks where the name goes.
+const GREETINGS = {
+  first: ['Welcome to NUUVI, {n}', 'Hi {n}, nice to meet you', 'Welcome in, {n}', 'Make yourself at home, {n}'],
+  long: ['Look who’s back, {n}', 'Long time no see, {n}', 'We missed you, {n}', 'The return of {n}'],
+  back: ['Welcome back, {n}', 'Good to see you, {n}', 'Hey again, {n}', 'There you are, {n}'],
+  morning: ['Good morning, {n}', 'Rise and write, {n}', 'Morning, {n}'],
+  afternoon: ['Good afternoon, {n}', 'Afternoon, {n}', 'Hey {n}, how’s your day?'],
+  evening: ['Good evening, {n}', 'Evening, {n}', 'Cozy writing hours, {n}'],
+  night: ['Up late, {n}?', 'Hello, night owl {n}', 'Midnight muse, {n}?'],
+  quirky: ['Plot twist: it’s {n}', 'The muse has arrived, {n}', 'Pen’s ready, {n}', 'Main character energy, {n}',
+    'Your characters missed you, {n}', 'Cue the entrance, {n}', 'Ready for the next arc, {n}?', 'Hi {n}, spill the plot'],
+};
+let greetingPick = null;
+function greetingFor(name) {
+  if (!greetingPick) {
+    const now = Date.now();
+    const last = Number(store.get('nuuvi:last-visit')) || 0;
+    store.set('nuuvi:last-visit', String(now));
+    const hour = new Date().getHours();
+    const away = last ? now - last : Infinity;
+    const day = 864e5;
+    let pool;
+    if (!last) pool = GREETINGS.first;
+    else if (away > 7 * day) pool = GREETINGS.long;
+    else if (Math.random() < 0.3) pool = GREETINGS.quirky;
+    else if (away > day && Math.random() < 0.5) pool = GREETINGS.back;
+    else pool = hour < 5 || hour >= 22 ? GREETINGS.night : hour < 12 ? GREETINGS.morning : hour < 17 ? GREETINGS.afternoon : GREETINGS.evening;
+    greetingPick = pool[Math.floor(Math.random() * pool.length)];
+  }
+  const [before, after] = greetingPick.split('{n}');
+  return html`${before}<span class="grad-text">${name}</span>${after}`;
+}
+export const greeting = () => greetingFor(state.user.displayName);
 
 function welcomeText() {
   const u = state.user;
   const st = state.home.stats || {};
   return html`
     <div class="ub-text">
-      <h2>Welcome back, <span class="grad-text">${u.displayName}</span></h2>
+      <h2>${greetingFor(u.displayName)}</h2>
       <p>You have <b>${fmt(st.posts)}</b> posts and <b>${fmt(st.characters)}</b> characters</p>
     </div>`;
 }
@@ -174,11 +210,6 @@ function renderRail() {
   const active = state.route.storyId;
   const u = state.user;
   render(rail, html`
-    <div class="rail-user only-mobile">
-      <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'square' })}</a>
-      ${userTiles({ vertical: true })}
-      <div class="rail-sep"></div>
-    </div>
     <button type="button" class="rail-item rail-logo ${state.online.length > 1 ? 'others' : ''}" id="online-btn"
       title="NUUVI · ${state.online.length} online" aria-label="NUUVI — ${state.online.length} people online">
       ${logoMark}<span class="online-badge"><span class="pulse"></span>${state.online.length || ''}</span>
@@ -191,7 +222,12 @@ function renderRail() {
         ${s.mentions ? html`<span class="badge">${s.mentions}</span>` : ''}
       </a>`)}
     <a href="#/new" class="rail-item action" title="Start a story" aria-label="Start a story">${icons.plus}</a>
-    <a href="#/discover" class="rail-item action" title="Discover stories" aria-label="Discover stories">${icons.compass}</a>`);
+    <a href="#/discover" class="rail-item action" title="Discover stories" aria-label="Discover stories">${icons.compass}</a>
+    <div class="rail-user only-mobile">
+      <div class="rail-sep"></div>
+      ${userTiles({ vertical: true })}
+      <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'square' })}</a>
+    </div>`);
 }
 
 export const KIND_LABELS = { thread: 'Threads', para: 'Self paras', comms: 'Comms', event: 'Events', ooc: 'Out of character' };
@@ -244,7 +280,7 @@ function renderSidebar() {
         ${link('#/home', 'Home', icons.home)}
         ${link('#/feed', 'Feed', icons.apps)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
-        ${link('#/characters', 'Characters', icons.fingerprint)}
+        ${link('#/characters', 'Characters', icons.user)}
         ${link('#/discover', 'Discover', icons.compass)}
         ${state.user.isAdmin ? link('#/admin', 'Admin', icons.shield, state.home.reportsOpen) : ''}
         <div class="side-section"><span>Your stories</span><a href="#/new" class="icon-btn sm" title="Start a story" aria-label="Start a story">${icons.plus}</a></div>
@@ -363,8 +399,10 @@ function setupDrawer() {
     if (e.target.id === 'scrim') closeDrawers();
     // Following a link inside a drawer closes it.
     if (e.target.closest('#rail a, #sidebar a, #members a')) {
-      // Tapping a story icon keeps the drawer open so you can pick a channel, like Discord.
-      if (!e.target.closest('#rail a[href^="#/s/"]')) closeDrawers();
+      // Tapping a story icon opens its channel list beside the rail, like Discord.
+      if (e.target.closest('#rail a[href^="#/s/"]')) {
+        if (window.matchMedia('(max-width: 899px)').matches) document.body.classList.add('drawer-open');
+      } else closeDrawers();
     }
   });
   if (store.get('nuuvi:members-hidden')) document.body.classList.add('members-hidden');
