@@ -1,0 +1,13 @@
+{
+  "name": "NUUVI",
+  "short_name": "NUUVI",
+  "description": "A home for roleplayers to write stories together.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#14121c",
+  "theme_color": "#14121c",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
