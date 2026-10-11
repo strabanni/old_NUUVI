@@ -6,6 +6,7 @@ import { fail, str, id, color } from '../http.js';
 import { hashPassword, verifyPassword, createSession, destroySession, toSelf } from '../auth.js';
 import { toUser, toCharacter, requireUser, uploadRef } from '../model.js';
 import { validateSubscription } from '../push.js';
+import { profileInput, detailsInput, parseProfile } from '../profile.js';
 import { transaction } from '../db.js';
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
@@ -103,8 +104,11 @@ export function accountRoutes(r, ctx) {
     const displayName = str(body.displayName, 'Display name', { min: 1, max: 40 }) ?? user.displayName;
     const bio = str(body.bio, 'Bio', { max: 2000 }) ?? user.bio;
     const avatar = uploadRef(db, body.avatar, user.id);
-    db.prepare('UPDATE users SET display_name = ?, bio = ?, avatar = ? WHERE id = ?')
-      .run(displayName, bio, avatar === undefined ? user.avatar : avatar, user.id);
+    const banner = uploadRef(db, body.banner, user.id);
+    const profile = profileInput(body.profile, user.profile);
+    db.prepare('UPDATE users SET display_name = ?, bio = ?, avatar = ?, banner = ?, profile = ? WHERE id = ?')
+      .run(displayName, bio, avatar === undefined ? user.avatar : avatar, banner === undefined ? user.banner : banner,
+        JSON.stringify(profile ?? user.profile), user.id);
     return { data: { user: toSelf(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) } };
   });
 
@@ -126,7 +130,11 @@ export function accountRoutes(r, ctx) {
     const blocked = user ? !!db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?').get(user.id, row.id) : false;
     return {
       data: {
-        user: { ...toUser(row), bio: row.bio, isAdmin: !!row.is_admin, suspended: !!row.banned_at, joinedAt: row.created_at },
+        user: {
+          ...toUser(row), bio: row.bio, banner: row.banner, profile: parseProfile(row.profile),
+          isAdmin: !!row.is_admin, suspended: !!row.banned_at, joinedAt: row.created_at,
+        },
+        stats: ctx.userStats(row.id),
         characters,
         blocked,
       },
@@ -257,8 +265,10 @@ export function accountRoutes(r, ctx) {
     if (count >= 200) fail(400, 'You can have at most 200 characters');
     const f = characterFields(body);
     const avatar = uploadRef(db, body.avatar, user.id) ?? null;
-    const { lastInsertRowid } = db.prepare('INSERT INTO characters (user_id, name, tagline, bio, color, avatar) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(user.id, f.name, f.tagline, f.bio, f.color, avatar);
+    const portrait = uploadRef(db, body.portrait, user.id) ?? null;
+    const details = JSON.stringify(detailsInput(body.details) ?? []);
+    const { lastInsertRowid } = db.prepare('INSERT INTO characters (user_id, name, tagline, bio, color, avatar, portrait, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(user.id, f.name, f.tagline, f.bio, f.color, avatar, portrait, details);
     return { status: 201, data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(lastInsertRowid)) } };
   });
 
@@ -268,8 +278,11 @@ export function accountRoutes(r, ctx) {
     if (!existing) fail(404, 'Character not found');
     const f = characterFields(body, existing);
     const avatar = uploadRef(db, body.avatar, user.id);
-    db.prepare('UPDATE characters SET name = ?, tagline = ?, bio = ?, color = ?, avatar = ? WHERE id = ?')
-      .run(f.name, f.tagline, f.bio, f.color, avatar === undefined ? existing.avatar : avatar, existing.id);
+    const portrait = uploadRef(db, body.portrait, user.id);
+    const details = detailsInput(body.details);
+    db.prepare('UPDATE characters SET name = ?, tagline = ?, bio = ?, color = ?, avatar = ?, portrait = ?, details = ? WHERE id = ?')
+      .run(f.name, f.tagline, f.bio, f.color, avatar === undefined ? existing.avatar : avatar,
+        portrait === undefined ? existing.portrait : portrait, details === undefined ? existing.details : JSON.stringify(details), existing.id);
     return { data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(existing.id)) } };
   });
 

@@ -10,8 +10,9 @@ export async function viewLanding({ invite = '' } = {}) {
   render(main, html`
     <div class="landing">
       <section class="hero">
-        <img src="/icon.svg" alt="" width="72" height="72">
-        <h1>Write <span>together</span>.</h1>
+        <img src="/icon.svg" alt="" width="64" height="64">
+        <div class="script">hola, storytellers</div>
+        <h1>Write <span>together</span></h1>
         <p>A private home for your roleplay group. Characters, scenes and long-form posts — without handing your data to anyone else.</p>
       </section>
       <section class="card auth">

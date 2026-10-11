@@ -332,3 +332,32 @@ test('serves the app shell, blocks path traversal, and asks not to be indexed', 
   assert.equal((await fetch(app.base + '/..%2fpackage.json')).status, 404);
   assert.equal((await fetch(app.base + '/uploads/..%2f..%2fetc.png')).status, 404);
 });
+
+test('roleplay profiles, banners and character details', async () => {
+  const c = await app.signUp('profiled');
+  const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+  const banner = (await c('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png })).data.url;
+
+  const me = await c('/api/me', {
+    method: 'PUT',
+    body: { banner, profile: { pronouns: 'she/her', timezone: 'GMT-5', activity: 'low', plots: 'selective', limits: 'no gore', styles: { longThreads: 120, oneLiners: 30, bogus: 5 } } },
+  });
+  assert.equal(me.status, 200, JSON.stringify(me.data));
+  assert.equal(me.data.user.banner, banner);
+  assert.deepEqual(me.data.user.profile.styles, { longThreads: 100, oneLiners: 30 });
+  assert.equal((await c('/api/me', { method: 'PUT', body: { profile: { activity: 'sleepy' } } })).status, 400);
+
+  // Partial updates keep the other fields.
+  await c('/api/me', { method: 'PUT', body: { profile: { status: 'writing!' } } });
+  const pub = (await c(`/api/users/${c.user.id}`)).data;
+  assert.equal(pub.user.profile.pronouns, 'she/her');
+  assert.equal(pub.user.profile.status, 'writing!');
+  assert.deepEqual(Object.keys(pub.stats).sort(), ['characters', 'posts', 'stories', 'words']);
+
+  const ch = await c('/api/characters', { method: 'POST', body: { name: 'Hide', portrait: banner, details: [{ label: 'Age', value: '21' }, { label: '', value: 'dropped' }] } });
+  assert.deepEqual(ch.data.character.details, [{ label: 'Age', value: '21' }]);
+  assert.equal(ch.data.character.portrait, banner);
+
+  const { story } = (await c('/api/stories', { method: 'POST', body: { title: 'Bannered', banner } })).data;
+  assert.equal(story.banner, banner);
+});

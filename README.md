@@ -35,6 +35,15 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
 - Push notifications to phones and desktops, even when the app is closed. Push contents are end-to-end encrypted.
 - Per-story notification level: every post, mentions and turns only, or nothing.
 
+**Look and feel**
+- Frosted-glass panels over a soft gradient backdrop. Inside a story, its banner shows blurred behind everything; on profiles, the person's banner or character portrait does.
+- Five themes, chosen per device under **Settings → Appearance**: Dusk, Midnight, Blue Hour, Aurora and Mist. **Auto** follows the device's light or dark mode.
+- Story posts are glass cards, and OOC chat shows as message bubbles, with your own on the right.
+- Profiles:
+  - **People:** banner, stats, pronouns, time zone, activity, plot status, writing-style meters, "looking for", and limits.
+  - **Characters:** a large portrait, custom details (age, face claim and so on), and a biography.
+- Fonts: [Poppins](https://fonts.google.com/specimen/Poppins) and [Instrument Serif](https://fonts.google.com/specimen/Instrument+Serif), bundled in `public/fonts` under the SIL Open Font License.
+
 **Safety and privacy**
 - **Invite-only sign-up.** The first account becomes the admin. Everyone after that needs an invite code from an admin.
 - **No email addresses or phone numbers are collected.** The only personal data is a username and a password hash.

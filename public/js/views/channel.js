@@ -7,6 +7,16 @@ import { state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refres
 
 const nameOf = (u) => u?.displayName ?? 'someone';
 
+function dayLabel(sqlDate) {
+  if (!sqlDate) return '';
+  const d = new Date(sqlDate.replace(' ', 'T') + 'Z');
+  const today = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
 export async function viewChannel(storyIdStr, channelIdStr) {
   const alive = routeAlive();
   const storyId = Number(storyIdStr);
@@ -126,17 +136,17 @@ export async function viewChannel(storyIdStr, channelIdStr) {
         <div class="blocked-note">Post from a blocked user. <button class="link" data-act="reveal">Show</button></div>
         <div class="hidden-content">${postBody(p)}</div></article>`;
     }
-    const grouped = prev && !blocked(prev) && identityKey(prev) === identityKey(p) && minutesBetween(prev.createdAt, p.createdAt) < 10 && p.id !== dividerBefore;
+    const grouped = prev && !blocked(prev) && identityKey(prev) === identityKey(p) && minutesBetween(prev.createdAt, p.createdAt) < 10 && p.id !== dividerBefore && dayLabel(prev.createdAt) === dayLabel(p.createdAt);
     const color = (p.kind === 'ic' || p.kind === 'roll') && p.character ? p.character.color : '';
     return html`
-      <article class="post kind-${p.kind} ${grouped ? 'grouped' : ''}" id="post-${p.id}" data-id="${p.id}" ${color ? html`data-color="${color}"` : ''}>
+      <article class="post kind-${p.kind} ${grouped ? 'grouped' : ''} ${p.userId === state.user?.id ? 'mine' : ''}" id="post-${p.id}" data-id="${p.id}" ${color ? html`data-color="${color}"` : ''}>
         <div class="gutter">${grouped ? html`<time class="hover-time">${timeStamp(p.createdAt).replace(/^.* at /, '')}</time>` : postAvatar(p)}</div>
         <div class="content">
           ${grouped ? '' : html`<header>${postHeader(p)}<time title="${p.createdAt} UTC">${timeStamp(p.createdAt)}</time></header>`}
           ${postBody(p)}
-          <footer class="post-meta">${p.wordCount ? html`<span>${p.wordCount} words</span>` : ''}${p.editedAt ? html`<span>edited</span>` : ''}</footer>
+          <footer class="post-meta">${p.wordCount ? html`<span>${p.wordCount} words</span>` : ''}${p.editedAt ? html`<span>edited</span>` : ''}<span class="meta-time">${timeStamp(p.createdAt).replace(/^Today at /, '')}</span></footer>
+          <button class="icon-btn sm post-menu" data-act="menu" aria-label="Post options">${icons.more}</button>
         </div>
-        <button class="icon-btn sm post-menu" data-act="menu" aria-label="Post options">${icons.more}</button>
       </article>`;
   }
 
@@ -148,7 +158,9 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     if (hasMore) items.push(html`<div class="load-more"><button id="load-more">Load earlier posts</button></div>`);
     else items.push(html`<div class="channel-start"><div class="big-hash">${icons.hash}</div><h2>Welcome to #${channel().name}</h2><p class="muted">${channel().topic || 'This is the beginning of the channel.'}</p></div>`);
     for (const p of list) {
-      if (p.id === dividerBefore) items.push(html`<div class="new-divider"><span>New</span></div>`);
+      const day = dayLabel(p.createdAt);
+      if (day !== dayLabel(prev?.createdAt)) items.push(html`<div class="day-pill"><span>${day}</span></div>`);
+      if (p.id === dividerBefore) items.push(html`<div class="new-divider">New</div>`);
       items.push(postHtml(p, prev));
       prev = p;
     }
@@ -327,12 +339,9 @@ export async function viewChannel(storyIdStr, channelIdStr) {
           <span class="hint" id="wc">0 words</span>
         </div>
         <div class="composer-box">
-          <textarea id="post-body" name="body" rows="2" maxlength="30000" aria-label="Write a post"></textarea>
-          <div class="composer-tools">
-            <button type="button" class="icon-btn" id="dice-btn" title="Roll dice" aria-label="Roll dice">${icons.dice}</button>
-            <button type="button" class="icon-btn" id="cw-btn" title="Add a content warning" aria-label="Add a content warning">${icons.warn}</button>
-            <button type="submit" class="icon-btn send" title="Post (Ctrl+Enter)" aria-label="Post">${icons.send}</button>
-          </div>
+          <div class="composer-tools"><button type="button" class="icon-btn" id="more-btn" title="Dice & content warnings" aria-label="More options">${icons.plus}</button></div>
+          <textarea id="post-body" name="body" rows="1" maxlength="30000" aria-label="Write a post"></textarea>
+          <div class="composer-tools"><button type="submit" class="icon-btn send" title="Post (Ctrl+Enter)" aria-label="Post">${icons.send}</button></div>
         </div>
         <div class="error"></div>
       </form>`);
@@ -350,7 +359,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
         : identity === 'narration'
           ? html`<span class="avatar xs narrator-av">${icons.mask}</span><span class="id-name">Narrator</span>${icons.chevron}`
           : html`${avatar({ name: state.user.displayName, src: state.user.avatar, size: 'xs' })}<span class="id-name">${state.user.displayName} <small>(OOC)</small></span>${icons.chevron}`);
-      ta.placeholder = ch ? `Write as ${ch.name}… *actions* "dialogue"` : identity === 'narration' ? 'Describe the scene…' : `Message #${channel().name} out of character`;
+      ta.placeholder = ch ? `Write as ${ch.name}…` : identity === 'narration' ? 'Describe the scene…' : `Message #${channel().name}`;
     }
     drawIdentity();
 
@@ -369,7 +378,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
 
     const autosize = () => {
       ta.style.height = 'auto';
-      ta.style.height = `${Math.min(ta.scrollHeight, window.innerHeight * 0.45)}px`;
+      ta.style.height = `${Math.min(ta.scrollHeight + 2, window.innerHeight * 0.45)}px`;
     };
     ta.value = store.get(draftKey) || '';
     const update = () => { wc.textContent = `${words(ta.value)} words`; autosize(); };
@@ -379,16 +388,20 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); }
     });
 
-    $('#cw-btn', form).addEventListener('click', async () => {
+    const askCw = async () => {
       const v = await promptModal('Content warning', { label: 'Readers will have to tap to reveal this post.', value: cw, placeholder: 'e.g. gore, spiders', ok: 'Set', maxlength: 100 });
       if (v === null) return;
       cw = v.trim();
       cwChip.hidden = !cw;
       cwChip.textContent = `CW: ${cw} ✕`;
-    });
+    };
     cwChip.addEventListener('click', () => { cw = ''; cwChip.hidden = true; });
 
-    $('#dice-btn', form).addEventListener('click', () => rollDialog());
+    const moreBtn = $('#more-btn', form);
+    moreBtn.addEventListener('click', () => menu(moreBtn, [
+      { label: '🎲  Roll dice', action: () => rollDialog() },
+      { label: `⚠  ${cw ? 'Change' : 'Add'} content warning`, action: askCw },
+    ]));
 
     async function sendPost(payload) {
       const { post } = await api(`/api/channels/${channelId}/posts`, { method: 'POST', body: payload });

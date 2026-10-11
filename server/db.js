@@ -2,9 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
-const SCHEMA = `
+export const SCHEMA = `
 CREATE TABLE users (
   id            INTEGER PRIMARY KEY,
   username      TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -194,6 +194,16 @@ CREATE INDEX notifications_user_idx ON notifications(user_id, id);
 CREATE INDEX reports_status_idx ON reports(status, id);
 `;
 
+// Upgrades for databases created by earlier versions. Index i upgrades version i+1 → i+2.
+const MIGRATIONS = [
+  // v2: roleplay profile fields, banners, character details and portraits.
+  `ALTER TABLE users ADD COLUMN profile TEXT NOT NULL DEFAULT '{}';
+   ALTER TABLE users ADD COLUMN banner TEXT;
+   ALTER TABLE characters ADD COLUMN details TEXT NOT NULL DEFAULT '[]';
+   ALTER TABLE characters ADD COLUMN portrait TEXT;
+   ALTER TABLE stories ADD COLUMN banner TEXT;`,
+];
+
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
@@ -205,6 +215,12 @@ export function openDb(path) {
     }
     db.exec('BEGIN');
     db.exec(SCHEMA);
+    for (const m of MIGRATIONS) db.exec(m);
+    db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+    db.exec('COMMIT');
+  } else if (version < SCHEMA_VERSION) {
+    db.exec('BEGIN');
+    for (let v = version; v < SCHEMA_VERSION; v++) db.exec(MIGRATIONS[v - 1]);
     db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     db.exec('COMMIT');
   } else if (version > SCHEMA_VERSION) {

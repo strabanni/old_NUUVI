@@ -1,4 +1,5 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { parseProfile } from './profile.js';
 
 const SESSION_DAYS = 30;
 export const SESSION_COOKIE = 'nuuvi_session';
@@ -42,7 +43,8 @@ export function userForToken(db, token) {
 export function toSelf(row) {
   return {
     id: row.id, username: row.username, displayName: row.display_name, bio: row.bio,
-    avatar: row.avatar, isAdmin: !!row.is_admin,
+    avatar: row.avatar, banner: row.banner ?? null, isAdmin: !!row.is_admin,
+    profile: parseProfile(row.profile),
   };
 }
 

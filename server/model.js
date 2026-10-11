@@ -11,7 +11,8 @@ export const toUser = (r, prefix = '') => ({
 export function toCharacter(r) {
   return {
     id: r.id, userId: r.user_id, name: r.name, tagline: r.tagline, bio: r.bio,
-    color: r.color, avatar: r.avatar, createdAt: r.created_at,
+    color: r.color, avatar: r.avatar, portrait: r.portrait ?? null,
+    details: r.details ? JSON.parse(r.details) : [], createdAt: r.created_at,
   };
 }
 
@@ -21,7 +22,7 @@ export function toStory(r) {
   return {
     id: r.id, ownerId: r.owner_id, title: r.title, summary: r.summary, genre: r.genre,
     rating: r.rating, contentWarnings: splitWarnings(r.content_warnings),
-    visibility: r.visibility, status: r.status, color: r.color, icon: r.icon,
+    visibility: r.visibility, status: r.status, color: r.color, icon: r.icon, banner: r.banner ?? null,
     createdAt: r.created_at, updatedAt: r.updated_at,
     memberCount: r.member_count, postCount: r.post_count, ownerName: r.owner_name,
   };

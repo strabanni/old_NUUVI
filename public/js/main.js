@@ -50,6 +50,7 @@ export async function refreshHome() {
 
 export async function loadStory(id) {
   state.story = await api(`/api/stories/${id}`);
+  if (state.route.storyId === id) setAmbient(state.story.story.banner || state.story.story.icon);
   renderSidebar();
   renderMembers();
   return state.story;
@@ -63,6 +64,32 @@ export async function myCharacters(force = false) {
 export async function refreshBlocks() {
   if (!state.user) return;
   state.blocks = new Set((await api('/api/blocks')).users.map((u) => u.id));
+}
+
+// ---------- Look & feel ----------
+export const THEMES = [['auto', 'Auto'], ['dusk', 'Dusk'], ['midnight', 'Midnight'], ['bluehour', 'Blue hour'], ['aurora', 'Aurora'], ['mist', 'Mist']];
+const THEME_COLORS = { dusk: '#2b2830', midnight: '#0a0a0c', bluehour: '#1e1d22', aurora: '#fbe7dc', mist: '#dcdbd8' };
+
+export function currentThemePick() { return store.get('nuuvi:theme') || 'auto'; }
+
+export function applyTheme(pick = currentThemePick()) {
+  store.set('nuuvi:theme', pick === 'auto' ? null : pick);
+  const light = window.matchMedia('(prefers-color-scheme: light)').matches;
+  const theme = pick === 'auto' ? (light ? 'mist' : 'dusk') : pick;
+  document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', THEME_COLORS[theme]);
+}
+
+// The blurred picture behind everything (a story's banner, a profile's portrait…).
+let ambientSrc = null;
+export function setAmbient(src) {
+  const img = $('#ambient img');
+  if (!img || src === ambientSrc) return;
+  ambientSrc = src || null;
+  img.classList.remove('on');
+  if (!src) return;
+  img.onload = () => { if (ambientSrc === src) img.classList.add('on'); };
+  img.src = src;
 }
 
 function updateTitle() {
@@ -113,7 +140,8 @@ function renderSidebar() {
   if (state.route.storyId && s && s.story.id === state.route.storyId) {
     const isOwner = s.role === 'owner';
     render(side, html`
-      <button class="side-head story-head-btn" id="story-menu">
+      <button class="side-head story-head-btn ${s.story.banner ? 'has-banner' : ''}" id="story-menu">
+        ${s.story.banner ? html`<img src="${s.story.banner}" alt="">` : ''}
         <span>${s.story.title}</span>${icons.chevron}
       </button>
       <div class="side-scroll">
@@ -142,7 +170,7 @@ function renderSidebar() {
     const link = (href, label, icon, badge = 0) => html`
       <a href="${href}" class="nav-link ${hash === href ? 'active' : ''}">${icon}<span>${label}</span>${badge ? html`<span class="badge">${badge}</span>` : ''}</a>`;
     render(side, html`
-      <div class="side-head"><span>NUUVI</span></div>
+      <div class="side-head"><span>NUUVI</span><span class="script muted">your stories</span></div>
       <div class="side-scroll">
         ${link('#/home', 'Home', icons.home)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
@@ -381,6 +409,7 @@ export async function router() {
   const storyMatch = hash.match(/^#\/s\/(\d+)(?:\/(\d+))?/);
   state.route = { storyId: storyMatch ? Number(storyMatch[1]) : null, channelId: storyMatch?.[2] ? Number(storyMatch[2]) : null };
   if (!state.route.storyId) state.story = null;
+  setAmbient(state.route.storyId && state.story ? state.story.story.banner || state.story.story.icon : null);
 
   document.body.classList.toggle('guest', !state.user);
   document.body.classList.toggle('in-channel', !!state.route.channelId);
@@ -438,6 +467,7 @@ async function boot() {
   }
   if (state.user) await Promise.all([refreshHome(), refreshBlocks()]).catch(() => {});
   setupDrawer();
+  window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme());
   window.addEventListener('hashchange', router);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && state.user) {

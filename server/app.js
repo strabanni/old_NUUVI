@@ -27,6 +27,7 @@ const MIME = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.json': 'application/json',
+  '.woff2': 'font/woff2',
   '.webmanifest': 'application/manifest+json',
   '.txt': 'text/plain; charset=utf-8',
 };
@@ -87,6 +88,12 @@ export function createApp({
     pusher: createPusher({ db, vapid: loadVapidKeys(db), subject: vapidSubject, fetchImpl: pushFetch }),
     modLog: (actorId, action, detail) => modLog(db, actorId, action, detail),
   };
+
+  ctx.userStats = (userId) => db.prepare(`SELECT
+      (SELECT COUNT(*) FROM posts WHERE user_id = :u) AS posts,
+      (SELECT COALESCE(SUM(word_count), 0) FROM posts WHERE user_id = :u) AS words,
+      (SELECT COUNT(*) FROM characters WHERE user_id = :u) AS characters,
+      (SELECT COUNT(*) FROM story_members WHERE user_id = :u) AS stories`).get({ u: userId });
 
   // ---------- Notifications ----------
   ctx.toNotification = (row) => ({

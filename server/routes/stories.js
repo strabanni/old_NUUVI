@@ -63,6 +63,7 @@ export function storyRoutes(r, ctx) {
         stories: rows.map((row) => ({ ...toStory(row), unread: row.unread, mentions: row.mentions })),
         notificationsUnread,
         reportsOpen,
+        stats: ctx.userStats(user.id),
       },
     };
   });
@@ -99,11 +100,12 @@ export function storyRoutes(r, ctx) {
       visibility: oneOf(body.visibility, 'Visibility', ['public', 'private']) ?? 'private',
       color: color(body.color) ?? STORY_COLORS[Math.floor(Math.random() * STORY_COLORS.length)],
       icon: uploadRef(db, body.icon, user.id) ?? null,
+      banner: uploadRef(db, body.banner, user.id) ?? null,
     };
     const storyId = transaction(db, () => {
-      const sid = Number(db.prepare(`INSERT INTO stories (owner_id, title, summary, genre, rating, content_warnings, visibility, color, icon, invite_code)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(user.id, title, fields.summary, fields.genre, fields.rating, fields.cw, fields.visibility, fields.color, fields.icon, inviteCode()).lastInsertRowid);
+      const sid = Number(db.prepare(`INSERT INTO stories (owner_id, title, summary, genre, rating, content_warnings, visibility, color, icon, banner, invite_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(user.id, title, fields.summary, fields.genre, fields.rating, fields.cw, fields.visibility, fields.color, fields.icon, fields.banner, inviteCode()).lastInsertRowid);
       db.prepare("INSERT INTO story_members (story_id, user_id, role) VALUES (?, ?, 'owner')").run(sid, user.id);
       const ins = db.prepare('INSERT INTO channels (story_id, name, topic, position) VALUES (?, ?, ?, ?)');
       ins.run(sid, 'main-story', 'The story itself — write in character here.', 0);
@@ -143,12 +145,13 @@ export function storyRoutes(r, ctx) {
       status: oneOf(body.status, 'Status', ['open', 'closed']) ?? row.status,
       color: color(body.color) ?? row.color,
       icon: uploadRef(db, body.icon, user.id),
+      banner: uploadRef(db, body.banner, user.id),
       code: body.regenerateInvite ? inviteCode() : row.invite_code,
     };
     db.prepare(`UPDATE stories SET title = ?, summary = ?, genre = ?, rating = ?, content_warnings = ?, visibility = ?, status = ?,
-      color = ?, icon = ?, invite_code = ?, updated_at = datetime('now') WHERE id = ?`)
+      color = ?, icon = ?, banner = ?, invite_code = ?, updated_at = datetime('now') WHERE id = ?`)
       .run(f.title, f.summary, f.genre, f.rating, f.cw, f.visibility, f.status, f.color,
-        f.icon === undefined ? row.icon : f.icon, f.code, row.id);
+        f.icon === undefined ? row.icon : f.icon, f.banner === undefined ? row.banner : f.banner, f.code, row.id);
     const story = toStory(db.prepare(`${STORY_SELECT} WHERE s.id = ?`).get(row.id));
     story.inviteCode = f.code;
     storyChanged(row.id);
