@@ -7,7 +7,7 @@ A private, invite-only writing home for a roleplay group. It's a **website** and
 - **Feed**: long-form, forum-style posts.
 - **Members panel** (right): who's in the story, plus its cast of characters.
 
-On phones, the rail and channels slide out from the left (tap ☰ or swipe right), the members list slides in from the right, and tabs run along the bottom.
+On phones, the rail and channels slide out from the left (tap ☰ or swipe right) and the members list slides in from the right. There is no bottom bar; the vertical user bar in the drawer replaces it.
 
 ## Features
 
@@ -17,10 +17,10 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
   - `*actions*`, `**bold**`, `__underline__`, `~~strike~~`
   - `||spoilers||`
   - `"dialogue"`
-  - `> quotes`
   - `@mentions`
 - Content warnings on stories (readers confirm before entering) and on single posts (tap to reveal).
 - Drafts save automatically per channel, and word counts show as you type. Ctrl/⌘+Enter posts.
+- **Stars:** star any post to bookmark it, then jump back to it from ★ at the top of the thread. Stars are private to you.
 - Turn order per channel. Whoever's turn it is gets notified, and posting in character passes the turn on. The writer whose turn it is can pass, and the owner can skip.
 
 **Stories**
@@ -38,29 +38,38 @@ On phones, the rail and channels slide out from the left (tap ☰ or swipe right
 - NUUVI's own palette: Pompadour `#F8769C` and Mimi Pink `#FFDBED`.
   - **Light mode:** `#F5F5F5` / `#B0AEAE`.
   - **Dark mode:** `#48484A` / `#0E0E0F`.
+  - **Light mode** is white with pink only. **Dark mode** is true neutral black and grey, with no blue tint.
   - **Auto:** follows the device.
+- Any pink surface that carries text uses a deep pink (`#C7366A`) with white text so it stays readable.
+- **Text size:** Normal, Large or Larger, under **You → Settings**. Post text is never justified.
 - The device's own sans-serif font (San Francisco on iPhone and Mac). No web fonts are downloaded.
 - **User bar (Blue Hour style):**
   - **Computer:** across the top.
   - **Phone:** runs vertically down the slide-out drawer.
   - **Shows:** your avatar, "Welcome back", your stats, and shortcuts (light/dark, feed, alerts, characters, settings, sign out).
-- **Threads:** forum-style posts with the character's name, "aka" line, avatar, quote button, and "for …" footer. Comms and OOC channels read like text messages.
-- **Character profiles:** a big portrait, follow button, following/followers/active-thread counts, details, biography, and their threads.
+- **Online indicator:** where the logo will go, a pulsing dot shows how many people are online. Tap it to see who.
+- **Threads:** forum-style posts with the character's name in capitals, an "aka" line the owner writes, avatar, star button, and "for …" footer. Each character's owner chooses whether the name sits on the left or the right. Comms and OOC channels read like text messages.
+- **Comms titles are personal:** each person sets their own contact names for the other characters, so the chat is titled with whatever you saved them as.
+- **Character profiles (Instagram style):** cover, portrait, posts/followers/following/threads counts, a verified badge, bio, and tabs for recent posts, threads and details. Owners can set the follower and following numbers shown, for celebrity characters.
+- **Character cards** show the character only; a writer's own page lists their characters.
 
 **Threads & feed**
-- Each story's channels are typed: **thread**, **comms** (texts and socials), **event** (with a date) and **OOC**.
+- Each story's channels are typed: **thread**, **self para** (solo writing), **comms** (texts), **event** (with a date) and **OOC**.
 - Any writer can start a thread or comms. Story owners make events and OOC channels.
 - **Threads can be:**
   - **Open:** anyone in the story can write.
   - **Private:** only the tagged characters can write.
   - **Complete:** read-only.
 - **A thread can have:** a starring character, tagged characters (who get notified), a plot summary and tags.
-- **The feed lists every thread you can see**, grouped by day. Filters: open threads, my threads, threads, comms, events and OOC. You can also search.
+- **The feed** shows only open threads, self paras, character social posts and events. Filters: all, open threads, self paras, social, events and mine. You can also search.
+- **Character social posts:** text, photos, videos, voice notes (record in the app or upload) and streams, with likes and comments made as a character.
+- **Events page:** upcoming events as cards or as a month calendar.
 - Characters follow other characters, and their owners get notified.
 
 **Safety and privacy**
 - **Invite-only sign-up.** The first account becomes the admin. Everyone after that needs an invite code from an admin.
 - **No email addresses or phone numbers are collected.** The only personal data is a username and a password hash.
+- Uploads are checked by their actual file contents, and each person has 2 GB of storage.
 - Uploaded pictures are resized in the browser before upload, which strips hidden photo data like GPS location.
 - **Blocking:** a blocked person's posts are hidden for you, they can't notify you, and they can't join stories you own.
 - **Reports:** anyone can report a post or a person, and admins get notified.

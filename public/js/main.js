@@ -9,7 +9,8 @@ import { viewCharacters, viewCharacter } from './views/characters.js';
 import { viewUser, viewSettings } from './views/people.js';
 import { viewNotifications } from './views/notifications.js';
 import { viewAdmin } from './views/admin.js';
-import { viewFeed, openThreadForm } from './views/threads.js';
+import { viewFeed, openThreadForm, viewEvents } from './views/threads.js';
+import { viewSocialPost } from './views/social.js';
 
 export const state = {
   user: null,
@@ -18,6 +19,7 @@ export const state = {
   blocks: new Set(),
   characters: null,
   route: { storyId: null, channelId: null },
+  online: [], // user ids with the app open right now
 };
 
 // Views subscribe to live events through this bus.
@@ -46,13 +48,11 @@ export async function refreshHome() {
   renderUserbar();
   renderRail();
   renderSidebar();
-  renderTabbar();
   updateTitle();
 }
 
 export async function loadStory(id) {
   state.story = await api(`/api/stories/${id}`);
-  if (state.route.storyId === id) setAmbient(state.story.story.banner || state.story.story.icon);
   renderSidebar();
   renderMembers();
   return state.story;
@@ -66,6 +66,18 @@ export async function myCharacters(force = false) {
     charactersAt = Date.now();
   }
   return state.characters;
+}
+
+export async function loadOnline() {
+  if (!state.user) return;
+  state.online = (await api('/api/online')).users.map((u) => u.id);
+  renderRail();
+}
+
+async function showOnline(anchor) {
+  const { users } = await api('/api/online');
+  menu(anchor, users.length ? users.map((u) => ({ label: `● ${u.displayName}${u.id === state.user.id ? ' (you)' : ''}`, action: () => { location.hash = `#/u/${u.id}`; } }))
+    : [{ label: 'Nobody else is online', action: () => {} }]);
 }
 
 export async function refreshBlocks() {
@@ -92,16 +104,9 @@ export function applyTheme(pick = currentThemePick()) {
 }
 
 // The blurred picture behind everything (a story's banner, a profile's portrait…).
-let ambientSrc = null;
-export function setAmbient(src) {
-  const img = $('#ambient img');
-  if (!img || src === ambientSrc) return;
-  ambientSrc = src || null;
-  img.classList.remove('on');
-  if (!src) return;
-  img.onload = () => { if (ambientSrc === src) img.classList.add('on'); };
-  img.src = src;
-}
+// Profile/story pictures used to be blurred behind the app; that tinted dark and light mode,
+// so it's off. Kept as a no-op so views can still call it.
+export function setAmbient() {}
 
 function updateTitle() {
   const n = state.home.notificationsUnread;
@@ -170,9 +175,11 @@ function renderRail() {
       ${userTiles({ vertical: true })}
       <div class="rail-sep"></div>
     </div>
-    <a href="#/home" class="rail-item home ${!active ? 'active' : ''}" title="Home" aria-label="Home">
-      <img src="/icon.svg" alt="">
-    </a>
+    <button type="button" class="rail-item online-indicator ${state.online.length > 1 ? 'others' : ''}" id="online-btn"
+      title="${state.online.length} online" aria-label="${state.online.length} people online">
+      <span class="pulse"></span><b>${state.online.length || ''}</b>
+    </button>
+    <a href="#/home" class="rail-item home-link ${!active ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
     <div class="rail-sep"></div>
     ${state.home.stories.map((s) => html`
       <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" title="${s.title}" aria-label="${s.title}">
@@ -183,8 +190,8 @@ function renderRail() {
     <a href="#/discover" class="rail-item action" title="Discover stories" aria-label="Discover stories">${icons.compass}</a>`);
 }
 
-export const KIND_LABELS = { thread: 'Threads', comms: 'Comms', event: 'Events', ooc: 'Out of character' };
-export const kindIcon = (kind) => ({ thread: icons.quill, comms: icons.chat, event: icons.calendar, ooc: icons.hash })[kind] || icons.hash;
+export const KIND_LABELS = { thread: 'Threads', para: 'Self paras', comms: 'Comms', event: 'Events', ooc: 'Out of character' };
+export const kindIcon = (kind) => ({ thread: icons.quill, para: icons.feather, comms: icons.chat, event: icons.calendar, ooc: icons.hash })[kind] || icons.hash;
 
 function renderSidebar() {
   const side = $('#sidebar');
@@ -193,7 +200,7 @@ function renderSidebar() {
   const s = state.story;
   const mobileWelcome = html`<div class="side-welcome only-mobile">${welcomeText()}</div>`;
   if (state.route.storyId && s && s.story.id === state.route.storyId) {
-    const groups = ['thread', 'comms', 'event', 'ooc'].map((k) => [k, s.channels.filter((c) => c.kind === k)]).filter(([, list]) => list.length);
+    const groups = ['thread', 'para', 'comms', 'event', 'ooc'].map((k) => [k, s.channels.filter((c) => c.kind === k)]).filter(([, list]) => list.length);
     render(side, html`
       ${mobileWelcome}
       <button class="side-head story-head-btn ${s.story.banner ? 'has-banner' : ''}" id="story-menu">
@@ -253,7 +260,7 @@ function renderMembers() {
   document.body.classList.add('has-members');
   const group = (title, list) => (list.length ? html`
     <div class="side-section"><span>${title} — ${list.length}</span></div>
-    ${list.map((m) => html`<a class="member" href="#/u/${m.id}">${avatar({ name: m.displayName, src: m.avatar, color: '#6b6880' })}
+    ${list.map((m) => html`<a class="member ${state.online.includes(m.id) ? 'is-online' : ''}" href="#/u/${m.id}"><span class="av-wrap">${avatar({ name: m.displayName, src: m.avatar, color: '#48484A' })}<i class="online-dot"></i></span>
       <span>${m.displayName}${state.blocks.has(m.id) ? html` <small class="muted">(blocked)</small>` : ''}</span></a>`)}` : '');
   render(panel, html`
     <div class="side-scroll">
@@ -262,20 +269,6 @@ function renderMembers() {
       ${s.cast.length ? html`<div class="side-section"><span>Cast — ${s.cast.length}</span></div>
         ${s.cast.map((c) => html`<a class="member" href="#/c/${c.id}">${avatar({ name: c.name, src: c.avatar, color: c.color })}<span data-color="${c.color}" class="cast-name">${c.name}</span></a>`)}` : ''}
     </div>`);
-}
-
-function renderTabbar() {
-  const bar = $('#tabbar');
-  if (!state.user) return render(bar, html``);
-  const hash = location.hash;
-  const tab = (href, label, icon, badge = 0, match = href) => html`
-    <a href="${href}" class="${hash.startsWith(match) ? 'active' : ''}">${icon}<span>${label}</span>${badge ? html`<span class="badge">${badge}</span>` : ''}</a>`;
-  render(bar, html`
-    ${tab('#/home', 'Home', icons.home)}
-    ${tab('#/feed', 'Feed', icons.sliders)}
-    ${tab('#/notifications', 'Alerts', icons.bell, state.home.notificationsUnread)}
-    ${tab('#/characters', 'Characters', icons.mask)}
-    ${tab(`#/u/${state.user.id}`, 'You', avatar({ name: state.user.displayName, src: state.user.avatar, color: '#F8769C', size: 'xs' }))}`);
 }
 
 async function joinCurrentStory() {
@@ -339,6 +332,7 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
 const closeDrawers = () => document.body.classList.remove('drawer-open', 'members-open');
 function setupDrawer() {
   document.addEventListener('click', async (e) => {
+    if (e.target.closest('#online-btn')) { showOnline(e.target.closest('#online-btn')); return; }
     const ub = e.target.closest('[data-ub]');
     if (ub?.dataset.ub === 'theme') {
       applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
@@ -409,12 +403,18 @@ function connectLive() {
   source = new EventSource(`/api/events${storyId ? `?story=${storyId}` : ''}`);
   let opened = false;
   source.addEventListener('open', () => { if (opened) emit('reconnect'); opened = true; });
-  for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked']) {
+  for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence']) {
     source.addEventListener(type, (e) => handleLive(type, JSON.parse(e.data)));
   }
 }
 
 function handleLive(type, data) {
+  if (type === 'presence') {
+    state.online = data.online;
+    renderRail();
+    renderMembers();
+    return;
+  }
   if (type === 'post' && data.userId !== state.user?.id) {
     const viewing = state.route.channelId === data.channelId && document.visibilityState === 'visible';
     if (!viewing) {
@@ -460,6 +460,8 @@ const routes = [
   [/^#\/home$/, viewHome, true],
   [/^#\/discover$/, viewDiscover],
   [/^#\/feed$/, viewFeed, true],
+  [/^#\/events$/, viewEvents, true],
+  [/^#\/p\/(\d+)$/, viewSocialPost, true],
   [/^#\/new$/, viewNewStory, true],
   [/^#\/notifications$/, viewNotifications, true],
   [/^#\/characters$/, viewCharacters, true],
@@ -482,7 +484,6 @@ export async function router() {
   const storyMatch = hash.match(/^#\/s\/(\d+)(?:\/(\d+))?/);
   state.route = { storyId: storyMatch ? Number(storyMatch[1]) : null, channelId: storyMatch?.[2] ? Number(storyMatch[2]) : null };
   if (!state.route.storyId) state.story = null;
-  setAmbient(state.route.storyId && state.story ? state.story.story.banner || state.story.story.icon : null);
 
   document.body.classList.toggle('guest', !state.user);
   renderUserbar();
@@ -491,7 +492,6 @@ export async function router() {
   renderRail();
   renderSidebar();
   renderMembers();
-  renderTabbar();
   connectLive();
 
   if (!found) return page({ title: 'Not found', body: html`<div class="empty"><p>That page doesn't exist.</p><a href="#/home">Go home</a></div>` });
@@ -519,6 +519,7 @@ export async function signedIn(user) {
   const next = store.get('nuuvi:after-login');
   store.set('nuuvi:after-login', null);
   sourceKey = null;
+  loadOnline().catch(() => {});
   location.hash = next && next !== '#/' ? next : '#/home';
   router();
 }
@@ -539,7 +540,7 @@ async function boot() {
   } catch {
     state.user = null;
   }
-  if (state.user) await Promise.all([refreshHome(), refreshBlocks()]).catch(() => {});
+  if (state.user) await Promise.all([refreshHome(), refreshBlocks(), loadOnline()]).catch(() => {});
   setupDrawer();
   window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme());
   window.addEventListener('hashchange', router);

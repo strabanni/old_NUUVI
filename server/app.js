@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, createReadStream } from 'node:fs';
 import { join, normalize, extname, sep, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +14,7 @@ import { storyRoutes } from './routes/stories.js';
 import { postRoutes } from './routes/posts.js';
 import { adminRoutes } from './routes/admin.js';
 import { threadRoutes } from './routes/threads.js';
-import { socialRoutes } from './routes/social.js';
+import { socialRoutes, socialPostRoutes } from './routes/social.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 const MAX_JSON_BYTES = 256 * 1024;
@@ -30,6 +30,14 @@ const MIME = {
   '.webp': 'image/webp',
   '.json': 'application/json',
   '.woff2': 'font/woff2',
+  '.mp4': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+  '.m4a': 'audio/mp4',
+  '.weba': 'audio/webm',
+  '.ogg': 'audio/ogg',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
   '.webmanifest': 'application/manifest+json',
   '.txt': 'text/plain; charset=utf-8',
 };
@@ -39,9 +47,9 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'same-origin',
   'X-Frame-Options': 'DENY',
   'X-Robots-Tag': 'noindex, nofollow',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
   'Content-Security-Policy':
-    "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 
 // Live connections (Server-Sent Events). Each stream belongs to a user (or an anonymous
@@ -49,8 +57,27 @@ const SECURITY_HEADERS = {
 function createHub(db) {
   const streams = new Set();
   const write = (s, event, data) => s.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  // Who's online = signed-in users with at least one open live connection.
+  const online = () => [...new Set([...streams].map((s) => s.userId).filter(Boolean))];
+  let presenceTimer = null;
+  let lastPresence = '';
+  const announcePresence = () => {
+    clearTimeout(presenceTimer);
+    presenceTimer = setTimeout(() => {
+      const ids = online().sort((a, b) => a - b);
+      if (ids.join() === lastPresence) return;
+      lastPresence = ids.join();
+      for (const s of streams) if (s.userId) write(s, 'presence', { online: ids });
+    }, 800);
+    presenceTimer.unref?.();
+  };
   return {
-    add(stream) { streams.add(stream); return () => streams.delete(stream); },
+    online,
+    add(stream) {
+      streams.add(stream);
+      announcePresence();
+      return () => { streams.delete(stream); announcePresence(); };
+    },
     sendUser(userId, event, data) {
       for (const s of streams) if (s.userId === userId) write(s, event, data);
     },
@@ -105,7 +132,8 @@ export function createApp({
     channel: row.channel_id ? { id: row.channel_id, name: row.channel_name } : null,
     postId: row.post_id,
     characterId: row.character_id ?? null,
-    url: row.type === 'report' ? '#/admin' : row.type === 'follow' && row.character_id ? `#/c/${row.character_id}`
+    socialId: row.social_id ?? null,
+    url: row.type === 'report' ? '#/admin' : row.social_id ? `#/p/${row.social_id}` : row.type === 'follow' && row.character_id ? `#/c/${row.character_id}`
       : row.story_id && row.channel_id ? `#/s/${row.story_id}/${row.channel_id}` : '#/notifications',
   });
 
@@ -115,7 +143,7 @@ export function createApp({
     return text.length > 140 ? text.slice(0, 139) + '…' : text;
   };
 
-  function createNotification({ userId, type, actorId = null, storyId = null, channelId = null, postId = null, characterId = null, text = '' }) {
+  function createNotification({ userId, type, actorId = null, storyId = null, channelId = null, postId = null, characterId = null, socialId = null, text = '' }) {
     let notificationId;
     const existing = type === 'post' && db.prepare(`SELECT id FROM notifications
       WHERE user_id = ? AND type = 'post' AND channel_id = ? AND read_at IS NULL`).get(userId, channelId);
@@ -124,8 +152,8 @@ export function createApp({
         .run(actorId, postId, text, existing.id);
       notificationId = existing.id;
     } else {
-      notificationId = Number(db.prepare(`INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, character_id, text)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(userId, type, actorId, storyId, channelId, postId, characterId, text).lastInsertRowid);
+      notificationId = Number(db.prepare(`INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, character_id, social_id, text)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(userId, type, actorId, storyId, channelId, postId, characterId, socialId, text).lastInsertRowid);
     }
     const n = ctx.toNotification(db.prepare(`
       SELECT n.*, a.username AS a_username, a.display_name AS a_display_name, a.avatar AS a_avatar, a.id AS a_id,
@@ -145,6 +173,8 @@ export function createApp({
       turn: () => ({ title: `Your turn in ${n.story?.title}`, body: `${where}${text ? ` — ${text}` : ''}` }),
       report: () => ({ title: 'New report', body: text }),
       follow: () => ({ title: 'New follower', body: text }),
+      like: () => ({ title: 'New like', body: text }),
+      comment: () => ({ title: 'New comment', body: text }),
       tag: () => ({ title: `${n.actor?.displayName} tagged you in a thread`, body: `${where} · ${n.story?.title}` }),
     }[type]();
     ctx.pusher.send(userId, { ...push, url: `/${n.url}`, tag: n.channel ? `channel-${n.channel.id}` : `n-${n.id}` });
@@ -210,6 +240,7 @@ export function createApp({
   adminRoutes(router, ctx);
   threadRoutes(router, ctx);
   socialRoutes(router, ctx);
+  socialPostRoutes(router, ctx);
 
   // ---------- Live updates ----------
   function handleEvents(req, res, user, query) {
@@ -233,20 +264,36 @@ export function createApp({
   }
 
   // ---------- Static files & uploads ----------
-  async function sendFile(res, file, cacheControl) {
+  // Serves a file, honouring Range requests (Safari won't play audio/video without them).
+  async function sendFile(res, file, cacheControl, req) {
+    let info;
     try {
-      const info = await stat(file);
-      if (!info.isFile()) fail(404, 'Not found');
+      info = await stat(file);
     } catch {
       fail(404, 'Not found');
     }
-    res.writeHead(200, { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': cacheControl, ...SECURITY_HEADERS });
+    if (!info.isFile()) fail(404, 'Not found');
+    const headers = { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': cacheControl, 'Accept-Ranges': 'bytes', ...SECURITY_HEADERS };
+    const range = req?.headers.range?.match(/^bytes=(\d*)-(\d*)$/);
+    if (range && (range[1] || range[2])) {
+      let start = range[1] ? Number(range[1]) : Math.max(0, info.size - Number(range[2]));
+      let end = range[1] && range[2] ? Number(range[2]) : info.size - 1;
+      end = Math.min(end, info.size - 1);
+      if (start > end || start >= info.size) {
+        res.writeHead(416, { 'Content-Range': `bytes */${info.size}`, ...SECURITY_HEADERS });
+        return res.end();
+      }
+      res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${info.size}`, 'Content-Length': end - start + 1 });
+      return createReadStream(file, { start, end }).pipe(res);
+    }
+    res.writeHead(200, { ...headers, 'Content-Length': info.size });
+    if (info.size > 1024 * 1024) return createReadStream(file).pipe(res);
     res.end(await readFile(file));
   }
 
-  async function serveStatic(pathname, res) {
-    const upload = pathname.match(/^\/uploads\/([\w-]+\.(?:png|jpg|webp|gif))$/);
-    if (upload) return sendFile(res, join(uploadDir, upload[1]), 'private, max-age=31536000, immutable');
+  async function serveStatic(pathname, res, req) {
+    const upload = pathname.match(/^\/uploads\/([\w-]+\.(?:png|jpg|webp|gif|mp4|mov|webm|m4a|weba|ogg|mp3|wav))$/);
+    if (upload) return sendFile(res, join(uploadDir, upload[1]), 'private, max-age=31536000, immutable', req);
     let rel;
     try { rel = decodeURIComponent(pathname); } catch { fail(400, 'Bad path'); }
     if (rel === '/' || !extname(rel)) rel = '/index.html'; // SPA fallback
@@ -284,7 +331,7 @@ export function createApp({
     try {
       if (!url.pathname.startsWith('/api/')) {
         if (req.method !== 'GET' && req.method !== 'HEAD') fail(405, 'Method not allowed');
-        return await serveStatic(url.pathname, res);
+        return await serveStatic(url.pathname, res, req);
       }
 
       const token = parseCookies(req.headers.cookie)[SESSION_COOKIE];

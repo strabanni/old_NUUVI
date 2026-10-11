@@ -13,6 +13,8 @@ export function toCharacter(r) {
     id: r.id, userId: r.user_id, name: r.name, tagline: r.tagline, bio: r.bio,
     color: r.color, avatar: r.avatar, portrait: r.portrait ?? null,
     details: r.details ? JSON.parse(r.details) : [], createdAt: r.created_at,
+    aka: r.aka ?? '', postAlign: r.post_align ?? 'right', verified: !!r.verified,
+    followersDisplay: r.followers_display ?? null, followingDisplay: r.following_display ?? null,
   };
 }
 
@@ -58,6 +60,7 @@ export function toPost(r) {
         id: r.character_id, name: r.character_name, color: r.character_color, avatar: r.character_avatar,
         portrait: r.character_portrait ?? null, tagline: r.character_tagline ?? '',
         details: r.character_details ? JSON.parse(r.character_details) : [],
+        aka: r.character_aka ?? '', postAlign: r.character_align ?? 'right', verified: !!r.character_verified,
       }
       : null,
   };
@@ -72,7 +75,8 @@ export const STORY_SELECT = `
 export const POST_SELECT = `
   SELECT p.*, u.username, u.display_name, u.avatar AS user_avatar,
     c.name AS character_name, c.color AS character_color, c.avatar AS character_avatar,
-    c.portrait AS character_portrait, c.tagline AS character_tagline, c.details AS character_details
+    c.portrait AS character_portrait, c.tagline AS character_tagline, c.details AS character_details,
+    c.aka AS character_aka, c.post_align AS character_align, c.verified AS character_verified
   FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters c ON c.id = p.character_id`;
 
 export function requireUser(user) {

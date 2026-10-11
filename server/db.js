@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -250,6 +250,80 @@ const MIGRATIONS = [
      SELECT id, user_id, type, actor_id, story_id, channel_id, post_id, count, text, created_at, read_at FROM notifications;
    DROP TABLE notifications;
    ALTER TABLE notifications_v3 RENAME TO notifications;
+   CREATE INDEX notifications_user_idx ON notifications(user_id, id);`,
+  // v4: character styling & display counts, starred posts, comms contact names,
+  // character social media posts (with likes & comments), and open-ended notification types.
+  `ALTER TABLE characters ADD COLUMN aka TEXT NOT NULL DEFAULT '';
+   ALTER TABLE characters ADD COLUMN post_align TEXT NOT NULL DEFAULT 'right';
+   ALTER TABLE characters ADD COLUMN followers_display INTEGER;
+   ALTER TABLE characters ADD COLUMN following_display INTEGER;
+   ALTER TABLE characters ADD COLUMN verified INTEGER NOT NULL DEFAULT 0;
+
+   CREATE TABLE post_stars (
+     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     post_id    INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (user_id, post_id)
+   );
+
+   CREATE TABLE contact_names (
+     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     name         TEXT NOT NULL,
+     PRIMARY KEY (user_id, character_id)
+   );
+
+   CREATE TABLE social_posts (
+     id           INTEGER PRIMARY KEY,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     kind         TEXT NOT NULL DEFAULT 'text',
+     body         TEXT NOT NULL DEFAULT '',
+     title        TEXT NOT NULL DEFAULT '',
+     media        TEXT NOT NULL DEFAULT '[]',
+     meta         TEXT NOT NULL DEFAULT '{}',
+     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     edited_at    TEXT
+   );
+   CREATE INDEX social_posts_char_idx ON social_posts(character_id, id);
+   CREATE INDEX social_posts_time_idx ON social_posts(created_at);
+
+   CREATE TABLE social_likes (
+     post_id      INTEGER NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (post_id, character_id)
+   );
+
+   CREATE TABLE social_comments (
+     id           INTEGER PRIMARY KEY,
+     post_id      INTEGER NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     body         TEXT NOT NULL,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX social_comments_post_idx ON social_comments(post_id, id);
+
+   CREATE TABLE notifications_v4 (
+     id           INTEGER PRIMARY KEY,
+     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     type         TEXT NOT NULL,
+     actor_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
+     story_id     INTEGER REFERENCES stories(id) ON DELETE CASCADE,
+     channel_id   INTEGER REFERENCES channels(id) ON DELETE CASCADE,
+     post_id      INTEGER REFERENCES posts(id) ON DELETE SET NULL,
+     character_id INTEGER REFERENCES characters(id) ON DELETE CASCADE,
+     social_id    INTEGER REFERENCES social_posts(id) ON DELETE CASCADE,
+     count        INTEGER NOT NULL DEFAULT 1,
+     text         TEXT NOT NULL DEFAULT '',
+     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     read_at      TEXT
+   );
+   INSERT INTO notifications_v4 (id, user_id, type, actor_id, story_id, channel_id, post_id, character_id, count, text, created_at, read_at)
+     SELECT id, user_id, type, actor_id, story_id, channel_id, post_id, character_id, count, text, created_at, read_at FROM notifications;
+   DROP TABLE notifications;
+   ALTER TABLE notifications_v4 RENAME TO notifications;
    CREATE INDEX notifications_user_idx ON notifications(user_id, id);`,
 ];
 

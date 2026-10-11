@@ -3,7 +3,7 @@ import { fail, str, oneOf, id } from '../http.js';
 import { transaction } from '../db.js';
 import { toChannel, toCharacter, requireUser, storyAccess, channelAccess, isBlocked } from '../model.js';
 
-export const KINDS = ['thread', 'comms', 'event', 'ooc'];
+export const KINDS = ['thread', 'para', 'comms', 'event', 'ooc'];
 const OWNER_KINDS = ['event', 'ooc']; // only story owners create these
 const STATUSES = ['open', 'closed', 'complete'];
 
@@ -67,8 +67,43 @@ export function threadRoutes(r, ctx) {
         story: { id: story.id, title: story.title, color: story.color, icon: story.icon, banner: story.banner },
         canManage: !!user && canManage(channel, role, user),
         canPost: !!user && ctx.canPost(channel, role, user),
+        // Posts you starred here, so you can jump back to those moments.
+        starred: user ? db.prepare(`SELECT s.post_id FROM post_stars s JOIN posts p ON p.id = s.post_id
+          WHERE s.user_id = ? AND p.channel_id = ? ORDER BY p.id`).all(user.id, channel.id).map((r) => r.post_id) : [],
+        // Your own contact names for other characters (used to title comms).
+        contacts: user ? Object.fromEntries(db.prepare(`SELECT k.character_id, k.name FROM contact_names k
+          JOIN channel_characters cc ON cc.character_id = k.character_id WHERE k.user_id = ? AND cc.channel_id = ?`)
+          .all(user.id, channel.id).map((r) => [r.character_id, r.name])) : {},
       },
     };
+  });
+
+  r.post('/api/posts/:id/star', ({ user, params }) => {
+    requireUser(user);
+    const post = db.prepare('SELECT * FROM posts WHERE id = ?').get(params.id) ?? fail(404, 'Post not found');
+    channelAccess(db, post.channel_id, user);
+    db.prepare('INSERT OR IGNORE INTO post_stars (user_id, post_id) VALUES (?, ?)').run(user.id, post.id);
+    return { data: { starred: true } };
+  });
+
+  r.delete('/api/posts/:id/star', ({ user, params }) => {
+    requireUser(user);
+    db.prepare('DELETE FROM post_stars WHERE user_id = ? AND post_id = ?').run(user.id, params.id);
+    return { data: { starred: false } };
+  });
+
+  // Your private contact name for a character (what their texts show as for you).
+  r.put('/api/contacts/:id', ({ user, body, params }) => {
+    requireUser(user);
+    if (!db.prepare('SELECT 1 FROM characters WHERE id = ?').get(params.id)) fail(404, 'Character not found');
+    const name = str(body.name, 'Contact name', { max: 60 }) ?? '';
+    if (name) {
+      db.prepare(`INSERT INTO contact_names (user_id, character_id, name) VALUES (?, ?, ?)
+        ON CONFLICT(user_id, character_id) DO UPDATE SET name = excluded.name`).run(user.id, params.id, name);
+    } else {
+      db.prepare('DELETE FROM contact_names WHERE user_id = ? AND character_id = ?').run(user.id, params.id);
+    }
+    return { data: { name } };
   });
 
   r.post('/api/stories/:id/channels', ({ user, body, params }) => {
@@ -151,50 +186,60 @@ export function threadRoutes(r, ctx) {
   // ---------- Feed ----------
   // Every thread you can see, across stories, newest activity first.
   r.get('/api/feed', ({ user, query }) => {
+    requireUser(user);
+    // all = open threads + self paras + events + social posts. "mine" (used on Home) = every thread my characters are in.
     const filter = query.get('filter') || 'all';
     const q = (query.get('q') || '').trim().slice(0, 100);
-    const where = [`(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))`];
-    const args = { u: user?.id ?? 0 };
-    if (filter === 'open') where.push("c.kind = 'thread' AND c.status = 'open'");
-    else if (filter === 'mine') where.push('c.id IN (SELECT cc.channel_id FROM channel_characters cc JOIN characters ch ON ch.id = cc.character_id WHERE ch.user_id = :u)');
-    else if (KINDS.includes(filter)) { where.push('c.kind = :kind'); args.kind = filter; }
-    if (q) {
-      where.push("(c.name LIKE :q ESCAPE '\\' OR c.summary LIKE :q ESCAPE '\\' OR c.tags LIKE :q ESCAPE '\\' OR s.title LIKE :q ESCAPE '\\')");
-      args.q = `%${q.replace(/[\\%_]/g, (m) => '\\' + m)}%`;
+    let items = [];
+    if (filter !== 'social') {
+      const where = [`(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))`];
+      const args = { u: user.id };
+      if (filter === 'all') where.push("((c.kind = 'thread' AND c.status = 'open') OR c.kind IN ('para', 'event'))");
+      else if (filter === 'open') where.push("c.kind = 'thread' AND c.status = 'open'");
+      else if (filter === 'para' || filter === 'event') { where.push('c.kind = :kind'); args.kind = filter; }
+      else if (filter === 'mine') where.push("c.kind != 'ooc' AND c.id IN (SELECT cc.channel_id FROM channel_characters cc JOIN characters ch ON ch.id = cc.character_id WHERE ch.user_id = :u)");
+      else fail(400, 'Unknown filter');
+      if (q) {
+        where.push("(c.name LIKE :q ESCAPE '\\' OR c.summary LIKE :q ESCAPE '\\' OR c.tags LIKE :q ESCAPE '\\' OR s.title LIKE :q ESCAPE '\\')");
+        args.q = `%${q.replace(/[\\%_]/g, (m) => '\\' + m)}%`;
+      }
+      const rows = db.prepare(`
+        SELECT c.*, s.title AS story_title, s.color AS story_color, s.icon AS story_icon, s.banner AS story_banner,
+          (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id) AS post_count,
+          (SELECT MAX(p.id) FROM posts p WHERE p.channel_id = c.id) AS last_post_id,
+          (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id AND p.user_id != :u
+             AND p.id > COALESCE((SELECT last_read_id FROM channel_reads r WHERE r.channel_id = c.id AND r.user_id = :u), 0)
+             AND EXISTS (SELECT 1 FROM story_members m WHERE m.story_id = c.story_id AND m.user_id = :u)) AS unread
+        FROM channels c JOIN stories s ON s.id = c.story_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY COALESCE(c.last_post_at, c.created_at) DESC, c.id DESC LIMIT 80`).all(args);
+      const lastPost = db.prepare(`SELECT p.body, p.cw, p.created_at, u.display_name, ch.name AS character_name
+        FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters ch ON ch.id = p.character_id WHERE p.id = ?`);
+      const starter = db.prepare('SELECT * FROM characters WHERE id = ?');
+      items = rows.map((row) => {
+        const lp = row.last_post_id ? lastPost.get(row.last_post_id) : null;
+        const st = row.starter_character_id ? starter.get(row.starter_character_id) : null;
+        return {
+          type: 'thread',
+          ...toChannel(row),
+          postCount: row.post_count,
+          story: { id: row.story_id, title: row.story_title, color: row.story_color, icon: row.story_icon, banner: row.story_banner },
+          starter: st ? toCharacter(st) : null,
+          participants: participants(row.id, 6),
+          lastPost: lp ? {
+            by: lp.character_name || lp.display_name,
+            text: lp.cw ? `CW: ${lp.cw}` : lp.body.replace(/[*_~|>]/g, '').replace(/\s+/g, ' ').slice(0, 160),
+            createdAt: lp.created_at,
+          } : null,
+          sortAt: row.last_post_at || row.created_at,
+        };
+      });
     }
-    const rows = db.prepare(`
-      SELECT c.*, s.title AS story_title, s.color AS story_color, s.icon AS story_icon, s.banner AS story_banner,
-        (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id) AS post_count,
-        (SELECT MAX(p.id) FROM posts p WHERE p.channel_id = c.id) AS last_post_id,
-        (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id AND p.user_id != :u
-           AND p.id > COALESCE((SELECT last_read_id FROM channel_reads r WHERE r.channel_id = c.id AND r.user_id = :u), 0)
-           AND EXISTS (SELECT 1 FROM story_members m WHERE m.story_id = c.story_id AND m.user_id = :u)) AS unread
-      FROM channels c JOIN stories s ON s.id = c.story_id
-      WHERE ${where.join(' AND ')}
-      ORDER BY COALESCE(c.last_post_at, c.created_at) DESC, c.id DESC LIMIT 100`).all(args);
-    const lastPost = db.prepare(`SELECT p.body, p.cw, p.created_at, u.display_name, ch.name AS character_name
-      FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters ch ON ch.id = p.character_id WHERE p.id = ?`);
-    const starter = db.prepare('SELECT * FROM characters WHERE id = ?');
-    return {
-      data: {
-        items: rows.map((row) => {
-          const lp = row.last_post_id ? lastPost.get(row.last_post_id) : null;
-          const st = row.starter_character_id ? starter.get(row.starter_character_id) : null;
-          return {
-            ...toChannel(row),
-            postCount: row.post_count,
-            story: { id: row.story_id, title: row.story_title, color: row.story_color, icon: row.story_icon, banner: row.story_banner },
-            starter: st ? toCharacter(st) : null,
-            participants: participants(row.id, 6),
-            lastPost: lp ? {
-              by: lp.character_name || lp.display_name,
-              text: lp.cw ? `CW: ${lp.cw}` : lp.body.replace(/[*_~|>]/g, '').replace(/\s+/g, ' ').slice(0, 160),
-              createdAt: lp.created_at,
-            } : null,
-          };
-        }),
-      },
-    };
+    if (filter === 'all' || filter === 'social') {
+      items = items.concat(ctx.socialFeed({ viewerId: user.id, q, limit: 60 }).map((p) => ({ ...p, sortAt: p.createdAt })));
+    }
+    items.sort((x, y) => (y.sortAt > x.sortAt ? 1 : y.sortAt < x.sortAt ? -1 : 0));
+    return { data: { items: items.slice(0, 100) } };
   });
 
   // Who may write in a channel. Completed threads are read-only (except for their managers);

@@ -1,6 +1,6 @@
 // A channel inside a story: the post feed, turn order bar and composer.
 import {
-  html, raw, render, applyColors, api, $, store, toast, avatar, icons, menu, confirmModal, promptModal,
+  html, raw, esc, render, applyColors, api, $, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
   formatPost, timeStamp, minutesBetween, words, bindForm,
 } from '../lib.js';
 import {
@@ -62,13 +62,16 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   }
 
   const role = s.role;
-  const characters = role ? await myCharacters() : [];
+  const characters = role ? await myCharacters(true) : []; // always fresh (characters may be made on another device)
   const unreadAtOpen = channel().unread;
   const [{ posts: initial, hasMore: initialMore }, detail] = await Promise.all([
     api(`/api/channels/${channelId}/posts`),
     api(`/api/channels/${channelId}`),
   ]);
   const participants = detail.participants;
+  // For comms: who you're texting, by the contact names you chose.
+  const commsTitle = () => participants.filter((x) => x.userId !== state.user?.id)
+    .map((x) => (detail.contacts || {})[x.id] || x.name).join(', ');
   // Threads and events read like a forum; comms and OOC read like a chat.
   const storyStyle = () => ['thread', 'event'].includes(channel().kind);
   const posts = new Map(initial.map((p) => [p.id, p]));
@@ -88,9 +91,11 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const c = channel();
   const body = page({
     alive,
-    title: html`<span class="hash-title">${kindIcon(c.kind)}</span>${c.name}`,
+    title: c.kind === 'comms' && commsTitle() ? html`<span class="hash-title">${kindIcon(c.kind)}</span>${commsTitle()}` : html`<span class="hash-title">${kindIcon(c.kind)}</span>${c.name}`,
     subtitle: c.topic || (c.kind === 'ooc' ? 'Out of character' : `${KIND_LABELS[c.kind]} · ${({ open: 'open', closed: 'private', complete: 'complete' })[c.status]}`),
-    actions: detail.canManage && c.kind !== 'ooc' ? html`<button class="icon-btn" id="edit-thread" title="Thread details" aria-label="Thread details">${icons.gear}</button>` : '',
+    actions: html`
+      <button class="btn sm starred-btn" id="starred-btn" title="Starred moments" hidden>${icons.star}<b>0</b></button>
+      ${detail.canManage && c.kind !== 'ooc' ? html`<button class="icon-btn" id="edit-thread" title="Thread details" aria-label="Thread details">${icons.gear}</button>` : ''}`,
     className: 'channel-body',
     body: html`
       <div class="feed-scroll" id="feed-scroll">
@@ -108,12 +113,16 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const charLink = (ch) => html`<a href="#/c/${ch.id}">${ch.name}</a>`;
 
   // "AKA ✱ THE PRODIGY, (HE/HIM) ; TWENTY8 ; CEO OF …" from the character's tagline and details.
+  // The "aka" line is written by the character's owner; **text** shows in pink.
   function akaLine(ch) {
-    const bits = [];
-    if (ch.tagline) bits.push(html`<b class="accent">${ch.tagline}</b>`);
-    for (const d of ch.details || []) bits.push(html`<span title="${d.label}">${d.value}</span>`);
-    return bits.length ? html`<div class="tp-aka"><span class="muted">aka</span> ✱ ${bits.map((b2, i) => html`${i ? raw(' ; ') : ''}${b2}`)}</div>` : '';
+    if (!ch.aka) return '';
+    return html`<div class="tp-aka">${raw(esc(ch.aka).replace(/\*\*(.+?)\*\*/g, '<b class="accent">$1</b>'))}</div>`;
   }
+
+  // Comms show your own contact names for other people's characters.
+  const contacts = detail.contacts || {};
+  const shownName = (ch) => (channel().kind === 'comms' && ch.userId !== state.user?.id && contacts[ch.id]) || ch.name;
+  const starred = new Set(detail.starred || []);
 
   function cwWrap(p, content) {
     return p.cw ? html`<div class="cw-wrap"><button class="cw-toggle" type="button">${icons.warn} CW: ${p.cw} — tap to show</button><div class="cw-content">${content}</div></div>` : content;
@@ -127,7 +136,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const others = participants.filter((x) => x.id !== ch?.id);
     const pic = ch?.avatar || ch?.portrait;
     return html`
-      <article class="tpost ${p.userId === state.user?.id ? 'mine' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"` : ''}>
+      <article class="tpost align-${ch?.postAlign || 'right'} ${p.userId === state.user?.id ? 'mine' : ''} ${starred.has(p.id) ? 'is-starred' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"` : ''}>
         <header class="tp-head">
           <div class="tp-id">
             ${ch ? html`<a class="tp-name" href="#/c/${ch.id}">${ch.name}</a>${akaLine(ch)}`
@@ -139,14 +148,14 @@ export async function viewChannel(storyIdStr, channelIdStr) {
         <div class="tp-bar">
           <span class="tp-when">${icons.broadcast}<time title="${p.createdAt} UTC">${timeStamp(p.createdAt)}</time>${p.editedAt ? ' · edited' : ''}</span>
           ${ch ? html`<a href="#/c/${ch.id}" class="tp-act">${icons.profile}<span>Open profile</span></a>` : html`<a href="#/u/${p.userId}" class="tp-act">${icons.profile}<span>Open profile</span></a>`}
-          <button class="tp-act" type="button" data-act="quote">${icons.quote}<span>Quote</span></button>
+          <button class="tp-act star-btn" type="button" data-act="star" aria-pressed="${starred.has(p.id)}">${starred.has(p.id) ? icons.star : icons.starOutline}<span>${starred.has(p.id) ? 'Starred' : 'Star'}</span></button>
           ${menuBtn}
         </div>
         <div class="tp-body">
           <div class="tp-star">${icons.star}</div>
           ${cwWrap(p, html`<div class="body">${formatPost(p.body)}</div>`)}
           <footer class="tp-foot">
-            <span>${p.wordCount} words · played by <a href="#/u/${p.userId}">${p.author.displayName}</a></span>
+            <span>${p.wordCount} words</span>
             ${others.length ? html`<span>for ${others.map((o, i) => html`${i ? ', ' : ''}${charLink(o)}`)}</span>` : ''}
           </footer>
         </div>
@@ -157,7 +166,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   function bubble(p, prev) {
     const mine = p.userId === state.user?.id;
     const ch = p.kind === 'ic' ? p.character : null;
-    const name = ch ? ch.name : p.kind === 'narration' ? 'Narrator' : p.author.displayName;
+    const name = ch ? shownName(ch) : p.kind === 'narration' ? 'Narrator' : p.author.displayName;
     const key = (x) => `${x.userId}:${x.kind}:${x.character?.id ?? ''}`;
     const grouped = prev && !blocked(prev) && key(prev) === key(p) && minutesBetween(prev.createdAt, p.createdAt) < 10 && p.id !== dividerBefore && dayLabel(prev.createdAt) === dayLabel(p.createdAt);
     const av = ch ? avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' }) : avatar({ name: p.author.displayName, src: p.author.avatar, color: '#48484A', size: 'sm' });
@@ -195,7 +204,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       <section class="thread-head">
         ${when ? html`<div class="event-date"><span>${when.toLocaleDateString(undefined, { month: 'short' })}</span><b>${when.getDate()}</b></div>` : ''}
         <span class="eyebrow">${KIND_LABELS[ch.kind]} · ${state.story.story.title}</span>
-        <h1 class="th-title">${ch.name}</h1>
+        <h1 class="th-title">${ch.kind === 'comms' && commsTitle() ? commsTitle() : ch.name}</h1>
+        ${ch.kind === 'comms' ? html`<p class="muted small">${commsTitle() ? `${ch.name} · ` : ''}<button class="link" id="contacts-btn" type="button">Edit contact names</button></p>` : ''}
         <div class="th-meta">
           ${statusPill(ch)}
           ${when ? html`<span class="pill-tag">${when.toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>` : ''}
@@ -274,7 +284,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const p = posts.get(Number(article.dataset.id));
     if (btn.dataset.act === 'reveal') { article.classList.toggle('revealed'); return; }
     if (btn.dataset.act === 'menu') postMenu(btn, p, article);
-    if (btn.dataset.act === 'quote') quote(p);
+    if (btn.dataset.act === 'star') toggleStar(p);
   });
 
   function postMenu(anchor, p, article) {
@@ -282,7 +292,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const canDelete = mine || role === 'owner' || state.user?.isAdmin;
     menu(anchor, [
       mine && { label: 'Edit', action: () => editPost(p, article) },
-      { label: 'Quote', action: () => quote(p) },
+      { label: starred.has(p.id) ? 'Remove star' : 'Star this moment', action: () => toggleStar(p) },
       { label: 'Copy text', action: () => copyText(p.body, 'Copied') },
       !mine && state.user && { label: `Reply to ${p.author.displayName}`, action: () => mention(p.author.username) },
       !mine && state.user && { label: 'Report post', action: () => reportPost(p) },
@@ -370,7 +380,6 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   // ---------- Composer ----------
   const wrap = $('#composer-wrap', body);
   let mention = () => {};
-  let quote = () => toast('Join the story to reply');
   if (role && !detail.canPost) {
     render(wrap, html`<div class="composer-locked">${channel().status === 'complete' ? 'This thread is complete — it\'s read-only now.' : 'This is a private thread for the characters in it.'}</div>`);
   } else if (!role) {
@@ -464,6 +473,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     moreBtn.addEventListener('click', () => menu(moreBtn, [
       { label: `${cw ? 'Change' : 'Add'} content warning`, action: askCw },
       detail.canManage && channel().kind !== 'ooc' && { label: 'Thread details…', action: editThread },
+      channel().kind === 'comms' && { label: 'Contact names…', action: editContacts },
       { label: 'Formatting help', action: () => toast('*action*  **bold**  "dialogue"  ||spoiler||  > quote  @mention') },
     ]));
 
@@ -491,14 +501,6 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       update();
     });
 
-    quote = (p) => {
-      const who = p.character?.name || p.author.displayName;
-      const excerpt = p.body.split(/\n+/).filter(Boolean).slice(0, 2).join(' ').slice(0, 280);
-      ta.value = `> **${who}:** ${excerpt}\n\n${ta.value}`;
-      update();
-      ta.focus();
-    };
-
     mention = (username) => {
       const insert = `@${username} `;
       ta.value = ta.value ? `${ta.value.replace(/\s*$/, ' ')}${insert}` : insert;
@@ -514,11 +516,73 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     }
   }
 
+  async function toggleStar(p) {
+    const on = starred.has(p.id);
+    try {
+      await api(`/api/posts/${p.id}/star`, { method: on ? 'DELETE' : 'POST', body: on ? undefined : {} });
+      if (on) starred.delete(p.id); else starred.add(p.id);
+      drawFeed({ keepScroll: true });
+      drawStarBtn();
+      toast(on ? 'Star removed' : 'Starred — find it again from ★ at the top');
+    } catch (err) { toast(err.message); }
+  }
+
+  // Jump back to a starred moment (loading older posts if needed).
+  async function jumpTo(postId) {
+    while (!posts.has(postId) && hasMore) {
+      const first = Math.min(...posts.keys());
+      const older = await api(`/api/channels/${channelId}/posts?before=${first}`);
+      for (const p of older.posts) posts.set(p.id, p);
+      hasMore = older.hasMore;
+    }
+    drawFeed({ keepScroll: true });
+    const el = $(`#post-${postId}`, feed);
+    if (!el) return toast('That post was deleted');
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1600);
+  }
+
+  function drawStarBtn() {
+    const b = $('#main #starred-btn');
+    if (!b) return;
+    b.hidden = !starred.size;
+    b.querySelector('b').textContent = starred.size;
+  }
+  $('#main #starred-btn')?.addEventListener('click', async (e) => {
+    const anchor = e.currentTarget;
+    const known = posts;
+    menu(anchor, [...starred].sort((x, y) => x - y).map((id) => {
+      const p = known.get(id);
+      const who = p ? (p.character?.name || p.author.displayName) : 'Earlier post';
+      const snip = p ? p.body.replace(/[*_~|>]/g, '').slice(0, 60) : '';
+      return { label: `★ ${who}${snip ? ` — ${snip}…` : ''}`, action: () => jumpTo(id) };
+    }));
+  });
+  drawStarBtn();
+
+  async function editContacts() {
+    const others = participants.filter((x) => x.userId !== state.user?.id);
+    if (!others.length) return toast('No one else is in this chat yet');
+    const res = await modal(html`
+      <form>
+        <h2>Contact names</h2>
+        <p class="muted small">Only you see these. They're what this chat — and every other text from them — shows as for you.</p>
+        ${others.map((x) => html`<label for="cn-${x.id}">${x.name}</label><input id="cn-${x.id}" name="${x.id}" maxlength="60" value="${contacts[x.id] || ''}" placeholder="${x.name}">`)}
+        <div class="error"></div>
+        <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Save</button></div>
+      </form>`);
+    if (!res) return;
+    await Promise.all(Object.entries(res).map(([cid, name]) => api(`/api/contacts/${cid}`, { method: 'PUT', body: { name } })));
+    viewChannel(storyIdStr, channelIdStr);
+  }
+
   async function editThread() {
     const updated = await openThreadForm({ storyId, channel: { ...channel(), participantIds: participants.map((x) => x.id) } });
     if (updated) viewChannel(storyIdStr, channelIdStr);
   }
   $('#main #edit-thread')?.addEventListener('click', editThread);
+  feed.addEventListener('click', (e) => { if (e.target.closest('#contacts-btn')) editContacts(); });
 
   // ---------- Live updates ----------
   const on = (type, fn) => {

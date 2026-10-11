@@ -404,12 +404,15 @@ test('threads: members start typed threads, tag characters, and statuses control
   assert.equal(comms.kind, 'comms');
 
   // Feed lists them, filterable.
+  // The feed shows open threads, self paras, events and social posts — not comms or complete threads.
+  const para = (await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'alone at last', kind: 'para', characterId: yoonoh.id } })).data.channel;
   const feed = (await b('/api/feed')).data.items;
-  assert.ok(feed.some((i) => i.id === thread.id && i.lastPost.by === 'Bang Daehyun'));
-  assert.ok((await b('/api/feed?filter=comms')).data.items.every((i) => i.kind === 'comms'));
-  assert.ok(!(await b('/api/feed?filter=open')).data.items.some((i) => i.id === thread.id));
+  assert.ok(feed.some((i) => i.type === 'thread' && i.id === para.id));
+  assert.ok(!feed.some((i) => i.type === 'thread' && i.id === comms.id));
+  assert.ok(!feed.some((i) => i.type === 'thread' && i.id === thread.id)); // complete
+  assert.equal((await b('/api/feed?filter=comms')).status, 400);
+  assert.ok((await b('/api/feed?filter=para')).data.items.every((i) => i.kind === 'para'));
   assert.ok((await b('/api/feed?filter=mine')).data.items.some((i) => i.id === thread.id));
-  assert.ok((await b('/api/feed?q=reunion')).data.items.some((i) => i.id === thread.id));
 });
 
 test('characters follow characters; profiles show followers, following and threads', async () => {
@@ -431,4 +434,63 @@ test('characters follow characters; profiles show followers, following and threa
 
   await b(`/api/characters/${olivia.id}/unfollow`, { method: 'POST', body: { asCharacterId: marina.id } });
   assert.equal((await b(`/api/characters/${olivia.id}`)).data.stats.followers, 0);
+});
+
+test('character social posts: create, feed, like, comment, notifications', async () => {
+  const a = await app.signUp('social_a');
+  const b = await app.signUp('social_b');
+  const star = (await a('/api/characters', { method: 'POST', body: { name: 'Idol', followersDisplay: '2,400,000', verified: true } })).data.character;
+  const fan = (await b('/api/characters', { method: 'POST', body: { name: 'Fan' } })).data.character;
+  assert.equal(star.followersDisplay, 2400000);
+  assert.equal(star.verified, true);
+  assert.equal((await b(`/api/characters/${star.id}`)).data.stats.followers, 2400000);
+
+  assert.equal((await a('/api/social', { method: 'POST', body: { characterId: fan.id, body: 'not mine' } })).status, 400);
+  assert.equal((await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'photo', body: 'no photo' } })).status, 400);
+  const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+  const photo = (await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png })).data.url;
+  const p1 = await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'photo', body: 'tour day 1', media: [photo] } });
+  assert.equal(p1.status, 201, JSON.stringify(p1.data));
+  const stream = await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'stream', title: 'q&a', meta: { viewers: 12000 } } });
+  assert.equal(stream.data.post.meta.viewers, 12000);
+
+  const feed = (await b('/api/feed?filter=social')).data.items;
+  assert.deepEqual(feed.filter((i) => i.character.id === star.id).map((i) => i.kind), ['stream', 'photo']);
+
+  const liked = await b(`/api/social/${p1.data.post.id}/like`, { method: 'POST', body: { asCharacterId: fan.id } });
+  assert.equal(liked.data.post.likes, 1);
+  assert.deepEqual(liked.data.post.likedBy, [fan.id]);
+  const commented = await b(`/api/social/${p1.data.post.id}/comments`, { method: 'POST', body: { characterId: fan.id, body: 'omg!!' } });
+  assert.equal(commented.data.post.comments[0].body, 'omg!!');
+  const notes = (await a('/api/notifications')).data.notifications;
+  assert.ok(notes.some((n) => n.type === 'like' && n.url === `#/p/${p1.data.post.id}`));
+  assert.ok(notes.some((n) => n.type === 'comment'));
+  assert.equal((await b(`/api/social/${p1.data.post.id}`, { method: 'DELETE' })).status, 404);
+  assert.equal((await a(`/api/social?character=${star.id}`)).data.posts.length, 2);
+});
+
+test('stars, contact names and audio uploads with range requests', async () => {
+  const a = await app.signUp('star_a');
+  const { story, main } = await makeStory(a);
+  const me = (await a('/api/characters', { method: 'POST', body: { name: 'Yoonoh' } })).data.character;
+  const p = (await post(a, main.id, { kind: 'ic', characterId: me.id, body: 'a moment worth keeping' })).data.post;
+  await a(`/api/posts/${p.id}/star`, { method: 'POST', body: {} });
+  assert.deepEqual((await a(`/api/channels/${main.id}`)).data.starred, [p.id]);
+  await a(`/api/posts/${p.id}/star`, { method: 'DELETE' });
+  assert.deepEqual((await a(`/api/channels/${main.id}`)).data.starred, []);
+
+  await a(`/api/contacts/${me.id}`, { method: 'PUT', body: { name: 'hyung 🖤' } });
+  assert.equal((await a(`/api/channels/${main.id}`)).data.contacts[me.id], 'hyung 🖤');
+  void story;
+
+  const audio = Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(2000, 7)]);
+  const up = await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'audio/webm;codecs=opus' }, raw: audio });
+  assert.equal(up.status, 201);
+  assert.match(up.data.url, /\.weba$/);
+  const ranged = await fetch(app.base + up.data.url, { headers: { Range: 'bytes=0-99' } });
+  assert.equal(ranged.status, 206);
+  assert.equal(ranged.headers.get('content-range'), 'bytes 0-99/2004');
+  assert.equal((await ranged.arrayBuffer()).byteLength, 100);
+  const fake = await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'video/mp4' }, raw: Buffer.from('not a video at all') });
+  assert.equal(fake.status, 400);
 });

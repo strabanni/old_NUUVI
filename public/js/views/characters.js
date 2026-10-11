@@ -1,6 +1,7 @@
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo } from '../lib.js';
-import { state, page, myCharacters, setAmbient, routeAlive, ensureAlive, kindIcon } from '../main.js';
+import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { openThreadForm } from './threads.js';
+import { compact, openSocialComposer } from './social.js';
 
 const DETAIL_SUGGESTIONS = ['Age', 'Pronouns', 'Face claim', 'Occupation', 'Species', 'Height', 'Birthday', 'Alignment'];
 
@@ -39,6 +40,19 @@ function characterForm(c = {}) {
       <div id="details">${details.map(detailRow)}</div>
       <datalist id="detail-suggestions">${DETAIL_SUGGESTIONS.map((d) => html`<option value="${d}">`)}</datalist>
       <button type="button" class="sm" id="add-detail">${icons.plus} Add detail</button>
+      <label for="c-aka">AKA line <span class="muted small">— shown under their name in threads. Wrap words in **double stars** to make them pink.</span></label>
+      <input id="c-aka" name="aka" maxlength="200" value="${c.aka || ''}" placeholder="aka **the prodigy**, (he / him) ; twenty8 ; ceo of trinity healthcare">
+      <div class="row">
+        <div><label for="c-align">Name in thread posts</label>
+          <select id="c-align" name="postAlign">
+            <option value="right" ${c.postAlign !== 'left' ? 'selected' : ''}>On the right (picture far right)</option>
+            <option value="left" ${c.postAlign === 'left' ? 'selected' : ''}>On the left (picture far left)</option>
+          </select></div>
+        <div><label for="c-followers">Followers shown</label><input id="c-followers" name="followersDisplay" inputmode="numeric" placeholder="real count" value="${c.followersDisplay ?? ''}"></div>
+        <div><label for="c-following">Following shown</label><input id="c-following" name="followingDisplay" inputmode="numeric" placeholder="real count" value="${c.followingDisplay ?? ''}"></div>
+      </div>
+      <p class="hint">Leave the counts empty to show real follows. Set them for celebrities, influencers and the like.</p>
+      <label class="check"><input type="checkbox" name="verified" ${c.verified ? 'checked' : ''}> Verified badge (for public figures)</label>
       <label for="c-bio">Bio</label>
       <textarea id="c-bio" name="bio" maxlength="20000" rows="8" placeholder="Appearance, personality, history, relationships… (*formatting* works here too)">${c.bio || ''}</textarea>
       <div class="error"></div>
@@ -83,6 +97,7 @@ export function editCharacter(c = {}) {
       });
     },
     submit: async (data) => {
+      data.verified = !!form.verified.checked;
       data.details = $$('.detail-row', form).map((r) => ({ label: r.querySelector('.d-label').value, value: r.querySelector('.d-value').value }))
         .filter((x) => x.label.trim() && x.value.trim());
       await api(c.id ? `/api/characters/${c.id}` : '/api/characters', { method: c.id ? 'PUT' : 'POST', body: data });
@@ -91,13 +106,22 @@ export function editCharacter(c = {}) {
   });
 }
 
+// Portrait card (Sophie Bennett reference): picture, name, tagline, counts, follow.
 export function characterCard(c, { editable = false } = {}) {
   const pic = c.portrait || c.avatar;
+  const followers = c.followersDisplay ?? c.followers;
   return html`
-    <a class="card char-card" href="#/c/${c.id}" data-color="${c.color}">
-      <span class="char-card-pic">${pic ? html`<img src="${pic}" alt="" loading="lazy">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}</span>
-      <span class="char-info"><h3 class="cast-name" data-color="${c.color}">${c.name}</h3><p>${c.followers !== undefined ? `${c.followers} followers${c.tagline ? ' · ' : ''}` : ''}${c.tagline || ''}</p></span>
-      ${editable ? html`<button class="sm edit-btn" data-edit="${c.id}">Edit</button>` : ''}
+    <a class="char-card" href="#/c/${c.id}" data-color="${c.color}">
+      ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}
+      <span class="cc-fade"></span>
+      <span class="cc-info">
+        <span class="cc-name">${c.name}${c.verified ? html`<span class="verified">${icons.verified}</span>` : ''}</span>
+        ${c.tagline ? html`<span class="cc-tag">${c.tagline}</span>` : ''}
+        <span class="cc-foot">
+          ${followers !== undefined && followers !== null ? html`<span class="cc-stat">${icons.users} ${compact(followers)}</span>` : ''}
+          ${editable ? html`<button class="cc-btn" data-edit="${c.id}">Edit</button>` : html`<span class="cc-btn">View ${icons.plus}</span>`}
+        </span>
+      </span>
     </a>`;
 }
 
@@ -121,8 +145,6 @@ export async function viewCharacters() {
   }));
 }
 
-const fmtCount = (n) => (n >= 10000 ? `${Math.round(n / 1000)}K` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K` : String(n));
-
 async function showPeople(title, url) {
   const { characters } = await api(url);
   await modal(html`
@@ -136,74 +158,106 @@ async function showPeople(title, url) {
     </div>`);
 }
 
+// Instagram-style profile: header (picture, counts, what the owner wrote), then Posts / Threads / About tabs.
 export async function viewCharacter(id) {
   const alive = routeAlive();
-  const [{ character: c, stats, threads, followedBy }, mine] = await Promise.all([
+  const [{ character: c, stats, threads, followedBy }, mine, { posts }] = await Promise.all([
     api(`/api/characters/${id}`),
     state.user ? myCharacters() : [],
+    api(`/api/social?character=${id}`),
   ]);
   ensureAlive(alive);
   const own = c.owner.id === state.user?.id;
   const pic = c.portrait || c.avatar;
   const following = followedBy.length > 0;
   const followable = mine.filter((m) => m.id !== c.id);
-  page({
+  let tab = sessionStorage.getItem('nuuvi:char-tab') || 'posts';
+  const body = page({
     alive,
     title: c.name,
     subtitle: c.tagline,
-    actions: own ? html`<button class="sm" id="edit">Edit</button>` : '',
+    actions: html`<button class="icon-btn" id="char-more" aria-label="More">${icons.more}</button>`,
     body: html`
-      <article class="social-profile" data-color="${c.color}">
-        <section class="sp-hero">
-          ${pic ? html`<img src="${pic}" alt="${c.name}">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}
-          <div class="sp-fade"></div>
-          <div class="sp-id">
-            <h1>${c.name}</h1>
-            <a class="sp-handle" href="#/u/${c.owner.id}">played by @${c.owner.username}</a>
+      <article class="ig-profile" data-color="${c.color}">
+        ${c.portrait ? html`<div class="ig-cover"><img src="${c.portrait}" alt=""></div>` : html`<div class="ig-cover none"></div>`}
+        <header class="ig-head">
+          <span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>
+          <div class="ig-stats">
+            <button type="button" data-tab-go="posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
+            <button type="button" data-list="followers"><b>${compact(stats.followers)}</b><span>Followers</span></button>
+            <button type="button" data-list="following"><b>${compact(stats.following)}</b><span>Following</span></button>
+            <button type="button" data-tab-go="threads"><b>${compact(stats.threads)}</b><span>Threads</span></button>
           </div>
-        </section>
-        <div class="sp-actions">
-          ${own ? html`<button class="sp-follow" id="edit-2">Edit character</button>`
-            : html`<button class="sp-follow ${following ? 'following' : ''}" id="follow">${following ? 'Following' : 'Follow'}</button>`}
-          <button class="icon-btn sp-round" id="start-thread" title="Start a thread with ${c.name}" aria-label="Start a thread with ${c.name}">${icons.chat}</button>
+        </header>
+        <div class="ig-id">
+          <h1 class="ig-name">${c.name}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}</h1>
+          ${c.tagline ? html`<p class="ig-tagline">${c.tagline}</p>` : ''}
+          ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
         </div>
-        <div class="sp-stats">
-          <button type="button" data-list="following"><b>${fmtCount(stats.following)}</b><span>Following</span></button>
-          <button type="button" data-list="followers"><b>${fmtCount(stats.followers)}</b><span>Followers</span></button>
-          <button type="button" id="to-threads"><b>${fmtCount(stats.threads)}</b><span>Active threads</span></button>
+        <div class="ig-actions">
+          ${own ? html`<button id="edit">Edit profile</button><button class="primary" id="new-post">${icons.plus} New post</button>`
+            : html`<button class="${following ? '' : 'primary'}" id="follow">${following ? 'Following' : 'Follow'}</button>
+              <button id="start-thread">${icons.quill} Start a thread</button>`}
         </div>
-        ${c.tagline || c.bio ? html`<section class="sp-box">
-          ${c.tagline ? html`<p class="sp-tagline">${c.tagline}</p>` : ''}
-          ${c.bio ? html`<div class="prose">${formatPost(c.bio)}</div>` : ''}
-        </section>` : ''}
-        ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
-        <div class="sp-stats small-stats"><span><b>${fmtCount(stats.posts)}</b> posts</span><span><b>${fmtCount(stats.words)}</b> words written</span></div>
-        <h2 class="section-title" id="threads-title">Threads</h2>
-        ${threads.length ? html`<div class="sp-threads">${threads.map((t) => html`
-          <a class="sp-thread status-${t.status}" href="#/s/${t.storyId}/${t.id}">
-            <span class="sp-t-icon">${kindIcon(t.kind)}</span>
-            <span class="grow"><strong>${t.name}</strong><small>${t.storyTitle} · ${t.postCount} posts${t.lastPostAt ? ` · ${timeAgo(t.lastPostAt)}` : ''}</small></span>
-            <span class="pill-tag status-${t.status}">${({ open: 'Open', closed: 'Private', complete: 'Complete' })[t.status]}</span>
-          </a>`)}</div>` : html`<p class="muted">Not in any threads yet.</p>`}
+        <nav class="ig-tabs" role="tablist">
+          <button role="tab" data-tab="posts">${icons.grid}<span>Posts</span></button>
+          <button role="tab" data-tab="threads">${icons.quill}<span>Threads</span></button>
+          <button role="tab" data-tab="about">${icons.profile}<span>About</span></button>
+        </nav>
+        <section id="ig-pane"></section>
       </article>`,
   });
-  setAmbient(pic);
-  const reload = () => viewCharacter(id);
-  for (const b of ['#edit', '#edit-2']) {
-    $(`#main ${b}`)?.addEventListener('click', async () => {
-      if (await editCharacter(c)) { state.characters = null; reload(); }
-    });
-  }
-  $$('#main [data-list]').forEach((b) => b.addEventListener('click', () => showPeople(
+  const pane = $('#ig-pane', body);
+  const thumb = (p) => html`
+    <a class="ig-tile kind-${p.kind}" href="#/p/${p.id}">
+      ${p.kind === 'photo' ? html`<img src="${p.media[0]}" alt="" loading="lazy">${p.media.length > 1 ? html`<span class="ig-badge">${icons.grid}</span>` : ''}`
+        : p.kind === 'video' ? html`<video src="${p.media[0]}" muted playsinline preload="metadata"></video><span class="ig-badge">${icons.play}</span>`
+        : p.kind === 'stream' ? html`${p.media[0] ? html`<img src="${p.media[0]}" alt="">` : ''}<span class="ig-live">${p.meta.live === false ? 'ENDED' : 'LIVE'}</span><span class="ig-text">${p.title}</span>`
+        : p.kind === 'voice' ? html`<span class="ig-text">${icons.mic} ${p.body || 'Voice note'}</span>`
+        : html`<span class="ig-text">${p.body.slice(0, 140)}</span>`}
+      <span class="ig-hover">${icons.heartFill} ${compact(p.likes)} &nbsp; ${icons.chat} ${compact(p.commentCount)}</span>
+    </a>`;
+  const draw = () => {
+    $$('[data-tab]', body).forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+    if (tab === 'posts') {
+      render(pane, posts.length ? html`<div class="ig-grid">${posts.map(thumb)}</div>`
+        : html`<div class="empty"><p>No posts yet.</p>${own ? html`<p><button class="primary" id="first-post">Make ${c.name}'s first post</button></p>` : ''}</div>`);
+      $('#first-post', pane)?.addEventListener('click', newPost);
+    } else if (tab === 'threads') {
+      render(pane, threads.length ? html`<div class="sp-threads">${threads.map((t) => html`
+        <a class="sp-thread status-${t.status}" href="#/s/${t.storyId}/${t.id}">
+          <span class="sp-t-icon">${kindIcon(t.kind)}</span>
+          <span class="grow"><strong>${t.name}</strong><small>${t.storyTitle} · ${t.postCount} posts${t.lastPostAt ? ` · ${timeAgo(t.lastPostAt)}` : ''}</small></span>
+          <span class="pill-tag status-${t.status}">${({ open: 'Open', closed: 'Private', complete: 'Complete' })[t.status]}</span>
+        </a>`)}</div>` : html`<div class="empty"><p>Not in any threads yet.</p></div>`);
+    } else {
+      render(pane, html`
+        ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div>${c.aka.replace(/\*\*/g, '')}</div></div>` : ''}
+        ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
+        <div class="small-stats"><span><b>${compact(stats.posts)}</b> thread posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
+        ${!c.aka && !c.details.length ? html`<div class="empty"><p>Nothing here yet.</p></div>` : ''}`);
+    }
+  };
+  draw();
+  $$('[data-tab]', body).forEach((b) => b.addEventListener('click', () => {
+    tab = b.dataset.tab;
+    try { sessionStorage.setItem('nuuvi:char-tab', tab); } catch { /* ignore */ }
+    draw();
+  }));
+  $$('[data-tab-go]', body).forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tabGo; draw(); $('.ig-tabs', body).scrollIntoView({ behavior: 'smooth' }); }));
+  $$('[data-list]', body).forEach((b) => b.addEventListener('click', () => showPeople(
     b.dataset.list === 'followers' ? `Following ${c.name}` : `${c.name} follows`, `/api/characters/${c.id}/${b.dataset.list}`,
   )));
-  $('#main #start-thread').addEventListener('click', async () => {
-    if (!state.user) return toast('Sign in first');
-    openThreadForm({ tag: [c.id] });
-  });
-  $('#main #to-threads').addEventListener('click', () => $('#threads-title').scrollIntoView({ behavior: 'smooth' }));
-  $('#main #follow')?.addEventListener('click', (e) => {
-    if (!state.user) return toast('Sign in first');
+  const reload = () => viewCharacter(id);
+  async function newPost() { if (await openSocialComposer({ characterId: c.id })) { tab = 'posts'; reload(); } }
+  $('#new-post', body)?.addEventListener('click', newPost);
+  $('#edit', body)?.addEventListener('click', async () => { if (await editCharacter(c)) { state.characters = null; reload(); } });
+  $('#start-thread', body)?.addEventListener('click', () => openThreadForm({ tag: [c.id] }));
+  $('#main #char-more').addEventListener('click', (e) => menu(e.currentTarget, [
+    { label: `View ${c.owner.displayName}'s profile`, action: () => { location.hash = `#/u/${c.owner.id}`; } },
+    own && { label: 'Edit character', action: () => $('#edit', body).click() },
+  ]));
+  $('#follow', body)?.addEventListener('click', (e) => {
     if (!followable.length) return toast('Create a character first — characters follow characters');
     const act = async (me) => {
       const on = followedBy.includes(me.id);

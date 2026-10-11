@@ -1,6 +1,6 @@
 // User profiles and your own settings (profile, password, notifications, blocked people).
 import { html, render, api, $, bindForm, toast, avatar, icons, confirmModal, promptModal, uploadImage, formatPost, timeAgo } from '../lib.js';
-import { state, page, refreshBlocks, signedOut, router, setAmbient, applyTheme, currentThemePick, THEMES, routeAlive, ensureAlive } from '../main.js';
+import { state, page, refreshBlocks, signedOut, router, applyTheme, currentThemePick, THEMES, routeAlive, ensureAlive } from '../main.js';
 import { characterCard } from './characters.js';
 
 const ACTIVITY = { active: 'Very active', moderate: 'Moderately active', low: 'Low activity', hiatus: 'On hiatus' };
@@ -65,7 +65,6 @@ export async function viewUser(id) {
         <h2 class="section-title">Characters</h2>
         <div class="char-grid">${characters.map((c) => characterCard(c))}</div>` : ''}`,
   });
-  setAmbient(u.banner || u.avatar);
   for (const el of document.querySelectorAll('#main .meter-fill')) el.style.setProperty('--w', `${el.dataset.w}%`);
   $('#main #block')?.addEventListener('click', async () => {
     if (!blocked && !(await confirmModal(`Block ${u.displayName}? Their posts will be hidden for you, they can't notify you, and they can't join stories you own.`, { ok: 'Block', danger: true }))) return;
@@ -119,6 +118,9 @@ export async function viewSettings() {
           <p class="muted small">Saved on this device.</p>
           <div class="theme-swatches">${THEMES.map(([k, label]) => html`
             <button type="button" class="swatch" data-theme-pick="${k}" aria-pressed="${currentThemePick() === k}"><i></i>${label}</button>`)}</div>
+          <label>Text size</label>
+          <div class="seg" role="group" aria-label="Text size">${[['', 'Default'], ['large', 'Large'], ['larger', 'Larger']].map(([k, label]) => html`
+            <button type="button" data-text-size="${k}" aria-pressed="${(document.documentElement.dataset.text || '') === k}">${label}</button>`)}</div>
         </section>
 
         <section class="card">
@@ -233,6 +235,14 @@ export async function viewSettings() {
     r.addEventListener('input', () => { r.dataset.set = '1'; $(`#v-${r.name.slice(6)}`, body).textContent = `${r.value}%`; });
   }
   body.addEventListener('click', (e) => {
+    const ts = e.target.closest('[data-text-size]');
+    if (ts) {
+      const v = ts.dataset.textSize;
+      if (v) document.documentElement.dataset.text = v; else delete document.documentElement.dataset.text;
+      try { if (v) localStorage.setItem('nuuvi:text', v); else localStorage.removeItem('nuuvi:text'); } catch { /* ignore */ }
+      body.querySelectorAll('[data-text-size]').forEach((b) => b.setAttribute('aria-pressed', String(b === ts)));
+      return;
+    }
     const sw = e.target.closest('[data-theme-pick]');
     if (!sw) return;
     applyTheme(sw.dataset.themePick);

@@ -2,20 +2,34 @@
 import { randomBytes } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fail, str, id, color } from '../http.js';
+import { fail, str, id, color, oneOf } from '../http.js';
 import { hashPassword, verifyPassword, createSession, destroySession, toSelf } from '../auth.js';
 import { toUser, toCharacter, requireUser, uploadRef } from '../model.js';
 import { validateSubscription } from '../push.js';
 import { profileInput, detailsInput, parseProfile } from '../profile.js';
 import { transaction } from '../db.js';
 
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
-const IMAGE_TYPES = {
-  'image/png': { ext: 'png', magic: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
-  'image/jpeg': { ext: 'jpg', magic: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
-  'image/gif': { ext: 'gif', magic: (b) => b.subarray(0, 4).toString('latin1') === 'GIF8' },
-  'image/webp': { ext: 'webp', magic: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' },
+const MB = 1024 * 1024;
+const MAX_UPLOAD_BYTES = 60 * MB;
+const ftyp = (b) => b.subarray(4, 8).toString('latin1') === 'ftyp';
+const ebml = (b) => b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3;
+// Accepted uploads: type → extension, a check of the file's first bytes, and a size limit.
+const MEDIA_TYPES = {
+  'image/png': { ext: 'png', max: 8 * MB, magic: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
+  'image/jpeg': { ext: 'jpg', max: 8 * MB, magic: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  'image/gif': { ext: 'gif', max: 8 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'GIF8' },
+  'image/webp': { ext: 'webp', max: 8 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' },
+  'video/mp4': { ext: 'mp4', max: 60 * MB, magic: ftyp },
+  'video/quicktime': { ext: 'mov', max: 60 * MB, magic: ftyp },
+  'video/webm': { ext: 'webm', max: 60 * MB, magic: ebml },
+  'audio/mp4': { ext: 'm4a', max: 20 * MB, magic: ftyp },
+  'audio/x-m4a': { ext: 'm4a', max: 20 * MB, magic: ftyp },
+  'audio/webm': { ext: 'weba', max: 20 * MB, magic: ebml },
+  'audio/ogg': { ext: 'ogg', max: 20 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'OggS' },
+  'audio/mpeg': { ext: 'mp3', max: 20 * MB, magic: (b) => b.subarray(0, 3).toString('latin1') === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) },
+  'audio/wav': { ext: 'wav', max: 20 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WAVE' },
 };
+MEDIA_TYPES['audio/x-wav'] = MEDIA_TYPES['audio/wav'];
 
 function validPassword(password) {
   if (typeof password !== 'string' || password.length < 8) fail(400, 'Password must be at least 8 characters');
@@ -99,6 +113,14 @@ export function accountRoutes(r, ctx) {
 
   r.get('/api/me', ({ user }) => ({ data: { user } }));
 
+  // Who's online right now (for the live indicator).
+  r.get('/api/online', ({ user }) => {
+    requireUser(user);
+    const ids = ctx.hub.online();
+    const rows = ids.length ? db.prepare(`SELECT * FROM users WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids) : [];
+    return { data: { users: rows.map((u) => toUser(u)) } };
+  });
+
   r.put('/api/me', ({ user, body }) => {
     requireUser(user);
     const displayName = str(body.displayName, 'Display name', { min: 1, max: 40 }) ?? user.displayName;
@@ -166,12 +188,15 @@ export function accountRoutes(r, ctx) {
   // ---------- Image uploads ----------
   r.post('/api/uploads', async ({ user, rawBody, headers }) => {
     requireUser(user);
-    const type = IMAGE_TYPES[(headers['content-type'] || '').split(';')[0].trim()];
-    if (!type) fail(415, 'Images must be PNG, JPEG, GIF or WebP');
+    const type = MEDIA_TYPES[(headers['content-type'] || '').split(';')[0].trim().toLowerCase()];
+    if (!type) fail(415, 'Use a PNG, JPEG, GIF or WebP image, an MP4/MOV/WebM video, or an M4A/MP3/WebM/OGG/WAV audio file');
+    if (rawBody && rawBody.length > type.max) fail(413, `That file is too large (max ${type.max / MB} MB)`);
     if (!rawBody?.length) fail(400, 'Empty upload');
     if (!type.magic(rawBody)) fail(400, "That file doesn't look like the image type it claims to be");
     const count = db.prepare('SELECT COUNT(*) AS n FROM uploads WHERE user_id = ?').get(user.id).n;
-    if (count >= 500) fail(400, 'Upload limit reached');
+    if (count >= 2000) fail(400, 'Upload limit reached');
+    const used = db.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM uploads WHERE user_id = ?').get(user.id).n;
+    if (used + rawBody.length > 2048 * MB) fail(400, 'You have used all of your 2 GB of storage');
     const name = `${randomBytes(16).toString('base64url')}.${type.ext}`;
     await writeFile(join(config.uploadDir, name), rawBody, { flag: 'wx' });
     db.prepare('INSERT INTO uploads (name, user_id, size) VALUES (?, ?, ?)').run(name, user.id, rawBody.length);
@@ -240,6 +265,27 @@ export function accountRoutes(r, ctx) {
     return { data: { characters: rows.map((c) => ({ ...toCharacter(c), followers: c.followers })) } };
   });
 
+  // Count overrides: "" or null clears, otherwise a whole number (celebrities can have 2,400,000 followers).
+  const countInput = (v, field) => {
+    if (v === undefined) return undefined;
+    if (v === null || v === '') return null;
+    const n = Number(String(v).replace(/[,\s]/g, ''));
+    if (!Number.isSafeInteger(n) || n < 0 || n > 9_999_999_999) fail(400, `${field} must be a whole number`);
+    return n;
+  };
+
+  // Styling and profile extras, applied after insert/update.
+  function applyExtras(characterId, body, existing = {}) {
+    const aka = str(body.aka, 'AKA line', { max: 200 }) ?? existing.aka ?? '';
+    const align = oneOf(body.postAlign, 'Name position', ['left', 'right']) ?? existing.post_align ?? 'right';
+    const followers = countInput(body.followersDisplay, 'Followers');
+    const following = countInput(body.followingDisplay, 'Following');
+    const verified = body.verified === undefined ? existing.verified ?? 0 : body.verified ? 1 : 0;
+    db.prepare('UPDATE characters SET aka = ?, post_align = ?, followers_display = ?, following_display = ?, verified = ? WHERE id = ?')
+      .run(aka, align, followers === undefined ? existing.followers_display ?? null : followers,
+        following === undefined ? existing.following_display ?? null : following, verified, characterId);
+  }
+
   const characterFields = (body, existing = {}) => ({
     name: str(body.name, 'Name', { min: 1, max: 60, required: !existing.name }) ?? existing.name,
     tagline: str(body.tagline, 'Tagline', { max: 140 }) ?? existing.tagline ?? '',
@@ -257,6 +303,7 @@ export function accountRoutes(r, ctx) {
     const details = JSON.stringify(detailsInput(body.details) ?? []);
     const { lastInsertRowid } = db.prepare('INSERT INTO characters (user_id, name, tagline, bio, color, avatar, portrait, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run(user.id, f.name, f.tagline, f.bio, f.color, avatar, portrait, details);
+    applyExtras(Number(lastInsertRowid), body);
     return { status: 201, data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(lastInsertRowid)) } };
   });
 
@@ -271,6 +318,7 @@ export function accountRoutes(r, ctx) {
     db.prepare('UPDATE characters SET name = ?, tagline = ?, bio = ?, color = ?, avatar = ?, portrait = ?, details = ? WHERE id = ?')
       .run(f.name, f.tagline, f.bio, f.color, avatar === undefined ? existing.avatar : avatar,
         portrait === undefined ? existing.portrait : portrait, details === undefined ? existing.details : JSON.stringify(details), existing.id);
+    applyExtras(existing.id, body, existing);
     return { data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(existing.id)) } };
   });
 
