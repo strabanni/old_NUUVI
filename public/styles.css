@@ -342,7 +342,7 @@ body.guest #rail, body.guest #sidebar, body.guest #members, body.guest #tabbar {
 .chan.active, .nav-link.active { background: var(--glass-2); color: var(--text); box-shadow: inset 0 0 0 1px var(--glass-border); }
 .chan.unread, .nav-link.unread { color: var(--text); font-weight: 700; }
 .chan .hash svg { width: 17px; height: 17px; color: var(--faint); }
-.chan .name, .nav-link > span:not(.badge):not(.mini-icon), .member > span:not(.avatar) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chan .name, .nav-link > span:not(.badge):not(.mini-icon):not(.avatar), .member > span:not(.avatar) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .turn-dot { color: var(--accent-fg); display: flex; }
 .turn-dot svg { width: 16px; height: 16px; }
 .mini-icon { width: 24px; height: 24px; flex: none !important; border-radius: 8px; overflow: hidden; }
@@ -1701,3 +1701,8 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 .ph-contact:hover, .ph-contact:focus, .ph-contact:active { background: none; box-shadow: none; }
 .ph-contact:focus-visible .ph-av { box-shadow: 0 0 0 3px #fff; }
 .nav-link.me-link > .avatar { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; }
+.sm-head .sm-id { flex: 1; min-width: 0; }
+.sm-head .sm-who { display: flex; align-items: center; max-width: 100%; min-width: 0; overflow: hidden; white-space: nowrap; }
+.sm-head .sm-who .sp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sm-head .npc-badge { flex: none; }
+.sm-head .sm-when { flex: none; }
