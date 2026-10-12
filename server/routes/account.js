@@ -9,6 +9,10 @@ import { validateSubscription } from '../push.js';
 import { profileInput, detailsInput, parseProfile } from '../profile.js';
 import { transaction, makeHandle } from '../db.js';
 import { validUsername, validDisplayName, nameKey } from '../names.js';
+import { readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const HEADERS_DIR = fileURLToPath(new URL('../../public/headers/', import.meta.url));
 
 const MB = 1024 * 1024;
 const MAX_UPLOAD_BYTES = 60 * MB;
@@ -123,6 +127,32 @@ export function accountRoutes(r, ctx) {
   r.get('/api/me', ({ user }) => ({ data: { user } }));
 
   // Who's online right now (for the live indicator).
+  // A tab reports whether it's visible, so pop-up notifications go only where the person isn't looking.
+  r.post('/api/live/visible', ({ user, body }) => {
+    requireUser(user);
+    ctx.hub.setVisible(user.id, String(body.tab || '').slice(0, 40), !!body.visible);
+    return { data: { ok: true } };
+  });
+
+  // Rotating header pictures for the main pages (set by admins).
+  r.get('/api/headers', ({ user }) => {
+    requireUser(user);
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'headers'").get();
+    // Until an admin picks some, use any pictures that ship in public/headers/.
+    const bundled = () => { try { return readdirSync(HEADERS_DIR).filter((f) => /\.(?:jpg|jpeg|png|webp)$/i.test(f)).sort().map((f) => `/headers/${f}`); } catch { return []; } };
+    return { data: { headers: row ? JSON.parse(row.value) : bundled() } };
+  });
+  r.put('/api/headers', ({ user, body }) => {
+    requireUser(user);
+    if (!user.isAdmin) fail(403, 'Only admins can change the headers');
+    if (!Array.isArray(body.headers) || body.headers.length > 30) fail(400, 'At most 30 header pictures');
+    // Uploads, picture links, or pictures that ship with NUUVI (public/headers/).
+    const headers = body.headers.map((h) => (typeof h === 'string' && /^\/headers\/[\w.-]+\.(?:jpg|jpeg|png|webp)$/.test(h) ? h
+      : uploadRef(db, h, user.id) ?? fail(400, 'Picture missing')));
+    db.prepare("INSERT INTO settings (key, value) VALUES ('headers', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(headers));
+    return { data: { headers } };
+  });
+
   r.get('/api/online', ({ user }) => {
     requireUser(user);
     const ids = ctx.hub.online();
@@ -277,6 +307,18 @@ export function accountRoutes(r, ctx) {
 
   // Directory: every writer (by username) and every character in their cast.
   // Suspended accounts and people on either side of a block are left out.
+  // Everyone's NPCs, shared so anyone can find and tag them. Filter by category tag or search.
+  r.get('/api/npcs', ({ user }) => {
+    requireUser(user);
+    const hidden = new Set(db.prepare('SELECT blocked_id AS id FROM blocks WHERE blocker_id = ? UNION SELECT blocker_id FROM blocks WHERE blocked_id = ?')
+      .all(user.id, user.id).map((r) => r.id));
+    const rows = db.prepare(`SELECT c.*, u.username AS owner_username, u.display_name AS owner_name FROM characters c JOIN users u ON u.id = c.user_id
+      WHERE c.npc = 1 AND (c.bot IS NULL OR c.bot != 'gossip') AND u.banned_at IS NULL ORDER BY c.name COLLATE NOCASE`).all()
+      .filter((c) => !hidden.has(c.user_id));
+    const tags = [...new Set(rows.flatMap((c) => (c.npc_tags ? c.npc_tags.split(',') : [])))].sort();
+    return { data: { npcs: rows.map((c) => ({ ...toCharacter(c), owner: { id: c.user_id, username: c.owner_username, displayName: c.owner_name } })), tags } };
+  });
+
   r.get('/api/directory', ({ user }) => {
     requireUser(user);
     const hidden = new Set(db.prepare('SELECT blocked_id AS id FROM blocks WHERE blocker_id = ? UNION SELECT blocker_id FROM blocks WHERE blocked_id = ?')
@@ -345,6 +387,19 @@ export function accountRoutes(r, ctx) {
       if (bot === 'bot' && !npc) fail(400, 'Only NPCs can post on their own');
     }
     const lines = body.botLines === undefined ? existing.bot_lines ?? '{}' : JSON.stringify(botLinesInput(body.botLines));
+    // A gradient color: 2–3 hex stops, e.g. "#EE719E,#B8A6DB". Empty clears it.
+    let gradient = existing.gradient ?? null;
+    if (body.gradient !== undefined) {
+      const stops = (Array.isArray(body.gradient) ? body.gradient : String(body.gradient || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
+      if (stops.length && (stops.length < 2 || stops.length > 3 || !stops.every((x) => /^#[0-9a-f]{6}$/i.test(x)))) fail(400, 'A gradient needs 2 or 3 colors');
+      gradient = stops.length ? stops.join(',') : null;
+    }
+    let npcTags = existing.npc_tags ?? '';
+    if (body.npcTags !== undefined) {
+      const list = Array.isArray(body.npcTags) ? body.npcTags : String(body.npcTags || '').split(',');
+      npcTags = [...new Set(list.map((t) => String(t).trim().toLowerCase().replace(/^#/, '').slice(0, 30)).filter(Boolean))].slice(0, 12).join(',');
+    }
+    db.prepare('UPDATE characters SET gradient = ?, npc_tags = ? WHERE id = ?').run(gradient, npcTags, characterId);
     db.prepare('UPDATE characters SET handle = COALESCE(?, handle), npc = ?, bot = ?, bot_lines = ? WHERE id = ?')
       .run(handle ?? null, npc, bot, lines, characterId);
     db.prepare('UPDATE characters SET aka = ?, post_align = ?, followers_display = ?, following_display = ?, verified = ?, banner = ? WHERE id = ?')

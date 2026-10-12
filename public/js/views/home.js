@@ -55,6 +55,7 @@ export async function viewHome() {
   const homeBody = page({
     alive,
     title: html`<span class="script">home</span>`,
+    banner: 'write together, in your own little world.',
     body: html`
       <section class="card welcome phone-only">
         ${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'xl square' })}
@@ -75,11 +76,11 @@ export async function viewHome() {
         <div class="bento-hero">
           <div>
             <span class="eyebrow">nuuvi</span>
-            <h2>Write together, in your own little world.</h2>
+            <h2>Start something new.</h2>
             <p>${stories.length ? `${stories.length} ${stories.length === 1 ? 'story' : 'stories'} · ${characters.length} ${characters.length === 1 ? 'character' : 'characters'}` : 'Start a story or join one to begin.'}</p>
           </div>
           <div class="bento-actions">
-            <button class="primary" data-quick="thread">${icons.quill} New thread</button>
+            <button class="primary" data-quick="thread">${icons.episode} New episode</button>
             <button data-quick="post">${icons.image} New post</button>
             <button data-quick="event">${icons.calendar} New event</button>
           </div>
@@ -106,9 +107,9 @@ export async function viewHome() {
         ${turns.map((t) => html`<a class="card turn-card" href="#/s/${t.story.id}/${t.channel.id}">${icons.hourglass}<span>It's your turn in <strong>#${t.channel.name}</strong> · ${t.story.title}</span></a>`)}
       </section>` : ''}
 
-      <h2 class="section-title">Your threads <a class="see-all" href="#/feed">See all</a></h2>
+      <h2 class="section-title">Your episodes <a class="see-all" href="#/feed">See all</a></h2>
       ${mine.items.length ? html`<div class="feed-grid">${mine.items.slice(0, 4).map(feedCard)}</div>`
-        : html`<div class="card empty small"><p>No threads yet. Open a story and tap <b>New thread</b>, or browse the <a href="#/feed">feed</a> for open ones.</p></div>`}
+        : html`<div class="card empty small"><p>No episodes yet. Open a story and tap <b>New episode</b>, or browse the <a href="#/feed">feed</a> for open ones.</p></div>`}
 
       <h2 class="section-title">Your cast</h2>
       <div class="cast-row no-swipe">

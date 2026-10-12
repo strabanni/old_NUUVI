@@ -1999,3 +1999,89 @@ a.char-card, .char-card {
   .bento-actions { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -4px; padding: 2px 4px; }
   .bento-actions button { flex: none; }
 }
+
+/* ---------- v15: quieter post time in episodes ---------- */
+.tp-when { gap: 0; }
+.tp-when time { font-size: .62rem; font-weight: 600; letter-spacing: .06em; color: var(--faint); text-transform: uppercase; }
+.tp-bar { font-size: .6rem; }
+
+/* ---------- v15: gradient characters ---------- */
+/* Formatted words take colors from the character's gradient; dialogue, AKA highlights and the
+   name in episodes sweep through all of it. */
+[data-grad] .body strong { --c: var(--g1); }
+[data-grad] .body :is(em, em.action) { --c: var(--g2); }
+[data-grad] .body :is(u, s) { --c: var(--g3); }
+:is(.tpost, .bubble, .sm-card, .grad-preview)[data-grad] .body .dialogue,
+[data-grad] .grad-preview .dialogue,
+[data-grad] :is(.tp-aka .accent, .aka-text .accent, .tp-name, .g-name) {
+  background: var(--g); -webkit-background-clip: text; background-clip: text; color: transparent !important; -webkit-text-fill-color: transparent;
+}
+.grad-box[data-grad] .grad-preview strong { color: var(--g1); }
+.grad-box[data-grad] .grad-preview em { color: var(--g2); }
+.grad-box[data-grad] .grad-preview u { color: var(--g3); text-decoration-color: var(--g3); }
+.char-card[data-grad] { background: var(--g); }
+.grad-box { margin-top: 10px; padding: 10px 14px; border-radius: 16px; background: var(--glass-2); }
+.grad-box .check { margin: 4px 0; }
+.grad-presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.grad-preset { width: 34px; height: 34px; padding: 0; border-radius: 50%; background: var(--g, var(--glass-3)); box-shadow: inset 0 0 0 2px rgb(255 255 255 / .5); }
+.grad-preset:hover { transform: scale(1.1); background: var(--g); }
+.grad-stops { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.grad-stops input[type=color] { width: 46px; height: 38px; }
+.grad-stops input[hidden] { display: none; }
+.grad-stops .check { margin: 0 0 0 6px; font-size: .84rem; }
+.grad-preview { margin: 10px 0 4px; padding: 12px 14px; border-radius: 12px; background: var(--glass-solid); line-height: 1.7; }
+.grad-preview .g-name { text-transform: uppercase; font-weight: 800; }
+
+/* ---------- v15: the NUUVI gradient as the default fill ---------- */
+:root { --brand-mesh: radial-gradient(circle at 18% 22%, #F7A8C4 0, transparent 46%), radial-gradient(circle at 82% 30%, #B8A6DB 0, transparent 50%),
+  radial-gradient(circle at 55% 85%, #EE719E 0, transparent 52%), linear-gradient(120deg, #EE719E, #C79AD8 55%, #B8A6DB); }
+[data-accent=neutral]:not([data-brand]) { --brand-mesh: linear-gradient(120deg, #8F8D8E, #48484A); }
+.char-card:not([data-grad]):not(:has(> img)), .ig-cover.none, .fc-media:not(:has(img)), .sm-stream:not(:has(img)), .ev-hero:not(:has(img)),
+.ov-hero:not(:has(> img)), .profile-hero.no-img, .story-cover:not(:has(img)) { background: var(--brand-mesh); }
+.bento-hero::before { background: var(--brand-mesh); filter: blur(40px); opacity: .5; }
+
+/* ---------- v15: interface size on computers (CSS zoom) — full-height layouts compensate ---------- */
+:root { --ui-zoom: 1; }
+body:not(.guest) { height: calc(100dvh / var(--ui-zoom)); }
+.app { height: calc(100dvh / var(--ui-zoom)); }
+.landing { min-height: calc(100dvh / var(--ui-zoom)); }
+dialog.modal { width: min(540px, calc(100vw / var(--ui-zoom) - 24px)); max-height: calc(100dvh / var(--ui-zoom) - 24px); }
+.scale-seg { flex-wrap: wrap; }
+
+/* ---------- v15: rotating header pictures on the main pages ---------- */
+.page-banner { position: relative; isolation: isolate; overflow: hidden; height: clamp(150px, 22vh, 230px); margin: 4px 0 18px; border-radius: 30px;
+  background: var(--brand-mesh); box-shadow: var(--elev-1); display: flex; align-items: flex-end; padding: 14px; }
+.page-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; opacity: 0; transform: scale(1.04);
+  transition: opacity 1.4s ease, transform 8s linear; }
+.page-banner img.on { opacity: 1; transform: scale(1); }
+.page-banner::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(transparent 45%, rgb(0 0 0 / .25)); }
+.pb-glass { display: inline-flex; flex-direction: column; gap: 2px; padding: 12px 18px; border-radius: 20px; color: #fff; max-width: 100%;
+  background: rgb(20 20 24 / .22); border: 1px solid rgb(255 255 255 / .2); -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%); }
+.pb-glass .eyebrow { color: rgb(255 255 255 / .85); }
+.pb-glass b { font-size: clamp(1.1rem, 2.4vw, 1.6rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; text-transform: lowercase; }
+@media (max-width: 899px) { .page-banner { height: 128px; border-radius: 24px; margin-bottom: 12px; } }
+.hdr-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin: 12px 0; }
+.hdr-item { position: relative; margin: 0; aspect-ratio: 3 / 1; border-radius: 16px; overflow: hidden; background: var(--glass-2); }
+.hdr-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hdr-item button { position: absolute; top: 6px; right: 6px; background: rgb(0 0 0 / .55); color: #fff; }
+.npc-item { display: flex; flex-direction: column; gap: 8px; }
+.npc-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 0 6px; }
+.npc-meta .tag { cursor: pointer; padding: 2px 9px; }
+.npc-meta .tag:hover { transform: none; background: var(--glass-3); }
+#npc-tags { margin: 4px 0 6px; }
+
+/* ---------- v15: Phone on computers — contacts and texts side by side, kept slender ---------- */
+.phone-split { flex: 1; min-height: 0; display: flex; justify-content: center; }
+.phone-split > .phone { margin-left: 0; margin-right: 0; }
+.ph-pick { display: none; }
+@media (min-width: 900px) {
+  .phone-split { gap: 14px; padding: 0 14px; }
+  .phone-split > .phone { flex: 0 1 340px; max-width: 340px; }
+  .phone-split > .phone.chat, .phone-split > .ph-pick { flex: 0 1 420px; max-width: 420px; }
+  .phone-split .ph-hero h1 { font-size: 1.8rem; margin: 18px 0 14px; }
+  .phone-split .ph-back { display: none; }
+  .ph-pick { display: flex; align-items: center; justify-content: center; background: var(--glass); backdrop-filter: blur(18px); }
+  .ph-pick-inner { max-width: 230px; text-align: center; color: var(--muted); }
+  .ph-pick-inner svg { width: 34px; height: 34px; color: var(--faint); }
+  .ph-row.active { background: var(--glass-3); box-shadow: inset 3px 0 0 var(--text); }
+}

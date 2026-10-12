@@ -95,6 +95,13 @@ function createHub(db) {
         if ((s.userId && members.has(s.userId)) || (s.storyId === storyId && story?.visibility === 'public')) write(s, event, data);
       }
     },
+    // A tab tells us when it's in front of the user; while one is, we don't push to their devices.
+    setVisible(userId, tab, visible) {
+      for (const s of streams) if (s.userId === userId && s.tab === tab) s.visible = visible;
+    },
+    isActive(userId) {
+      return [...streams].some((s) => s.userId === userId && s.visible);
+    },
     disconnectUser(userId) {
       for (const s of streams) if (s.userId === userId) s.res.end();
     },
@@ -190,7 +197,8 @@ export function createApp({
       dm: () => ({ title: n.count > 1 ? `${n.count} new texts` : 'New text', body: text }),
       reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),
     }[type]();
-    ctx.pusher.send(userId, { ...push, url: `/${n.url}`, tag: n.channel ? `channel-${n.channel.id}` : `n-${n.id}` });
+    // Phone/desktop pop-ups only when they're not actively using NUUVI.
+    if (!hub.isActive(userId)) ctx.pusher.send(userId, { ...push, url: `/${n.url}`, tag: n.channel ? `channel-${n.channel.id}` : `n-${n.id}` });
   }
 
   ctx.notify = createNotification;
@@ -279,7 +287,8 @@ export function createApp({
       ...SECURITY_HEADERS,
     });
     res.write('retry: 3000\n: connected\n\n');
-    const remove = hub.add({ res, userId: user?.id ?? null, storyId });
+    const tab = String(query.get('tab') || '').slice(0, 40);
+    const remove = hub.add({ res, userId: user?.id ?? null, storyId, tab, visible: query.get('visible') !== '0' });
     const ping = setInterval(() => res.write(': ping\n\n'), 25000);
     req.on('close', () => {
       clearInterval(ping);

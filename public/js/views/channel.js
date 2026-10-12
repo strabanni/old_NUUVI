@@ -1,7 +1,7 @@
 // A channel inside a story: the post feed, turn order bar and composer.
 import {
   html, raw, esc, render, applyColors, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
-  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText,
+  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr,
 } from '../lib.js';
 import {
   state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon,
@@ -9,6 +9,12 @@ import {
 import { statusPill, openThreadForm } from './threads.js';
 
 const nameOf = (u) => u?.displayName ?? 'someone';
+// Small post time for episodes: "7:34 PM" today, "Oct 12" before that (full time on hover).
+const shortTime = (sql) => {
+  const d = new Date(`${sql.replace(' ', 'T')}Z`);
+  return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
+};
 
 // Every formatting code, with what it looks like.
 const FORMATS = [
@@ -116,7 +122,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     subtitle: c.topic || (c.kind === 'ooc' ? 'Out of character' : `${KIND_LABELS[c.kind]} · ${({ open: 'open', closed: 'private', complete: 'complete' })[c.status]}`),
     actions: html`
       <button class="btn sm starred-btn" id="starred-btn" title="Starred moments" hidden>${icons.star}<b>0</b></button>
-      ${detail.canManage && c.kind !== 'ooc' ? html`<button class="icon-btn" id="edit-thread" title="Thread details" aria-label="Thread details">${icons.gear}</button>` : ''}`,
+      ${detail.canManage && c.kind !== 'ooc' ? html`<button class="icon-btn" id="edit-thread" title="Episode details" aria-label="Episode details">${icons.gear}</button>` : ''}`,
     className: 'channel-body',
     body: html`
       <div class="feed-scroll" id="feed-scroll">
@@ -158,7 +164,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const others = participants.filter((x) => x.id !== ch?.id);
     const pic = ch?.avatar || ch?.portrait;
     return html`
-      <article class="tpost align-${side} ${p.userId === state.user?.id ? 'mine' : ''} ${starred.has(p.id) ? 'is-starred' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"` : ''}>
+      <article class="tpost align-${side} ${p.userId === state.user?.id ? 'mine' : ''} ${starred.has(p.id) ? 'is-starred' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"${gradAttr(ch)}` : ''}>
         <header class="tp-head">
           <div class="tp-id">
             ${ch ? html`<a class="tp-name" href="#/c/${ch.id}">${ch.name}</a>${akaLine(ch)}`
@@ -168,7 +174,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
             : html`<span class="tp-avatar narrator-av">${icons.mask}</span>`}
         </header>
         <div class="tp-bar">
-          <span class="tp-when">${icons.broadcast}<time title="${p.createdAt} UTC">${timeStamp(p.createdAt)}</time>${p.editedAt ? ' · edited' : ''}</span>
+          <span class="tp-when"><time title="${timeStamp(p.createdAt)}">${shortTime(p.createdAt)}</time>${p.editedAt ? ' · edited' : ''}</span>
           ${ch ? html`<a href="#/c/${ch.id}" class="tp-act">${icons.profile}<span>Open profile</span></a>` : html`<a href="#/u/${p.userId}" class="tp-act">${icons.profile}<span>Open profile</span></a>`}
           <button class="tp-act star-btn" type="button" data-act="star" aria-pressed="${starred.has(p.id)}">${starred.has(p.id) ? icons.star : icons.starOutline}<span>${starred.has(p.id) ? 'Starred' : 'Star'}</span></button>
           ${menuBtn}
@@ -193,7 +199,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const grouped = prev && !blocked(prev) && key(prev) === key(p) && minutesBetween(prev.createdAt, p.createdAt) < 10 && p.id !== dividerBefore && dayLabel(prev.createdAt) === dayLabel(p.createdAt);
     const av = ch ? avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' }) : avatar({ name: p.author.displayName, src: p.author.avatar, color: '#48484A', size: 'sm' });
     return html`
-      <article class="bubble ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''} kind-${p.kind}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"` : ''}>
+      <article class="bubble ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''} kind-${p.kind}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"${gradAttr(ch)}` : ''}>
         ${mine ? '' : html`<a class="b-av" href="${ch ? `#/c/${ch.id}` : `#/u/${p.userId}`}">${grouped ? '' : av}</a>`}
         <div class="b-col">
           ${grouped ? '' : html`<div class="b-name">${ch ? html`<a href="#/c/${ch.id}" class="cast-name" data-color="${ch.color}">${name}</a>` : html`<a href="#/u/${p.userId}">${name}</a>`}${p.kind === 'ooc' && storyStyle() ? html` <span class="ooc-badge">OOC</span>` : ''}</div>`}
@@ -435,7 +441,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   let mention = () => {};
   let startReply = () => {};
   if (role && !detail.canPost) {
-    render(wrap, html`<div class="composer-locked">${channel().status === 'complete' ? 'This thread is complete — it\'s read-only now.' : 'This is a private thread for the characters in it.'}</div>`);
+    render(wrap, html`<div class="composer-locked">${channel().status === 'complete' ? 'This episode is complete — it\'s read-only now.' : 'This is a private episode for the characters in it.'}</div>`);
   } else if (!role) {
     render(wrap, state.user
       ? html`<div class="composer-locked">${story.status === 'open' ? html`You're reading as a guest. <button class="primary sm" id="join-here">Join to write</button>` : 'This story is closed to new writers.'}</div>`
@@ -565,7 +571,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       attached.length < 10 && { label: 'Add pictures…', action: () => picker.click() },
       attached.length < 10 && { label: 'Add a picture link…', action: addPictureLink },
       { label: `${cw ? 'Change' : 'Add'} content warning`, action: askCw },
-      detail.canManage && channel().kind !== 'ooc' && { label: 'Thread details…', action: editThread },
+      detail.canManage && channel().kind !== 'ooc' && { label: 'Episode details…', action: editThread },
       channel().kind === 'comms' && { label: 'Contact names…', action: editContacts },
       { label: 'Formatting guide', action: formattingGuide },
     ]));

@@ -15,6 +15,7 @@ export async function viewDirectory() {
   const body = page({
     alive,
     title: 'Directory',
+    banner: 'everyone & everyone they play',
     subtitle: `${writers.length} writers · ${all.length} characters`,
     body: html`
       <div class="dir-tools">

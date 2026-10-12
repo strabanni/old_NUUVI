@@ -65,7 +65,7 @@ export async function viewOverview(idStr) {
             <div class="ov-stats">
               <a href="#/directory"><b>${stats.writers}</b><span>writers</span></a>
               <a href="#/directory"><b>${stats.characters}</b><span>characters</span></a>
-              <a href="#/feed"><b>${stats.threads}</b><span>threads</span></a>
+              <a href="#/feed"><b>${stats.threads}</b><span>episodes</span></a>
               <a href="#/events"><b>${stats.events}</b><span>upcoming events</span></a>
             </div>
           </div>

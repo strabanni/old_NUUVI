@@ -14,6 +14,7 @@ import { viewEvents, viewEvent } from './views/events.js';
 import { viewDirectory } from './views/directory.js';
 import { viewPhone, viewPhoneThread } from './views/phone.js';
 import { viewOverview } from './views/overview.js';
+import { viewNpcs } from './views/npcs.js';
 import { viewSocialPost } from './views/social.js';
 
 export const state = {
@@ -239,8 +240,8 @@ function renderRail() {
     </div>`);
 }
 
-export const KIND_LABELS = { thread: 'Threads', para: 'Self paras', comms: 'Comms', event: 'Events', ooc: 'Out of character' };
-export const kindIcon = (kind) => ({ thread: icons.quill, para: icons.feather, comms: icons.chat, event: icons.calendar, ooc: icons.hash })[kind] || icons.hash;
+export const KIND_LABELS = { thread: 'Episodes', para: 'Self paras', comms: 'Comms', event: 'Events', ooc: 'Out of character' };
+export const kindIcon = (kind) => ({ thread: icons.episode, para: icons.feather, comms: icons.chat, event: icons.calendar, ooc: icons.hash })[kind] || icons.hash;
 // A channel's own icon (set per comms thread): a picture, an emoji, or the icon for its type.
 export const channelIcon = (c) => (!c.icon ? kindIcon(c.kind)
   : /^(\/|https:)/.test(c.icon) ? html`<img class="ch-icon-img" src="${c.icon}" alt="">`
@@ -264,7 +265,7 @@ function renderSidebar() {
         ${!s.role ? html`<div class="join-hint">
             <p>You're reading as a guest.</p>
             ${s.story.status === 'open' ? html`<button class="primary block" id="side-join">Join this story</button>` : html`<p class="muted small">Closed to new writers.</p>`}
-          </div>` : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New thread</button>`}
+          </div>` : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New episode</button>`}
         ${s.story.hasOverview || s.role === 'owner' ? html`<a href="#/s/${s.story.id}/overview" class="chan overview-link ${location.hash === `#/s/${s.story.id}/overview` ? 'active' : ''}">
           <span class="hash">${icons.book}</span><span class="name">Overview</span>${s.story.hasOverview ? '' : html`<small class="muted">empty</small>`}</a>` : ''}
         ${groups.map(([kind, list]) => html`
@@ -274,7 +275,7 @@ function renderSidebar() {
             return html`
             <a href="#/s/${s.story.id}/${c.id}" class="chan ${state.route.channelId === c.id ? 'active' : ''} ${c.unread ? 'unread' : ''} status-${c.status}">
               <span class="hash">${channelIcon(c)}</span><span class="name">${c.name}</span>
-              ${c.kind !== 'ooc' && c.status !== 'open' ? html`<span class="chan-status" title="${c.status === 'closed' ? 'Private thread' : 'Complete'}">${c.status === 'closed' ? icons.lock : icons.check}</span>` : ''}
+              ${c.kind !== 'ooc' && c.status !== 'open' ? html`<span class="chan-status" title="${c.status === 'closed' ? 'Private episode' : 'Complete'}">${c.status === 'closed' ? icons.lock : icons.check}</span>` : ''}
               ${myTurn ? html`<span class="turn-dot" title="Your turn">${icons.hourglass}</span>` : ''}
               ${c.mentions ? html`<span class="badge">${c.mentions}</span>` : ''}
             </a>`;
@@ -299,6 +300,7 @@ function renderSidebar() {
         ${link('#/phone', 'Phone', icons.smartphone)}
         ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
+        ${link('#/npcs', 'NPCs', icons.mask)}
         ${link('#/discover', 'Discover', icons.compass)}
         ${state.user.isAdmin ? link('#/admin', 'Admin', icons.shield, state.home.reportsOpen) : ''}
         <div class="side-section"><span>Your stories</span><a href="#/new" class="icon-btn sm" title="Start a story" aria-label="Start a story">${icons.plus}</a></div>
@@ -371,9 +373,38 @@ export async function copyText(text, message = 'Copied') {
 
 // ---------- Page scaffold ----------
 // Every page renders a header (with the mobile drawer button) and a body.
-export function page({ title, subtitle = '', actions = '', body, className = '', alive }) {
+// Header pictures for the main pages: they crossfade every 8 seconds (the NUUVI gradient
+// shows until an admin adds pictures under Admin → Headers).
+let headerPics = null;
+export async function loadHeaders(force = false) {
+  if (!headerPics || force) headerPics = (await api('/api/headers').catch(() => ({ headers: [] }))).headers;
+  return headerPics;
+}
+function startBanner(main) {
+  const banner = $('.page-banner', main);
+  if (!banner) return;
+  const show = (pics) => {
+    if (!pics.length || !banner.isConnected) return;
+    let i = Math.floor(Math.random() * pics.length);
+    const imgs = pics.map((src, n) => { const img = new Image(); img.src = src; img.alt = ''; img.className = n === i ? 'on' : ''; banner.prepend(img); return img; });
+    if (pics.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const timer = setInterval(() => {
+      if (!banner.isConnected) return clearInterval(timer);
+      imgs[i].className = '';
+      i = (i + 1) % imgs.length;
+      imgs[i].className = 'on';
+    }, 8000);
+    onLeave(() => clearInterval(timer));
+  };
+  loadHeaders().then(show);
+}
+
+export function page({ title, subtitle = '', actions = '', body, className = '', alive, banner = false }) {
   if (alive) ensureAlive(alive);
   const main = $('#main');
+  if (banner) {
+    body = html`<section class="page-banner" aria-hidden="true"><div class="pb-glass"><span class="eyebrow">nuuvi</span><b>${banner === true ? title : banner}</b></div></section>${body}`;
+  }
   render(main, html`
     <header class="main-head">
       <button class="icon-btn only-mobile" data-drawer aria-label="Open navigation">${icons.menu}</button>
@@ -383,6 +414,7 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
     <div class="main-body ${className}">${body}</div>`);
   const crumb = $('#crumb');
   if (crumb) crumb.textContent = $('.head-title h1', main)?.textContent.trim() || '';
+  if (banner) startBanner(main);
   return $('.main-body', main);
 }
 
@@ -468,6 +500,14 @@ function setupDrawer() {
 // ---------- Live events ----------
 let source = null;
 let sourceKey = null;
+// Each tab tells the server whether it's in front of you; phone/desktop pop-ups only go out
+// when no NUUVI tab is (so you're not pinged about things you're already looking at).
+const TAB_ID = Math.random().toString(36).slice(2, 12);
+document.addEventListener('visibilitychange', () => {
+  if (!state.user) return;
+  api('/api/live/visible', { method: 'POST', body: { tab: TAB_ID, visible: document.visibilityState === 'visible' } }).catch(() => {});
+});
+
 function connectLive() {
   const storyId = state.route.storyId;
   const key = state.user ? `u:${storyId ?? ''}` : storyId ? `a:${storyId}` : null;
@@ -476,7 +516,9 @@ function connectLive() {
   source = null;
   sourceKey = key;
   if (!key) return;
-  source = new EventSource(`/api/events${storyId ? `?story=${storyId}` : ''}`);
+  const params = new URLSearchParams({ tab: TAB_ID, visible: document.visibilityState === 'visible' ? '1' : '0' });
+  if (storyId) params.set('story', storyId);
+  source = new EventSource(`/api/events?${params}`);
   let opened = false;
   source.addEventListener('open', () => { if (opened) emit('reconnect'); opened = true; });
   for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence', 'dm', 'dm-delete']) {
@@ -515,12 +557,8 @@ function handleLive(type, data) {
   }
   if (type === 'notification') {
     const inChannel = data.channel && state.route.channelId === data.channel.id && document.visibilityState === 'visible';
-    if (!inChannel) {
-      refreshHome().catch(() => {});
-      if (data.type === 'turn') toast(`It's your turn in #${data.channel?.name}`);
-      else if (data.type === 'mention') toast(`${data.actor?.displayName} mentioned you`);
-      else if (data.type === 'dm' && !location.hash.startsWith('#/phone')) toast(`💬 ${data.text}`);
-    }
+    // No pop-ups inside the app: the bell's count updates quietly.
+    if (!inChannel) refreshHome().catch(() => {});
   }
   if (type === 'kicked' && state.route.storyId === data.storyId) {
     toast('You were removed from this story');
@@ -544,6 +582,7 @@ const routes = [
   [/^#\/notifications$/, viewNotifications, true],
   [/^#\/characters$/, viewCharacters, true],
   [/^#\/directory$/, viewDirectory, true],
+  [/^#\/npcs$/, viewNpcs, true],
   [/^#\/phone(?:\/(\d+))?$/, viewPhone, true],
   [/^#\/phone\/(\d+)\/t\/(\d+)$/, viewPhoneThread, true],
   [/^#\/c\/(\d+)$/, viewCharacter],

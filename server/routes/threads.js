@@ -57,9 +57,11 @@ export function threadRoutes(r, ctx) {
     if (!Array.isArray(ids) || ids.length > 20) fail(400, 'Tag at most 20 characters');
     const out = [];
     for (const raw of ids) {
-      const c = db.prepare(`SELECT c.id, c.user_id FROM characters c JOIN story_members m ON m.user_id = c.user_id AND m.story_id = ?
-        WHERE c.id = ?`).get(storyId, id(raw, 'Character'));
-      if (!c) fail(400, 'You can only tag characters of people in this story');
+      // Characters of people in the story — or anyone's NPC (NPCs are shared with everyone).
+      const c = db.prepare(`SELECT c.id, c.user_id FROM characters c
+        WHERE c.id = :id AND (c.npc = 1 AND (c.bot IS NULL OR c.bot != 'gossip')
+          OR EXISTS (SELECT 1 FROM story_members m WHERE m.user_id = c.user_id AND m.story_id = :sid))`).get({ id: id(raw, 'Character'), sid: storyId });
+      if (!c) fail(400, 'You can only tag characters of people in this story, or NPCs');
       out.push(c);
     }
     return out;

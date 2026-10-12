@@ -1,4 +1,4 @@
-import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink } from '../lib.js';
+import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, BRAND_GRADIENT } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges } from './social.js';
@@ -13,6 +13,10 @@ function detailRow(d = {}) {
       <button type="button" class="icon-btn sm" data-remove aria-label="Remove detail">✕</button>
     </div>`;
 }
+
+// Gradient presets — the first is the NUUVI gradient.
+const GRADIENT_PRESETS = [BRAND_GRADIENT, ['#F7A8C4', '#EE719E', '#9D7BD8'], ['#9DB7B8', '#A9A8CF', '#B8A6DB'], ['#F7D9A8', '#EE719E'],
+  ['#7AA7FF', '#B8A6DB', '#EE719E'], ['#2A2A2D', '#8F8D8E'], ['#E85D4A', '#F2B04C'], ['#4CB8A6', '#2E6FB8']];
 
 function characterForm(c = {}) {
   const details = c.details?.length ? c.details : [{ label: 'Age' }, { label: 'Pronouns' }];
@@ -41,13 +45,25 @@ function characterForm(c = {}) {
         <div><label for="c-handle">Username</label><span class="at-input"><span>@</span><input id="c-handle" name="handle" maxlength="30" pattern="[A-Za-z0-9._]+" value="${c.handle || ''}" placeholder="made from their name"></span></div>
         <div class="fixed"><label for="c-color">Color</label><input id="c-color" type="color" name="color" value="${c.color || '#EE719E'}"></div>
       </div>
+      <div class="grad-box" data-grad="${(c.gradient || BRAND_GRADIENT).join(',')}">
+        <label class="check"><input type="checkbox" name="useGradient" ${c.gradient ? 'checked' : ''}> Use a gradient instead</label>
+        <div class="grad-edit" ${c.gradient ? '' : 'hidden'}>
+          <div class="grad-presets">${GRADIENT_PRESETS.map((g, i) => html`<button type="button" class="grad-preset" data-preset="${i}" data-grad="${g.join(',')}" aria-label="Gradient ${i + 1}"></button>`)}</div>
+          <div class="grad-stops">
+            ${[0, 1, 2].map((i) => html`<input type="color" data-stop="${i}" value="${(c.gradient || BRAND_GRADIENT)[i] || '#B8A6DB'}" aria-label="Gradient color ${i + 1}">`)}
+            <label class="check small"><input type="checkbox" id="g-three" ${(c.gradient || BRAND_GRADIENT).length > 2 ? 'checked' : ''}> 3 colors</label>
+          </div>
+          <p class="grad-preview body"><b class="g-name">${c.name || 'Their name'}</b> — <strong>bold</strong>, <em class="action">an action</em>, <span class="dialogue">"dialogue"</span>, <u>underlined</u>.</p>
+          <p class="hint">Bold takes the first color, actions the middle, underlines the last, and dialogue and their name sweep through the whole gradient.</p>
+        </div>
+      </div>
       <label for="c-tag">Tagline</label>
       <input id="c-tag" name="tagline" maxlength="140" placeholder="A wandering bard with a debt to pay" value="${c.tagline || ''}">
       <label>Details</label>
       <div id="details">${details.map(detailRow)}</div>
       <datalist id="detail-suggestions">${DETAIL_SUGGESTIONS.map((d) => html`<option value="${d}">`)}</datalist>
       <button type="button" class="sm" id="add-detail">${icons.plus} Add detail</button>
-      <label for="c-aka">AKA line <span class="muted small">— shown under their name in threads. Wrap words in **double stars** to show them in the character's color.</span></label>
+      <label for="c-aka">AKA line <span class="muted small">— shown under their name in episodes. Wrap words in **double stars** to show them in the character's color.</span></label>
       <input id="c-aka" name="aka" maxlength="200" value="${c.aka || ''}" placeholder="aka **the prodigy**, (he / him) ; twenty8 ; ceo of trinity healthcare">
       <div class="row">
         <div><label for="c-followers">Followers shown</label><input id="c-followers" name="followersDisplay" inputmode="numeric" placeholder="real count" value="${c.followersDisplay ?? ''}"></div>
@@ -59,6 +75,8 @@ function characterForm(c = {}) {
       <fieldset class="npc-box">
         <label class="check"><input type="checkbox" name="npc" ${c.npc ? 'checked' : ''}> This is an NPC <span class="muted small">(gets an NPC badge)</span></label>
         <div class="npc-auto" ${c.npc ? '' : 'hidden'}>
+          <label for="c-npc-tags">Categories <span class="muted small">— so others can find them on the NPCs page (comma separated)</span></label>
+          <input id="c-npc-tags" name="npcTags" maxlength="300" value="${(c.npcTags || []).join(', ')}" placeholder="staff, foyaen, nightlife">
           <label class="check"><input type="radio" name="bot" value="" ${!c.bot ? 'checked' : ''}> I post for them myself</label>
           <label class="check"><input type="radio" name="bot" value="bot" ${c.bot === 'bot' ? 'checked' : ''}> They post and comment on their own</label>
           ${state.user?.isAdmin ? html`<label class="check"><input type="radio" name="bot" value="gossip" ${c.bot === 'gossip' ? 'checked' : ''}> Anonymous gossip account <span class="muted small">(admin only · nobody sees who runs it)</span></label>` : ''}
@@ -69,9 +87,9 @@ function characterForm(c = {}) {
             <label for="c-l-posts">Their own posts</label>
             <textarea id="c-l-posts" rows="4" data-lines="posts" placeholder="people watching at the plaza is undefeated">${(c.botLines?.posts || []).join('\n')}</textarea>
             <div class="npc-gossip" ${c.bot === 'gossip' ? '' : 'hidden'}>
-              <label for="c-l-tips">Tips when a public thread starts</label>
+              <label for="c-l-tips">Tips when a public episode starts</label>
               <textarea id="c-l-tips" rows="3" data-lines="tips" placeholder="👀 spotted: {a} and {b} at {thread}">${(c.botLines?.tips || []).join('\n')}</textarea>
-              <label for="c-l-finished">Tips when a thread is completed</label>
+              <label for="c-l-finished">Tips when an episode is completed</label>
               <textarea id="c-l-finished" rows="3" data-lines="finished" placeholder="so THAT is how {thread} ended">${(c.botLines?.finished || []).join('\n')}</textarea>
             </div>
           </div>
@@ -128,6 +146,25 @@ export function editCharacter(c = {}) {
         e.currentTarget.hidden = true;
       });
       form.color.addEventListener('input', showPic);
+      const gbox = $('.grad-box', d);
+      const stops = () => $$('[data-stop]', d).filter((x) => x.dataset.stop !== '2' || $('#g-three', d).checked).map((x) => x.value);
+      const drawGrad = () => {
+        $('.grad-edit', d).hidden = !form.useGradient.checked;
+        $('[data-stop="2"]', d).hidden = !$('#g-three', d).checked;
+        gbox.dataset.grad = stops().join(',');
+        applyColors(d);
+      };
+      gbox.addEventListener('input', drawGrad);
+      gbox.addEventListener('change', drawGrad);
+      gbox.addEventListener('click', (e) => {
+        const p = e.target.closest('[data-preset]');
+        if (!p) return;
+        const g = GRADIENT_PRESETS[Number(p.dataset.preset)];
+        $$('[data-stop]', d).forEach((x, i) => { if (g[i]) x.value = g[i]; });
+        $('#g-three', d).checked = g.length > 2;
+        drawGrad();
+      });
+      drawGrad();
       const npcBox = $('.npc-box', d);
       const drawNpc = () => {
         $('.npc-auto', d).hidden = !form.npc.checked;
@@ -152,6 +189,9 @@ export function editCharacter(c = {}) {
     submit: async (data) => {
       data.verified = !!form.verified.checked;
       data.npc = !!form.npc.checked;
+      data.gradient = form.useGradient.checked ? $$('[data-stop]', form).filter((x) => x.dataset.stop !== '2' || form.querySelector('#g-three').checked).map((x) => x.value) : '';
+      if (data.gradient) data.color = data.gradient[0];
+      delete data.useGradient;
       data.bot = data.npc ? (form.querySelector('input[name=bot]:checked')?.value || null) : null;
       data.botLines = Object.fromEntries($$('[data-lines]', form).map((t) => [t.dataset.lines, t.value.split('\n').map((l) => l.trim()).filter(Boolean)]));
       if (!data.handle) delete data.handle;
@@ -171,7 +211,7 @@ export function characterCard(c, { editable = false } = {}) {
   const followers = c.followersDisplay ?? c.followers;
   const badge = c.bot === 'gossip' ? 'Anonymous' : c.npc ? 'NPC' : c.verified ? 'Verified' : followers ? `${compact(followers)} followers` : '';
   return html`
-    <a class="char-card" href="#/c/${c.id}" data-color="${c.color}" data-tilt>
+    <a class="char-card" href="#/c/${c.id}" data-color="${c.color}"${gradAttr(c)} data-tilt>
       ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}
       <span class="cc-top">
         ${badge ? html`<span class="cc-badge">${c.verified ? icons.verified : c.npc ? '' : icons.starOutline}${badge}</span>` : ''}
@@ -191,6 +231,7 @@ export async function viewCharacters() {
   const body = page({
     alive,
     title: 'Your characters',
+    banner: 'your cast',
     subtitle: `${characters.length} in your cast`,
     actions: html`<button class="primary" id="new-char">${icons.plus} New</button>`,
     body: characters.length
@@ -239,7 +280,7 @@ export async function viewCharacter(id) {
     actions: html`<button class="icon-btn" id="char-more" aria-label="More">${icons.more}</button>`,
     body: html`
       ${c.banner ? html`<div class="ig-banner"><img src="${c.banner}" alt=""></div>` : ''}
-      <article class="ig-profile ${c.banner ? 'has-banner' : ''}" data-color="${c.color}">
+      <article class="ig-profile ${c.banner ? 'has-banner' : ''}" data-color="${c.color}"${gradAttr(c)}>
         <header class="ig-head">
           <span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>
           <div class="ig-stats">
@@ -257,11 +298,11 @@ export async function viewCharacter(id) {
         <div class="ig-actions">
           ${own ? html`<button id="edit">Edit profile</button><button class="primary" id="new-post">${icons.plus} New post</button>`
             : html`<button class="${following ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>
-              <button id="start-thread">${icons.quill} Start a thread</button>`}
+              <button id="start-thread">${icons.episode} Start an episode</button>`}
         </div>
         <nav class="ig-tabs" role="tablist">
           <button role="tab" data-tab="posts">${icons.grid}<span>Posts</span></button>
-          <button role="tab" data-tab="threads">${icons.quill}<span>Threads</span></button>
+          <button role="tab" data-tab="threads">${icons.episode}<span>Episodes</span></button>
           <button role="tab" data-tab="about">${icons.profile}<span>About</span></button>
         </nav>
         <section id="ig-pane"></section>
@@ -289,12 +330,12 @@ export async function viewCharacter(id) {
           <span class="sp-t-icon">${kindIcon(t.kind)}</span>
           <span class="grow"><strong>${t.name}</strong><small>${t.storyTitle} · ${t.postCount} posts${t.lastPostAt ? ` · ${timeAgo(t.lastPostAt)}` : ''}</small></span>
           <span class="pill-tag status-${t.status}">${({ open: 'Open', closed: 'Private', complete: 'Complete' })[t.status]}</span>
-        </a>`)}</div>` : html`<div class="empty"><p>Not in any threads yet.</p></div>`);
+        </a>`)}</div>` : html`<div class="empty"><p>Not in any episodes yet.</p></div>`);
     } else {
       render(pane, html`
         ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div class="aka-text">${raw(esc(c.aka).replace(/\*\*(.+?)\*\*/g, '<b class="accent">$1</b>'))}</div></div>` : ''}
         ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
-        <div class="small-stats"><span><b>${compact(stats.posts)}</b> thread posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
+        <div class="small-stats"><span><b>${compact(stats.posts)}</b> episode posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
         ${!c.aka && !c.details.length ? html`<div class="empty"><p>Nothing here yet.</p></div>` : ''}`);
     }
   };

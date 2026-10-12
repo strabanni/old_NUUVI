@@ -36,12 +36,14 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 **Notifications**
 - Unread badges on stories and channels.
 - An alerts page.
-- Push notifications to phones and desktops, even when the app is closed. Push contents are end-to-end encrypted.
+- Push notifications to phones and desktops, **only while you're away**: no pop-ups while you have NUUVI open in front of you. Push contents are end-to-end encrypted.
 - Per-story notification level: every post, mentions and turns only, or nothing.
 
 **Look and feel**
 - **Minimal and glassy:** a soft grey canvas (true black in Dark) with clean cards that float on soft shadows, frosted top bar, rail, menus and dialogs, pill buttons and tabs, and small motion: pages ease in, cards lift on hover, character cards tilt toward the pointer, tabs slide.
-- **Home dashboard:** quick actions (new thread, post, event), a tappable "this week" calendar strip with what's coming up, and your latest notifications.
+- **Header pictures:** the main pages (Home, Feed, Events, Directory, Characters, NPCs, Notifications) open with a wide header picture that fades to the next one every few seconds. Admins pick them under **Admin → Headers** (uploads or links). Pictures placed in `public/headers/` are used until an admin picks some.
+- **Default gradient:** pink to purple (`#EE719E` → `#C79AD8` → `#B8A6DB`) fills anything that has no picture yet: character cards, profile and story covers, event banners and header pictures.
+- **Home dashboard:** quick actions (new episode, post, event), a tappable "this week" calendar strip with what's coming up, and your latest notifications.
 - **Notifications** are sorted into tabs: All, For you, Activity and System.
 - **Pink (`#EE719E`) only on the brand touches:** the logo and "nuuvi" wordmark, the "···" in the top strip, your name and numbers in the greeting, and the ring on the selected item in the left rail. Everything else (buttons, tabs, badges, icons, chat bubbles, writing) follows Light or Dark: whites and greys with darkish-grey (`#48484A`) buttons and icons, or true blacks and dark greys with light-grey (`#B0AEAE`) ones. Light and Dark share the same pink logo.
   - **Light:** whites and light greys (`#FFFFFF` / `#F5F5F5` / `#B0AEAE`).
@@ -50,33 +52,35 @@ On phones the story rail stays on screen at all times, like Discord, with your s
   - **Auto** (the default): Light or Dark, following the device.
   - Chat bubbles and the writing itself are never pink: they use the theme's greys and text colors, plus each character's own chosen color for their AKA highlights and formatted words.
 - **Text size:** Normal, Large or Larger, under **You → Settings**. Post text is never justified.
-- **Interface size (phones and tablets):** Compact (the default, about Discord's scale), Standard or Large, under **You → Settings**.
+- **Interface size:** makes the whole app smaller or bigger, on phones and computers alike: Smallest, Small, Standard, Large or Largest, under **You → Settings**. Phones start on Small (about Discord's scale), computers on Standard.
 - **Greetings:** the "Welcome back" line changes: a hello on your first visit, "long time no see" after a while away, time-of-day greetings, and the odd quirky one.
 - The device's own sans-serif font (San Francisco on iPhone and Mac). No web fonts are downloaded.
 - **User bar (Blue Hour style):**
   - **Computer:** across the top.
   - **Phone:** runs vertically down the slide-out drawer.
   - **Shows:** your avatar, "Welcome back", your stats, and shortcuts (light/dark, feed, alerts, characters, settings, sign out).
-- **Threads:** plain forum-style posts without a frame, so writers can format them their own way. Each post shows the character's name in capitals, an "aka" line the owner writes, avatar, star button, and a "for …" footer. Names switch sides automatically each time a different writer posts. Bold, italic, underlined and quoted words take the character's own color. Comms and OOC channels read like text messages.
+- **Episodes** (what used to be called threads, with a ▷ play icon): plain forum-style posts without a frame, so writers can format them their own way. Each post shows the character's name in capitals, an "aka" line the owner writes, avatar, star button, and a "for …" footer. Names switch sides automatically each time a different writer posts. Bold, italic, underlined and quoted words take the character's own color. The posting time is kept small and quiet: just the time today, or the date before that. Comms and OOC channels read like text messages.
 - **Comms icons:** each comms thread can have its own icon, an emoji or a picture, to show which app it's in (texts, DMs, socials…).
 - **Comms titles are personal:** each person sets their own contact names for the other characters, so the chat is titled with whatever you saved them as.
 - **Usernames for characters:** every character has an @username, made from their name (editable). Their social posts and comments go out under it, and it's the big name on their profile, with their given name above.
 - **Character profiles (Instagram style):** an optional full-width banner, a rounded-square picture, posts/followers/following/threads counts, a verified badge, bio, and tabs for recent posts, threads and details. Owners can set the follower and following numbers shown, for celebrity characters.
+- **Gradient colors:** instead of one color, a character can use a gradient of 2 or 3 colors (presets or your own). Their writing then picks colors from it: **bold** takes the first color, *actions* the middle, underlines the last, and their dialogue, name and AKA line sweep through the whole gradient.
 - **Character cards** show the character only; a writer's own page lists their characters.
 
-**Threads & feed**
-- Each story's channels are typed: **thread**, **self para** (solo writing), **comms** (texts), **event** (with a date) and **OOC**.
-- Any writer can start a thread or comms. Story owners make events and OOC channels.
-- **Threads can be:**
+**Episodes & feed**
+- Each story's channels are typed: **episode**, **self para** (solo writing), **comms** (texts), **event** (with a date) and **OOC**.
+- Any writer can start an episode or comms. Story owners make events and OOC channels.
+- **Episodes can be:**
   - **Open:** anyone in the story can write.
   - **Private:** only the tagged characters can write.
   - **Complete:** read-only.
-- **A thread can have:** a starring character, tagged characters (who get notified), a plot summary and tags.
-- **The feed** shows only open threads, self paras, character social posts and events. Filters: all, open threads, self paras, social, events and mine. You can also search.
+- **An episode can have:** a starring character, tagged characters (who get notified), a plot summary and tags.
+- **The feed** shows only open threads, self paras, character social posts and events. Filters: all, open episodes, self paras, social, events and mine. You can also search.
 - **Character social posts:** text, photos, videos, voice notes (record in the app or upload) and streams, with likes and comments made as a character. Any post can carry a song (title, artist and an optional link), shown under the character's name like on Instagram.
 - **Feed layout:** a brick wall. Each card is as tall as its content and they pack together in order, in columns on computers and two columns on phones.
 - **Events:** put events on the calendar (title, start and end, place, details, banner) from the Events page, which shows them as cards or a month calendar. Starting a thread as type **Event** lets you pick one of the story's upcoming events; comms can optionally be part of one too. An event's page lists every thread and comms that's part of it.
-- **Phone:** every character has a phone (sidebar → **Phone**). Save other characters as contacts under any name you like, then text them one-to-one: pictures, replies and all. Only the two characters' writers can ever read a conversation. It's styled after a modern messaging app, with a soft gradient header, a contact strip and frosted chat bubbles.
+- **Phone:** every character has a phone (sidebar → **Phone**). Save other characters as contacts under any name you like, then text them one-to-one: pictures, replies and all. Only the two characters' writers can ever read a conversation. It's styled after a modern messaging app, with a soft gradient header, a contact strip and frosted chat bubbles. On computers your contacts and the conversation sit side by side on one page, in two slim columns.
+- **NPCs page:** everyone's NPCs in one place (sidebar → **NPCs**), searchable and sorted into categories their writer picks (like `staff`, `foyaen`, `nightlife`). Anyone can tag any NPC into their episodes, even in stories the NPC's writer isn't in.
 - **NPCs:** tick **This is an NPC** on a character for an NPC badge. NPCs can also post and comment **on their own**: give them lines to pick from (with placeholders like `{name}`) and they'll comment on new posts now and then and post every so often. Admins can run an **anonymous gossip account** that also posts tips when public threads start or finish (never about private threads or stories). Admin → **NPCs & bots** controls how often, and can make any of them post right away.
 - Characters follow other characters, and their owners get notified.
 - **Directory:** every writer by username, each with their whole cast, or every character A–Z. Searchable. The gossip account is listed on its own, never under whoever runs it.

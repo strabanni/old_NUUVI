@@ -15,31 +15,38 @@
   try { size = localStorage.getItem('nuuvi:text'); } catch (e) { /* storage unavailable */ }
   if (size === 'large' || size === 'larger') document.documentElement.dataset.text = size;
 
-  // Interface size on phones and tablets. Compact (the default) draws everything ~14% smaller,
-  // closer to Discord's scale; Standard is the browser's normal size; Large is bigger.
-  // Done with the viewport (an explicit layout width plus a matching scale) so every part of
-  // the page shrinks evenly, the same way in Safari and Chrome.
-  var SCALES = { compact: 0.86, standard: 1, large: 1.12 };
-  var ui = null;
-  try { ui = localStorage.getItem('nuuvi:ui'); } catch (e) { /* storage unavailable */ }
-  if (!SCALES[ui]) ui = 'compact';
-  document.documentElement.dataset.ui = ui;
+  // Interface size, on every device. Phones default to Compact (closer to Discord's scale),
+  // computers to Standard. Phones and tablets scale through the viewport (so everything shrinks
+  // evenly in Safari and Chrome); computers use CSS zoom on the page.
+  var SCALES = { xsmall: 0.78, compact: 0.86, standard: 1, large: 1.12, xlarge: 1.25 };
   var meta = document.querySelector('meta[name=viewport]');
   var base = meta ? meta.getAttribute('content') : '';
-  function fit() {
-    if (!meta) return;
-    var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-    var shortSide = Math.min(screen.width, screen.height);
+  var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  var mobile = touch && Math.min(screen.width, screen.height) < 900;
+  function apply(ui) {
+    var saved = null;
+    try { saved = localStorage.getItem('nuuvi:ui'); } catch (e) { /* storage unavailable */ }
+    ui = ui || saved;
+    if (!SCALES[ui]) ui = mobile ? 'compact' : 'standard';
+    root.dataset.ui = ui;
     var scale = SCALES[ui];
-    if (!touch || shortSide >= 900 || scale === 1) { meta.setAttribute('content', base); return; }
-    var portrait = window.matchMedia('(orientation: portrait)').matches;
-    var side = portrait ? shortSide : Math.max(screen.width, screen.height);
-    meta.setAttribute('content', 'width=' + Math.round(side / scale) + ', initial-scale=' + scale +
-      ', viewport-fit=cover, interactive-widget=resizes-content');
+    if (touch) {
+      root.style.removeProperty('zoom');
+      if (!meta) return;
+      if (scale === 1) { meta.setAttribute('content', base); return; }
+      var portrait = window.matchMedia('(orientation: portrait)').matches;
+      var side = portrait ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
+      meta.setAttribute('content', 'width=' + Math.round(side / scale) + ', initial-scale=' + scale +
+        ', viewport-fit=cover, interactive-widget=resizes-content');
+    } else {
+      root.style.setProperty('--ui-zoom', String(scale));
+      if (scale === 1) root.style.removeProperty('zoom'); else root.style.zoom = String(scale);
+    }
   }
-  fit();
+  apply();
+  window.nuuviScale = { apply: apply, touch: touch, mobile: mobile };
   if (window.matchMedia) {
     var o = window.matchMedia('(orientation: portrait)');
-    if (o.addEventListener) o.addEventListener('change', fit);
+    if (o.addEventListener) o.addEventListener('change', function () { apply(); });
   }
 })();

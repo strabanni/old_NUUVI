@@ -43,17 +43,18 @@ export function feedCard(item) {
 // Brick-wall feed: every card keeps its natural height and the grid packs them in order,
 // left to right. Rows are 2px tall, so each card spans as many rows as it is tall; a
 // ResizeObserver keeps that right as pictures load, text wraps or the window resizes.
+// offsetHeight (not the on-screen size) so it stays right at any Interface size.
 const ROW = 2;
 const fitBrick = (el) => {
   const gap = parseFloat(getComputedStyle(el).marginBottom) || 0;
-  el.style.gridRowEnd = `span ${Math.max(1, Math.ceil((el.getBoundingClientRect().height + gap) / ROW))}`;
+  el.style.gridRowEnd = `span ${Math.max(1, Math.ceil((el.offsetHeight + gap) / ROW))}`;
 };
 const bricks = new ResizeObserver((entries) => { for (const e of entries) fitBrick(e.target); });
 export function masonry(root) {
   for (const el of root.querySelectorAll('.feed-grid > *')) { fitBrick(el); bricks.observe(el); }
 }
 
-const FILTERS = [['all', 'All'], ['open', 'Open threads'], ['para', 'Self paras'], ['social', 'Social'], ['event', 'Events']];
+const FILTERS = [['all', 'All'], ['open', 'Open episodes'], ['para', 'Self paras'], ['social', 'Social'], ['event', 'Events']];
 
 function dayGroup(item) {
   const d = parseDate(item.sortAt || item.lastPostAt || item.createdAt);
@@ -73,6 +74,7 @@ export async function viewFeed() {
   const body = page({
     alive,
     title: 'Feed',
+    banner: 'what everyone’s up to',
     subtitle: 'Open threads, self paras, social posts and events',
     actions: html`<a class="btn sm" href="#/events" aria-label="Events">${icons.calendar}<span class="lbl">Events</span></a><button class="primary sm" id="new-post">${icons.plus}<span class="lbl">New post</span></button>`,
     body: html`
@@ -136,12 +138,12 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
   if (!sid && !myStories.length) return toast('Join or start a story first');
   const [characters, storyDetail] = await Promise.all([myCharacters(true), sid ? api(`/api/stories/${sid}`) : null]);
   const isOwner = storyDetail?.role === 'owner' || state.user.isAdmin;
-  const kinds = [['thread', 'Thread'], ['para', 'Self para (solo writing)'], ['comms', 'Comms (texts)'], ['event', 'Event'], ...(isOwner || channel?.kind === 'ooc' ? [['ooc', 'OOC channel']] : [])];
+  const kinds = [['thread', 'Episode'], ['para', 'Self para (solo writing)'], ['comms', 'Comms (texts)'], ['event', 'Event'], ...(isOwner || channel?.kind === 'ooc' ? [['ooc', 'OOC channel']] : [])];
   const c = channel || { kind: startKind || 'thread', eventId };
 
   const result = await modal(html`
     <form class="thread-form">
-      <span class="eyebrow">${editing ? 'Edit thread' : 'New thread'}</span>
+      <span class="eyebrow">${editing ? 'Edit episode' : 'New episode'}</span>
       <h2>${editing ? c.name : 'Start something'}</h2>
       ${!sid ? html`<label for="t-story">Story</label>
         <select id="t-story" name="storyId">${myStories.map((s) => html`<option value="${s.id}">${s.title}</option>`)}</select>` : ''}
@@ -187,7 +189,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
       <div class="actions end">
         ${editing ? html`<button type="button" class="danger" id="t-delete">Delete</button><span class="spacer"></span>` : ''}
         <button type="button" data-close>Cancel</button>
-        <button type="submit" class="primary">${editing ? 'Save' : 'Start thread'}</button>
+        <button type="submit" class="primary">${editing ? 'Save' : 'Start episode'}</button>
       </div>
     </form>`, {
     init: (d, close) => {
@@ -240,7 +242,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
         const pre = new Set([...(channel?.participantIds || []), ...tag]);
         render(picker, all.length ? html`${all.map((ch) => html`
           <label class="tag-option"><input type="checkbox" value="${ch.id}" ${pre.has(ch.id) ? 'checked' : ''}>
-            ${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'xs' })}<span>${ch.name}</span><small>${ch.ownerName}</small></label>`)}`
+            ${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'xs' })}<span>${ch.name}</span><small>${ch.npc ? `NPC · ${ch.ownerName}` : ch.ownerName}</small></label>`)}`
           : html`<span class="muted small">No characters in this story yet.</span>`);
       };
       if (sid) loadTaggable(sid);
@@ -272,13 +274,13 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
   });
   if (!result) return null;
   if (result === 'deleted') {
-    toast('Thread deleted');
+    toast('Episode deleted');
     await loadStory(sid);
     location.hash = `#/s/${sid}`;
     return null;
   }
   await Promise.all([loadStory(result.storyId), refreshHome()]);
-  toast(editing ? 'Thread updated' : 'Thread started');
+  toast(editing ? 'Episode updated' : 'Episode started');
   if (!editing) location.hash = `#/s/${result.storyId}/${result.channel.id}`;
   return result.channel;
 }

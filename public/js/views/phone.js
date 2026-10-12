@@ -71,17 +71,26 @@ export async function viewPhone(cidStr) {
   if (!mine.some((c) => c.id === cid)) return location.replace(`#/phone/${mine[0].id}`);
   if (!cidStr) return location.replace(`#/phone/${cid}`);
   store.set(lastKey, String(cid));
-  let data = await api(`/api/phone/${cid}`);
+  const data0 = await api(`/api/phone/${cid}`);
   ensureAlive(alive);
+  const me = data0.character;
+  const body = page({ alive, title: `${me.name}'s phone`, subtitle: `@${me.handle}`, className: 'phone-body', body: html`
+    <div class="phone-split"><div class="phone" id="phone"></div>
+      <div class="phone ph-pick"><div class="ph-pick-inner">${icons.chat}<p>Pick a conversation, or tap <b>Add</b> to save someone's number.</p></div></div></div>` });
+  mountPhoneList($('#phone', body), { cid, mine, data: data0 });
+}
+
+// The phone's home: search, "Let's Stay Connected", the contact strip and the conversation list.
+// Used on its own (phones) and as the left column beside a conversation (computers).
+export function mountPhoneList(root, { cid, mine, data: initial, activeTid = null }) {
+  let data = initial;
   const me = data.character;
   let q = '';
 
-  const body = page({ alive, title: `${me.name}'s phone`, subtitle: `@${me.handle}`, className: 'phone-body', body: html`<div class="phone" id="phone"></div>` });
-  const root = $('#phone', body);
-
   function draw() {
     const contacts = data.contacts.filter((c) => !q || c.name.toLowerCase().includes(q));
-    const threads = data.threads.filter((t) => !q || t.name.toLowerCase().includes(q) || (t.last?.text || '').toLowerCase().includes(q));
+    // The conversation that's open beside the list has just been read.
+    const threads = data.threads.map((t) => (t.id === activeTid ? { ...t, unread: 0 } : t)).filter((t) => !q || t.name.toLowerCase().includes(q) || (t.last?.text || '').toLowerCase().includes(q));
     render(root, html`
       <section class="ph-hero">
         <div class="ph-top">
@@ -97,7 +106,7 @@ export async function viewPhone(cidStr) {
       </section>
       <section class="ph-list">
         ${threads.length ? threads.map((t) => html`
-          <a class="ph-row ${t.unread ? 'unread' : ''}" href="#/phone/${me.id}/t/${t.id}">
+          <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="#/phone/${me.id}/t/${t.id}">
             <span class="ph-row-av">${avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color })}</span>
             <span class="grow"><b>${t.name}</b><small>${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'Say hi 👋'}</small></span>
             <span class="ph-meta">${t.lastAt ? html`<small>${shortWhen(t.lastAt)}</small>` : ''}${t.unread ? html`<span class="badge">${t.unread}</span>` : ''}</span>
@@ -167,7 +176,9 @@ export async function viewPhoneThread(cidStr, tidStr) {
   let replying = null;
   let attached = [];
 
+  const wide = matchMedia('(min-width: 900px)').matches;
   const body = page({ alive, title: thread.name, subtitle: `@${other.handle}`, className: 'phone-body', body: html`
+    <div class="phone-split">${wide ? html`<div class="phone" id="phone"></div>` : ''}
     <div class="phone chat">
       <section class="ph-chat">
         <header class="ph-chat-head">
@@ -187,7 +198,13 @@ export async function viewPhoneThread(cidStr, tidStr) {
         <input name="body" id="ph-input" autocomplete="off" placeholder="Your Message…" aria-label="Message">
         <button type="submit" class="ph-send" aria-label="Send">${icons.send}</button>
       </form>
-    </div>` });
+    </div></div>` });
+  if (wide) {
+    // On a computer, the contacts and the conversation share one page.
+    Promise.all([myCharacters(), api(`/api/phone/${cid}`)]).then(([mine, data]) => {
+      if (alive()) mountPhoneList($('#phone', body), { cid, mine, data, activeTid: thread.id });
+    }).catch(() => {});
+  }
   const list = $('#ph-msgs', body);
   const form = $('#ph-compose', body);
   const input = $('#ph-input', body);

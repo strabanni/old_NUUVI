@@ -36,7 +36,7 @@ export function eventFeedCard(e) {
         ${e.summary ? html`<p class="fc-summary">${e.summary}</p>` : ''}
         <div class="fc-foot">
           ${e.participants.length ? avatarStack(e.participants) : ''}
-          <span class="fc-where">${e.location ? `${e.location} · ` : ''}${e.story.title} · ${e.threadCount} ${e.threadCount === 1 ? 'thread' : 'threads'}</span>
+          <span class="fc-where">${e.location ? `${e.location} · ` : ''}${e.story.title} · ${e.threadCount} ${e.threadCount === 1 ? 'episode' : 'episodes'}</span>
         </div>
       </div>
     </a>`;
@@ -83,7 +83,7 @@ export async function openEventForm({ event = null, storyId = null } = {}) {
       });
       $('#ev-banner-link', d).addEventListener('click', async () => { const url = await askImageLink(); if (url) setBanner(url); });
       $('#ev-delete', d)?.addEventListener('click', async () => {
-        if (!(await confirmModal(`Delete “${e.title}”? Its threads stay, they just won't be part of an event anymore.`, { ok: 'Delete', danger: true }))) return;
+        if (!(await confirmModal(`Delete “${e.title}”? Its episodes stay, they just won't be part of an event anymore.`, { ok: 'Delete', danger: true }))) return;
         try { await api(`/api/calendar/${e.id}`, { method: 'DELETE' }); close('deleted'); } catch (err) { toast(err.message); }
       });
     },
@@ -111,6 +111,7 @@ export async function viewEvents() {
   const body = page({
     alive,
     title: 'Events',
+    banner: 'what’s happening',
     subtitle: `${events.filter(ongoing).length} coming up`,
     actions: html`<div class="seg" role="group" aria-label="Layout">
       <button data-layout="cards" aria-pressed="${layout === 'cards'}">Cards</button>
@@ -128,7 +129,7 @@ export async function viewEvents() {
           <strong>${e.title}</strong>
           <small>${whenText(e)}${e.location ? ` · ${e.location}` : ''} · ${e.story.title}</small>
           ${e.summary ? html`<span class="ev-sum">${e.summary}</span>` : ''}
-          <small class="ev-count">${e.threadCount} ${e.threadCount === 1 ? 'thread' : 'threads'}</small>
+          <small class="ev-count">${e.threadCount} ${e.threadCount === 1 ? 'episode' : 'episodes'}</small>
         </span>
         ${e.participants.length ? avatarStack(e.participants) : ''}
       </a>`;
@@ -215,13 +216,13 @@ export async function viewEvent(idStr) {
         <div class="ev-facts">
           <div class="info"><span class="eyebrow">When</span><div>${whenText(e)}</div></div>
           ${e.location ? html`<div class="info"><span class="eyebrow">Where</span><div>${e.location}</div></div>` : ''}
-          <div class="info"><span class="eyebrow">Threads</span><div>${threads.length}</div></div>
+          <div class="info"><span class="eyebrow">Episodes</span><div>${threads.length}</div></div>
         </div>
         ${e.summary ? html`<div class="card ev-summary">${e.summary}</div>` : ''}
-        <div class="section-title ev-threads-head"><span>Threads at this event</span>
-          ${canAddThreads ? html`<button class="primary sm" id="ev-thread">${icons.plus} Start a thread here</button>` : ''}</div>
+        <div class="section-title ev-threads-head"><span>Episodes at this event</span>
+          ${canAddThreads ? html`<button class="primary sm" id="ev-thread">${icons.plus} Start an episode here</button>` : ''}</div>
         ${threads.length ? html`<div class="feed-grid">${threads.map(feedCard)}</div>`
-          : html`<div class="empty"><p>No threads yet.</p></div>`}
+          : html`<div class="empty"><p>No episodes yet.</p></div>`}
       </article>`,
   });
   applyColors(body);

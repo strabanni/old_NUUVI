@@ -693,3 +693,57 @@ test('story overview: owners write the lore page, members read it', async () => 
   assert.equal((await a(`/api/stories/${story.id}`)).data.story.hasOverview, true);
   assert.equal((await gm(`/api/stories/${story.id}/overview`, { method: 'PUT', body: { intro: 'x'.repeat(30001) } })).status, 400);
 });
+
+test('gradient colors, shared NPCs with categories, header pictures, and no pushes while active', async () => {
+  const a = await app.signUp('grad_a');
+  const b = await app.signUp('grad_b');
+  const c = (await a('/api/characters', { method: 'POST', body: { name: 'Gradient Girl', gradient: ['#EE719E', '#B8A6DB'] } })).data.character;
+  assert.deepEqual(c.gradient, ['#EE719E', '#B8A6DB']);
+  assert.equal((await a(`/api/characters/${c.id}`, { method: 'PUT', body: { gradient: ['#EE719E'] } })).status, 400);
+  assert.equal((await a(`/api/characters/${c.id}`, { method: 'PUT', body: { gradient: '' } })).data.character.gradient, null);
+
+  const npc = (await a('/api/characters', { method: 'POST', body: { name: 'Doorman Lee', npc: true, npcTags: 'Staff, #FOYAEN, staff' } })).data.character;
+  assert.deepEqual(npc.npcTags, ['staff', 'foyaen']);
+  const listed = (await b('/api/npcs')).data;
+  assert.ok(listed.npcs.some((x) => x.id === npc.id && x.owner.username === 'grad_a'));
+  assert.ok(listed.tags.includes('foyaen'));
+  // Anyone's NPC can be tagged into a story its writer isn't in.
+  const story = (await b('/api/stories', { method: 'POST', body: { title: 'NPC land', visibility: 'public' } })).data.story;
+  const ch = await b(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'lobby', tagged: [npc.id] } });
+  assert.equal(ch.status, 201, JSON.stringify(ch.data));
+  assert.equal((await b(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'no', tagged: [c.id] } })).status, 400);
+
+  assert.deepEqual((await a('/api/headers')).data.headers, []);
+  assert.equal((await b('/api/headers', { method: 'PUT', body: { headers: ['/headers/one.jpg'] } })).status, 403);
+  const set = await app.admin('/api/headers', { method: 'PUT', body: { headers: ['/headers/one.jpg', 'https://i.pinimg.com/x.jpg'] } });
+  assert.deepEqual(set.data.headers, ['/headers/one.jpg', 'https://i.pinimg.com/x.jpg']);
+  assert.equal((await app.admin('/api/headers', { method: 'PUT', body: { headers: ['/etc/passwd'] } })).status, 400);
+});
+
+test('push pop-ups are skipped while the person has NUUVI open in front of them', async () => {
+  const p = await startApp();
+  try {
+    const owner = await p.signUp('vis_owner');
+    const fan = await p.signUp('vis_fan');
+    const ownerChar = (await owner('/api/characters', { method: 'POST', body: { name: 'Star' } })).data.character;
+    const fanChar = (await fan('/api/characters', { method: 'POST', body: { name: 'Fan' } })).data.character;
+    const { createECDH, randomBytes } = await import('node:crypto');
+    const ua = createECDH('prime256v1');
+    const subscription = { endpoint: 'https://push.example.com/send/vis', keys: { p256dh: ua.generateKeys().toString('base64url'), auth: randomBytes(16).toString('base64url') } };
+    assert.equal((await owner('/api/push/subscribe', { method: 'POST', body: { subscription } })).status, 200);
+    const post = (await owner('/api/social', { method: 'POST', body: { characterId: ownerChar.id, body: 'hi' } })).data.post;
+    // Owner has a visible tab open.
+    const ctrl = new AbortController();
+    const res = await fetch(`${p.base}/api/events?tab=t1`, { headers: { Cookie: owner.cookie() }, signal: ctrl.signal });
+    await new Promise((r) => setTimeout(r, 50));
+    await fan(`/api/social/${post.id}/like`, { method: 'POST', body: { asCharacterId: fanChar.id } });
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(p.pushes.length, 0);
+    // Tab goes to the background: pushes resume.
+    await owner('/api/live/visible', { method: 'POST', body: { tab: 't1', visible: false } });
+    await fan(`/api/social/${post.id}/comments`, { method: 'POST', body: { characterId: fanChar.id, body: 'yay' } });
+    await new Promise((r) => setTimeout(r, 100));
+    assert.ok(p.pushes.length >= 1);
+    ctrl.abort(); void res;
+  } finally { p.close(); }
+});

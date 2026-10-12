@@ -99,8 +99,11 @@ export function socialRoutes(r, ctx) {
   // Characters you might tag in a thread: everyone's characters in a story.
   r.get('/api/stories/:id/characters', ({ user, params }) => {
     requireUser(user);
-    const rows = db.prepare(`SELECT c.*, u.display_name AS owner_name FROM characters c JOIN story_members m ON m.user_id = c.user_id
-      JOIN users u ON u.id = c.user_id WHERE m.story_id = ? AND (c.bot IS NULL OR c.bot != 'gossip') ORDER BY c.name COLLATE NOCASE`).all(params.id);
+    // Story members' characters, plus everyone's NPCs (they're shared).
+    const rows = db.prepare(`SELECT c.*, u.display_name AS owner_name FROM characters c JOIN users u ON u.id = c.user_id
+      WHERE (c.bot IS NULL OR c.bot != 'gossip')
+        AND (c.npc = 1 OR EXISTS (SELECT 1 FROM story_members m WHERE m.user_id = c.user_id AND m.story_id = ?))
+      ORDER BY c.npc, c.name COLLATE NOCASE`).all(params.id);
     if (!db.prepare('SELECT 1 FROM story_members WHERE story_id = ? AND user_id = ?').get(params.id, user.id) && !user.isAdmin) fail(404, 'Story not found');
     return { data: { characters: rows.map((c) => ({ ...toCharacter(c), ownerName: c.owner_name })) } };
   });
@@ -118,10 +121,10 @@ const MEDIA_EXT = {
 export function socialPostRoutes(r, ctx) {
   const { db } = ctx;
   const charCols = `c.name AS c_name, c.avatar AS c_avatar, c.color AS c_color, c.verified AS c_verified, c.user_id AS c_user,
-    c.handle AS c_handle, c.npc AS c_npc, c.bot AS c_bot`;
+    c.handle AS c_handle, c.npc AS c_npc, c.bot AS c_bot, c.gradient AS c_gradient`;
   const charOf = (row) => ({
     id: row.character_id, name: row.c_name, avatar: row.c_avatar, color: row.c_color, verified: !!row.c_verified, userId: row.c_user,
-    handle: row.c_handle, npc: !!row.c_npc, bot: row.c_bot ?? null,
+    handle: row.c_handle, npc: !!row.c_npc, bot: row.c_bot ?? null, gradient: row.c_gradient ? row.c_gradient.split(',') : null,
   });
 
   function toSocial(row, viewerId, { allComments = false } = {}) {

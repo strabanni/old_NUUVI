@@ -1,8 +1,8 @@
 // Admin panel: reports, people, invites, stories, moderation log.
-import { html, render, api, $, $$, bindForm, toast, avatar, confirmModal, promptModal, modal, timeAgo, formatPost, icons } from '../lib.js';
-import { state, page, refreshHome, copyText, routeAlive, ensureAlive } from '../main.js';
+import { html, render, api, $, $$, bindForm, toast, avatar, confirmModal, promptModal, modal, timeAgo, formatPost, icons, uploadImage, askImageLink } from '../lib.js';
+import { state, page, refreshHome, copyText, routeAlive, ensureAlive, loadHeaders } from '../main.js';
 
-const TABS = [['reports', 'Reports'], ['users', 'People'], ['invites', 'Invites'], ['stories', 'Stories'], ['log', 'Log'], ['npcs', 'NPCs & bots']];
+const TABS = [['reports', 'Reports'], ['users', 'People'], ['invites', 'Invites'], ['stories', 'Stories'], ['log', 'Log'], ['npcs', 'NPCs & bots'], ['headers', 'Headers']];
 
 export async function viewAdmin() {
   const alive = routeAlive();
@@ -18,12 +18,16 @@ export async function viewAdmin() {
         <button role="tab" data-tab="${k}">${label}${k === 'reports' && overview.openReports ? html` <span class="badge">${overview.openReports}</span>` : ''}</button>`)}</nav>
       <div id="admin-pane"></div>`,
   });
-  const pane = $('#admin-pane', body);
+  let pane = $('#admin-pane', body);
   const show = async (k) => {
     tab = k;
     try { sessionStorage.setItem('nuuvi:admin-tab', k); } catch { /* ignore */ }
     $$('[data-tab]', body).forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === k)));
-    await ({ reports, users, invites, stories, log, npcs })[k](pane);
+    // A fresh pane each time, so listeners from the previous tab don't pile up.
+    const fresh = pane.cloneNode(false);
+    pane.replaceWith(fresh);
+    pane = fresh;
+    await ({ reports, users, invites, stories, log, npcs, headers })[k](pane);
   };
   $$('[data-tab]', body).forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   await show(tab);
@@ -202,8 +206,8 @@ async function npcs(pane) {
           <div><label for="b-every">Each NPC posts about every</label>
             <select id="b-every" name="postEveryHours">${[[3, '3 hours'], [6, '6 hours'], [12, '12 hours'], [24, 'day'], [72, '3 days'], [168, 'week']].map(([v, l]) => html`<option value="${v}" ${s.postEveryHours === v ? 'selected' : ''}>${l}</option>`)}</select></div>
         </div>
-        <label class="check"><input type="checkbox" name="gossipAboutThreads" ${s.gossipAboutThreads ? 'checked' : ''}> The gossip account posts tips when public threads start or finish</label>
-        <p class="hint">Private threads and private stories are never gossiped about. Comments show up a minute or two after a post, like real people.</p>
+        <label class="check"><input type="checkbox" name="gossipAboutThreads" ${s.gossipAboutThreads ? 'checked' : ''}> The gossip account posts tips when public episodes start or finish</label>
+        <p class="hint">Private episodes and private stories are never gossiped about. Comments show up a minute or two after a post, like real people.</p>
         <div class="error"></div>
         <div class="actions"><button type="submit" class="primary">Save</button></div>
       </form>
@@ -234,5 +238,35 @@ async function npcs(pane) {
       toast(b.dataset.what === 'comment' ? 'Commented on the newest post' : 'Posted');
       if (socialId) location.hash = `#/p/${socialId}`;
     } catch (err) { toast(err.message); }
+  });
+}
+
+// Header pictures that rotate across the top of the main pages (Home, Feed, Events, Directory…).
+async function headers(pane) {
+  let list = [...(await loadHeaders(true))];
+  const save = async () => {
+    try { list = (await api('/api/headers', { method: 'PUT', body: { headers: list } })).headers; await loadHeaders(true); toast('Headers saved'); } catch (err) { toast(err.message); }
+    draw();
+  };
+  const draw = () => render(pane, html`
+    <section class="card">
+      <h3>Header pictures</h3>
+      <p class="muted small">They crossfade every 8 seconds at the top of Home, Feed, Events, Directory, Characters and Notifications. With none, the pink-lilac gradient shows. Wide pictures work best (about 1800 × 600).</p>
+      <div class="hdr-grid">${list.map((u, i) => html`<figure class="hdr-item"><img src="${u}" alt=""><button type="button" class="icon-btn sm" data-rm="${i}" aria-label="Remove">✕</button></figure>`)}</div>
+      <div class="actions">
+        <label class="btn file-btn">${icons.image} Upload pictures<input type="file" accept="image/*" multiple id="hdr-file" hidden></label>
+        <button type="button" id="hdr-link">Add a picture link</button>
+      </div>
+    </section>`);
+  draw();
+  pane.addEventListener('change', async (e) => {
+    if (e.target.id !== 'hdr-file') return;
+    for (const f of e.target.files) { try { toast('Uploading…'); list.push(await uploadImage(f, 2000)); } catch (err) { toast(err.message); } }
+    save();
+  });
+  pane.addEventListener('click', async (e) => {
+    const rm = e.target.closest('[data-rm]');
+    if (rm) { list.splice(Number(rm.dataset.rm), 1); save(); return; }
+    if (e.target.closest('#hdr-link')) { const url = await askImageLink(); if (url) { list.push(url); save(); } }
   });
 }

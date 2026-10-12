@@ -1,5 +1,5 @@
 // Character social media: posts (text, photo, video, voice note, stream), likes, comments.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink, gradAttr } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive } from '../main.js';
 
 const KINDS = [['text', 'Text', 'text'], ['photo', 'Photo', 'image'], ['video', 'Video', 'video'], ['voice', 'Voice note', 'mic'], ['stream', 'Stream', 'live']];
@@ -48,7 +48,7 @@ export function socialCard(p, { full = false } = {}) {
   const ch = p.character;
   const liked = p.likedBy.length > 0;
   return html`
-    <article class="sm-card kind-${p.kind}" data-social="${p.id}" data-color="${ch.color}">
+    <article class="sm-card kind-${p.kind}" data-social="${p.id}" data-color="${ch.color}"${gradAttr(ch)}>
       <header class="sm-head">
         ${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })}
         <div class="sm-id">

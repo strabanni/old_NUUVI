@@ -35,10 +35,10 @@ export async function viewStorySettings(idStr) {
         </section>
 
         <section class="card">
-          <h2>Threads & channels</h2>
+          <h2>Episodes & channels</h2>
           <p class="muted small">Use channels for chapters, locations or side scenes — like channels in a Discord server.</p>
           <div id="channels" class="stack"></div>
-          <div class="actions"><button id="add-channel">${icons.plus} New thread or channel</button></div>
+          <div class="actions"><button id="add-channel">${icons.plus} New episode or channel</button></div>
         </section>
 
         <section class="card">
