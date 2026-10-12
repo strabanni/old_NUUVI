@@ -30,8 +30,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - Turn order per channel. Whoever's turn it is gets notified, and posting in character passes the turn on. The writer whose turn it is can pass, and the owner can skip.
 
 **Stories**
-- **The column:** the Overview can open with a gossip column, a note from the city's anonymous insider (glossy, messy and a little dangerous, loosely in the spirit of Gossip Girl, Euphoria and Scandal) with its own sign-off, and each organization can carry a gossip line set as a pull quote. **Overview → Edit → Add the gossip column only** adds the FOYAEN × ENTITY ones without touching anything else.
-- **Overview:** each story has an Overview page (top of its channel list) for the lore everyone reads first: a tagline, an intro, numbered sections, and the world's organizations (conglomerates with their subsidiaries, plus independents). Cards expand when tapped, and a contents bar jumps between sections. New visitors land on it first. The owner writes it under **Overview → Edit**; **Start from our lore** fills in the FOYAEN × ENTITY world.
+- **The lore:** one page about the whole NUUVI world, not tied to any story (sidebar → **Lore**, or the lore card on Home). It opens with the FOYAEN × ENTITY lore built in: a tagline, the world's numbers, a gossip column from the city's anonymous insider (loosely in the spirit of Gossip Girl, Euphoria and Scandal), the intro, numbered sections, and the organizations (conglomerates with their subsidiaries, then independents), each with a gossip line. Cards expand when tapped, and a contents bar jumps between sections. Admins edit it with **Edit** on the Lore page.
 - Public (listed in Discover) or private (invite link only).
 - Open or closed to new writers.
 - Owners can add, rename, reorder and delete channels, and remove writers.
@@ -48,7 +47,6 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - **Default gradient:** pink to purple (`#EE719E` → `#C79AD8` → `#B8A6DB`) fills anything that has no picture yet: character cards, profile and story covers, event banners and header pictures.
 - **Your colors:** under **You & settings → Your colors**, pick your own gradient (presets or 2–3 colors of your own; the NUUVI pink-to-purple by default). It colors your display name everywhere and the writing-style bars on your profile.
 - **What's new:** every update has its own code (like `NV-17`, listed in `public/changelog.json`). The first time someone opens NUUVI after an update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh. Settings shows the current code and reopens the card.
-- **The lore:** **Lore** in the sidebar and a lore card on Home open your story's Overview.
 - **Home dashboard:** quick actions (new episode, post, event), a tappable "this week" calendar strip with what's coming up, and your latest notifications.
 - **Notifications** are sorted into tabs: All, For you, Activity and System.
 - **Pink (`#EE719E`) only on the brand touches:** the logo and "nuuvi" wordmark, the "···" in the top strip, your name and numbers in the greeting, and the ring on the selected item in the left rail. Everything else (buttons, tabs, badges, icons, chat bubbles, writing) follows Light or Dark: whites and greys with darkish-grey (`#48484A`) buttons and icons, or true blacks and dark greys with light-grey (`#B0AEAE`) ones. Light and Dark share the same pink logo.

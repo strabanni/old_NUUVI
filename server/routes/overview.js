@@ -2,6 +2,7 @@
 // organizations of the world (conglomerates with their subsidiaries, independents).
 import { fail } from '../http.js';
 import { requireUser, storyAccess, requireOwner } from '../model.js';
+import { LORE_PRESET } from '../../public/js/lore-preset.js';
 
 const KINDS = ['conglomerate', 'subsidiary', 'independent', 'other'];
 
@@ -61,6 +62,34 @@ export function overviewRoutes(r, ctx) {
         },
       },
     };
+  });
+
+  // ---------- The lore: one overview of the whole NUUVI world, not tied to any story ----------
+  // Starts out as the FOYAEN × ENTITY lore; admins can edit it.
+  r.get('/api/lore', ({ user }) => {
+    requireUser(user);
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'lore'").get();
+    const n = (sql) => db.prepare(sql).get().n;
+    return {
+      data: {
+        overview: row ? JSON.parse(row.value) : LORE_PRESET,
+        canEdit: !!user.isAdmin,
+        stats: {
+          writers: n('SELECT COUNT(*) AS n FROM users WHERE banned_at IS NULL'),
+          characters: n("SELECT COUNT(*) AS n FROM characters WHERE bot IS NULL OR bot != 'gossip'"),
+          threads: n("SELECT COUNT(*) AS n FROM channels WHERE kind IN ('thread', 'para', 'event', 'comms')"),
+          events: n("SELECT COUNT(*) AS n FROM events WHERE COALESCE(ends_at, starts_at) >= datetime('now', '-1 day')"),
+        },
+      },
+    };
+  });
+
+  r.put('/api/lore', ({ user, body }) => {
+    requireUser(user);
+    if (!user.isAdmin) fail(403, 'Only admins can edit the lore');
+    const overview = overviewInput(body);
+    db.prepare("INSERT INTO settings (key, value) VALUES ('lore', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(overview));
+    return { data: { overview } };
   });
 
   r.put('/api/stories/:id/overview', ({ user, params, body }) => {

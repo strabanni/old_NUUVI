@@ -13,7 +13,7 @@ import { viewFeed, openThreadForm } from './views/threads.js';
 import { viewEvents, viewEvent } from './views/events.js';
 import { viewDirectory } from './views/directory.js';
 import { viewPhone, viewPhoneThread } from './views/phone.js';
-import { viewOverview, viewLore } from './views/overview.js';
+import { viewLore } from './views/overview.js';
 import { viewNpcs } from './views/npcs.js';
 import { viewSocialPost } from './views/social.js';
 
@@ -267,8 +267,6 @@ function renderSidebar() {
             <p>You're reading as a guest.</p>
             ${s.story.status === 'open' ? html`<button class="primary block" id="side-join">Join this story</button>` : html`<p class="muted small">Closed to new writers.</p>`}
           </div>` : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New episode</button>`}
-        ${s.story.hasOverview || s.role === 'owner' ? html`<a href="#/s/${s.story.id}/overview" class="chan overview-link ${location.hash === `#/s/${s.story.id}/overview` ? 'active' : ''}">
-          <span class="hash">${icons.book}</span><span class="name">Overview</span>${s.story.hasOverview ? '' : html`<small class="muted">empty</small>`}</a>` : ''}
         ${groups.map(([kind, list]) => html`
           <div class="side-section"><span>${KIND_LABELS[kind]}</span></div>
           ${list.map((c) => {
@@ -612,7 +610,8 @@ const routes = [
   [/^#\/admin$/, viewAdmin, true],
   [/^#\/join\/(\d+)\/([\w-]+)$/, viewJoin, true],
   [/^#\/s\/(\d+)\/settings$/, viewStorySettings, true],
-  [/^#\/s\/(\d+)\/overview$/, viewOverview, true],
+  // Old story-overview links lead to the one Lore page.
+  [/^#\/s\/(\d+)\/overview$/, () => location.replace('#/lore'), true],
   [/^#\/s\/(\d+)(?:\/(\d+))?$/, viewChannel],
 ];
 

@@ -1,8 +1,8 @@
-// A story's overview: the lore page. Hero with the story's tagline and numbers, a contents bar,
-// the intro and numbered sections, and the organizations of the world (conglomerates with their
-// subsidiaries, then independents). Cards expand in place.
+// The lore: the overview of the whole NUUVI world, not tied to any story. Hero with the tagline and
+// site-wide numbers, a contents bar, the gossip column, the intro and numbered sections, and the
+// organizations of the world (conglomerates with their subsidiaries, then independents). Cards expand in place.
 import { html, render, api, $, $$, toast, icons, modal, confirmModal, formatPost, applyColors } from '../lib.js';
-import { state, page, loadStory, routeAlive, ensureAlive } from '../main.js';
+import { page, routeAlive, ensureAlive } from '../main.js';
 
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'section';
 const pad = (n) => String(n).padStart(2, '0');
@@ -35,13 +35,11 @@ function orgCard(o, subs = []) {
     </article>`;
 }
 
-export async function viewOverview(idStr) {
+// The lore: one overview of the whole NUUVI world (not tied to any story). Admins edit it.
+export async function viewLore() {
   const alive = routeAlive();
-  const storyId = Number(idStr);
-  const [s, data] = await Promise.all([state.story?.story.id === storyId ? state.story : loadStory(storyId), api(`/api/stories/${storyId}/overview`)]);
+  const { overview: o, canEdit, stats } = await api('/api/lore');
   ensureAlive(alive);
-  const { overview: o, canEdit, stats } = data;
-  const story = s.story;
   const empty = !o.intro && !o.sections?.length && !o.orgs?.length;
   const orgs = o.orgs || [];
   const congloms = orgs.filter((x) => x.kind === 'conglomerate');
@@ -56,16 +54,15 @@ export async function viewOverview(idStr) {
 
   const body = page({
     alive,
-    title: 'Overview',
-    subtitle: story.title,
+    title: 'Lore',
+    subtitle: 'The world of NUUVI',
     actions: canEdit ? html`<button class="primary" id="ov-edit">${icons.gear}<span class="lbl">${empty ? 'Write it' : 'Edit'}</span></button>` : '',
     body: html`
-      <article class="overview" data-color="${story.color}">
+      <article class="overview">
         <section class="ov-hero">
-          ${story.banner ? html`<img src="${story.banner}" alt="">` : ''}
           <div class="ov-hero-glass">
-            <span class="eyebrow">Overview · ${story.title}</span>
-            <h1>${o.tagline || story.title}</h1>
+            <span class="eyebrow">The lore · NUUVI</span>
+            <h1>${o.tagline || 'The world of NUUVI'}</h1>
             <div class="ov-stats">
               <a href="#/directory"><b>${stats.writers}</b><span>writers</span></a>
               <a href="#/directory"><b>${stats.characters}</b><span>characters</span></a>
@@ -75,7 +72,7 @@ export async function viewOverview(idStr) {
           </div>
         </section>
         ${toc.length > 1 ? html`<nav class="ov-toc no-swipe" aria-label="Contents">${toc.map(([id, label]) => html`<a href="#ov-${id}" data-jump="${id}">${label}</a>`)}</nav>` : ''}
-        ${empty ? html`<div class="card empty"><p>No overview yet.</p>${canEdit ? html`<p class="small">Write the lore everyone should read first: the world, its rules, its companies.</p>
+        ${empty ? html`<div class="card empty"><p>No lore yet.</p>${canEdit ? html`<p class="small">Write what everyone should read first: the world, its rules, its companies.</p>
           <p><button class="primary" id="ov-load-lore">${icons.book} Load the FOYAEN × ENTITY lore</button></p>
           <p class="small muted">Puts in everything: the intro, the sections, all nine companies and the gossip column. You can edit any of it after.</p>` : ''}</div>` : ''}
         ${o.letter ? html`<section class="ov-letter">
@@ -134,13 +131,12 @@ export async function viewOverview(idStr) {
   $('#main #ov-load-lore')?.addEventListener('click', async (e) => {
     e.currentTarget.disabled = true;
     const { LORE_PRESET } = await import('../lore-preset.js');
-    await api(`/api/stories/${storyId}/overview`, { method: 'PUT', body: LORE_PRESET });
+    await api('/api/lore', { method: 'PUT', body: LORE_PRESET });
     toast('Lore loaded');
-    await loadStory(storyId);
-    viewOverview(idStr);
+    viewLore();
   });
   $('#main #ov-edit')?.addEventListener('click', async () => {
-    if (await editOverview(storyId, o)) { await loadStory(storyId); viewOverview(idStr); }
+    if (await editOverview(o)) viewLore();
   });
 }
 
@@ -164,12 +160,12 @@ const orgRow = (x = {}) => html`
     <input data-f="credit" maxlength="80" placeholder="Credit (optional, e.g. © coi)" value="${x.credit || ''}">
   </div>`;
 
-async function editOverview(storyId, o) {
+async function editOverview(o) {
   let tab = 'intro';
   return modal(html`
     <form class="ov-editor">
       <span class="eyebrow">Overview</span>
-      <h2>The lore everyone reads first</h2>
+      <h2>The lore of NUUVI</h2>
       <div class="seg" role="group">${[['intro', 'Intro'], ['sections', 'Sections'], ['orgs', 'Organizations']].map(([k, l]) => html`<button type="button" data-tab="${k}" aria-pressed="${k === tab}">${l}</button>`)}</div>
       <div data-pane="intro">
         <label for="ov-tag">Tagline</label><input id="ov-tag" name="tagline" maxlength="300" value="${o.tagline || ''}" placeholder="nobody in this world actually meets by accident.">
@@ -240,33 +236,10 @@ async function editOverview(storyId, o) {
     submit: async (data) => {
       const form = document.querySelector('dialog .ov-editor');
       const rows = (kind) => $$(`[data-row="${kind}"]`, form).map((r) => Object.fromEntries($$('[data-f]', r).map((f) => [f.dataset.f, f.value])));
-      await api(`/api/stories/${storyId}/overview`, { method: 'PUT', body: {
+      await api('/api/lore', { method: 'PUT', body: {
         tagline: data.tagline, intro: data.intro, independentNote: data.independentNote, letter: data.letter, signoff: data.signoff, sections: rows('section'), orgs: rows('org') } });
-      toast('Overview saved');
+      toast('Lore saved');
       return true;
     },
-  });
-}
-
-// ---------- The lore, from the sidebar ----------
-// One story with lore: straight to its Overview. Otherwise, a list of your stories' overviews.
-export async function viewLore() {
-  const alive = routeAlive();
-  const { stories } = await api('/api/stories?scope=mine');
-  ensureAlive(alive);
-  const withLore = stories.filter((s) => s.hasOverview);
-  if (withLore.length === 1) return location.replace(`#/s/${withLore[0].id}/overview`);
-  page({
-    alive,
-    title: 'Lore',
-    subtitle: 'Each story\'s overview: the world, its companies and its gossip',
-    body: stories.length ? html`<div class="lore-list">${stories.map((s) => html`
-      <a class="lore-card" href="#/s/${s.id}/overview">
-        <span class="eyebrow">${icons.book} ${s.title}</span>
-        <b>${s.hasOverview ? s.loreTagline || 'Read the overview' : 'No overview yet'}</b>
-        <small>${s.hasOverview ? 'Read this first.' : s.ownerId === state.user.id ? 'Open it and tap Edit → Start from our lore, or write your own.' : 'The story owner hasn\'t written it yet.'}</small>
-        <span class="lore-go">Open ${icons.chevron}</span>
-      </a>`)}</div>`
-      : html`<div class="card empty"><p>Join or start a story to see its lore.</p><p><a class="btn primary" href="#/discover">Discover stories</a></p></div>`,
   });
 }

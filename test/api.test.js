@@ -775,3 +775,15 @@ test('a writer\'s own gradient, and like/comment numbers set on a character\'s p
   assert.equal(reset.likes, 0);
   assert.equal(reset.commentCount, 3400);
 });
+
+test('the lore is one page for the whole world: everyone reads it, only admins edit it', async () => {
+  const a = await app.signUp('lore_reader');
+  const lore = (await a('/api/lore')).data;
+  assert.equal(lore.overview.tagline, 'nobody in this world actually meets by accident.');
+  assert.ok(lore.overview.orgs.some((o) => o.name === 'FOYAEN INC.'));
+  assert.equal(lore.canEdit, false);
+  assert.equal((await a('/api/lore', { method: 'PUT', body: { tagline: 'nope' } })).status, 403);
+  const saved = await app.admin('/api/lore', { method: 'PUT', body: { ...lore.overview, tagline: 'everyone knows someone.' } });
+  assert.equal(saved.status, 200);
+  assert.equal((await a('/api/lore')).data.overview.tagline, 'everyone knows someone.');
+});

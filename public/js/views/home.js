@@ -29,18 +29,13 @@ export function storyCard(s) {
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 
-// The lore: a wide card on Home that opens a story's Overview (or the list, with more than one).
-function loreCard(stories) {
-  const withLore = stories.filter((s) => s.hasOverview);
-  const s = withLore[0];
-  if (!stories.length) return '';
-  return html`<a class="lore-card" href="${withLore.length === 1 ? `#/s/${s.id}/overview` : '#/lore'}">
-    <span class="eyebrow">${icons.book} the lore${s ? html` · ${withLore.length === 1 ? s.title : `${withLore.length} stories`}` : ''}</span>
-    <b>${s ? s.loreTagline || 'Read the overview' : 'No lore written yet'}</b>
-    <small>${s ? 'The world, the companies and the gossip. Read this first.' : 'Story owners write it under Overview in their story.'}</small>
-    <span class="lore-go">${s ? 'Read the overview' : 'Open'} ${icons.chevron}</span>
+// The lore: a wide card on Home that opens the Lore page (the whole NUUVI world).
+const loreCard = () => html`<a class="lore-card" href="#/lore">
+    <span class="eyebrow">${icons.book} the lore · NUUVI</span>
+    <b id="lore-tagline">The world of NUUVI</b>
+    <small>The world, the companies and the gossip. Read this first.</small>
+    <span class="lore-go">Read the lore ${icons.chevron}</span>
   </a>`;
-}
 
 export async function viewHome() {
   const alive = routeAlive();
@@ -115,7 +110,7 @@ export async function viewHome() {
             : html`<p class="muted small">Nothing new.</p>`}
         </div>
       </section>
-      ${loreCard(stories)}
+      ${loreCard()}
 
       ${turns.length ? html`<section class="stack spaced">
         ${turns.map((t) => html`<a class="card turn-card" href="#/s/${t.story.id}/${t.channel.id}">${icons.hourglass}<span>It's your turn in <strong>#${t.channel.name}</strong> · ${t.story.title}</span></a>`)}
@@ -139,6 +134,7 @@ export async function viewHome() {
         </div>`}`,
   });
   masonry(homeBody);
+  api('/api/lore').then(({ overview }) => { const t = $('#lore-tagline', homeBody); if (t && overview.tagline) t.textContent = overview.tagline; }).catch(() => {});
   const drawDay = (i) => {
     $$('.bw-day', homeBody).forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.day) === i)));
     const evs = eventsOn(weekDays[i]);
