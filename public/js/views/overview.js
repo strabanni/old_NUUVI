@@ -165,11 +165,11 @@ async function editOverview(storyId, o) {
         <label for="ov-tag">Tagline</label><input id="ov-tag" name="tagline" maxlength="300" value="${o.tagline || ''}" placeholder="nobody in this world actually meets by accident.">
         <label for="ov-intro">Intro</label><textarea id="ov-intro" name="intro" rows="10" placeholder="Set the scene…">${o.intro || ''}</textarea>
         <p class="hint">All the formatting codes work here: **bold**, *italic*, [center], [h], [box], [hr], [color=#hex] and the rest.</p>
-        <label for="ov-letter">Gossip column</label><textarea id="ov-letter" name="letter" rows="6" placeholder="dearest gentle reader…">${o.letter || ''}</textarea>
-        <label for="ov-signoff">Column sign-off</label><input id="ov-signoff" name="signoff" maxlength="120" value="${o.signoff || ''}" placeholder="yours truly, the column">
-        <p class="hint">The column sits at the top of the overview, like a letter from the city's gossip. Each organization can have its own gossip line too.</p>
+        <label for="ov-letter">Gossip column</label><textarea id="ov-letter" name="letter" rows="6" placeholder="hi, hello, welcome to the city…">${o.letter || ''}</textarea>
+        <label for="ov-signoff">Column sign-off</label><input id="ov-signoff" name="signoff" maxlength="120" value="${o.signoff || ''}" placeholder="no comment, ever. — the column">
+        <p class="hint">The column sits at the top of the overview, like a note from the city's anonymous insider. Each organization can have its own gossip line too.</p>
         <span class="row-inline"><button type="button" class="sm" id="ov-preset">${icons.book} Start from our lore (FOYAEN × ENTITY)</button>
-        <button type="button" class="sm" id="ov-gossip">☕︎ Add the gossip column only</button></span>
+        <button type="button" class="sm" id="ov-gossip">🖤 Add the gossip column only</button></span>
       </div>
       <div data-pane="sections" hidden><div id="ov-sections">${(o.sections || []).map(sectionRow)}</div><button type="button" class="sm" data-add="section">${icons.plus} Add section</button></div>
       <div data-pane="orgs" hidden>
@@ -212,15 +212,16 @@ async function editOverview(storyId, o) {
         }
         if (e.target.closest('#ov-gossip')) {
           // Fills in just the column and the gossip lines, keeping everything else as it is.
+          if ((form.letter.value.trim() || $$('[data-f="whisper"]', d).some((f) => f.value.trim()))
+            && !(await confirmModal('Replace the gossip column and gossip lines with ours?', { ok: 'Replace' }))) return;
           const { LORE_PRESET: p } = await import('../lore-preset.js');
-          if (!form.letter.value.trim()) form.letter.value = p.letter;
-          if (!form.signoff.value.trim()) form.signoff.value = p.signoff;
+          form.letter.value = p.letter;
+          form.signoff.value = p.signoff;
           let n = 0;
           for (const row of $$('[data-row="org"]', d)) {
             const name = $('[data-f="name"]', row).value.trim().toLowerCase();
             const match = p.orgs.find((x) => x.name.toLowerCase() === name);
-            const field = $('[data-f="whisper"]', row);
-            if (match?.whisper && !field.value.trim()) { field.value = match.whisper; n++; }
+            if (match?.whisper) { $('[data-f="whisper"]', row).value = match.whisper; n++; }
           }
           toast(`Gossip column added${n ? ` with ${n} gossip line${n === 1 ? '' : 's'}` : ''} — save to keep it`);
         }

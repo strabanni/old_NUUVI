@@ -19,7 +19,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
   - `"dialogue"`
   - `@mentions`
   - **Discord-style:** `***bold italic***`, `_italic_`, `` `code` ``, ```` ``` ```` code blocks, `# / ## / ###` headings, `-# small print`, `> quote`, `>>> quote the rest`, `- bullet` and `1. numbered` lists, `[text](https://link)`, and bare links (picture and GIF links, including Giphy and Tenor, show as the picture).
-  - **Forum (Jcink) codes** for building your own post layouts: `[center]`, `[left]`, `[right]`, `[align=…]`, `[indent]`, `[box]`, `[h]`, `[hr]`, `[quote=Name]`, `[list][*]…[/list]`, `[code]`, `[color=#hex or name]`, `[highlight=…]`, `[size=small|big|huge or 1–7]`, `[font=Georgia…]`, `[caps]`, `[b] [i] [u] [s] [strike]`, `[sup] [sub]`, `[spoiler]`, `[img]link[/img]`, `[url=link]text[/url]`. The full list is under **+ → Formatting guide** in the composer.
+  - **Forum (Jcink) codes** for building your own post layouts: `[center]`, `[left]`, `[right]`, `[align=…]`, `[indent]`, `[box]`, `[h]`, `[hr]`, `[quote=Name]`, `[list][*]…[/list]`, `[code]`, `[color=#hex or name]`, `[highlight=…]`, `[size=small|big|huge or 1–7]`, `[font=Verdana…]` (sans-serif fonts only), `[caps]`, `[b] [i] [u] [s] [strike]`, `[sup] [sub]`, `[spoiler]`, `[img]link[/img]`, `[url=link]text[/url]`. The full list is under **+ → Formatting guide** in the composer.
 - **No length limit** on posts (technically capped at about 170,000 words, to protect the server).
 - **GIFs:** uploaded GIFs keep moving (up to 15 MB), and GIF links work anywhere a picture link does. A Giphy page link is turned into the GIF itself.
 - **Pictures in any channel:** attach uploads or picture links to messages in comms, OOC and threads.
@@ -30,7 +30,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - Turn order per channel. Whoever's turn it is gets notified, and posting in character passes the turn on. The writer whose turn it is can pass, and the owner can skip.
 
 **Stories**
-- **The column:** the Overview can open with a gossip column, a "dearest gentle reader" letter in a Gen Z Lady Whistledown voice with its own sign-off, and each organization can carry a gossip line set as a pull quote. **Overview → Edit → Add the gossip column only** adds the FOYAEN × ENTITY ones without touching anything else.
+- **The column:** the Overview can open with a gossip column, a note from the city's anonymous insider (glossy, messy and a little dangerous, loosely in the spirit of Gossip Girl, Euphoria and Scandal) with its own sign-off, and each organization can carry a gossip line set as a pull quote. **Overview → Edit → Add the gossip column only** adds the FOYAEN × ENTITY ones without touching anything else.
 - **Overview:** each story has an Overview page (top of its channel list) for the lore everyone reads first: a tagline, an intro, numbered sections, and the world's organizations (conglomerates with their subsidiaries, plus independents). Cards expand when tapped, and a contents bar jumps between sections. New visitors land on it first. The owner writes it under **Overview → Edit**; **Start from our lore** fills in the FOYAEN × ENTITY world.
 - Public (listed in Discover) or private (invite link only).
 - Open or closed to new writers.
@@ -44,7 +44,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 
 **Look and feel**
 - **Minimal and glassy:** a soft grey canvas (true black in Dark) with clean cards that float on soft shadows, frosted top bar, rail, menus and dialogs, pill buttons and tabs, and small motion: pages ease in, cards lift on hover, character cards tilt toward the pointer, tabs slide.
-- **Header pictures:** the main pages (Home, Feed, Events, Directory, Characters, NPCs, Notifications) open with a wide header picture that fades to the next one every few seconds. Admins pick them under **Admin → Headers** (uploads or links). Until then, the 16 pictures that ship in `public/headers/` are used. They load one at a time, to spare phone data.
+- **Header pictures:** the main pages (Home, Feed, Events, Directory, Characters, NPCs, Notifications) open with a wide header picture that fades to the next one every few seconds. Admins pick them under **Admin → Headers** (uploads or links). Until then, the 16 pictures that ship in `public/headers/` are used. Each is shown whole (never cropped), over a blurred copy of itself, and they load one at a time to spare phone data.
 - **Default gradient:** pink to purple (`#EE719E` → `#C79AD8` → `#B8A6DB`) fills anything that has no picture yet: character cards, profile and story covers, event banners and header pictures.
 - **Home dashboard:** quick actions (new episode, post, event), a tappable "this week" calendar strip with what's coming up, and your latest notifications.
 - **Notifications** are sorted into tabs: All, For you, Activity and System.
@@ -63,6 +63,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
   - **Phone:** runs vertically down the slide-out drawer.
   - **Shows:** your avatar, "Welcome back", your stats, and shortcuts (light/dark, feed, alerts, characters, settings, sign out).
 - **Episodes** (what used to be called threads, with a ▷ play icon): plain forum-style posts without a frame, so writers can format them their own way. Each post shows the character's name in capitals, an "aka" line the owner writes, avatar, star button, and a "for …" footer. Names switch sides automatically each time a different writer posts. Bold, italic, underlined and quoted words take the character's own color. The posting time is kept small and quiet: just the time today, or the date before that. Comms and OOC channels read like text messages.
+- **Comms sides:** in comms, your character's texts are on the right and everyone else's on the left. If you write both sides of a chat, the character who started it is the sender (right) and your others are receivers (left).
 - **Comms icons:** each comms thread can have its own icon, an emoji or a picture, to show which app it's in (texts, DMs, socials…).
 - **Comms titles are personal:** each person sets their own contact names for the other characters, so the chat is titled with whatever you saved them as.
 - **Usernames for characters:** every character has an @username, made from their name (editable). Their social posts and comments go out under it, and it's the big name on their profile, with their given name above.

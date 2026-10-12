@@ -143,11 +143,10 @@ const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const colorOk = (c) => HEX.test(c) || /^[a-z]{3,20}$/i.test(c);
 const BLOCKS = { center: 'fx-center', right: 'fx-right', left: 'fx-left', box: 'fx-box', h: 'fx-h', indent: 'fx-indent' };
 const SIZES = { tiny: 'small', small: 'small', big: 'big', huge: 'huge', 1: 'tiny', 2: 'small', 3: '', 4: 'big', 5: 'big', 6: 'huge', 7: 'huge' };
+// Sans-serif fonts only (serif names fall back to the normal text font).
 const FONTS = {
-  serif: 'serif', 'times new roman': 'serif', times: 'serif', georgia: 'georgia', garamond: 'garamond', palatino: 'garamond',
   sans: 'sans', 'sans-serif': 'sans', arial: 'sans', helvetica: 'sans', verdana: 'verdana', tahoma: 'verdana', trebuchet: 'trebuchet', 'trebuchet ms': 'trebuchet',
-  mono: 'mono', monospace: 'mono', courier: 'mono', 'courier new': 'mono', typewriter: 'mono',
-  cursive: 'script', script: 'script', 'comic sans ms': 'comic', comic: 'comic', impact: 'impact',
+  rounded: 'rounded', mono: 'mono', monospace: 'mono', typewriter: 'mono', 'comic sans ms': 'comic', comic: 'comic', impact: 'impact',
 };
 
 // Escaped quotes or brackets never belong in a link (they'd only be there to break out of it).

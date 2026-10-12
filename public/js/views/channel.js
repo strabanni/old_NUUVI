@@ -32,7 +32,7 @@ const FORMATS = [
   ['[list][*]one[*]two[/list]', 'bullet list ([list=1] for numbers)'], ['[code]…[/code]', 'a code block'],
   ['[h]Heading[/h]', 'a big heading'], ['[hr]', 'a divider line (on its own line)'],
   ['[color=#ff7aa2]…[/color]', 'any color, as a #hex code or a name like red'], ['[highlight=yellow]…[/highlight]', 'highlighted, like a marker'],
-  ['[size=small]…[/size]', 'small, big or huge (or 1–7)'], ['[font=Georgia]…[/font]', 'Georgia, Garamond, Times, Arial, Verdana, Trebuchet, Courier, Impact, Comic Sans, cursive'],
+  ['[size=small]…[/size]', 'small, big or huge (or 1–7)'], ['[font=Verdana]…[/font]', 'Arial, Verdana, Trebuchet, Rounded, Mono, Impact or Comic Sans'],
   ['[caps]…[/caps]', 'ALL CAPS'], ['[b] [i] [u] [s]', 'bold, italic, underline, strike'], ['[sup]…[/sup] [sub]…[/sub]', 'raised or lowered text'],
   ['[spoiler]…[/spoiler]', 'hidden until tapped'], ['[img]https://…[/img]', 'a picture or GIF from a link'], ['[url=https://…]text[/url]', 'a link'],
 ];
@@ -108,9 +108,23 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     api(`/api/channels/${channelId}`),
   ]);
   const participants = detail.participants;
+  // Comms read like a phone: the sender's texts sit on the right, everyone else's on the left.
+  // The sender is your character in the chat. If you write more than one side, it's the first of
+  // yours in the chat (whoever started it); your others are receivers, the same as anyone else's.
+  const senderId = () => {
+    const me = state.user?.id;
+    const own = participants.filter((x) => x.userId === me);
+    const started = own.find((x) => x.id === channel().starterCharacterId);
+    if (started) return started.id;
+    const first = [...posts.values()].sort((a, b) => a.id - b.id).find((p) => p.kind === 'ic' && p.character && p.userId === me);
+    return first?.character.id ?? own[0]?.id ?? null;
+  };
   // For comms: who you're texting, by the contact names you chose.
-  const commsTitle = () => participants.filter((x) => x.userId !== state.user?.id)
-    .map((x) => (detail.contacts || {})[x.id] || x.name).join(', ');
+  const commsTitle = () => {
+    const sid = senderId();
+    return participants.filter((x) => (sid != null ? x.id !== sid : x.userId !== state.user?.id))
+      .map((x) => (detail.contacts || {})[x.id] || x.name).join(', ');
+  };
   // Threads and events read like a forum; comms and OOC read like a chat.
   const storyStyle = () => ['thread', 'event'].includes(channel().kind);
   const posts = new Map(initial.map((p) => [p.id, p]));
@@ -204,7 +218,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
 
   // Chat bubble (comms texts, OOC chatter, and OOC asides inside threads).
   function bubble(p, prev) {
-    const mine = p.userId === state.user?.id;
+    const mine = channel().kind === 'comms' && p.kind === 'ic' && p.character
+      ? p.character.id === senderId() : p.userId === state.user?.id;
     const ch = p.kind === 'ic' ? p.character : null;
     const name = ch ? shownName(ch) : p.kind === 'narration' ? 'Narrator' : p.author.displayName;
     const key = (x) => `${x.userId}:${x.kind}:${x.character?.id ?? ''}`;

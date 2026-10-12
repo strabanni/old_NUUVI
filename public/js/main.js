@@ -389,19 +389,27 @@ function startBanner(main) {
     // Pictures load one ahead of time, not all at once, to spare phone data.
     const imgs = [];
     const get = (n) => {
-      if (!imgs[n]) { const img = new Image(); img.alt = ''; img.decoding = 'async'; img.src = pics[n]; banner.prepend(img); imgs[n] = img; }
+      // Each picture is shown whole, over a blurred copy of itself that fills the rest of the banner.
+      if (!imgs[n]) {
+        const slide = document.createElement('div');
+        slide.className = 'pb-slide';
+        for (const cls of ['pb-bg', 'pb-fg']) { const img = new Image(); img.alt = ''; img.decoding = 'async'; img.className = cls; img.src = pics[n]; slide.append(img); }
+        slide.img = slide.lastChild;
+        banner.prepend(slide);
+        imgs[n] = slide;
+      }
       return imgs[n];
     };
-    get(i).className = 'on';
+    get(i).classList.add('on');
     if (pics.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     get((i + 1) % pics.length);
     const timer = setInterval(() => {
       if (!banner.isConnected) return clearInterval(timer);
       const next = get((i + 1) % pics.length);
-      if (!next.complete) return; // still loading: try again next time
-      imgs[i].className = '';
+      if (!next.img.complete) return; // still loading: try again next time
+      imgs[i].classList.remove('on');
       i = (i + 1) % pics.length;
-      next.className = 'on';
+      next.classList.add('on');
       get((i + 1) % pics.length);
     }, 8000);
     onLeave(() => clearInterval(timer));
