@@ -164,20 +164,23 @@ export function editCharacter(c = {}) {
 }
 
 // Portrait card (Sophie Bennett reference): picture, name, tagline, counts, follow.
+// Creator-card style (stacked-cards reference): name and a badge at the top, the picture behind,
+// and a frosted strip at the bottom with their @username, tagline and a button.
 export function characterCard(c, { editable = false } = {}) {
   const pic = c.portrait || c.avatar;
   const followers = c.followersDisplay ?? c.followers;
+  const badge = c.bot === 'gossip' ? 'Anonymous' : c.npc ? 'NPC' : c.verified ? 'Verified' : followers ? `${compact(followers)} followers` : '';
   return html`
-    <a class="char-card" href="#/c/${c.id}" data-color="${c.color}">
+    <a class="char-card" href="#/c/${c.id}" data-color="${c.color}" data-tilt>
       ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}
-      <span class="cc-fade"></span>
-      <span class="cc-info">
-        <span class="cc-name">${c.name}${c.verified ? html`<span class="verified">${icons.verified}</span>` : ''}</span>
-        ${c.tagline ? html`<span class="cc-tag">${c.tagline}</span>` : ''}
-        <span class="cc-foot">
-          ${followers !== undefined && followers !== null ? html`<span class="cc-stat">${icons.users} ${compact(followers)}</span>` : ''}
-          ${editable ? html`<button class="cc-btn" data-edit="${c.id}">Edit</button>` : html`<span class="cc-btn">View ${icons.plus}</span>`}
-        </span>
+      <span class="cc-top">
+        ${badge ? html`<span class="cc-badge">${c.verified ? icons.verified : c.npc ? '' : icons.starOutline}${badge}</span>` : ''}
+        <span class="cc-name">${c.name}</span>
+      </span>
+      <span class="cc-glass">
+        ${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}
+        <span class="cc-who"><b>@${c.handle || c.name}</b>${c.tagline ? html`<small>${c.tagline}</small>` : ''}</span>
+        ${editable ? html`<button class="cc-btn" data-edit="${c.id}">Edit</button>` : html`<span class="cc-btn">View</span>`}
       </span>
     </a>`;
 }

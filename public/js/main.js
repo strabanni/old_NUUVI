@@ -13,6 +13,7 @@ import { viewFeed, openThreadForm } from './views/threads.js';
 import { viewEvents, viewEvent } from './views/events.js';
 import { viewDirectory } from './views/directory.js';
 import { viewPhone, viewPhoneThread } from './views/phone.js';
+import { viewOverview } from './views/overview.js';
 import { viewSocialPost } from './views/social.js';
 
 export const state = {
@@ -264,6 +265,8 @@ function renderSidebar() {
             <p>You're reading as a guest.</p>
             ${s.story.status === 'open' ? html`<button class="primary block" id="side-join">Join this story</button>` : html`<p class="muted small">Closed to new writers.</p>`}
           </div>` : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New thread</button>`}
+        ${s.story.hasOverview || s.role === 'owner' ? html`<a href="#/s/${s.story.id}/overview" class="chan overview-link ${location.hash === `#/s/${s.story.id}/overview` ? 'active' : ''}">
+          <span class="hash">${icons.book}</span><span class="name">Overview</span>${s.story.hasOverview ? '' : html`<small class="muted">empty</small>`}</a>` : ''}
         ${groups.map(([kind, list]) => html`
           <div class="side-section"><span>${KIND_LABELS[kind]}</span></div>
           ${list.map((c) => {
@@ -422,6 +425,22 @@ function setupDrawer() {
   });
   if (store.get('nuuvi:members-hidden')) document.body.classList.add('members-hidden');
 
+  // Cards marked data-tilt lean gently toward the pointer (mouse / trackpad only, not when motion is reduced).
+  const canTilt = window.matchMedia('(hover: hover) and (pointer: fine)').matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (canTilt) {
+    document.addEventListener('pointermove', (e) => {
+      const card = e.target.closest?.('[data-tilt]');
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--ry', `${((e.clientX - r.left) / r.width - 0.5) * 8}deg`);
+      card.style.setProperty('--rx', `${(0.5 - (e.clientY - r.top) / r.height) * 8}deg`);
+    });
+    document.addEventListener('pointerout', (e) => {
+      const card = e.target.closest?.('[data-tilt]');
+      if (card && !card.contains(e.relatedTarget)) { card.style.removeProperty('--rx'); card.style.removeProperty('--ry'); }
+    });
+  }
+
   // Swipe right to open the drawer, left to close it.
   let start = null;
   document.addEventListener('touchstart', (e) => {
@@ -533,6 +552,7 @@ const routes = [
   [/^#\/admin$/, viewAdmin, true],
   [/^#\/join\/(\d+)\/([\w-]+)$/, viewJoin, true],
   [/^#\/s\/(\d+)\/settings$/, viewStorySettings, true],
+  [/^#\/s\/(\d+)\/overview$/, viewOverview, true],
   [/^#\/s\/(\d+)(?:\/(\d+))?$/, viewChannel],
 ];
 

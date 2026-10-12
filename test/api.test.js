@@ -669,3 +669,27 @@ test('phones: contacts, private texts between two characters, unread counts and 
   assert.equal((await a(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: yoonoh.id, body: 'hello?' } })).status, 403);
   assert.equal((await a(`/api/phone/${yoonoh.id}`)).data.threads.length, 0);
 });
+
+test('story overview: owners write the lore page, members read it', async () => {
+  const gm = await app.signUp('ov_gm');
+  const a = await app.signUp('ov_a');
+  const { story } = await makeStory(gm, { title: 'Lore', visibility: 'public' });
+  await a(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
+  const empty = (await a(`/api/stories/${story.id}/overview`)).data;
+  assert.deepEqual(empty.overview, {});
+  assert.equal(empty.canEdit, false);
+  const body = {
+    tagline: 'nobody meets by accident.', intro: 'every introduction can be traced…',
+    sections: [{ title: 'ownership', body: 'someone funded it.' }, { title: '', body: '' }],
+    orgs: [{ name: 'FOYAEN INC.', kind: 'conglomerate', founded: '2019' }, { name: 'AUURA', kind: 'subsidiary', parent: 'FOYAEN INC.' }, { name: '' }],
+  };
+  assert.equal((await a(`/api/stories/${story.id}/overview`, { method: 'PUT', body })).status, 403);
+  const saved = (await gm(`/api/stories/${story.id}/overview`, { method: 'PUT', body })).data.overview;
+  assert.equal(saved.sections.length, 1);
+  assert.deepEqual(saved.orgs.map((o) => o.name), ['FOYAEN INC.', 'AUURA']);
+  const read = (await a(`/api/stories/${story.id}/overview`)).data;
+  assert.equal(read.overview.tagline, 'nobody meets by accident.');
+  assert.equal(read.stats.writers, 2);
+  assert.equal((await a(`/api/stories/${story.id}`)).data.story.hasOverview, true);
+  assert.equal((await gm(`/api/stories/${story.id}/overview`, { method: 'PUT', body: { intro: 'x'.repeat(30001) } })).status, 400);
+});

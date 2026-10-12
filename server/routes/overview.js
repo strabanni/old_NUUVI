@@ -1,0 +1,72 @@
+// A story's overview: the lore page everyone reads first. Intro, titled sections, and the
+// organizations of the world (conglomerates with their subsidiaries, independents).
+import { fail } from '../http.js';
+import { requireUser, storyAccess, requireOwner } from '../model.js';
+
+const KINDS = ['conglomerate', 'subsidiary', 'independent', 'other'];
+
+function text(v, field, max) {
+  if (v === undefined || v === null) return '';
+  if (typeof v !== 'string') fail(400, `${field} must be text`);
+  if (v.length > max) fail(400, `${field} is too long (${max.toLocaleString()} characters at most)`);
+  return v.trim();
+}
+const list = (v, field, max) => {
+  if (v === undefined || v === null) return [];
+  if (!Array.isArray(v)) fail(400, `${field} must be a list`);
+  if (v.length > max) fail(400, `At most ${max} ${field.toLowerCase()}`);
+  return v.filter((x) => x && typeof x === 'object');
+};
+
+export function overviewInput(body) {
+  const orgs = list(body.orgs, 'Organizations', 80).map((o) => ({
+    name: text(o.name, 'Name', 120),
+    kind: KINDS.includes(o.kind) ? o.kind : 'other',
+    parent: text(o.parent, 'Parent', 120),
+    founded: text(o.founded, 'Founded', 40),
+    motto: text(o.motto, 'Motto', 300),
+    body: text(o.body, 'Description', 20000),
+    credit: text(o.credit, 'Credit', 80),
+  })).filter((o) => o.name);
+  return {
+    tagline: text(body.tagline, 'Tagline', 300),
+    intro: text(body.intro, 'Intro', 30000),
+    sections: list(body.sections, 'Sections', 40).map((x) => ({ title: text(x.title, 'Section title', 160), body: text(x.body, 'Section', 30000) }))
+      .filter((x) => x.title || x.body),
+    independentNote: text(body.independentNote, 'Note', 300),
+    orgs,
+  };
+}
+
+export function overviewRoutes(r, ctx) {
+  const { db, hub } = ctx;
+
+  r.get('/api/stories/:id/overview', ({ user, params }) => {
+    requireUser(user);
+    const { row, role } = storyAccess(db, params.id, user);
+    const n = (sql) => db.prepare(sql).get(row.id).n;
+    return {
+      data: {
+        overview: JSON.parse(row.overview || '{}'),
+        canEdit: role === 'owner' || user.isAdmin,
+        stats: {
+          writers: n('SELECT COUNT(*) AS n FROM story_members WHERE story_id = ?'),
+          characters: n(`SELECT COUNT(DISTINCT c.id) AS n FROM characters c JOIN story_members m ON m.user_id = c.user_id
+            WHERE m.story_id = ? AND (c.bot IS NULL OR c.bot != 'gossip')`),
+          threads: n("SELECT COUNT(*) AS n FROM channels WHERE story_id = ? AND kind IN ('thread', 'para', 'event', 'comms')"),
+          events: n("SELECT COUNT(*) AS n FROM events WHERE story_id = ? AND COALESCE(ends_at, starts_at) >= datetime('now', '-1 day')"),
+        },
+      },
+    };
+  });
+
+  r.put('/api/stories/:id/overview', ({ user, params, body }) => {
+    requireUser(user);
+    const { row, role } = storyAccess(db, params.id, user);
+    requireOwner(role, user);
+    const overview = overviewInput(body);
+    db.prepare('UPDATE stories SET overview = ? WHERE id = ?').run(JSON.stringify(overview), row.id);
+    hub.sendStory(row.id, 'story', { storyId: row.id });
+    return { data: { overview } };
+  });
+}

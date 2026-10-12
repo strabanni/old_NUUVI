@@ -28,6 +28,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - Turn order per channel. Whoever's turn it is gets notified, and posting in character passes the turn on. The writer whose turn it is can pass, and the owner can skip.
 
 **Stories**
+- **Overview:** each story has an Overview page (top of its channel list) for the lore everyone reads first: a tagline, an intro, numbered sections, and the world's organizations (conglomerates with their subsidiaries, plus independents). Cards expand when tapped, and a contents bar jumps between sections. New visitors land on it first. The owner writes it under **Overview → Edit**; **Start from our lore** fills in the FOYAEN × ENTITY world.
 - Public (listed in Discover) or private (invite link only).
 - Open or closed to new writers.
 - Owners can add, rename, reorder and delete channels, and remove writers.
@@ -39,6 +40,9 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - Per-story notification level: every post, mentions and turns only, or nothing.
 
 **Look and feel**
+- **Minimal and glassy:** a soft grey canvas (true black in Dark) with clean cards that float on soft shadows, frosted top bar, rail, menus and dialogs, pill buttons and tabs, and small motion: pages ease in, cards lift on hover, character cards tilt toward the pointer, tabs slide.
+- **Home dashboard:** quick actions (new thread, post, event), a tappable "this week" calendar strip with what's coming up, and your latest notifications.
+- **Notifications** are sorted into tabs: All, For you, Activity and System.
 - **Pink (`#EE719E`) only on the brand touches:** the logo and "nuuvi" wordmark, the "···" in the top strip, your name and numbers in the greeting, and the ring on the selected item in the left rail. Everything else (buttons, tabs, badges, icons, chat bubbles, writing) follows Light or Dark: whites and greys with darkish-grey (`#48484A`) buttons and icons, or true blacks and dark greys with light-grey (`#B0AEAE`) ones. Light and Dark share the same pink logo.
   - **Light:** whites and light greys (`#FFFFFF` / `#F5F5F5` / `#B0AEAE`).
   - **Dark:** true blacks and dark greys (`#0E0E0F` / `#48484A`).

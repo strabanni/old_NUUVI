@@ -29,6 +29,7 @@ export function toStory(r) {
     visibility: r.visibility, status: r.status, color: r.color, icon: r.icon, banner: r.banner ?? null,
     createdAt: r.created_at, updatedAt: r.updated_at,
     memberCount: r.member_count, postCount: r.post_count, ownerName: r.owner_name,
+    hasOverview: !!r.overview && r.overview !== '{}',
   };
 }
 

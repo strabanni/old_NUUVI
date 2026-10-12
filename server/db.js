@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -391,6 +391,8 @@ const MIGRATIONS = [
      last_read_id INTEGER NOT NULL DEFAULT 0,
      PRIMARY KEY (character_id, thread_id)
    );`,
+  // v8: a story's overview page (lore, sections, organizations), stored as JSON.
+  `ALTER TABLE stories ADD COLUMN overview TEXT NOT NULL DEFAULT '{}';`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

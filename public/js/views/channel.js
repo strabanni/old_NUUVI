@@ -50,6 +50,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   // No channel picked: go to the last one you used, or the first.
   if (!channelIdStr) {
     const last = Number(store.get(`nuuvi:last-channel:${storyId}`));
+    // First visit to a story with lore: start on its overview.
+    if (!last && s.story.hasOverview) return location.replace(`#/s/${storyId}/overview`);
     const target = s.channels.find((c) => c.id === last) ?? s.channels[0];
     return location.replace(`#/s/${storyId}/${target.id}`);
   }

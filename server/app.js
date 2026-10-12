@@ -16,6 +16,7 @@ import { adminRoutes } from './routes/admin.js';
 import { threadRoutes } from './routes/threads.js';
 import { eventRoutes } from './routes/events.js';
 import { phoneRoutes } from './routes/phone.js';
+import { overviewRoutes } from './routes/overview.js';
 import { socialRoutes, socialPostRoutes } from './routes/social.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
@@ -261,6 +262,7 @@ export function createApp({
   threadRoutes(router, ctx);
   eventRoutes(router, ctx);
   phoneRoutes(router, ctx);
+  overviewRoutes(router, ctx);
   socialRoutes(router, ctx);
   socialPostRoutes(router, ctx);
 

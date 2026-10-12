@@ -1,4 +1,4 @@
-import { html, render, api, $, bindForm, timeAgo, toast, uploadImage, avatar, icons, askImageLink } from '../lib.js';
+import { html, render, api, $, $$, bindForm, timeAgo, toast, uploadImage, avatar, icons, askImageLink, applyColors } from '../lib.js';
 import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive, greeting } from '../main.js';
 import { feedCard, masonry } from './threads.js';
 
@@ -33,7 +33,10 @@ export async function viewHome() {
   const alive = routeAlive();
   await refreshHome();
   const { stories, stats = {} } = state.home;
-  const [characters, mine] = await Promise.all([myCharacters(true), api('/api/feed?filter=mine').catch(() => ({ items: [] }))]);
+  const [characters, mine, cal, notes] = await Promise.all([
+    myCharacters(true), api('/api/feed?filter=mine').catch(() => ({ items: [] })),
+    api('/api/calendar').catch(() => ({ events: [] })), api('/api/notifications').catch(() => ({ notifications: [] })),
+  ]);
   const turns = [];
   // Stories where it's your turn somewhere.
   await Promise.all(stories.filter((s) => s.mentions).map(async (s) => {
@@ -41,6 +44,14 @@ export async function viewHome() {
     for (const c of d?.channels ?? []) if (c.turns.enabled && c.turns.current === state.user.id) turns.push({ story: s, channel: c });
   }));
   const u = state.user;
+  // "This week": yesterday + the next five days, with each day's events.
+  const weekDays = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i - 1); return d; });
+  const eventsOn = (day) => cal.events.filter((e) => {
+    const s = new Date(e.startsAt); s.setHours(0, 0, 0, 0);
+    const end = new Date(e.endsAt || e.startsAt); end.setHours(0, 0, 0, 0);
+    return day >= s && day <= end;
+  });
+  const upcoming = cal.events.filter((e) => new Date(e.endsAt || e.startsAt) >= new Date()).slice(0, 3);
   const homeBody = page({
     alive,
     title: html`<span class="script">home</span>`,
@@ -58,6 +69,37 @@ export async function viewHome() {
           <a class="tile" href="#/u/${u.id}" title="Your profile" aria-label="Your profile">${icons.fingerprint}</a>
           <a class="tile" href="#/settings" title="Settings" aria-label="Settings">${icons.gear}</a>
         </nav>
+      </section>
+
+      <section class="bento">
+        <div class="bento-hero">
+          <div>
+            <span class="eyebrow">nuuvi</span>
+            <h2>Write together, in your own little world.</h2>
+            <p>${stories.length ? `${stories.length} ${stories.length === 1 ? 'story' : 'stories'} · ${characters.length} ${characters.length === 1 ? 'character' : 'characters'}` : 'Start a story or join one to begin.'}</p>
+          </div>
+          <div class="bento-actions">
+            <button class="primary" data-quick="thread">${icons.quill} New thread</button>
+            <button data-quick="post">${icons.image} New post</button>
+            <button data-quick="event">${icons.calendar} New event</button>
+          </div>
+        </div>
+        <div class="bento-week card">
+          <div class="bw-head"><b>${new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><a href="#/events" class="see-all">Calendar</a></div>
+          <div class="bw-days no-swipe">${weekDays.map((d, i) => html`<button type="button" class="bw-day ${i === 1 ? 'today' : ''} ${eventsOn(d).length ? 'has' : ''}" data-day="${i}" aria-pressed="${i === 1}">
+            <small>${d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2)}</small><b>${d.getDate()}</b></button>`)}</div>
+          <div class="bw-list" id="bw-list"></div>
+          ${upcoming.length ? html`<div class="bw-up"><span class="eyebrow">Coming up</span>${upcoming.map((e) => html`
+            <a class="bw-up-item" href="#/e/${e.id}"><span class="bw-up-date"><small>${new Date(e.startsAt).toLocaleDateString(undefined, { month: 'short' })}</small><b>${new Date(e.startsAt).getDate()}</b></span>
+              <span class="grow"><b>${e.title}</b><small>${e.story.title}${e.location ? ` · ${e.location}` : ''}</small></span>${icons.chevron}</a>`)}</div>` : ''}
+        </div>
+        <div class="bento-notes card">
+          <div class="bw-head"><b>Latest</b><a href="#/notifications" class="see-all">All</a></div>
+          ${notes.notifications.length ? html`<div class="bn-list">${notes.notifications.slice(0, 4).map((n) => html`
+            <a class="bn-item ${n.read ? '' : 'unread'}" href="${n.url}">${avatar({ name: n.actor?.displayName || 'N', src: n.actor?.avatar, color: '#48484A', size: 'sm' })}
+              <span class="grow"><span>${n.actor?.displayName || 'NUUVI'}</span><small>${n.text || n.type}</small></span><small>${timeAgo(n.createdAt)}</small></a>`)}</div>`
+            : html`<p class="muted small">Nothing new.</p>`}
+        </div>
       </section>
 
       ${turns.length ? html`<section class="stack spaced">
@@ -82,6 +124,30 @@ export async function viewHome() {
         </div>`}`,
   });
   masonry(homeBody);
+  const drawDay = (i) => {
+    $$('.bw-day', homeBody).forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.day) === i)));
+    const evs = eventsOn(weekDays[i]);
+    render($('#bw-list', homeBody), evs.length ? html`${evs.map((e) => html`
+      <a class="bw-ev" href="#/e/${e.id}" data-color="${e.story.color}"><span class="bw-bar"></span>
+        <span class="grow"><b>${e.title}</b><small>${new Date(e.startsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${e.location ? ` · ${e.location}` : ''}</small></span>
+        ${e.participants.length ? html`<span class="avatar-stack">${e.participants.slice(0, 3).map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}</span>` : ''}</a>`)}`
+      : html`<p class="bw-none">Nothing planned${i === 1 ? ' today' : ''}.</p>`);
+    applyColors(homeBody);
+  };
+  drawDay(1);
+  homeBody.addEventListener('click', async (e) => {
+    const d = e.target.closest('.bw-day');
+    if (d) { drawDay(Number(d.dataset.day)); return; }
+    const q = e.target.closest('[data-quick]');
+    if (!q) return;
+    if (q.dataset.quick === 'thread') { const { openThreadForm } = await import('./threads.js'); openThreadForm(); }
+    if (q.dataset.quick === 'post') { const { openSocialComposer } = await import('./social.js'); if (await openSocialComposer()) location.hash = '#/feed'; }
+    if (q.dataset.quick === 'event') {
+      const { openEventForm } = await import('./events.js');
+      const made = await openEventForm();
+      if (made && made !== 'deleted') location.hash = `#/e/${made.id}`;
+    }
+  });
 }
 
 export async function viewDiscover() {
