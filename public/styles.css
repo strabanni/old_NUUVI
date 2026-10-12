@@ -2140,6 +2140,9 @@ html:has(body:not(.guest)) { overflow: hidden; overscroll-behavior: none; }
 .ov-motto q { quotes: "“" "”"; }
 .ov-motto q::before, .ov-motto q::after { color: var(--faint); font-size: 1.2em; }
 @media (max-width: 899px) { .ov-letter { padding: 20px 18px 18px; border-radius: 22px; } .ov-letter .prose { font-size: 1rem; } }
-/* The gossip column: a few inches narrower than the page, centered. */
-.ov-letter { max-width: 600px; margin-left: auto; margin-right: auto; }
 @media (max-width: 899px) { .ov-letter .prose { font-size: .95rem; } .ov-letter .prose > p:first-child { font-size: 1.05rem; } }
+/* Phone texts: a smaller, slimmer message box, centered under the conversation. */
+.ph-compose { width: 80%; max-width: 300px; align-self: center; margin-left: auto; margin-right: auto; padding: 3px; gap: 4px; }
+.ph-compose input { height: 30px; font-size: .85rem; }
+.ph-compose .ph-plus, .ph-compose .ph-send { width: 30px; height: 30px; }
+.ph-compose .ph-plus svg, .ph-compose .ph-send svg { width: 15px; height: 15px; }
