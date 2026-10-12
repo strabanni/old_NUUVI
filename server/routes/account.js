@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fail, str, id, color, oneOf } from '../http.js';
 import { hashPassword, verifyPassword, createSession, destroySession, toSelf } from '../auth.js';
-import { toUser, toCharacter, requireUser, uploadRef } from '../model.js';
+import { toUser, toCharacter, requireUser, uploadRef, gradientInput } from '../model.js';
 import { validateSubscription } from '../push.js';
 import { profileInput, detailsInput, parseProfile } from '../profile.js';
 import { transaction, makeHandle } from '../db.js';
@@ -167,9 +167,10 @@ export function accountRoutes(r, ctx) {
     const avatar = uploadRef(db, body.avatar, user.id);
     const banner = uploadRef(db, body.banner, user.id);
     const profile = profileInput(body.profile, user.profile);
-    db.prepare('UPDATE users SET display_name = ?, bio = ?, avatar = ?, banner = ?, profile = ? WHERE id = ?')
+    const gradient = gradientInput(body.gradient);
+    db.prepare('UPDATE users SET display_name = ?, bio = ?, avatar = ?, banner = ?, profile = ?, gradient = ? WHERE id = ?')
       .run(displayName, bio, avatar === undefined ? user.avatar : avatar, banner === undefined ? user.banner : banner,
-        JSON.stringify(profile ?? user.profile), user.id);
+        JSON.stringify(profile ?? user.profile), gradient === undefined ? user.gradient?.join(',') ?? null : gradient, user.id);
     return { data: { user: toSelf(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) } };
   });
 
@@ -334,7 +335,7 @@ export function accountRoutes(r, ctx) {
       data: {
         writers: users.map((u) => ({
           id: u.id, username: u.username, displayName: u.display_name, avatar: u.avatar ?? null,
-          isAdmin: !!u.is_admin, joinedAt: u.created_at, characters: byUser.get(u.id),
+          gradient: u.gradient ? u.gradient.split(',') : null, isAdmin: !!u.is_admin, joinedAt: u.created_at, characters: byUser.get(u.id),
         })),
         anonymous,
       },
@@ -388,12 +389,8 @@ export function accountRoutes(r, ctx) {
     }
     const lines = body.botLines === undefined ? existing.bot_lines ?? '{}' : JSON.stringify(botLinesInput(body.botLines));
     // A gradient color: 2–3 hex stops, e.g. "#EE719E,#B8A6DB". Empty clears it.
-    let gradient = existing.gradient ?? null;
-    if (body.gradient !== undefined) {
-      const stops = (Array.isArray(body.gradient) ? body.gradient : String(body.gradient || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
-      if (stops.length && (stops.length < 2 || stops.length > 3 || !stops.every((x) => /^#[0-9a-f]{6}$/i.test(x)))) fail(400, 'A gradient needs 2 or 3 colors');
-      gradient = stops.length ? stops.join(',') : null;
-    }
+    const g = gradientInput(body.gradient);
+    const gradient = g === undefined ? existing.gradient ?? null : g;
     let npcTags = existing.npc_tags ?? '';
     if (body.npcTags !== undefined) {
       const list = Array.isArray(body.npcTags) ? body.npcTags : String(body.npcTags || '').split(',');

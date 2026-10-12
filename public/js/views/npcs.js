@@ -30,13 +30,13 @@ export async function viewNpcs() {
       ${tags.map((t) => html`<button type="button" class="chip-btn" data-tag="${t}" aria-pressed="${tag === t}">#${t}</button>`)}`);
     const shown = npcs.filter((n) => (!tag || n.npcTags.includes(tag))
       && (!q || `${n.name} ${n.handle} ${n.tagline} ${n.npcTags.join(' ')} ${n.owner.username} ${n.owner.displayName}`.toLowerCase().includes(q)));
-    render(list, shown.length ? html`<div class="char-grid npc-grid">${shown.map((n) => html`
+    render(list, html`${tag ? html`<h2 class="cat-title"><span>${tag}</span><small>${shown.length} ${shown.length === 1 ? 'NPC' : 'NPCs'}</small></h2>` : ''}${shown.length ? html`<div class="char-grid npc-grid">${shown.map((n) => html`
       <div class="npc-item">
         ${characterCard(n, { editable: n.owner.id === state.user.id })}
         <div class="npc-meta"><span class="muted small">by @${n.owner.username}</span>
           ${n.npcTags.map((t) => html`<button type="button" class="tag" data-tag="${t}">#${t}</button>`)}</div>
       </div>`)}</div>`
-      : html`<div class="empty"><p>${npcs.length ? 'No NPCs match.' : 'No NPCs yet.'}</p><p><button class="primary" id="empty-npc">Add the first one</button></p></div>`);
+      : html`<div class="empty"><p>${npcs.length ? 'No NPCs match.' : 'No NPCs yet.'}</p><p><button class="primary" id="empty-npc">Add the first one</button></p></div>`}`);
     applyColors(list);
   }
   draw();

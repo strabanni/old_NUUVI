@@ -29,6 +29,19 @@ export function storyCard(s) {
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 
+// The lore: a wide card on Home that opens a story's Overview (or the list, with more than one).
+function loreCard(stories) {
+  const withLore = stories.filter((s) => s.hasOverview);
+  const s = withLore[0];
+  if (!stories.length) return '';
+  return html`<a class="lore-card" href="${withLore.length === 1 ? `#/s/${s.id}/overview` : '#/lore'}">
+    <span class="eyebrow">${icons.book} the lore${s ? html` · ${withLore.length === 1 ? s.title : `${withLore.length} stories`}` : ''}</span>
+    <b>${s ? s.loreTagline || 'Read the overview' : 'No lore written yet'}</b>
+    <small>${s ? 'The world, the companies and the gossip. Read this first.' : 'Story owners write it under Overview in their story.'}</small>
+    <span class="lore-go">${s ? 'Read the overview' : 'Open'} ${icons.chevron}</span>
+  </a>`;
+}
+
 export async function viewHome() {
   const alive = routeAlive();
   await refreshHome();
@@ -102,6 +115,7 @@ export async function viewHome() {
             : html`<p class="muted small">Nothing new.</p>`}
         </div>
       </section>
+      ${loreCard(stories)}
 
       ${turns.length ? html`<section class="stack spaced">
         ${turns.map((t) => html`<a class="card turn-card" href="#/s/${t.story.id}/${t.channel.id}">${icons.hourglass}<span>It's your turn in <strong>#${t.channel.name}</strong> · ${t.story.title}</span></a>`)}

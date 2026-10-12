@@ -1,5 +1,5 @@
 // Admin panel: reports, people, invites, stories, moderation log.
-import { html, render, api, $, $$, bindForm, toast, avatar, confirmModal, promptModal, modal, timeAgo, formatPost, icons, uploadImage, askImageLink } from '../lib.js';
+import { html, render, api, $, $$, bindForm, toast, avatar, confirmModal, promptModal, modal, timeAgo, formatPost, icons, uploadBanner, askImageLink } from '../lib.js';
 import { state, page, refreshHome, copyText, routeAlive, ensureAlive, loadHeaders } from '../main.js';
 
 const TABS = [['reports', 'Reports'], ['users', 'People'], ['invites', 'Invites'], ['stories', 'Stories'], ['log', 'Log'], ['npcs', 'NPCs & bots'], ['headers', 'Headers']];
@@ -261,7 +261,7 @@ async function headers(pane) {
   draw();
   pane.addEventListener('change', async (e) => {
     if (e.target.id !== 'hdr-file') return;
-    for (const f of e.target.files) { try { toast('Uploading…'); list.push(await uploadImage(f, 2000)); } catch (err) { toast(err.message); } }
+    for (const f of e.target.files) { try { toast('Uploading…'); list.push(await uploadBanner(f)); } catch (err) { toast(err.message); } }
     save();
   });
   pane.addEventListener('click', async (e) => {

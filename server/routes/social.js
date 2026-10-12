@@ -137,8 +137,10 @@ export function socialPostRoutes(r, ctx) {
       media: JSON.parse(row.media), meta: JSON.parse(row.meta),
       createdAt: row.created_at, editedAt: row.edited_at, userId: row.user_id,
       character: charOf(row),
-      likes: db.prepare('SELECT COUNT(*) AS n FROM social_likes WHERE post_id = ?').get(row.id).n,
-      commentCount: db.prepare('SELECT COUNT(*) AS n FROM social_comments WHERE post_id = ?').get(row.id).n,
+      // The writer can set the numbers shown (for famous characters); otherwise they're the real counts.
+      likes: row.likes_display ?? db.prepare('SELECT COUNT(*) AS n FROM social_likes WHERE post_id = ?').get(row.id).n,
+      commentCount: row.comments_display ?? db.prepare('SELECT COUNT(*) AS n FROM social_comments WHERE post_id = ?').get(row.id).n,
+      likesDisplay: row.likes_display ?? null, commentsDisplay: row.comments_display ?? null,
       likedBy: viewerId ? db.prepare(`SELECT l.character_id FROM social_likes l JOIN characters c ON c.id = l.character_id
         WHERE l.post_id = ? AND c.user_id = ?`).all(row.id, viewerId).map((x) => x.character_id) : [],
       comments: comments.map((cm) => ({ id: cm.id, body: cm.body, createdAt: cm.created_at, userId: cm.user_id, character: charOf(cm) })),
@@ -259,7 +261,18 @@ export function socialPostRoutes(r, ctx) {
     const title = str(body.title, 'Title', { max: 120 }) ?? row.title;
     const base = body.meta === undefined ? JSON.parse(row.meta) : { ...metaInput(row.kind, body.meta), ...(JSON.parse(row.meta).music ? { music: JSON.parse(row.meta).music } : {}) };
     const meta = JSON.stringify(withMusic(base, musicInput(body.music)));
-    db.prepare("UPDATE social_posts SET body = ?, title = ?, meta = ?, edited_at = datetime('now') WHERE id = ?").run(text, title, meta, row.id);
+    const count = (v, field, old) => {
+      if (v === undefined) return old ?? null;
+      if (v === null || v === '') return null;
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0 || n > 9_999_999_999) fail(400, `${field} must be a whole number`);
+      return n;
+    };
+    const likesShown = count(body.likesDisplay, 'Likes', row.likes_display);
+    const commentsShown = count(body.commentsDisplay, 'Comments', row.comments_display);
+    const onlyCounts = body.body === undefined && body.title === undefined && body.meta === undefined && body.music === undefined;
+    db.prepare(`UPDATE social_posts SET body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`)
+      .run(text, title, meta, likesShown, commentsShown, row.id);
     return { data: { post: toSocial(load(row.id, user), user.id) } };
   });
 

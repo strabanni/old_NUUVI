@@ -237,3 +237,26 @@ async function editOverview(storyId, o) {
     },
   });
 }
+
+// ---------- The lore, from the sidebar ----------
+// One story with lore: straight to its Overview. Otherwise, a list of your stories' overviews.
+export async function viewLore() {
+  const alive = routeAlive();
+  const { stories } = await api('/api/stories?scope=mine');
+  ensureAlive(alive);
+  const withLore = stories.filter((s) => s.hasOverview);
+  if (withLore.length === 1) return location.replace(`#/s/${withLore[0].id}/overview`);
+  page({
+    alive,
+    title: 'Lore',
+    subtitle: 'Each story\'s overview: the world, its companies and its gossip',
+    body: stories.length ? html`<div class="lore-list">${stories.map((s) => html`
+      <a class="lore-card" href="#/s/${s.id}/overview">
+        <span class="eyebrow">${icons.book} ${s.title}</span>
+        <b>${s.hasOverview ? s.loreTagline || 'Read the overview' : 'No overview yet'}</b>
+        <small>${s.hasOverview ? 'Read this first.' : s.ownerId === state.user.id ? 'Open it and tap Edit → Start from our lore, or write your own.' : 'The story owner hasn\'t written it yet.'}</small>
+        <span class="lore-go">Open ${icons.chevron}</span>
+      </a>`)}</div>`
+      : html`<div class="card empty"><p>Join or start a story to see its lore.</p><p><a class="btn primary" href="#/discover">Discover stories</a></p></div>`,
+  });
+}

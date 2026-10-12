@@ -2049,19 +2049,19 @@ dialog.modal { width: min(540px, calc(100vw / var(--ui-zoom) - 24px)); max-heigh
 .scale-seg { flex-wrap: wrap; }
 
 /* ---------- v15: rotating header pictures on the main pages ---------- */
-.page-banner { position: relative; isolation: isolate; overflow: hidden; height: clamp(200px, 32vh, 320px); margin: 4px 0 18px; border-radius: 30px;
+.page-banner { position: relative; isolation: isolate; overflow: hidden; height: auto; aspect-ratio: 3 / 1; max-height: 360px; margin: 4px 0 18px; border-radius: 30px;
   background: var(--brand-mesh); box-shadow: var(--elev-1); display: flex; align-items: flex-end; padding: 14px; }
 .page-banner .pb-slide { position: absolute; inset: 0; z-index: -2; opacity: 0; transition: opacity 1.4s ease; }
 .page-banner .pb-slide.on { opacity: 1; }
 .page-banner .pb-slide img { position: absolute; inset: 0; width: 100%; height: 100%; }
-.page-banner .pb-bg { object-fit: cover; filter: blur(28px) saturate(1.2) brightness(.8); transform: scale(1.15); }
-.page-banner .pb-fg { object-fit: contain; }
+.page-banner .pb-bg { display: none; }
+.page-banner .pb-fg { object-fit: cover; object-position: center; }
 .page-banner::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(transparent 45%, rgb(0 0 0 / .25)); }
 .pb-glass { display: inline-flex; flex-direction: column; gap: 2px; padding: 12px 18px; border-radius: 20px; color: #fff; max-width: 100%;
   background: rgb(20 20 24 / .22); border: 1px solid rgb(255 255 255 / .2); -webkit-backdrop-filter: blur(18px) saturate(160%); backdrop-filter: blur(18px) saturate(160%); }
 .pb-glass .eyebrow { color: rgb(255 255 255 / .85); }
 .pb-glass b { font-size: clamp(1.1rem, 2.4vw, 1.6rem); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; text-transform: lowercase; }
-@media (max-width: 899px) { .page-banner { height: 190px; border-radius: 24px; margin-bottom: 12px; } }
+@media (max-width: 899px) { .page-banner { aspect-ratio: 2.3 / 1; border-radius: 24px; margin-bottom: 12px; } }
 .hdr-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin: 12px 0; }
 .hdr-item { position: relative; margin: 0; aspect-ratio: 3 / 1; border-radius: 16px; overflow: hidden; background: var(--glass-2); }
 .hdr-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -2158,3 +2158,36 @@ html:has(body:not(.guest)) { overflow: hidden; overscroll-behavior: none; }
   .phone-split .ph-msgs { padding-left: max(16px, calc((100% - 760px) / 2)); padding-right: max(16px, calc((100% - 760px) / 2)); }
   .phone-split .ph-compose { width: min(760px, calc(100% - 32px)); margin-left: auto; margin-right: auto; }
 }
+/* A writer's own gradient: their display name and writing-style bars (Settings → Your colors). */
+.u-grad[data-grad], [data-grad] .grad-preview .u-grad { background: var(--g, var(--grad)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+[data-grad] .meter-fill { background: var(--g); }
+.me-grad .grad-preview .big { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
+.me-grad .meter { margin: 6px 0 4px; }
+/* The lore card (Home and the Lore page). */
+.lore-card { position: relative; display: flex; flex-direction: column; gap: 4px; margin: 14px 0 6px; padding: 20px 22px; border-radius: 26px; overflow: hidden; color: #fff;
+  background: linear-gradient(120deg, #EE719E, #C79AD8 55%, #B8A6DB); box-shadow: var(--elev-1); text-decoration: none; transition: transform .2s var(--ease), box-shadow .2s var(--ease); }
+.lore-card:hover { text-decoration: none; transform: translateY(-2px); box-shadow: var(--shadow); }
+.lore-card .eyebrow { display: inline-flex; align-items: center; gap: 6px; color: rgb(255 255 255 / .9); }
+.lore-card .eyebrow svg { width: 14px; height: 14px; }
+.lore-card b { font-size: clamp(1.15rem, 2.4vw, 1.6rem); font-weight: 800; letter-spacing: -.02em; line-height: 1.15; max-width: 34ch; }
+.lore-card small { color: rgb(255 255 255 / .88); font-size: .85rem; }
+.lore-go { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 8px; padding: 7px 14px; border-radius: 999px; font-size: .82rem; font-weight: 600;
+  background: rgb(255 255 255 / .22); border: 1px solid rgb(255 255 255 / .3); }
+.lore-go svg { width: 14px; height: 14px; transform: rotate(-90deg); }
+.lore-list { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.lore-list .lore-card { margin: 0; }
+/* An NPC category, once picked: its title in capitals with the NUUVI gradient. */
+.cat-title { display: flex; align-items: baseline; gap: 12px; margin: 6px 0 14px; }
+.cat-title span { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 800; letter-spacing: .02em; text-transform: uppercase; line-height: 1.05;
+  background: linear-gradient(100deg, #EE719E, #C79AD8, #B8A6DB); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.cat-title small { color: var(--faint); font-size: .8rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+#npc-tags .chip-btn[aria-pressed=true]:not([data-tag=""]) { text-transform: uppercase; letter-spacing: .06em; color: #fff; border-color: transparent;
+  background: linear-gradient(100deg, #EE719E, #C79AD8, #B8A6DB); }
+/* What's new (after an update) and the "refresh to update" bar. */
+.whats-new h2 { margin: 6px 0 2px; }
+.whats-new ul { margin: 14px 0 6px; padding-left: 1.2em; display: grid; gap: 8px; line-height: 1.5; }
+.whats-new li::marker { color: #C79AD8; }
+.wn-code { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #fff;
+  background: linear-gradient(100deg, #EE719E, #C79AD8, #B8A6DB); }
+.update-bar { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 90; display: flex; align-items: center; gap: 12px;
+  padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--glass-solid); border: 1px solid var(--glass-border); box-shadow: var(--shadow); font-size: .9rem; white-space: nowrap; }

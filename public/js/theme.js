@@ -1,16 +1,17 @@
 // Applies the saved theme before the page paints (loaded as a classic script in <head>).
-// Themes: light, dark, neutral light/dark (no pink at all), or auto (light/dark from the device, the default).
+// Themes: light, dark, or auto (light/dark from the device, the default).
 (function () {
   var pick = 'auto';
   try { pick = localStorage.getItem('nuuvi:theme') || 'auto'; } catch (e) { /* storage unavailable */ }
-  if (['light', 'dark', 'mono-light', 'mono-dark', 'auto'].indexOf(pick) < 0) pick = 'auto';
+  if (pick === 'mono-light' || pick === 'mono-dark') pick = pick.slice(5); // the old Neutral themes
+  if (['light', 'dark', 'auto'].indexOf(pick) < 0) pick = 'auto';
   var light = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
   var root = document.documentElement;
-  root.dataset.theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick.replace('mono-', '');
+  root.dataset.theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick;
   // Every theme's interface is neutral (greys, black, white); Light and Dark add the pink brand
-  // touches (logo, greeting, rail selection) on top. The Neutral themes leave them out.
+  // touches (logo, greeting, rail selection) on top.
   root.dataset.accent = 'neutral';
-  if (pick.indexOf('mono-') === 0) delete root.dataset.brand; else root.dataset.brand = 'pink';
+  root.dataset.brand = 'pink';
   var size = null;
   try { size = localStorage.getItem('nuuvi:text'); } catch (e) { /* storage unavailable */ }
   if (size === 'large' || size === 'larger') document.documentElement.dataset.text = size;

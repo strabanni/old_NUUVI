@@ -1,4 +1,4 @@
-import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, BRAND_GRADIENT } from '../lib.js';
+import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, BRAND_GRADIENT, GRADIENT_PRESETS } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges } from './social.js';
@@ -14,9 +14,6 @@ function detailRow(d = {}) {
     </div>`;
 }
 
-// Gradient presets — the first is the NUUVI gradient.
-const GRADIENT_PRESETS = [BRAND_GRADIENT, ['#F7A8C4', '#EE719E', '#9D7BD8'], ['#9DB7B8', '#A9A8CF', '#B8A6DB'], ['#F7D9A8', '#EE719E'],
-  ['#7AA7FF', '#B8A6DB', '#EE719E'], ['#2A2A2D', '#8F8D8E'], ['#E85D4A', '#F2B04C'], ['#4CB8A6', '#2E6FB8']];
 
 function characterForm(c = {}) {
   const details = c.details?.length ? c.details : [{ label: 'Age' }, { label: 'Pronouns' }];
@@ -46,8 +43,8 @@ function characterForm(c = {}) {
         <div class="fixed"><label for="c-color">Color</label><input id="c-color" type="color" name="color" value="${c.color || '#EE719E'}"></div>
       </div>
       <div class="grad-box" data-grad="${(c.gradient || BRAND_GRADIENT).join(',')}">
-        <label class="check"><input type="checkbox" name="useGradient" ${c.gradient ? 'checked' : ''}> Use a gradient instead</label>
-        <div class="grad-edit" ${c.gradient ? '' : 'hidden'}>
+        <label class="check"><input type="checkbox" name="useGradient" ${c.gradient || !c.id ? 'checked' : ''}> Use a gradient instead</label>
+        <div class="grad-edit" ${c.gradient || !c.id ? '' : 'hidden'}>
           <div class="grad-presets">${GRADIENT_PRESETS.map((g, i) => html`<button type="button" class="grad-preset" data-preset="${i}" data-grad="${g.join(',')}" aria-label="Gradient ${i + 1}"></button>`)}</div>
           <div class="grad-stops">
             ${[0, 1, 2].map((i) => html`<input type="color" data-stop="${i}" value="${(c.gradient || BRAND_GRADIENT)[i] || '#B8A6DB'}" aria-label="Gradient color ${i + 1}">`)}

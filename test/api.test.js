@@ -749,3 +749,29 @@ test('push pop-ups are skipped while the person has NUUVI open in front of them'
     ctrl.abort(); void res;
   } finally { p.close(); }
 });
+
+test('a writer\'s own gradient, and like/comment numbers set on a character\'s post', async () => {
+  const a = await app.signUp('colors_a');
+  const b = await app.signUp('colors_b');
+  assert.equal((await a('/api/me')).data.user.gradient, null);
+  const me = await a('/api/me', { method: 'PUT', body: { displayName: 'Colors A', gradient: ['#EE719E', '#C79AD8', '#B8A6DB'] } });
+  assert.deepEqual(me.data.user.gradient, ['#EE719E', '#C79AD8', '#B8A6DB']);
+  assert.equal((await a('/api/me', { method: 'PUT', body: { gradient: ['red', 'blue'] } })).status, 400);
+  // Saving the profile without colors keeps them.
+  assert.deepEqual((await a('/api/me', { method: 'PUT', body: { bio: 'hi' } })).data.user.gradient.length, 3);
+  const profile = (await b(`/api/users/${me.data.user.id}`)).data.user;
+  assert.deepEqual(profile.gradient, ['#EE719E', '#C79AD8', '#B8A6DB']);
+
+  const star = (await a('/api/characters', { method: 'POST', body: { name: 'Famous Fern' } })).data.character;
+  const post = (await a('/api/social', { method: 'POST', body: { characterId: star.id, body: 'hello world' } })).data.post;
+  assert.equal(post.likes, 0);
+  assert.equal((await b(`/api/social/${post.id}`, { method: 'PUT', body: { likesDisplay: 5 } })).status, 404);
+  const set = (await a(`/api/social/${post.id}`, { method: 'PUT', body: { likesDisplay: 1200000, commentsDisplay: 3400 } })).data.post;
+  assert.equal(set.likes, 1200000);
+  assert.equal(set.commentCount, 3400);
+  assert.equal(set.editedAt, null, 'changing the numbers does not mark the post as edited');
+  assert.equal((await a(`/api/social/${post.id}`, { method: 'PUT', body: { likesDisplay: -3 } })).status, 400);
+  const reset = (await a(`/api/social/${post.id}`, { method: 'PUT', body: { likesDisplay: null } })).data.post;
+  assert.equal(reset.likes, 0);
+  assert.equal(reset.commentCount, 3400);
+});

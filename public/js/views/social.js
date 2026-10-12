@@ -90,6 +90,7 @@ export function bindSocial(root, posts, redraw) {
       menu(b, [
         { label: 'Open post', action: () => { location.hash = `#/p/${p.id}`; } },
         mine && { label: p.meta.music ? 'Edit post or song' : 'Edit post / add a song', action: () => editCaption(p, redraw) },
+        mine && { label: 'Set like & comment numbers', action: () => editCounts(p, redraw) },
         p.kind === 'stream' && mine && { label: p.meta.live === false ? 'Mark as live again' : 'End stream', action: () => updatePost(p, { meta: { ...p.meta, live: p.meta.live === false } }, redraw) },
         (mine || state.user.isAdmin) && { label: 'Delete post', danger: true, action: () => deletePost(p, card) },
       ]);
@@ -161,6 +162,24 @@ async function editCaption(p, redraw) {
       const body = { body: data.body, music: songFrom(data) };
       if (p.kind === 'stream') body.title = data.title;
       return (await api(`/api/social/${p.id}`, { method: 'PUT', body })).post;
+    },
+  });
+  if (res) redraw(res);
+}
+
+// Famous characters can show bigger numbers: the writer sets the likes and comments shown on a post.
+// Leave a box empty to show the real count.
+async function editCounts(p, redraw) {
+  const res = await modal(html`<form><h2>Like & comment numbers</h2>
+    <p class="muted small">Shown on this post instead of the real counts. Leave a box empty to show the real number.</p>
+    <div class="row">
+      <div><label for="e-likes">Likes</label><input id="e-likes" name="likes" inputmode="numeric" pattern="[0-9,.]*" placeholder="real count" value="${p.likesDisplay ?? ''}"></div>
+      <div><label for="e-comments">Comments</label><input id="e-comments" name="comments" inputmode="numeric" pattern="[0-9,.]*" placeholder="real count" value="${p.commentsDisplay ?? ''}"></div>
+    </div>
+    <div class="error"></div><div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, {
+    submit: async (data) => {
+      const num = (v) => (String(v).trim() === '' ? null : Number(String(v).replace(/[,\s]/g, '')));
+      return (await api(`/api/social/${p.id}`, { method: 'PUT', body: { likesDisplay: num(data.likes), commentsDisplay: num(data.comments) } })).post;
     },
   });
   if (res) redraw(res);

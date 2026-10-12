@@ -18,7 +18,7 @@ test('a version 1 database is upgraded through every migration in place and keep
   old.close();
 
   const db = openDb(path);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 9);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 10);
   const row = db.prepare("SELECT * FROM users WHERE username = 'old'").get();
   assert.equal(row.profile, '{}');
   assert.equal(row.banner, null);

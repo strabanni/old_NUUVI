@@ -44,14 +44,16 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 
 **Look and feel**
 - **Minimal and glassy:** a soft grey canvas (true black in Dark) with clean cards that float on soft shadows, frosted top bar, rail, menus and dialogs, pill buttons and tabs, and small motion: pages ease in, cards lift on hover, character cards tilt toward the pointer, tabs slide.
-- **Header pictures:** the main pages (Home, Feed, Events, Directory, Characters, NPCs, Notifications) open with a wide header picture that fades to the next one every few seconds. Admins pick them under **Admin → Headers** (uploads or links). Until then, the 16 pictures that ship in `public/headers/` are used. Each is shown whole (never cropped), over a blurred copy of itself, and they load one at a time to spare phone data.
+- **Header pictures:** the main pages (Home, Feed, Events, Directory, Characters, NPCs, Notifications) open with a wide header picture that fades to the next one every few seconds. Admins pick them under **Admin → Headers** (uploads are cropped to the banner's 3:1 shape automatically). Until then, the 16 pictures that ship in `public/headers/` are used, each pre-cropped to 3:1 around its faces and subject so it fills the banner neatly. They load one at a time to spare phone data.
 - **Default gradient:** pink to purple (`#EE719E` → `#C79AD8` → `#B8A6DB`) fills anything that has no picture yet: character cards, profile and story covers, event banners and header pictures.
+- **Your colors:** under **You & settings → Your colors**, pick your own gradient (presets or 2–3 colors of your own; the NUUVI pink-to-purple by default). It colors your display name everywhere and the writing-style bars on your profile.
+- **What's new:** every update has its own code (like `NV-17`, listed in `public/changelog.json`). The first time someone opens NUUVI after an update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh. Settings shows the current code and reopens the card.
+- **The lore:** **Lore** in the sidebar and a lore card on Home open your story's Overview.
 - **Home dashboard:** quick actions (new episode, post, event), a tappable "this week" calendar strip with what's coming up, and your latest notifications.
 - **Notifications** are sorted into tabs: All, For you, Activity and System.
 - **Pink (`#EE719E`) only on the brand touches:** the logo and "nuuvi" wordmark, the "···" in the top strip, your name and numbers in the greeting, and the ring on the selected item in the left rail. Everything else (buttons, tabs, badges, icons, chat bubbles, writing) follows Light or Dark: whites and greys with darkish-grey (`#48484A`) buttons and icons, or true blacks and dark greys with light-grey (`#B0AEAE`) ones. Light and Dark share the same pink logo.
   - **Light:** whites and light greys (`#FFFFFF` / `#F5F5F5` / `#B0AEAE`).
   - **Dark:** true blacks and dark greys (`#0E0E0F` / `#48484A`).
-  - **Neutral light** and **Neutral dark:** the same, without the pink brand touches (grey logo; characters' and stories' own colors stay).
   - **Auto** (the default): Light or Dark, following the device.
   - Chat bubbles and the writing itself are never pink: they use the theme's greys and text colors, plus each character's own chosen color for their AKA highlights and formatted words.
 - **Text size:** Normal, Large or Larger, under **You → Settings**. Post text is never justified.
@@ -68,7 +70,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - **Comms titles are personal:** each person sets their own contact names for the other characters, so the chat is titled with whatever you saved them as.
 - **Usernames for characters:** every character has an @username, made from their name (editable). Their social posts and comments go out under it, and it's the big name on their profile, with their given name above.
 - **Character profiles (Instagram style):** an optional full-width banner, a rounded-square picture, posts/followers/following/threads counts, a verified badge, bio, and tabs for recent posts, threads and details. Owners can set the follower and following numbers shown, for celebrity characters.
-- **Gradient colors:** instead of one color, a character can use a gradient of 2 or 3 colors (presets or your own). Their writing then picks colors from it: **bold** takes the first color, *actions* the middle, underlines the last, and their dialogue, name and AKA line sweep through the whole gradient.
+- **Gradient colors:** new characters start with the NUUVI gradient; instead of one color, a character can use a gradient of 2 or 3 colors (presets or your own). Their writing then picks colors from it: **bold** takes the first color, *actions* the middle, underlines the last, and their dialogue, name and AKA line sweep through the whole gradient.
 - **Character cards** show the character only; a writer's own page lists their characters.
 
 **Episodes & feed**
@@ -80,11 +82,11 @@ On phones the story rail stays on screen at all times, like Discord, with your s
   - **Complete:** read-only.
 - **An episode can have:** a starring character, tagged characters (who get notified), a plot summary and tags.
 - **The feed** shows only open threads, self paras, character social posts and events. Filters: all, open episodes, self paras, social, events and mine. You can also search.
-- **Character social posts:** text, photos, videos, voice notes (record in the app or upload) and streams, with likes and comments made as a character. Any post can carry a song (title, artist and an optional link), shown under the character's name like on Instagram.
+- **Character social posts:** text, photos, videos, voice notes (record in the app or upload) and streams, with likes and comments made as a character. The writer can set the like and comment numbers shown on each post (••• → **Set like & comment numbers**), for famous characters. Any post can carry a song (title, artist and an optional link), shown under the character's name like on Instagram.
 - **Feed layout:** a brick wall. Each card is as tall as its content and they pack together in order, in columns on computers and two columns on phones.
 - **Events:** put events on the calendar (title, start and end, place, details, banner) from the Events page, which shows them as cards or a month calendar. Starting a thread as type **Event** lets you pick one of the story's upcoming events; comms can optionally be part of one too. An event's page lists every thread and comms that's part of it.
 - **Phone:** every character has a phone (sidebar → **Phone**). Save other characters as contacts under any name you like, then text them one-to-one: pictures, replies and all. Only the two characters' writers can ever read a conversation. It's styled after a modern messaging app, with a soft gradient header, a contact strip and frosted chat bubbles. On computers your contacts and the conversation fill the page side by side, with a deeper gradient behind the contacts.
-- **NPCs page:** everyone's NPCs in one place (sidebar → **NPCs**), searchable and sorted into categories their writer picks (like `staff`, `foyaen`, `nightlife`). Anyone can tag any NPC into their episodes, even in stories the NPC's writer isn't in.
+- **NPCs page:** everyone's NPCs in one place (sidebar → **NPCs**), searchable and sorted into categories their writer picks (like `staff`, `foyaen`, `nightlife`). Open a category and its name shows in capitals with the NUUVI gradient. Anyone can tag any NPC into their episodes, even in stories the NPC's writer isn't in.
 - **NPCs:** tick **This is an NPC** on a character for an NPC badge. NPCs can also post and comment **on their own**: give them lines to pick from (with placeholders like `{name}`) and they'll comment on new posts now and then and post every so often. Admins can run an **anonymous gossip account** that also posts tips when public threads start or finish (never about private threads or stories). Admin → **NPCs & bots** controls how often, and can make any of them post right away.
 - Characters follow other characters, and their owners get notified.
 - **Directory:** every writer by username, each with their whole cast, or every character A–Z. Searchable. The gossip account is listed on its own, never under whoever runs it.

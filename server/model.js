@@ -7,7 +7,16 @@ export const toUser = (r, prefix = '') => ({
   username: r[`${prefix}username`],
   displayName: r[`${prefix}display_name`],
   avatar: r[`${prefix}avatar`] ?? null,
+  gradient: r[`${prefix}gradient`] ? r[`${prefix}gradient`].split(',') : null,
 });
+
+// A gradient: 2–3 hex stops, as a list or "#EE719E,#B8A6DB". Empty clears it (null); undefined leaves it.
+export function gradientInput(value) {
+  if (value === undefined) return undefined;
+  const stops = (Array.isArray(value) ? value : String(value || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
+  if (stops.length && (stops.length < 2 || stops.length > 3 || !stops.every((x) => /^#[0-9a-f]{6}$/i.test(x)))) fail(400, 'A gradient needs 2 or 3 colors');
+  return stops.length ? stops.join(',') : null;
+}
 
 export function toCharacter(r) {
   return {
@@ -25,6 +34,8 @@ const splitTags = (s) => (s ? s.split(',').filter(Boolean) : []);
 
 export const splitWarnings = (s) => (s ? s.split(',').map((w) => w.trim()).filter(Boolean) : []);
 
+const loreTagline = (json) => { try { return JSON.parse(json || '{}').tagline || ''; } catch { return ''; } };
+
 export function toStory(r) {
   return {
     id: r.id, ownerId: r.owner_id, title: r.title, summary: r.summary, genre: r.genre,
@@ -33,6 +44,7 @@ export function toStory(r) {
     createdAt: r.created_at, updatedAt: r.updated_at,
     memberCount: r.member_count, postCount: r.post_count, ownerName: r.owner_name,
     hasOverview: !!r.overview && r.overview !== '{}',
+    loreTagline: loreTagline(r.overview),
   };
 }
 
@@ -65,7 +77,7 @@ export function toPost(r) {
     replyTo: r.reply_to && r.reply_user_id != null
       ? { id: r.reply_to, name: r.reply_name, color: r.reply_color ?? null, text: plainText(r.reply_body || ''), hasMedia: r.reply_media !== '[]' }
       : null,
-    author: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.user_avatar },
+    author: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.user_avatar, gradient: r.user_gradient ? r.user_gradient.split(',') : null },
     character: r.character_id
       ? {
         id: r.character_id, name: r.character_name, color: r.character_color, avatar: r.character_avatar,
@@ -85,7 +97,7 @@ export const STORY_SELECT = `
   FROM stories s JOIN users u ON u.id = s.owner_id`;
 
 export const POST_SELECT = `
-  SELECT p.*, u.username, u.display_name, u.avatar AS user_avatar,
+  SELECT p.*, u.username, u.display_name, u.avatar AS user_avatar, u.gradient AS user_gradient,
     c.name AS character_name, c.color AS character_color, c.avatar AS character_avatar,
     c.portrait AS character_portrait, c.tagline AS character_tagline, c.details AS character_details,
     c.aka AS character_aka, c.post_align AS character_align, c.verified AS character_verified, c.gradient AS character_gradient,

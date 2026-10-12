@@ -1,0 +1,28 @@
+[
+  {
+    "code": "NV-17",
+    "date": "2026-10-12",
+    "title": "Your colors, the lore, and fitted headers",
+    "items": [
+      "Pick your own gradient under You & settings → Your colors. It colors your display name and the writing-style bars on your profile.",
+      "New characters start with the pink-to-purple gradient on their writing.",
+      "The lore has a home: tap Lore in the sidebar, or the lore card on Home.",
+      "Header pictures now fill their banner neatly, cropped around faces.",
+      "Set the like and comment numbers on your characters' posts (••• → Set like & comment numbers).",
+      "NPC categories show their name in capitals with the gradient when you open one.",
+      "Themes are now just Auto, Light and Dark.",
+      "This pop-up! You'll see what changed after each update."
+    ]
+  },
+  {
+    "code": "NV-16",
+    "date": "2026-10-12",
+    "title": "Comms sides, phone layout and formatting",
+    "items": [
+      "Comms between two of your own characters: the one who started it is the sender, on the right.",
+      "On computers, your phone's contacts and texts fill the page side by side.",
+      "Lots more formatting from Discord and Jcink (see + → Formatting guide). GIFs keep moving.",
+      "The Overview can open with a gossip column."
+    ]
+  }
+]

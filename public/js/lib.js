@@ -23,6 +23,9 @@ export function render(target, content) {
 // Inline style attributes are blocked by the CSP, so colors are applied from data attributes.
 // The NUUVI gradient (pink → lilac), the default wherever a picture or color is missing.
 export const BRAND_GRADIENT = ['#EE719E', '#C79AD8', '#B8A6DB'];
+// Gradient presets — the first is the NUUVI gradient.
+export const GRADIENT_PRESETS = [BRAND_GRADIENT, ['#F7A8C4', '#EE719E', '#9D7BD8'], ['#9DB7B8', '#A9A8CF', '#B8A6DB'], ['#F7D9A8', '#EE719E'],
+  ['#7AA7FF', '#B8A6DB', '#EE719E'], ['#2A2A2D', '#8F8D8E'], ['#E85D4A', '#F2B04C'], ['#4CB8A6', '#2E6FB8']];
 
 export function applyColors(root) {
   for (const el of root.querySelectorAll('[data-color]')) el.style.setProperty('--c', el.dataset.color);
@@ -36,6 +39,8 @@ export function applyColors(root) {
     el.style.setProperty('--g3', stops[stops.length - 1]);
   }
 }
+// A writer's own gradient (their display name and writing-style bars); the NUUVI gradient until they pick one.
+export const userGrad = (u) => raw(` data-grad="${esc((u?.gradient?.length ? u.gradient : BRAND_GRADIENT).join(','))}"`);
 export const gradAttr = (c) => (c?.gradient?.length ? raw(` data-grad="${esc(c.gradient.join(','))}"`) : '');
 
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -58,6 +63,26 @@ export async function api(path, { method = 'GET', body } = {}) {
 }
 
 // Resizes an image in the browser (which also strips EXIF data like GPS location) and uploads it.
+// Header pictures: center-cropped to the banner's 3:1 shape at full width (GIFs go up as they are).
+export async function uploadBanner(file) {
+  if (!file.type.startsWith('image/')) throw new Error('Please choose an image');
+  if (file.type === 'image/gif') return uploadImage(file);
+  const bitmap = await createImageBitmap(file);
+  const w = bitmap.width;
+  const h = Math.min(bitmap.height, Math.round(w / 3));
+  const cw = h === bitmap.height ? Math.round(h * 3) : w;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.min(1800, cw);
+  canvas.height = Math.round(canvas.width / 3);
+  // Faces usually sit in the upper half, so the crop leans a little above center.
+  const sy = Math.max(0, Math.round((bitmap.height - h) * 0.4));
+  const sx = Math.max(0, Math.round((w - cw) / 2));
+  canvas.getContext('2d').drawImage(bitmap, sx, sy, cw, h, 0, 0, canvas.width, canvas.height);
+  let blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', 0.88));
+  if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.88));
+  return uploadFile(blob);
+}
+
 export async function uploadImage(file, maxSize = 640) {
   if (!file.type.startsWith('image/')) throw new Error('Please choose an image');
   // GIFs go up as they are, so they keep moving (resizing would flatten them to one frame).

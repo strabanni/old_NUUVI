@@ -1,6 +1,6 @@
 // User profiles and your own settings (profile, password, notifications, blocked people).
-import { html, render, api, $, bindForm, toast, avatar, icons, confirmModal, promptModal, uploadImage, formatPost, timeAgo, askImageLink } from '../lib.js';
-import { state, page, refreshBlocks, signedOut, router, applyTheme, currentThemePick, THEMES, routeAlive, ensureAlive } from '../main.js';
+import { html, render, api, $, $$, bindForm, toast, avatar, icons, confirmModal, promptModal, uploadImage, formatPost, timeAgo, askImageLink, userGrad, applyColors, BRAND_GRADIENT, GRADIENT_PRESETS } from '../lib.js';
+import { state, page, refreshBlocks, signedOut, router, applyTheme, currentThemePick, THEMES, routeAlive, ensureAlive, APP_BUILD, showWhatsNew } from '../main.js';
 import { characterCard } from './characters.js';
 
 const ACTIVITY = { active: 'Very active', moderate: 'Moderately active', low: 'Low activity', hiatus: 'On hiatus' };
@@ -34,7 +34,7 @@ export async function viewUser(id) {
         <div class="hero-row">
           ${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'xxl square' })}
           <div>
-            <h1 class="big-name">${u.displayName}</h1>
+            <h1 class="big-name u-grad"${userGrad(u)}>${u.displayName}</h1>
             <div class="handle">@${u.username} · joined ${timeAgo(u.joinedAt)}
               ${u.isAdmin ? html` · <span class="grad-text">admin</span>` : ''}${u.suspended ? html` · <span class="muted">suspended</span>` : ''}</div>
           </div>
@@ -53,7 +53,7 @@ export async function viewUser(id) {
           ${u.bio ? html`<div class="prose spaced">${formatPost(u.bio)}</div>` : html`<p class="muted spaced"><em>No information</em></p>`}
           ${p.lookingFor ? html`<span class="eyebrow block-gap">Looking for</span><div class="prose">${formatPost(p.lookingFor)}</div>` : ''}
         </section>
-        ${styles.length ? html`<section class="card">
+        ${styles.length ? html`<section class="card"${userGrad(u)}>
           <span class="eyebrow">Writing style</span>
           <div class="spaced">${styles.map(([k, label]) => html`
             <div class="meter"><div class="meter-head"><span>${label}</span><span>${p.styles[k]}%</span></div>
@@ -66,6 +66,7 @@ export async function viewUser(id) {
         <div class="char-grid">${characters.map((c) => characterCard(c))}</div>` : ''}`,
   });
   for (const el of document.querySelectorAll('#main .meter-fill')) el.style.setProperty('--w', `${el.dataset.w}%`);
+  applyColors($('#main'));
   $('#main #block')?.addEventListener('click', async () => {
     if (!blocked && !(await confirmModal(`Block ${u.displayName}? Their posts will be hidden for you, they can't notify you, and they can't join stories you own.`, { ok: 'Block', danger: true }))) return;
     await api(blocked ? `/api/blocks/${u.id}` : '/api/blocks', { method: blocked ? 'DELETE' : 'POST', body: blocked ? undefined : { userId: u.id } });
@@ -125,8 +126,9 @@ export async function viewSettings() {
           <div class="seg scale-seg" role="group" aria-label="Interface size">${[['xsmall', 'Smallest'], ['compact', 'Small'], ['standard', 'Standard'], ['large', 'Large'], ['xlarge', 'Largest']].map(([k, label]) => html`
             <button type="button" data-ui-size="${k}" aria-pressed="${document.documentElement.dataset.ui === k}">${label}</button>`)}</div>
           <p class="hint">Makes the whole app smaller or bigger on this device — buttons, text and pictures together.${window.nuuviScale?.touch ? ' The app reloads to apply it.' : ''}</p>
-          <p class="hint">Light and Dark use pink (#EE719E) only for highlights. The Neutral themes have no pink at all. Auto follows your device's light or dark setting.</p>
+          <p class="hint">Light and Dark use pink (#EE719E) only for highlights. Auto follows your device's light or dark setting.</p>
           <p class="hint">Icons: <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer">Uicons by Flaticon</a>.</p>
+          <p class="hint">You're on update <b>${APP_BUILD}</b>. <button type="button" class="link" id="whats-new">What's new?</button></p>
         </section>
 
         <section class="card">
@@ -144,6 +146,17 @@ export async function viewSettings() {
             </div>
             <label for="p-name">Display name</label>
             <input id="p-name" name="displayName" required maxlength="40" value="${u.displayName}">
+            <label>Your colors</label>
+            <div class="grad-box me-grad"${userGrad(u)}>
+              <div class="grad-presets">${GRADIENT_PRESETS.map((g, i) => html`<button type="button" class="grad-preset" data-preset="${i}" data-grad="${g.join(',')}" aria-label="Gradient ${i + 1}"></button>`)}</div>
+              <div class="grad-stops">
+                ${[0, 1, 2].map((i) => html`<input type="color" data-stop="${i}" value="${(u.gradient || BRAND_GRADIENT)[i] || '#B8A6DB'}" aria-label="Color ${i + 1}">`)}
+                <label class="check small"><input type="checkbox" id="g-three" ${(u.gradient || BRAND_GRADIENT).length > 2 ? 'checked' : ''}> 3 colors</label>
+              </div>
+              <p class="grad-preview"><b class="u-grad big">${u.displayName}</b></p>
+              <div class="meter"><div class="meter-head"><span>Writing style</span><span>70%</span></div><div class="meter-track"><div class="meter-fill" data-w="70"></div></div></div>
+              <p class="hint">Your display name and the writing-style bars on your profile use these colors.</p>
+            </div>
             <div class="row">
               <div><label for="p-pronouns">Pronouns</label><input id="p-pronouns" name="pronouns" maxlength="30" value="${pr.pronouns || ''}" placeholder="she/her"></div>
               <div><label for="p-age">Age</label><input id="p-age" name="age" maxlength="20" value="${pr.age || ''}" placeholder="optional"></div>
@@ -246,6 +259,26 @@ export async function viewSettings() {
     if (b.dataset.link === 'avatar') render($('#me-pic', body), avatar({ name: u.displayName, src: url, size: 'xl square' }));
     else $('#banner-state', body).textContent = 'Banner set ✓';
   });
+  // Your colors: presets, 2 or 3 stops, and a live preview.
+  const gbox = $('.me-grad', body);
+  const stops = () => $$('[data-stop]', gbox).filter((x) => x.dataset.stop !== '2' || $('#g-three', gbox).checked).map((x) => x.value);
+  const drawGrad = () => {
+    $('[data-stop="2"]', gbox).hidden = !$('#g-three', gbox).checked;
+    gbox.dataset.grad = stops().join(',');
+    applyColors(gbox.parentElement);
+  };
+  $('.meter-fill', gbox).style.setProperty('--w', '70%');
+  gbox.addEventListener('input', drawGrad);
+  gbox.addEventListener('change', drawGrad);
+  gbox.addEventListener('click', (e) => {
+    const p = e.target.closest('[data-preset]');
+    if (!p) return;
+    const g = GRADIENT_PRESETS[Number(p.dataset.preset)];
+    $$('[data-stop]', gbox).forEach((x, i) => { if (g[i]) x.value = g[i]; });
+    $('#g-three', gbox).checked = g.length > 2;
+    drawGrad();
+  });
+  drawGrad();
   for (const r of profile.querySelectorAll('input[type=range]')) {
     r.addEventListener('input', () => { r.dataset.set = '1'; $(`#v-${r.name.slice(6)}`, body).textContent = `${r.value}%`; });
   }
@@ -272,13 +305,14 @@ export async function viewSettings() {
     applyTheme(sw.dataset.themePick);
     body.querySelectorAll('[data-theme-pick]').forEach((b) => b.setAttribute('aria-pressed', String(b === sw)));
   });
+  $('#whats-new', body).addEventListener('click', () => showWhatsNew());
   bindForm(profile, async (data) => {
     const styles = {};
     for (const r of profile.querySelectorAll('input[type=range]')) if (r.dataset.set) styles[r.name.slice(6)] = Number(r.value);
     const { displayName, bio, avatar: av, banner, ...rest } = data;
     const fields = {};
     for (const k of ['pronouns', 'age', 'timezone', 'status', 'activity', 'plots', 'lookingFor', 'limits']) fields[k] = rest[k] ?? '';
-    const payload = { displayName, bio, profile: { ...fields, styles } };
+    const payload = { displayName, bio, profile: { ...fields, styles }, gradient: stops() };
     if (av) payload.avatar = av;
     if (banner) payload.banner = banner;
     state.user = (await api('/api/me', { method: 'PUT', body: payload })).user;

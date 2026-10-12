@@ -1,6 +1,6 @@
 // App shell: Discord-style chrome (story rail, sidebar, members panel, mobile drawer + tab bar),
 // routing, and the live event connection.
-import { html, raw, render, api, $, $$, store, toast, avatar, icons, menu, confirmModal, logoMark, wordmark } from './lib.js';
+import { html, raw, render, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, logoMark, wordmark, userGrad } from './lib.js';
 import { viewLanding, viewReset } from './views/auth.js';
 import { viewHome, viewDiscover, viewNewStory, viewJoin } from './views/home.js';
 import { viewChannel } from './views/channel.js';
@@ -13,7 +13,7 @@ import { viewFeed, openThreadForm } from './views/threads.js';
 import { viewEvents, viewEvent } from './views/events.js';
 import { viewDirectory } from './views/directory.js';
 import { viewPhone, viewPhoneThread } from './views/phone.js';
-import { viewOverview } from './views/overview.js';
+import { viewOverview, viewLore } from './views/overview.js';
 import { viewNpcs } from './views/npcs.js';
 import { viewSocialPost } from './views/social.js';
 
@@ -91,27 +91,28 @@ export async function refreshBlocks() {
 }
 
 // ---------- Look & feel ----------
-export const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark'], ['mono-light', 'Neutral light'], ['mono-dark', 'Neutral dark']];
+export const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
 const THEME_COLORS = { light: '#FFFFFF', dark: '#0E0E0F' };
-// The user bar's theme button steps through these (neutral themes flip between their own light and dark).
-const THEME_CYCLE = { light: 'dark', dark: 'light', 'mono-light': 'mono-dark', 'mono-dark': 'mono-light' };
-const THEME_NAMES = { light: 'Light mode', dark: 'Dark mode', 'mono-light': 'Neutral light', 'mono-dark': 'Neutral dark' };
+// The user bar's theme button flips between these.
+const THEME_CYCLE = { light: 'dark', dark: 'light' };
+const THEME_NAMES = { light: 'Light mode', dark: 'Dark mode' };
 // Auto flips to whichever mode the device isn't showing right now.
 const nextTheme = () => THEME_CYCLE[currentThemePick()] || (document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 
 export function currentThemePick() {
   const v = store.get('nuuvi:theme');
-  return ['light', 'dark', 'mono-light', 'mono-dark'].includes(v) ? v : 'auto';
+  // The old Neutral themes became plain Light and Dark.
+  if (v === 'mono-light' || v === 'mono-dark') return v.slice(5);
+  return ['light', 'dark'].includes(v) ? v : 'auto';
 }
 
 export function applyTheme(pick = currentThemePick()) {
   store.set('nuuvi:theme', pick === 'auto' ? null : pick);
   const light = window.matchMedia('(prefers-color-scheme: light)').matches;
-  const theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick.replace('mono-', '');
+  const theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick;
   document.documentElement.dataset.theme = theme;
   document.documentElement.dataset.accent = 'neutral';
-  if (pick.startsWith('mono-')) delete document.documentElement.dataset.brand;
-  else document.documentElement.dataset.brand = 'pink';
+  document.documentElement.dataset.brand = 'pink';
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', THEME_COLORS[theme]);
   if (state.user) { renderUserbar(); renderRail(); }
 }
@@ -145,7 +146,7 @@ function userTiles({ vertical = false } = {}) {
     </${raw(attrs.href ? 'a' : 'button')}>`;
   return html`
     <nav class="ub-tiles ${vertical ? 'vertical' : ''}" aria-label="Your shortcuts">
-      ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon, 'mono-light': icons.sun, 'mono-dark': icons.moon }[next])}
+      ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon }[next])}
       ${tile({ href: '#/feed' }, 'Feed', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
       ${tile({ href: '#/characters' }, 'Characters', icons.user)}
@@ -186,7 +187,7 @@ function greetingFor(name) {
     greetingPick = pool[Math.floor(Math.random() * pool.length)];
   }
   const [before, after] = greetingPick.split('{n}');
-  return html`${before}<a class="grad-text greet-name" href="#/u/${state.user.id}" title="Your profile">${name}</a>${after}`;
+  return html`${before}<a class="u-grad greet-name"${userGrad(state.user)} href="#/u/${state.user.id}" title="Your profile">${name}</a>${after}`;
 }
 export const greeting = () => greetingFor(state.user.displayName);
 
@@ -293,7 +294,7 @@ function renderSidebar() {
       ${mobileWelcome}
       <div class="side-head"><a href="#/home" class="side-brand" aria-label="NUUVI home">${wordmark}</a></div>
       <div class="side-scroll">
-        <a href="#/u/${state.user.id}" class="nav-link me-link ${hash === `#/u/${state.user.id}` ? 'active' : ''}">${avatar({ name: state.user.displayName, src: state.user.avatar, color: '#EE719E', size: 'xs' })}<span>${state.user.displayName}</span><small>@${state.user.username}</small></a>
+        <a href="#/u/${state.user.id}" class="nav-link me-link ${hash === `#/u/${state.user.id}` ? 'active' : ''}">${avatar({ name: state.user.displayName, src: state.user.avatar, color: '#EE719E', size: 'xs' })}<span class="u-grad"${userGrad(state.user)}>${state.user.displayName}</span><small>@${state.user.username}</small></a>
         ${link('#/home', 'Home', icons.home)}
         ${link('#/feed', 'Feed', icons.apps)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
@@ -301,6 +302,7 @@ function renderSidebar() {
         ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
         ${link('#/npcs', 'NPCs', icons.sparkles)}
+        ${link('#/lore', 'Lore', icons.book)}
         ${link('#/discover', 'Discover', icons.compass)}
         ${state.user.isAdmin ? link('#/admin', 'Admin', icons.shield, state.home.reportsOpen) : ''}
         <div class="side-section"><span>Your stories</span><a href="#/new" class="icon-btn sm" title="Start a story" aria-label="Start a story">${icons.plus}</a></div>
@@ -321,7 +323,7 @@ function renderMembers() {
   const group = (title, list) => (list.length ? html`
     <div class="side-section"><span>${title} — ${list.length}</span></div>
     ${list.map((m) => html`<a class="member ${state.online.includes(m.id) ? 'is-online' : ''}" href="#/u/${m.id}"><span class="av-wrap">${avatar({ name: m.displayName, src: m.avatar, color: '#48484A' })}<i class="online-dot"></i></span>
-      <span>${m.displayName}${state.blocks.has(m.id) ? html` <small class="muted">(blocked)</small>` : ''}</span></a>`)}` : '');
+      <span><span class="u-grad"${userGrad(m)}>${m.displayName}</span>${state.blocks.has(m.id) ? html` <small class="muted">(blocked)</small>` : ''}</span></a>`)}` : '');
   render(panel, html`
     <div class="side-scroll">
       ${group('Owner', s.members.filter((m) => m.role === 'owner'))}
@@ -389,11 +391,11 @@ function startBanner(main) {
     // Pictures load one ahead of time, not all at once, to spare phone data.
     const imgs = [];
     const get = (n) => {
-      // Each picture is shown whole, over a blurred copy of itself that fills the rest of the banner.
+      // Pictures fill the banner (the bundled ones are pre-cropped to its 3:1 shape).
       if (!imgs[n]) {
         const slide = document.createElement('div');
         slide.className = 'pb-slide';
-        for (const cls of ['pb-bg', 'pb-fg']) { const img = new Image(); img.alt = ''; img.decoding = 'async'; img.className = cls; img.src = pics[n]; slide.append(img); }
+        const img = new Image(); img.alt = ''; img.decoding = 'async'; img.className = 'pb-fg'; img.src = pics[n]; slide.append(img);
         slide.img = slide.lastChild;
         banner.prepend(slide);
         imgs[n] = slide;
@@ -601,6 +603,7 @@ const routes = [
   [/^#\/characters$/, viewCharacters, true],
   [/^#\/directory$/, viewDirectory, true],
   [/^#\/npcs$/, viewNpcs, true],
+  [/^#\/lore$/, viewLore, true],
   [/^#\/phone(?:\/(\d+))?$/, viewPhone, true],
   [/^#\/phone\/(\d+)\/t\/(\d+)$/, viewPhoneThread, true],
   [/^#\/c\/(\d+)$/, viewCharacter],
@@ -673,6 +676,46 @@ export function signedOut() {
 }
 
 // ---------- Boot ----------
+// ---------- What's new ----------
+// Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
+// update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
+export const APP_BUILD = 'NV-17';
+let changelog = null;
+export async function loadChangelog() {
+  if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);
+  return changelog;
+}
+export async function showWhatsNew(entry) {
+  const list = await loadChangelog();
+  const e = entry || list[0];
+  if (!e) return;
+  modal(html`
+    <div class="whats-new">
+      <span class="wn-code">Update ${e.code}</span>
+      <h2>${e.title}</h2>
+      <p class="muted small">${new Date(`${e.date}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+      <ul>${e.items.map((it) => html`<li>${it}</li>`)}</ul>
+      <div class="actions end"><button type="button" class="primary" data-close>Got it</button></div>
+    </div>`).then(() => store.set('nuuvi:seen-update', e.code));
+}
+async function checkForUpdate() {
+  changelog = null;
+  const latest = (await loadChangelog())[0];
+  if (!latest) return;
+  if (latest.code !== APP_BUILD) {
+    // A newer NUUVI is on the server than the one running in this tab.
+    if ($('#update-bar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'update-bar';
+    bar.className = 'update-bar';
+    render(bar, html`<span>NUUVI was updated <b>(${latest.code})</b></span><button type="button" class="primary sm">Refresh</button>`);
+    bar.querySelector('button').addEventListener('click', () => location.reload());
+    document.body.append(bar);
+    return;
+  }
+  if (store.get('nuuvi:seen-update') !== latest.code) showWhatsNew(latest);
+}
+
 async function boot() {
   try {
     state.user = (await api('/api/me')).user;
@@ -690,6 +733,10 @@ async function boot() {
     }
   });
   router();
+  if (state.user) {
+    checkForUpdate().catch(() => {});
+    bus.addEventListener('reconnect', () => checkForUpdate().catch(() => {}));
+  }
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
     // Clicking a push notification while the app is open navigates here.
