@@ -2141,8 +2141,20 @@ html:has(body:not(.guest)) { overflow: hidden; overscroll-behavior: none; }
 .ov-motto q::before, .ov-motto q::after { color: var(--faint); font-size: 1.2em; }
 @media (max-width: 899px) { .ov-letter { padding: 20px 18px 18px; border-radius: 22px; } .ov-letter .prose { font-size: 1rem; } }
 @media (max-width: 899px) { .ov-letter .prose { font-size: .95rem; } .ov-letter .prose > p:first-child { font-size: 1.05rem; } }
-/* Phone texts: a smaller, slimmer message box, centered under the conversation. */
-.ph-compose { width: 80%; max-width: 300px; align-self: center; margin-left: auto; margin-right: auto; padding: 3px; gap: 4px; }
+/* Phone texts: a slimmer message box. */
+.ph-compose { padding: 3px; gap: 4px; }
 .ph-compose input { height: 30px; font-size: .85rem; }
 .ph-compose .ph-plus, .ph-compose .ph-send { width: 30px; height: 30px; }
 .ph-compose .ph-plus svg, .ph-compose .ph-send svg { width: 15px; height: 15px; }
+/* Phone on computers: contacts and the conversation fill the page side by side, same height,
+   the contacts as a fixed column and the conversation taking the rest. */
+@media (min-width: 900px) {
+  .main-body.phone-body { padding: 0 16px 16px; }
+  .phone-split { gap: 16px; padding: 0; align-items: stretch; justify-content: stretch; }
+  .phone-split > .phone, .phone-split > .phone.chat, .phone-split > .ph-pick { margin: 0; max-width: none; border-radius: 28px; }
+  .phone-split > .phone:first-child { flex: 0 0 340px; }
+  .phone-split > .phone.chat, .phone-split > .ph-pick { flex: 1 1 auto; min-width: 0; }
+  .phone-split .ph-chat { border-radius: 0 0 24px 24px; }
+  .phone-split .ph-msgs { padding-left: max(16px, calc((100% - 760px) / 2)); padding-right: max(16px, calc((100% - 760px) / 2)); }
+  .phone-split .ph-compose { width: min(760px, calc(100% - 32px)); margin-left: auto; margin-right: auto; }
+}
