@@ -18,6 +18,10 @@ On phones the story rail stays on screen at all times, like Discord, with your s
   - `||spoilers||`
   - `"dialogue"`
   - `@mentions`
+  - **Add-on codes** for building your own post layouts: `[center]`, `[right]`, `[box]`, `[h]`, `[hr]`, `[color=#hex]`, `[size=small|big|huge]`, `[caps]`, `[b] [i] [u] [s]`, `[img]link[/img]`, `[url=link]text[/url]`. The full list is under **+ → Formatting guide** in the composer.
+- **No length limit** on posts (technically capped at about 170,000 words, to protect the server).
+- **Pictures in any channel:** attach uploads or picture links to messages in comms, OOC and threads.
+- **Replies** in comms and OOC chats: reply to a message and it's quoted above yours (tap the quote to jump to it), and the person you replied to is notified.
 - Content warnings on stories (readers confirm before entering) and on single posts (tap to reveal).
 - Drafts save automatically per channel, and word counts show as you type. Ctrl/⌘+Enter posts.
 - **Stars:** star any post to bookmark it, then jump back to it from ★ at the top of the thread. Stars are private to you.
@@ -39,6 +43,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
   - **Light mode:** `#F5F5F5` / `#B0AEAE`.
   - **Dark mode:** `#48484A` / `#0E0E0F`.
   - Three themes that follow the logo's variants. **NUUVI** (the default) is blush with pink throughout. **Light** is true white and soft grey, and **Dark** is true neutral black with no blue tint. Both keep pink only for highlights: selected tabs, notifications, buttons and media.
+  - **Neutral light** and **Neutral dark:** white, grey and black only, with no pink anywhere (characters' and stories' own colors stay).
   - **Auto:** switches between Light and Dark with the device.
 - **Logo:** the NUUVI mark sits at the top of the story rail, with a live count of who's online (tap it to see who). The "nuuvi" wordmark heads the sidebar and sign-in page.
 - **Icons:** [Uicons by Flaticon](https://www.flaticon.com/uicons) for the main shortcuts (feed, characters, profile, sign out, menu, follow, music).
@@ -51,7 +56,8 @@ On phones the story rail stays on screen at all times, like Discord, with your s
   - **Computer:** across the top.
   - **Phone:** runs vertically down the slide-out drawer.
   - **Shows:** your avatar, "Welcome back", your stats, and shortcuts (light/dark, feed, alerts, characters, settings, sign out).
-- **Threads:** forum-style posts with the character's name in capitals, an "aka" line the owner writes, avatar, star button, and "for …" footer. Each character's owner chooses whether the name sits on the left or the right. Bold, italic, underlined and quoted words take the character's own color. Comms and OOC channels read like text messages.
+- **Threads:** plain forum-style posts without a frame, so writers can format them their own way. Each post shows the character's name in capitals, an "aka" line the owner writes, avatar, star button, and a "for …" footer. Names switch sides automatically each time a different writer posts. Bold, italic, underlined and quoted words take the character's own color. Comms and OOC channels read like text messages.
+- **Comms icons:** each comms thread can have its own icon, an emoji or a picture, to show which app it's in (texts, DMs, socials…).
 - **Comms titles are personal:** each person sets their own contact names for the other characters, so the chat is titled with whatever you saved them as.
 - **Character profiles (Instagram style):** an optional full-width banner, a rounded-square picture, posts/followers/following/threads counts, a verified badge, bio, and tabs for recent posts, threads and details. Owners can set the follower and following numbers shown, for celebrity characters.
 - **Character cards** show the character only; a writer's own page lists their characters.
@@ -69,6 +75,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - **Feed layout:** a brick wall. Each card is as tall as its content and they pack together in order, in columns on computers and two columns on phones.
 - **Events page:** upcoming events as cards or as a month calendar.
 - Characters follow other characters, and their owners get notified.
+- **Directory:** every writer by username, each with their whole cast, or every character A–Z. Searchable.
 
 **Safety and privacy**
 - **A quiet sign-in page:** just the logo and the form, nothing that describes the site.
@@ -76,6 +83,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - **Invite-only sign-up.** The first account becomes the admin. Everyone after that needs an invite code from an admin.
 - **No email addresses or phone numbers are collected.** The only personal data is a username and a password hash.
 - Uploads are checked by their actual file contents, and each person has 2 GB of storage.
+- **Picture links:** anywhere you can upload a picture you can also paste a link to one (Pinterest, Tumblr, Imgur…). Links must be `https://`. The site hosting a linked picture can see the internet address of whoever views it, the same as on any forum; uploads don't have that issue.
 - Uploaded pictures are resized in the browser before upload, which strips hidden photo data like GPS location.
 - **Blocking:** a blocked person's posts are hidden for you, they can't notify you, and they can't join stories you own.
 - **Reports:** anyone can report a post or a person, and admins get notified.

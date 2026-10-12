@@ -1,7 +1,7 @@
 // The feed (every thread you can see, filterable by type) and the start/edit-a-thread form.
-import { html, render, applyColors, api, $, $$, toast, avatar, icons, modal } from '../lib.js';
+import { html, render, applyColors, api, $, $$, toast, avatar, icons, modal, uploadImage, askImageLink } from '../lib.js';
 import { socialCard, bindSocial, openSocialComposer, styleBars } from './social.js';
-import { state, page, loadStory, refreshHome, myCharacters, routeAlive, KIND_LABELS, kindIcon } from '../main.js';
+import { state, page, loadStory, refreshHome, myCharacters, routeAlive, KIND_LABELS, kindIcon, channelIcon } from '../main.js';
 
 const STATUS_LABELS = { open: 'Open', closed: 'Private', complete: 'Complete' };
 export const statusPill = (c) => (c.kind === 'ooc' ? '' : html`<span class="pill-tag status-${c.status}">${STATUS_LABELS[c.status]}</span>`);
@@ -124,6 +124,9 @@ export async function viewFeed() {
 }
 
 // Start a new thread, or edit one (pass `channel`). If no story is given, the form asks which.
+// Quick picks for a comms thread's icon (texts, DMs, socials, work chat…).
+const COMMS_EMOJI = ['💬', '📱', '💌', '📸', '🐦', '🎮', '💼', '🖤', '🩷', '✨', '🔒', '📞'];
+
 export async function openThreadForm({ storyId = null, channel = null, tag = [] } = {}) {
   document.body.classList.remove('drawer-open', 'members-open');
   const editing = !!channel;
@@ -152,6 +155,20 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [] 
           ${editing ? html`<option value="complete" ${c.status === 'complete' ? 'selected' : ''}>Complete — read only</option>` : ''}
         </select></div>
       </div>
+      <div id="t-icon" ${(c.kind || 'thread') === 'comms' ? '' : 'hidden'}>
+        <label>Icon <span class="muted small">— which app is this? Pick an emoji or use a picture</span></label>
+        <div class="icon-picker">
+          <span class="icon-preview" id="t-icon-preview"></span>
+          ${COMMS_EMOJI.map((e) => html`<button type="button" class="emoji-pick" data-emoji="${e}">${e}</button>`)}
+        </div>
+        <div class="row-inline">
+          <input id="t-icon-text" maxlength="8" placeholder="or type an emoji" value="${c.icon && !/^(\/|https:)/.test(c.icon) ? c.icon : ''}">
+          <label class="btn sm file-btn">Upload<input type="file" accept="image/*" id="t-icon-file" hidden></label>
+          <button type="button" class="sm link-btn" id="t-icon-link">Link</button>
+          <button type="button" class="sm" id="t-icon-clear">None</button>
+        </div>
+        <input type="hidden" name="icon" value="${c.icon || ''}">
+      </div>
       <div id="t-event" ${(c.kind || 'thread') === 'event' ? '' : 'hidden'}>
         <label for="t-when">Event date & time</label>
         <input id="t-when" type="datetime-local" name="eventAt" value="${eventLocal}">
@@ -174,7 +191,27 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [] 
     </form>`, {
     init: (d, close) => {
       const form = d.querySelector('form');
-      form.kind.addEventListener('change', () => { $('#t-event', d).hidden = form.kind.value !== 'event'; });
+      form.kind.addEventListener('change', () => {
+        $('#t-event', d).hidden = form.kind.value !== 'event';
+        $('#t-icon', d).hidden = form.kind.value !== 'comms';
+      });
+      const setIcon = (v) => {
+        form.icon.value = v || '';
+        render($('#t-icon-preview', d), v ? channelIcon({ icon: v, kind: 'comms' }) : kindIcon('comms'));
+      };
+      setIcon(form.icon.value);
+      $('#t-icon', d).addEventListener('click', async (e) => {
+        const pick = e.target.closest('[data-emoji]');
+        if (pick) { $('#t-icon-text', d).value = pick.dataset.emoji; setIcon(pick.dataset.emoji); }
+        if (e.target.closest('#t-icon-clear')) { $('#t-icon-text', d).value = ''; setIcon(''); }
+        if (e.target.closest('#t-icon-link')) { const url = await askImageLink(); if (url) setIcon(url); }
+      });
+      $('#t-icon-text', d).addEventListener('input', (e) => setIcon(e.target.value.trim()));
+      $('#t-icon-file', d).addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try { setIcon(await uploadImage(file, 256)); } catch (err) { toast(err.message); }
+      });
       const picker = $('#t-tagged', d);
       const loadTaggable = async (id) => {
         const { characters: all } = await api(`/api/stories/${id}/characters`).catch(() => ({ characters: [] }));
@@ -203,6 +240,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [] 
         name: data.name, kind: data.kind, status: data.status, summary: data.summary, tags: data.tags, tagged,
         eventAt: data.kind === 'event' && data.eventAt ? new Date(data.eventAt).toISOString() : null,
       };
+      if (data.kind === 'comms') payload.icon = data.icon || null;
       if (!editing && data.characterId) payload.characterId = Number(data.characterId);
       const res = editing
         ? await api(`/api/channels/${c.id}`, { method: 'PUT', body: payload })

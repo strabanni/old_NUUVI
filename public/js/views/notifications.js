@@ -10,6 +10,7 @@ function describe(n) {
     case 'report': return html`${n.text}`;
     case 'follow': return html`<strong>${n.text}</strong>`;
     case 'tag': return html`<strong>${n.actor?.displayName}</strong> tagged your character in ${where}`;
+    case 'reply': return html`<strong>${n.actor?.displayName}</strong> replied to you in ${where}`;
     default: return n.text;
   }
 }

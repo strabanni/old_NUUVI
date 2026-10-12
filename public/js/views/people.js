@@ -1,5 +1,5 @@
 // User profiles and your own settings (profile, password, notifications, blocked people).
-import { html, render, api, $, bindForm, toast, avatar, icons, confirmModal, promptModal, uploadImage, formatPost, timeAgo } from '../lib.js';
+import { html, render, api, $, bindForm, toast, avatar, icons, confirmModal, promptModal, uploadImage, formatPost, timeAgo, askImageLink } from '../lib.js';
 import { state, page, refreshBlocks, signedOut, router, applyTheme, currentThemePick, THEMES, routeAlive, ensureAlive } from '../main.js';
 import { characterCard } from './characters.js';
 
@@ -135,8 +135,8 @@ export async function viewSettings() {
             <div class="char-pic-row">
               <div id="me-pic">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'xl square' })}</div>
               <div class="stack">
-                <label class="btn sm file-btn">Profile picture<input type="file" accept="image/*" id="me-file" hidden></label>
-                <label class="btn sm file-btn">Banner<input type="file" accept="image/*" id="banner-file" hidden></label>
+                <span class="row-inline"><label class="btn sm file-btn">Profile picture<input type="file" accept="image/*" id="me-file" hidden></label><button type="button" class="sm link-btn" data-link="avatar">Link</button></span>
+                <span class="row-inline"><label class="btn sm file-btn">Banner<input type="file" accept="image/*" id="banner-file" hidden></label><button type="button" class="sm link-btn" data-link="banner">Link</button></span>
                 <span class="hint" id="banner-state">${u.banner ? 'Banner set ✓' : 'A wide picture for the top of your profile'}</span>
                 <input type="hidden" name="avatar" value="${u.avatar || ''}">
                 <input type="hidden" name="banner" value="${u.banner || ''}">
@@ -236,6 +236,15 @@ export async function viewSettings() {
       profile.banner.value = await uploadImage(file, 1600);
       $('#banner-state', body).textContent = 'Banner set ✓';
     } catch (err) { toast(err.message); }
+  });
+  profile.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-link]');
+    if (!b) return;
+    const url = await askImageLink();
+    if (!url) return;
+    profile[b.dataset.link].value = url;
+    if (b.dataset.link === 'avatar') render($('#me-pic', body), avatar({ name: u.displayName, src: url, size: 'xl square' }));
+    else $('#banner-state', body).textContent = 'Banner set ✓';
   });
   for (const r of profile.querySelectorAll('input[type=range]')) {
     r.addEventListener('input', () => { r.dataset.set = '1'; $(`#v-${r.name.slice(6)}`, body).textContent = `${r.value}%`; });

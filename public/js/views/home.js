@@ -1,4 +1,4 @@
-import { html, render, api, $, bindForm, timeAgo, toast, uploadImage, avatar, icons } from '../lib.js';
+import { html, render, api, $, bindForm, timeAgo, toast, uploadImage, avatar, icons, askImageLink } from '../lib.js';
 import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive, greeting } from '../main.js';
 import { feedCard, masonry } from './threads.js';
 
@@ -128,10 +128,10 @@ export function storyFields(s = {}) {
     <div class="row">
       <div class="fixed"><label for="color">Icon color</label><input type="color" id="color" name="color" value="${s.color || '#F8769C'}"></div>
       <div><label for="icon-file">Icon picture</label>
-        <input type="file" id="icon-file" accept="image/*"><input type="hidden" name="icon" value="${s.icon || ''}"></div>
+        <span class="row-inline"><input type="file" id="icon-file" accept="image/*"><button type="button" class="sm link-btn" data-link="icon">Link</button></span><input type="hidden" name="icon" value="${s.icon || ''}"></div>
     </div>
-    <label for="banner-file">Banner picture <span class="muted small">— shown on the story card and blurred behind the story</span></label>
-    <input type="file" id="banner-file" accept="image/*"><input type="hidden" name="banner" value="${s.banner || ''}">`;
+    <label for="banner-file">Banner picture <span class="muted small">— shown on the story card</span></label>
+    <span class="row-inline"><input type="file" id="banner-file" accept="image/*"><button type="button" class="sm link-btn" data-link="banner">Link</button></span><input type="hidden" name="banner" value="${s.banner || ''}">`;
 }
 
 export function bindIconUpload(form) {
@@ -145,6 +145,12 @@ export function bindIconUpload(form) {
   });
   hook('#icon-file', 'icon', 256, 'Icon');
   hook('#banner-file', 'banner', 1600, 'Banner');
+  form.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-link]');
+    if (!b) return;
+    const url = await askImageLink();
+    if (url) { form[b.dataset.link].value = url; toast(`${b.dataset.link === 'icon' ? 'Icon' : 'Banner'} set`); }
+  });
 }
 
 export function viewNewStory() {

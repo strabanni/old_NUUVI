@@ -1,13 +1,23 @@
 // Posts inside channels, plus reporting posts and users.
 import { fail, str, oneOf, countWords } from '../http.js';
-import { toPost, POST_SELECT, requireUser, channelAccess, storyAccess, membership, turnState } from '../model.js';
+import { toPost, POST_SELECT, requireUser, channelAccess, storyAccess, membership, turnState, uploadRef, isBlocked } from '../model.js';
+import { plainText } from '../text.js';
 
-const MAX_POST_CHARS = 30000;
+// No practical limit on how long a post can be (about 170,000 words); the cap only guards the server.
+const MAX_POST_CHARS = 1_000_000;
+const MAX_PICTURES = 10;
 const PAGE = 50;
 
 export function postRoutes(r, ctx) {
   const { db, hub } = ctx;
   const loadPost = (postId) => toPost(db.prepare(`${POST_SELECT} WHERE p.id = ?`).get(postId));
+  // Pictures attached to a message: uploads or https:// picture links.
+  const pictures = (value, userId) => {
+    if (value === undefined || value === null) return [];
+    if (!Array.isArray(value)) fail(400, 'Pictures must be a list');
+    if (value.length > MAX_PICTURES) fail(400, `At most ${MAX_PICTURES} pictures per message`);
+    return value.map((v) => uploadRef(db, v, userId) ?? fail(400, 'Picture missing'));
+  };
 
   r.get('/api/channels/:id/posts', ({ user, params, query }) => {
     const { channel } = channelAccess(db, params.id, user);
@@ -33,8 +43,16 @@ export function postRoutes(r, ctx) {
       fail(403, channel.status === 'complete' ? 'This thread is complete' : 'This thread is private to the characters in it');
     }
     const kind = oneOf(body.kind, 'Kind', ['ic', 'ooc', 'narration']) ?? 'ic';
-    const text = str(body.body, 'Post', { min: 1, max: MAX_POST_CHARS, required: true });
+    const media = pictures(body.media, user.id);
+    const text = str(body.body, 'Post', { max: MAX_POST_CHARS }) ?? '';
+    if (!text && !media.length) fail(400, 'Write something or add a picture');
     const cw = str(body.cw, 'Content warning', { max: 100 }) ?? '';
+    let replyTo = null;
+    if (body.replyTo != null) {
+      const target = db.prepare('SELECT id, user_id FROM posts WHERE id = ? AND channel_id = ?').get(Number(body.replyTo), channel.id);
+      if (!target) fail(400, 'That message is gone');
+      replyTo = target;
+    }
 
     let characterId = null;
     if (kind === 'ic' && body.characterId == null) fail(400, 'Pick a character to write in-character');
@@ -44,8 +62,8 @@ export function postRoutes(r, ctx) {
       characterId = c.id;
     }
 
-    const { lastInsertRowid } = db.prepare(`INSERT INTO posts (story_id, channel_id, user_id, character_id, kind, body, cw, word_count)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(story.id, channel.id, user.id, characterId, kind, text, cw, countWords(text));
+    const { lastInsertRowid } = db.prepare(`INSERT INTO posts (story_id, channel_id, user_id, character_id, kind, body, cw, word_count, reply_to, media)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(story.id, channel.id, user.id, characterId, kind, text, cw, countWords(text), replyTo?.id ?? null, JSON.stringify(media));
     const postId = Number(lastInsertRowid);
     db.prepare("UPDATE stories SET updated_at = datetime('now') WHERE id = ?").run(story.id);
     db.prepare("UPDATE channels SET last_post_at = datetime('now') WHERE id = ?").run(channel.id);
@@ -56,6 +74,10 @@ export function postRoutes(r, ctx) {
     const post = loadPost(postId);
     hub.sendStory(story.id, 'post', post);
     ctx.notifyPost(post, story, channel);
+    if (replyTo && replyTo.user_id !== user.id && !isBlocked(db, replyTo.user_id, user.id)) {
+      ctx.notify({ userId: replyTo.user_id, type: 'reply', actorId: user.id, storyId: story.id, channelId: channel.id, postId,
+        text: plainText(text) || 'sent a picture' });
+    }
 
     // Writing your scene post passes the turn along.
     const turns = turnState(channel);
@@ -67,10 +89,12 @@ export function postRoutes(r, ctx) {
     requireUser(user);
     const existing = db.prepare('SELECT * FROM posts WHERE id = ?').get(params.id);
     if (!existing || existing.user_id !== user.id) fail(404, 'Post not found');
-    const text = str(body.body, 'Post', { min: 1, max: MAX_POST_CHARS, required: true });
+    const text = str(body.body, 'Post', { max: MAX_POST_CHARS }) ?? existing.body;
+    const media = body.media === undefined ? JSON.parse(existing.media || '[]') : pictures(body.media, user.id);
+    if (!text && !media.length) fail(400, 'Write something or add a picture');
     const cw = str(body.cw, 'Content warning', { max: 100 }) ?? existing.cw;
-    db.prepare("UPDATE posts SET body = ?, cw = ?, word_count = ?, edited_at = datetime('now') WHERE id = ?")
-      .run(text, cw, countWords(text), existing.id);
+    db.prepare("UPDATE posts SET body = ?, cw = ?, word_count = ?, media = ?, edited_at = datetime('now') WHERE id = ?")
+      .run(text, cw, countWords(text), JSON.stringify(media), existing.id);
     const post = loadPost(existing.id);
     hub.sendStory(existing.story_id, 'edit', post);
     return { data: { post } };

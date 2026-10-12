@@ -112,26 +112,74 @@ export function timeStamp(sqlDate) {
 export const minutesBetween = (a, b) => Math.abs(parseDate(a) - parseDate(b)) / 60000;
 
 // Roleplay formatting. Input is escaped first, so only these patterns produce markup:
-// **bold**, *action*, __underline__, ~~strike~~, ||spoiler||, "dialogue", @mentions, > quotes.
-export function formatPost(text) {
-  const inline = (s) => s
+// **bold**, *action*, __underline__, ~~strike~~, ||spoiler||, "dialogue", @mentions, > quotes,
+// plus forum-style add-on codes writers use to build their own post layouts:
+//   [center] [right] [box] [h] … [/…] (blocks)   [hr]   [img]https://…[/img]   [url=https://…]text[/url]
+//   [color=#hex] [size=small|big|huge] [caps] [b] [i] [u] [s] … [/…] (inline)
+// Colors become data-color (applied by render()), so no inline styles are needed.
+const PIC = /^(?:https:\/\/[^\s"<>\[\]]+|\/uploads\/[\w-]+\.(?:png|jpg|webp|gif))$/;
+const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const BLOCKS = { center: 'fx-center', right: 'fx-right', box: 'fx-box', h: 'fx-h' };
+
+// Escaped quotes or brackets never belong in a link (they'd only be there to break out of it).
+const safeUrl = (url) => !/&(?:quot|#39|lt|gt);/.test(url);
+
+function inlineFormat(s) {
+  // Links are set aside first so no other formatting can reach inside an address.
+  const kept = [];
+  const keep = (markup) => `\u0000${kept.push(markup) - 1}\u0000`;
+  return s
+    .replace(/\[img\]\s*(\S+?)\s*\[\/img\]/gi, (m, url) => (PIC.test(url) && safeUrl(url)
+      ? keep(`<img class="fx-img" src="${url}" alt="" loading="lazy">`) : m))
+    .replace(/\[url=([^\]\s]+)\]([\s\S]*?)\[\/url\]/gi, (m, url, text) => (/^https?:\/\/[^\s"<>]+$/.test(url) && safeUrl(url)
+      ? `${keep(`<a href="${url}" target="_blank" rel="noopener noreferrer nofollow">`)}${text}</a>` : m))
+    .replace(/\[color=([^\]]+)\]([\s\S]*?)\[\/color\]/gi, (m, c, text) => (HEX.test(c) ? `<span class="fx-color" data-color="${c}">${text}</span>` : m))
+    .replace(/\[size=(small|big|huge)\]([\s\S]*?)\[\/size\]/gi, (m, size, text) => `<span class="fx-${size.toLowerCase()}">${text}</span>`)
+    .replace(/\[caps\]([\s\S]*?)\[\/caps\]/gi, '<span class="fx-caps">$1</span>')
+    .replace(/\[b\]([\s\S]*?)\[\/b\]/gi, '<strong>$1</strong>')
+    .replace(/\[i\]([\s\S]*?)\[\/i\]/gi, '<em>$1</em>')
+    .replace(/\[u\]([\s\S]*?)\[\/u\]/gi, '<u>$1</u>')
+    .replace(/\[s\]([\s\S]*?)\[\/s\]/gi, '<s>$1</s>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em class="action">$1</em>')
     .replace(/__(.+?)__/g, '<u>$1</u>')
     .replace(/~~(.+?)~~/g, '<s>$1</s>')
     .replace(/\|\|(.+?)\|\|/g, '<span class="spoiler" tabindex="0">$1</span>')
     .replace(/(&quot;|“)(.+?)(&quot;|”)/g, '<span class="dialogue">$1$2$3</span>')
-    .replace(/(^|[\s(>])@([^\s@<&]+?)(?=[.,!?;:)\]]*(?:\s|$|<|&))/gu, '$1<span class="mention">@$2</span>');
-  return raw(esc(text)
+    .replace(/(^|[\s(>])@([^\s@<&]+?)(?=[.,!?;:)\]]*(?:\s|$|<|&))/gu, '$1<span class="mention">@$2</span>')
+    .replace(/\u0000(\d+)\u0000/g, (_, i) => kept[i]);
+}
+
+function paragraphs(text) {
+  return text
+    .replace(/^[ \t]*\[hr\][ \t]*$/gim, '\n\n[hr]\n\n')
     .split(/\n{2,}/)
+    .map((para) => para.replace(/^\n+|\n+$/g, ''))
+    .filter((para) => para.trim())
     .map((para) => {
+      if (/^\s*\[hr\]\s*$/i.test(para)) return '<hr class="fx-hr">';
       const lines = para.split('\n');
       if (lines.every((l) => l.startsWith('&gt; ') || l === '&gt;')) {
-        return `<blockquote>${inline(lines.map((l) => l.replace(/^&gt; ?/, '')).join('<br>'))}</blockquote>`;
+        return `<blockquote>${inlineFormat(lines.map((l) => l.replace(/^&gt; ?/, '')).join('<br>'))}</blockquote>`;
       }
-      return `<p>${inline(para).replace(/\n/g, '<br>')}</p>`;
+      return `<p>${inlineFormat(para).replace(/\n/g, '<br>')}</p>`;
     })
-    .join(''));
+    .join('');
+}
+
+// Block codes can hold several paragraphs (and other blocks), so they're split out first.
+function blocks(text) {
+  const m = text.match(/\[(center|right|box|h)\]([\s\S]*?)\[\/\1\]/i);
+  if (!m) return paragraphs(text);
+  const before = text.slice(0, m.index);
+  const after = text.slice(m.index + m[0].length);
+  const tag = m[1].toLowerCase();
+  const inner = tag === 'h' ? inlineFormat(m[2].trim()) : blocks(m[2]);
+  return `${paragraphs(before)}<div class="${BLOCKS[tag]}">${inner}</div>${blocks(after)}`;
+}
+
+export function formatPost(text) {
+  return raw(blocks(esc(String(text ?? "").replace(/\u0000/g, ""))));
 }
 
 const initial = (name) => (name || '?').trim().charAt(0).toUpperCase();
@@ -291,5 +339,24 @@ export const icons = {
   verified: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M12 2.5l2.4 1.8 3-.2.9 2.9 2.5 1.7-1 2.8 1 2.8-2.5 1.7-.9 2.9-3-.2L12 21.5l-2.4-1.8-3 .2-.9-2.9-2.5-1.7 1-2.8-1-2.8 2.5-1.7.9-2.9 3 .2z"/><path d="m8.5 12 2.4 2.4 4.6-4.8" stroke="var(--base)" stroke-width="2"/></svg>'),
   grid: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>'),
   play: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path class="fill" d="M8 5.5v13l11-6.5z"/></svg>'),
+  reply: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 6 6v1"/></svg>'),
   hourglass: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9"/></svg>'),
+};
+
+// Instead of uploading, use a picture that's already online (Pinterest, Tumblr, Imgur…).
+// Note: the site hosting the picture can see the addresses of people who view it.
+export async function askImageLink(title = 'Use a picture link') {
+  const v = await promptModal(title, { label: 'Paste the picture’s web address', placeholder: 'https://i.pinimg.com/…', maxlength: 2000, ok: 'Use picture' });
+  if (!v) return null;
+  const url = v.trim();
+  try { if (new URL(url).protocol === 'https:') return url; } catch { /* not a URL */ }
+  toast('That needs to be a picture link starting with https://');
+  return null;
+}
+
+// Post text as plain words (for previews): formatting codes and markup symbols removed.
+export const plainText = (body = '', max = 80) => {
+  const t = String(body).replace(/\[img\][\s\S]*?\[\/img\]/gi, ' ').replace(/\[url=[^\]]*\]([\s\S]*?)\[\/url\]/gi, '$1')
+    .replace(/\[\/?(?:center|right|box|h|hr|color|size|caps|b|i|u|s)(?:=[^\]]*)?\]/gi, ' ').replace(/\|\||[*_~`>]/g, '').replace(/\s+/g, ' ').trim();
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 };

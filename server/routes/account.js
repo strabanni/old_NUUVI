@@ -274,6 +274,27 @@ export function accountRoutes(r, ctx) {
     return { data: { characters: rows.map((c) => ({ ...toCharacter(c), followers: c.followers })) } };
   });
 
+  // Directory: every writer (by username) and every character in their cast.
+  // Suspended accounts and people on either side of a block are left out.
+  r.get('/api/directory', ({ user }) => {
+    requireUser(user);
+    const hidden = new Set(db.prepare('SELECT blocked_id AS id FROM blocks WHERE blocker_id = ? UNION SELECT blocker_id FROM blocks WHERE blocked_id = ?')
+      .all(user.id, user.id).map((r) => r.id));
+    const users = db.prepare('SELECT * FROM users WHERE banned_at IS NULL ORDER BY username COLLATE NOCASE').all().filter((u) => !hidden.has(u.id));
+    const chars = db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id) AS followers
+      FROM characters c ORDER BY c.name COLLATE NOCASE`).all();
+    const byUser = new Map(users.map((u) => [u.id, []]));
+    for (const c of chars) byUser.get(c.user_id)?.push({ ...toCharacter(c), followers: c.followers });
+    return {
+      data: {
+        writers: users.map((u) => ({
+          id: u.id, username: u.username, displayName: u.display_name, avatar: u.avatar ?? null,
+          isAdmin: !!u.is_admin, joinedAt: u.created_at, characters: byUser.get(u.id),
+        })),
+      },
+    };
+  });
+
   // Count overrides: "" or null clears, otherwise a whole number (celebrities can have 2,400,000 followers).
   const countInput = (v, field) => {
     if (v === undefined) return undefined;

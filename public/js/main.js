@@ -10,6 +10,7 @@ import { viewUser, viewSettings } from './views/people.js';
 import { viewNotifications } from './views/notifications.js';
 import { viewAdmin } from './views/admin.js';
 import { viewFeed, openThreadForm, viewEvents } from './views/threads.js';
+import { viewDirectory } from './views/directory.js';
 import { viewSocialPost } from './views/social.js';
 
 export const state = {
@@ -86,22 +87,24 @@ export async function refreshBlocks() {
 }
 
 // ---------- Look & feel ----------
-export const THEMES = [['base', 'NUUVI'], ['light', 'Light'], ['dark', 'Dark'], ['auto', 'Auto']];
+export const THEMES = [['base', 'NUUVI'], ['light', 'Light'], ['dark', 'Dark'], ['mono-light', 'Neutral light'], ['mono-dark', 'Neutral dark'], ['auto', 'Auto']];
 const THEME_COLORS = { base: '#F8EFEF', light: '#FFFFFF', dark: '#0E0E0F' };
-// The user bar's theme button steps through these.
-const THEME_CYCLE = { base: 'light', light: 'dark', dark: 'base' };
-const THEME_NAMES = { base: 'NUUVI pink', light: 'Light mode', dark: 'Dark mode' };
+// The user bar's theme button steps through these (neutral themes flip between their own light and dark).
+const THEME_CYCLE = { base: 'light', light: 'dark', dark: 'base', auto: 'base', 'mono-light': 'mono-dark', 'mono-dark': 'mono-light' };
+const THEME_NAMES = { base: 'NUUVI pink', light: 'Light mode', dark: 'Dark mode', 'mono-light': 'Neutral light', 'mono-dark': 'Neutral dark' };
 
 export function currentThemePick() {
   const v = store.get('nuuvi:theme');
-  return ['light', 'dark', 'auto'].includes(v) ? v : 'base';
+  return ['light', 'dark', 'mono-light', 'mono-dark', 'auto'].includes(v) ? v : 'base';
 }
 
 export function applyTheme(pick = currentThemePick()) {
   store.set('nuuvi:theme', pick === 'base' ? null : pick);
   const light = window.matchMedia('(prefers-color-scheme: light)').matches;
-  const theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick;
+  const theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick.replace('mono-', '');
   document.documentElement.dataset.theme = theme;
+  if (pick.startsWith('mono-')) document.documentElement.dataset.accent = 'neutral';
+  else delete document.documentElement.dataset.accent;
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', THEME_COLORS[theme]);
   if (state.user) { renderUserbar(); renderRail(); }
 }
@@ -127,7 +130,7 @@ const fmt = (n) => Number(n || 0).toLocaleString();
 // The Blue Hour-style user bar. Horizontal across the top on computers; on phones it runs
 // vertically down the drawer, where the story rail is.
 function userTiles({ vertical = false } = {}) {
-  const next = THEME_CYCLE[document.documentElement.dataset.theme] || 'light';
+  const next = THEME_CYCLE[currentThemePick()] || 'light';
   const n = state.home.notificationsUnread;
   const tile = (attrs, label, icon, badge = 0) => html`
     <${raw(attrs.href ? 'a' : 'button')} class="ub-tile" ${raw(attrs.href ? `href="${attrs.href}"` : `type="button" data-ub="${attrs.act}"`)} title="${label}" aria-label="${label}">
@@ -135,7 +138,7 @@ function userTiles({ vertical = false } = {}) {
     </${raw(attrs.href ? 'a' : 'button')}>`;
   return html`
     <nav class="ub-tiles ${vertical ? 'vertical' : ''}" aria-label="Your shortcuts">
-      ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon, base: icons.sparkle }[next])}
+      ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon, base: icons.sparkle, 'mono-light': icons.sun, 'mono-dark': icons.moon }[next])}
       ${tile({ href: '#/feed' }, 'Feed', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
       ${tile({ href: '#/characters' }, 'Characters', icons.user)}
@@ -232,6 +235,10 @@ function renderRail() {
 
 export const KIND_LABELS = { thread: 'Threads', para: 'Self paras', comms: 'Comms', event: 'Events', ooc: 'Out of character' };
 export const kindIcon = (kind) => ({ thread: icons.quill, para: icons.feather, comms: icons.chat, event: icons.calendar, ooc: icons.hash })[kind] || icons.hash;
+// A channel's own icon (set per comms thread): a picture, an emoji, or the icon for its type.
+export const channelIcon = (c) => (!c.icon ? kindIcon(c.kind)
+  : /^(\/|https:)/.test(c.icon) ? html`<img class="ch-icon-img" src="${c.icon}" alt="">`
+    : html`<span class="ch-emoji">${c.icon}</span>`);
 
 function renderSidebar() {
   const side = $('#sidebar');
@@ -258,7 +265,7 @@ function renderSidebar() {
             const myTurn = c.turns.enabled && c.turns.current === state.user.id;
             return html`
             <a href="#/s/${s.story.id}/${c.id}" class="chan ${state.route.channelId === c.id ? 'active' : ''} ${c.unread ? 'unread' : ''} status-${c.status}">
-              <span class="hash">${kindIcon(c.kind)}</span><span class="name">${c.name}</span>
+              <span class="hash">${channelIcon(c)}</span><span class="name">${c.name}</span>
               ${c.kind !== 'ooc' && c.status !== 'open' ? html`<span class="chan-status" title="${c.status === 'closed' ? 'Private thread' : 'Complete'}">${c.status === 'closed' ? icons.lock : icons.check}</span>` : ''}
               ${myTurn ? html`<span class="turn-dot" title="Your turn">${icons.hourglass}</span>` : ''}
               ${c.mentions ? html`<span class="badge">${c.mentions}</span>` : ''}
@@ -281,6 +288,7 @@ function renderSidebar() {
         ${link('#/feed', 'Feed', icons.apps)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
         ${link('#/characters', 'Characters', icons.user)}
+        ${link('#/directory', 'Directory', icons.users)}
         ${link('#/discover', 'Discover', icons.compass)}
         ${state.user.isAdmin ? link('#/admin', 'Admin', icons.shield, state.home.reportsOpen) : ''}
         <div class="side-section"><span>Your stories</span><a href="#/new" class="icon-btn sm" title="Start a story" aria-label="Start a story">${icons.plus}</a></div>
@@ -375,7 +383,7 @@ function setupDrawer() {
     if (e.target.closest('#online-btn')) { showOnline(e.target.closest('#online-btn')); return; }
     const ub = e.target.closest('[data-ub]');
     if (ub?.dataset.ub === 'theme') {
-      applyTheme(THEME_CYCLE[document.documentElement.dataset.theme] || 'light');
+      applyTheme(THEME_CYCLE[currentThemePick()] || 'light');
       return;
     }
     if (ub?.dataset.ub === 'logout') {
@@ -507,6 +515,7 @@ const routes = [
   [/^#\/new$/, viewNewStory, true],
   [/^#\/notifications$/, viewNotifications, true],
   [/^#\/characters$/, viewCharacters, true],
+  [/^#\/directory$/, viewDirectory, true],
   [/^#\/c\/(\d+)$/, viewCharacter],
   [/^#\/u\/(\d+)$/, viewUser],
   [/^#\/settings$/, viewSettings, true],

@@ -1,5 +1,5 @@
 // Character social media: posts (text, photo, video, voice note, stream), likes, comments.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive } from '../main.js';
 
 const KINDS = [['text', 'Text', 'text'], ['photo', 'Photo', 'image'], ['video', 'Video', 'video'], ['voice', 'Voice note', 'mic'], ['stream', 'Stream', 'live']];
@@ -221,7 +221,8 @@ export async function openSocialComposer({ characterId = null } = {}) {
             ${(kind === 'photo' && media.length < 10) || (!media.length) ? html`<label class="add-media">${kind === 'video' ? icons.video : icons.image}
               <span>${kind === 'photo' ? 'Add photos' : kind === 'video' ? 'Add a video' : 'Add a thumbnail'}</span>
               <input type="file" accept="${accept}" id="s-file" ${kind === 'photo' ? 'multiple' : ''} hidden></label>` : ''}
-          </div>`);
+          </div>
+          ${kind !== 'video' && ((kind === 'photo' && media.length < 10) || !media.length) ? html`<button type="button" class="sm link-btn" id="s-link-pic">${icons.image} Use a picture link instead</button>` : ''}`);
       };
       const setKind = (k) => {
         if (recorder) { recorder.stop(); recorder = null; }
@@ -248,6 +249,10 @@ export async function openSocialComposer({ characterId = null } = {}) {
         const rm = e.target.closest('[data-rm]');
         if (rm) { media.splice(Number(rm.dataset.rm), 1); drawMedia(); }
         if (e.target.closest('#rec-clear')) { media = []; drawMedia(); }
+        if (e.target.closest('#s-link-pic')) {
+          const url = await askImageLink();
+          if (url) { media.push(url); drawMedia(); }
+        }
         if (e.target.closest('#rec-btn')) {
           if (recorder) { recorder.stop(); return; }
           recorder = await startRecording({

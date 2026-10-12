@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -327,6 +327,10 @@ const MIGRATIONS = [
    CREATE INDEX notifications_user_idx ON notifications(user_id, id);`,
   // v5: optional profile banner for characters (separate from the portrait on their card).
   `ALTER TABLE characters ADD COLUMN banner TEXT;`,
+  // v6: replies and pictures on posts (comms / OOC), and an icon per channel (comms threads).
+  `ALTER TABLE posts ADD COLUMN reply_to INTEGER REFERENCES posts(id) ON DELETE SET NULL;
+   ALTER TABLE posts ADD COLUMN media TEXT NOT NULL DEFAULT '[]';
+   ALTER TABLE channels ADD COLUMN icon TEXT;`,
 ];
 
 export function openDb(path) {

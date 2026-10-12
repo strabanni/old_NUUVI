@@ -1,14 +1,33 @@
 // A channel inside a story: the post feed, turn order bar and composer.
 import {
-  html, raw, esc, render, applyColors, api, $, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
-  formatPost, timeStamp, minutesBetween, words, bindForm,
+  html, raw, esc, render, applyColors, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
+  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText,
 } from '../lib.js';
 import {
-  state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon,
+  state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon,
 } from '../main.js';
 import { statusPill, openThreadForm } from './threads.js';
 
 const nameOf = (u) => u?.displayName ?? 'someone';
+
+// Every formatting code, with what it looks like.
+const FORMATS = [
+  ['*action*', 'italic action'], ['**bold**', 'bold'], ['__underline__', 'underline'], ['~~strike~~', 'strikethrough'],
+  ['"dialogue"', 'dialogue'], ['||spoiler||', 'hidden until tapped'], ['> quote', 'a quote (start the line with >)'], ['@username', 'mention someone'],
+  ['[center]…[/center]', 'centered (can hold paragraphs)'], ['[right]…[/right]', 'right-aligned'], ['[box]…[/box]', 'a box in your character’s color'],
+  ['[h]Heading[/h]', 'a big heading'], ['[hr]', 'a divider line (on its own line)'], ['[color=#ff7aa2]…[/color]', 'any color, as a #hex code'],
+  ['[size=small]…[/size]', 'small, big or huge'], ['[caps]…[/caps]', 'ALL CAPS'], ['[b] [i] [u] [s]', 'bold, italic, underline, strike'],
+  ['[img]https://…[/img]', 'a picture from a link'], ['[url=https://…]text[/url]', 'a link'],
+];
+function formattingGuide() {
+  modal(html`
+    <div class="fmt-guide">
+      <h2>Formatting</h2>
+      <p class="muted small">Mix and match these to build your own post layouts. Formatted words take your character’s color.</p>
+      <dl>${FORMATS.map(([code, what]) => html`<dt><code>${code}</code></dt><dd>${what}</dd>`)}</dl>
+      <div class="actions end"><button type="button" class="primary" data-close>Got it</button></div>
+    </div>`);
+}
 
 function dayLabel(sqlDate) {
   if (!sqlDate) return '';
@@ -91,7 +110,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const c = channel();
   const body = page({
     alive,
-    title: c.kind === 'comms' && commsTitle() ? html`<span class="hash-title">${kindIcon(c.kind)}</span>${commsTitle()}` : html`<span class="hash-title">${kindIcon(c.kind)}</span>${c.name}`,
+    title: c.kind === 'comms' && commsTitle() ? html`<span class="hash-title">${channelIcon(c)}</span>${commsTitle()}` : html`<span class="hash-title">${channelIcon(c)}</span>${c.name}`,
     subtitle: c.topic || (c.kind === 'ooc' ? 'Out of character' : `${KIND_LABELS[c.kind]} · ${({ open: 'open', closed: 'private', complete: 'complete' })[c.status]}`),
     actions: html`
       <button class="btn sm starred-btn" id="starred-btn" title="Starred moments" hidden>${icons.star}<b>0</b></button>
@@ -131,12 +150,13 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const menuBtn = html`<button class="icon-btn sm post-menu" data-act="menu" aria-label="Post options">${icons.more}</button>`;
 
   // Forum-style thread post (in-character or narration in a thread / event).
-  function threadPost(p) {
+  // Thread posts alternate sides on their own: the name/picture flips whenever a different writer posts.
+  function threadPost(p, side = 'left') {
     const ch = p.kind === 'ic' ? p.character : null;
     const others = participants.filter((x) => x.id !== ch?.id);
     const pic = ch?.avatar || ch?.portrait;
     return html`
-      <article class="tpost align-${ch?.postAlign || 'right'} ${p.userId === state.user?.id ? 'mine' : ''} ${starred.has(p.id) ? 'is-starred' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"` : ''}>
+      <article class="tpost align-${side} ${p.userId === state.user?.id ? 'mine' : ''} ${starred.has(p.id) ? 'is-starred' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"` : ''}>
         <header class="tp-head">
           <div class="tp-id">
             ${ch ? html`<a class="tp-name" href="#/c/${ch.id}">${ch.name}</a>${akaLine(ch)}`
@@ -153,7 +173,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
         </div>
         <div class="tp-body">
           <div class="tp-star">${icons.star}</div>
-          ${cwWrap(p, html`<div class="body">${formatPost(p.body)}</div>`)}
+          ${cwWrap(p, html`${p.body ? html`<div class="body">${formatPost(p.body)}</div>` : ''}${pictures(p)}`)}
           <footer class="tp-foot">
             <span>${p.wordCount} words</span>
             ${others.length ? html`<span>for ${others.map((o, i) => html`${i ? ', ' : ''}${charLink(o)}`)}</span>` : ''}
@@ -175,22 +195,32 @@ export async function viewChannel(storyIdStr, channelIdStr) {
         ${mine ? '' : html`<a class="b-av" href="${ch ? `#/c/${ch.id}` : `#/u/${p.userId}`}">${grouped ? '' : av}</a>`}
         <div class="b-col">
           ${grouped ? '' : html`<div class="b-name">${ch ? html`<a href="#/c/${ch.id}" class="cast-name" data-color="${ch.color}">${name}</a>` : html`<a href="#/u/${p.userId}">${name}</a>`}${p.kind === 'ooc' && storyStyle() ? html` <span class="ooc-badge">OOC</span>` : ''}</div>`}
-          <div class="b-bubble">
-            ${cwWrap(p, html`<div class="body">${formatPost(p.body)}</div>`)}
+          <div class="b-bubble ${p.body ? '' : 'pics-only'}">
+            ${p.replyTo ? html`<button type="button" class="b-reply" data-act="jump" data-to="${p.replyTo.id}" data-color="${p.replyTo.color || ''}">
+              ${icons.reply}<b>${p.replyTo.name}</b><span>${p.replyTo.text || (p.replyTo.hasMedia ? 'Picture' : '')}</span></button>` : ''}
+            ${cwWrap(p, html`${pictures(p)}${p.body ? html`<div class="body">${formatPost(p.body)}</div>` : ''}`)}
             <span class="b-time">${timeStamp(p.createdAt).replace(/^Today at /, '')}${p.editedAt ? ' · edited' : ''}</span>
+            ${state.user && role ? html`<button class="icon-btn sm b-reply-btn" data-act="reply" aria-label="Reply" title="Reply">${icons.reply}</button>` : ''}
             ${menuBtn}
           </div>
         </div>
       </article>`;
   }
 
-  function postHtml(p, prev) {
+  // Pictures attached to a message (uploads or picture links). Tap to open full size.
+  function pictures(p) {
+    if (!p.media?.length) return '';
+    return html`<div class="b-pics n${Math.min(p.media.length, 4)}">${p.media.map((u) => html`
+      <a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="" loading="lazy"></a>`)}</div>`;
+  }
+
+  function postHtml(p, prev, side) {
     if (blocked(p)) {
       return html`<article class="post blocked" id="post-${p.id}" data-id="${p.id}">
         <div class="blocked-note">Post from a blocked user. <button class="link" data-act="reveal">Show</button></div>
         <div class="hidden-content">${cwWrap(p, html`<div class="body">${formatPost(p.body)}</div>`)}</div></article>`;
     }
-    return storyStyle() && p.kind !== 'ooc' ? threadPost(p) : bubble(p, prev);
+    return storyStyle() && p.kind !== 'ooc' ? threadPost(p, side) : bubble(p, prev);
   }
 
   // Top of a thread: title, status, tags, cast and the plot box.
@@ -204,6 +234,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       <section class="thread-head">
         ${when ? html`<div class="event-date"><span>${when.toLocaleDateString(undefined, { month: 'short' })}</span><b>${when.getDate()}</b></div>` : ''}
         <span class="eyebrow">${KIND_LABELS[ch.kind]} · ${state.story.story.title}</span>
+        ${ch.icon ? html`<span class="th-icon">${channelIcon(ch)}</span>` : ''}
         <h1 class="th-title">${ch.kind === 'comms' && commsTitle() ? commsTitle() : ch.name}</h1>
         ${ch.kind === 'comms' ? html`<p class="muted small">${commsTitle() ? `${ch.name} · ` : ''}<button class="link" id="contacts-btn" type="button">Edit contact names</button></p>` : ''}
         <div class="th-meta">
@@ -221,6 +252,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const list = [...posts.values()].sort((a, b) => a.id - b.id);
     const before = scroller.scrollHeight - scroller.scrollTop;
     let prev = null;
+    let side = 'right';
+    let lastWriter = null;
     const items = [];
     if (hasMore) items.push(html`<div class="load-more"><button id="load-more">Load earlier posts</button></div>`);
     else items.push(threadHead());
@@ -228,7 +261,12 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       const day = dayLabel(p.createdAt);
       if (day !== dayLabel(prev?.createdAt)) items.push(html`<div class="day-pill"><span>${day}</span></div>`);
       if (p.id === dividerBefore) items.push(html`<div class="new-divider">New</div>`);
-      items.push(postHtml(p, prev));
+      if (storyStyle() && p.kind !== 'ooc') {
+        const writer = p.kind === 'ic' && p.character ? `c${p.character.id}` : `u${p.userId}`;
+        if (writer !== lastWriter) side = side === 'left' ? 'right' : 'left';
+        lastWriter = writer;
+      }
+      items.push(postHtml(p, prev, side));
       prev = p;
     }
     feed.classList.toggle('chat-style', !storyStyle());
@@ -243,8 +281,11 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const divider = $('.new-divider', feed);
   if (divider) divider.scrollIntoView({ block: 'center' });
   else toBottom();
-  // Images can change the height after first paint.
+  // Images can change the height after first paint; stay pinned to the bottom if you were there.
   requestAnimationFrame(() => { if (!divider) toBottom(); });
+  feed.addEventListener('load', (e) => {
+    if (e.target.tagName === 'IMG' && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < e.target.offsetHeight + 200) toBottom();
+  }, true);
 
   // ---------- Read state ----------
   let readTimer;
@@ -276,6 +317,13 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     }
     const spoiler = e.target.closest('.spoiler');
     if (spoiler) { spoiler.classList.add('revealed'); return; }
+    // On touch screens a message's reply / ⋯ buttons appear when you tap it.
+    const tapped = e.target.closest('.bubble');
+    if (tapped && !e.target.closest('a, button, .b-pics')) {
+      const wasOpen = tapped.classList.contains('show-actions');
+      $$('.bubble.show-actions', feed).forEach((x) => x.classList.remove('show-actions'));
+      if (!wasOpen) tapped.classList.add('show-actions');
+    }
     const cw = e.target.closest('.cw-toggle');
     if (cw) { cw.parentElement.classList.toggle('open'); return; }
     const btn = e.target.closest('[data-act]');
@@ -283,6 +331,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const article = btn.closest('[data-id]');
     const p = posts.get(Number(article.dataset.id));
     if (btn.dataset.act === 'reveal') { article.classList.toggle('revealed'); return; }
+    if (btn.dataset.act === 'jump') { jumpTo(Number(btn.dataset.to)); return; }
+    if (btn.dataset.act === 'reply') { startReply(p); return; }
     if (btn.dataset.act === 'menu') postMenu(btn, p, article);
     if (btn.dataset.act === 'star') toggleStar(p);
   });
@@ -294,7 +344,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       mine && { label: 'Edit', action: () => editPost(p, article) },
       { label: starred.has(p.id) ? 'Remove star' : 'Star this moment', action: () => toggleStar(p) },
       { label: 'Copy text', action: () => copyText(p.body, 'Copied') },
-      !mine && state.user && { label: `Reply to ${p.author.displayName}`, action: () => mention(p.author.username) },
+      role && !storyStyle() && { label: 'Reply', action: () => startReply(p) },
+      role && storyStyle() && !mine && { label: `Mention ${p.author.displayName}`, action: () => mention(p.author.username) },
       !mine && state.user && { label: 'Report post', action: () => reportPost(p) },
       !mine && state.user && (state.blocks.has(p.userId)
         ? { label: `Unblock ${p.author.displayName}`, action: () => toggleBlock(p.author, false) }
@@ -307,7 +358,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const content = $('.tp-body, .b-bubble, .content', article);
     render(content, html`
       <form class="edit-form">
-        <textarea name="body" maxlength="30000" rows="6">${p.body}</textarea>
+        <textarea name="body" rows="6">${p.body}</textarea>
         <input name="cw" maxlength="100" placeholder="Content warning (optional)" value="${p.cw}">
         <div class="error"></div>
         <div class="actions"><button type="submit" class="primary">Save</button><button type="button" data-cancel>Cancel</button><span class="hint">Esc to cancel</span></div>
@@ -380,6 +431,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   // ---------- Composer ----------
   const wrap = $('#composer-wrap', body);
   let mention = () => {};
+  let startReply = () => {};
   if (role && !detail.canPost) {
     render(wrap, html`<div class="composer-locked">${channel().status === 'complete' ? 'This thread is complete — it\'s read-only now.' : 'This is a private thread for the characters in it.'}</div>`);
   } else if (!role) {
@@ -404,6 +456,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
 
     render(wrap, html`
       <form class="composer" id="composer">
+        <div class="composer-extra" id="composer-extra" hidden></div>
         <div class="composer-top">
           <button type="button" class="identity no-swipe" id="identity" aria-label="Choose who you're writing as"></button>
           <span class="cw-chip" id="cw-chip" hidden></span>
@@ -412,7 +465,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
         </div>
         <div class="composer-box">
           <div class="composer-tools"><button type="button" class="icon-btn" id="more-btn" title="Content warning & more" aria-label="More options">${icons.plus}</button></div>
-          <textarea id="post-body" name="body" rows="1" maxlength="30000" aria-label="Write a post"></textarea>
+          <textarea id="post-body" name="body" rows="1" aria-label="Write a post"></textarea>
           <div class="composer-tools"><button type="submit" class="icon-btn send" title="Post (Ctrl+Enter)" aria-label="Post">${icons.send}</button></div>
         </div>
         <div class="error"></div>
@@ -423,6 +476,42 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const idBtn = $('#identity', form);
     const wc = $('#wc', form);
     const cwChip = $('#cw-chip', form);
+    const extra = $('#composer-extra', form);
+    let attached = [];
+    let replying = null;
+
+    // Reply bar and attached pictures, above the text box.
+    function drawExtra() {
+      extra.hidden = !replying && !attached.length;
+      render(extra, html`
+        ${replying ? html`<div class="reply-bar">${icons.reply}<span>Replying to <b>${replying.character ? shownName(replying.character) : replying.author.displayName}</b>
+          <small>${plainText(replying.body) || 'Picture'}</small></span><button type="button" class="icon-btn sm" id="reply-cancel" aria-label="Cancel reply">✕</button></div>` : ''}
+        ${attached.length ? html`<div class="attach-row">${attached.map((u, i) => html`
+          <span class="thumb"><img src="${u}" alt=""><button type="button" data-unattach="${i}" aria-label="Remove picture">✕</button></span>`)}</div>` : ''}`);
+    }
+    extra.addEventListener('click', (e) => {
+      if (e.target.closest('#reply-cancel')) { replying = null; drawExtra(); return; }
+      const rm = e.target.closest('[data-unattach]');
+      if (rm) { attached.splice(Number(rm.dataset.unattach), 1); drawExtra(); }
+    });
+    startReply = (p) => { replying = p; drawExtra(); ta.focus(); };
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.multiple = true;
+    picker.hidden = true;
+    form.append(picker);
+    picker.addEventListener('change', async () => {
+      for (const f of [...picker.files].slice(0, 10 - attached.length)) {
+        try { toast('Uploading…'); attached.push(await uploadImage(f, 1600)); } catch (err) { toast(err.message); }
+      }
+      picker.value = '';
+      drawExtra();
+    });
+    const addPictureLink = async () => {
+      const url = await askImageLink();
+      if (url) { attached.push(url); drawExtra(); }
+    };
 
     function drawIdentity() {
       const ch = identity.startsWith('c:') ? characters.find((x) => `c:${x.id}` === identity) : null;
@@ -471,10 +560,12 @@ export async function viewChannel(storyIdStr, channelIdStr) {
 
     const moreBtn = $('#more-btn', form);
     moreBtn.addEventListener('click', () => menu(moreBtn, [
+      attached.length < 10 && { label: 'Add pictures…', action: () => picker.click() },
+      attached.length < 10 && { label: 'Add a picture link…', action: addPictureLink },
       { label: `${cw ? 'Change' : 'Add'} content warning`, action: askCw },
       detail.canManage && channel().kind !== 'ooc' && { label: 'Thread details…', action: editThread },
       channel().kind === 'comms' && { label: 'Contact names…', action: editContacts },
-      { label: 'Formatting help', action: () => toast('*action*  **bold**  "dialogue"  ||spoiler||  > quote  @mention') },
+      { label: 'Formatting guide', action: formattingGuide },
     ]));
 
     async function sendPost(payload) {
@@ -492,10 +583,13 @@ export async function viewChannel(storyIdStr, channelIdStr) {
 
     bindForm(form, async () => {
       const text = ta.value.trim();
-      if (!text) return;
-      await sendPost({ ...payloadBase(), body: text, cw });
+      if (!text && !attached.length) return;
+      await sendPost({ ...payloadBase(), body: text, cw, media: attached, replyTo: replying?.id ?? null });
       ta.value = '';
       cw = '';
+      attached = [];
+      replying = null;
+      drawExtra();
       cwChip.hidden = true;
       store.set(draftKey, null);
       update();
@@ -555,8 +649,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     menu(anchor, [...starred].sort((x, y) => x - y).map((id) => {
       const p = known.get(id);
       const who = p ? (p.character?.name || p.author.displayName) : 'Earlier post';
-      const snip = p ? p.body.replace(/[*_~|>]/g, '').slice(0, 60) : '';
-      return { label: `★ ${who}${snip ? ` — ${snip}…` : ''}`, action: () => jumpTo(id) };
+      const snip = p ? plainText(p.body, 60) : '';
+      return { label: `★ ${who}${snip ? ` — ${snip}` : ''}`, action: () => jumpTo(id) };
     }));
   });
   drawStarBtn();

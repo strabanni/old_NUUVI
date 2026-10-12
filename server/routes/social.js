@@ -1,6 +1,6 @@
 // Characters as social profiles: following other characters, followers, and the threads they're in.
 import { fail, id, str, oneOf } from '../http.js';
-import { toCharacter, requireUser, isBlocked } from '../model.js';
+import { toCharacter, requireUser, isBlocked, imageLink } from '../model.js';
 
 export function socialRoutes(r, ctx) {
   const { db } = ctx;
@@ -168,6 +168,8 @@ export function socialPostRoutes(r, ctx) {
     if (list === undefined) return [];
     if (!Array.isArray(list) || list.length > 10) fail(400, 'At most 10 attachments');
     return list.map((url) => {
+      // Photos and stream thumbnails can also be https:// picture links.
+      if ((kind === 'photo' || kind === 'stream') && imageLink(url)) return imageLink(url);
       const m = typeof url === 'string' && url.match(/^\/uploads\/([\w-]+\.[a-z0-9]+)$/);
       if (!m || !db.prepare('SELECT 1 FROM uploads WHERE name = ? AND user_id = ?').get(m[1], userId)) fail(400, 'Upload the file first');
       if (!MEDIA_EXT[kind]?.test(m[1])) fail(400, `That file can't be used in a ${kind} post`);

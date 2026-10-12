@@ -1357,3 +1357,156 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
   .ig-profile.has-banner .ig-stats { transform: translateY(24px); }
   .ig-id { padding-top: 20px; }
 }
+
+/* ---------- v8: neutral themes — white, grey and black, no pink at all ---------- */
+/* Picked as "Neutral light" / "Neutral dark": <html data-theme="light|dark" data-accent="neutral">.
+   Characters' and stories' own colors are the writers' choice, so those stay. */
+[data-accent=neutral] {
+  --pompadour: #8A8788;
+  --mimi: #E4E3E3;
+  --accent-soft: #E4E3E3;
+  --tint: transparent;
+  --heading: var(--text);
+  --logo-n: #FFFFFF;
+  --logo-spark: #B0AEAE;
+}
+[data-accent=neutral][data-theme=light] {
+  --accent: #111112;
+  --accent-fg: #111112;
+  --accent-strong: #1A1A1B;
+  --on-accent: #FFFFFF;
+  --accent-ink: #FFFFFF;
+  --grad: linear-gradient(100deg, #111112, #6E6A6C);
+  --mention: #111112;
+  --logo-tile: #111112;
+  --logo-ring: #111112;
+  --logo-word: #111112;
+}
+[data-accent=neutral][data-theme=dark] {
+  --accent: #F5F5F5;
+  --accent-fg: #FFFFFF;
+  --accent-strong: #F5F5F5;
+  --on-accent: #0E0E0F;
+  --accent-ink: #0E0E0F;
+  --grad: linear-gradient(100deg, #FFFFFF, #B0AEAE);
+  --mention: #FFFFFF;
+  --logo-tile: #0E0E0F;
+  --logo-ring: #F5F5F5;
+  --logo-word: #FFFFFF;
+}
+[data-accent=neutral] .rail-item.rail-logo > svg.logo-mark,
+[data-accent=neutral] .hero-logo .logo-mark { filter: drop-shadow(0 6px 14px rgb(0 0 0 / .22)); }
+/* The app's own pink default for people without a picture turns grey too. */
+[data-accent=neutral] [data-color="#F8769C" i] { --c: #6E6A6C !important; }
+.swatch[data-theme-pick=mono-light] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #FFFFFF; border: 2px solid #111112; }
+.swatch[data-theme-pick=mono-dark] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #0E0E0F; border: 2px solid #F5F5F5; }
+
+/* ---------- v8: thread posts without the frame — plain writing writers can format themselves ---------- */
+.tpost { background: none; border: 0; border-radius: 0; -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible; }
+.feed > .tpost { margin: 0 auto; padding: 26px 0 30px; border-bottom: 1px solid var(--glass-border); }
+.tp-head, .tpost.align-left .tp-head { background: none; padding: 0 26px; gap: 14px; }
+.tp-name { font-size: clamp(1.25rem, 2.6vw, 1.7rem); }
+.tp-aka { margin-top: 5px; }
+.tp-avatar { width: 56px; height: 56px; border-radius: 12px; box-shadow: none; }
+.tp-bar { border: 0; background: none; padding: 6px 18px 0; justify-content: flex-start; gap: 4px; color: var(--muted); }
+.tpost.align-right .tp-bar { justify-content: flex-end; }
+.tp-bar .post-menu { margin-left: 2px; }
+.tp-body { margin: 18px auto 0; padding: 0 26px; }
+.tp-body::before, .tp-star { display: none; }
+.tp-foot { margin-top: 16px; }
+.tpost.is-starred { box-shadow: none; }
+.tpost.is-starred .tp-name::after { content: ' ★'; color: var(--accent-fg); font-size: .6em; vertical-align: .35em; }
+@media (max-width: 899px) {
+  .feed > .tpost { width: calc(100% - 12px); padding: 18px 0 22px; }
+  .tp-head, .tpost.align-left .tp-head { padding: 0 10px; }
+  .tp-avatar { width: 46px; height: 46px; border-radius: 11px; }
+  .tp-name { font-size: 1.2rem; }
+  .tp-bar { padding: 4px 4px 0; }
+  .tp-body { margin-top: 12px; padding: 0 10px; }
+}
+
+/* ---------- v8: add-on formatting codes ---------- */
+.fx-center { text-align: center; }
+.fx-right { text-align: right; }
+.fx-box { margin: .8em 0; padding: 14px 18px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 45%, transparent);
+  background: color-mix(in srgb, var(--c, var(--accent)) 8%, transparent); }
+.fx-box > :last-child { margin-bottom: 0; }
+.fx-h { font-size: 1.6em; font-weight: 800; line-height: 1.15; letter-spacing: -.01em; margin: .3em 0 .5em; color: var(--c, var(--text)); }
+.fx-hr { border: 0; height: 1px; margin: 1.4em auto; width: 60%; background: color-mix(in srgb, var(--c, var(--text)) 40%, transparent); }
+.fx-color { color: var(--c) !important; }
+.fx-small { font-size: .82em; }
+.fx-big { font-size: 1.25em; }
+.fx-huge { font-size: 1.7em; line-height: 1.2; }
+.fx-caps { text-transform: uppercase; letter-spacing: .06em; }
+.fx-img { display: inline-block; max-width: 100%; max-height: 520px; border-radius: 12px; vertical-align: middle; margin: 4px 0; }
+.fmt-guide dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; margin: 14px 0; align-items: baseline; }
+.fmt-guide dt code { white-space: nowrap; }
+.fmt-guide dd { margin: 0; color: var(--muted); font-size: .88rem; }
+@media (max-width: 520px) { .fmt-guide dl { grid-template-columns: 1fr; gap: 2px; } .fmt-guide dd { margin-bottom: 8px; } }
+
+/* ---------- v8: replies and pictures in chats ---------- */
+.b-reply {
+  display: flex; align-items: center; gap: 6px; width: 100%; max-width: 100%; margin: 0 0 6px; padding: 5px 9px; border: 0; border-left: 3px solid var(--c, var(--accent));
+  border-radius: 8px; background: rgb(0 0 0 / .06); color: inherit; font: inherit; font-size: .78rem; text-align: left; cursor: pointer; min-width: 0;
+}
+[data-theme=dark] .b-reply { background: rgb(255 255 255 / .07); }
+.bubble.mine .b-reply { background: rgb(255 255 255 / .16); border-left-color: rgb(255 255 255 / .7); }
+.b-reply svg { width: 13px; height: 13px; flex: none; opacity: .7; }
+.b-reply b { flex: none; }
+.b-reply span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .8; }
+.b-pics { display: grid; gap: 4px; margin: 2px 0 6px; border-radius: 14px; overflow: hidden; max-width: 340px; }
+.b-pics.n2, .b-pics.n4 { grid-template-columns: 1fr 1fr; }
+.b-pics.n3 { grid-template-columns: 1fr 1fr; }
+.b-pics.n3 a:first-child { grid-column: span 2; }
+.b-pics a { display: block; }
+.b-pics img { display: block; width: 100%; height: 100%; max-height: 360px; object-fit: cover; }
+.b-pics:not(.n1) img { aspect-ratio: 1; }
+.b-bubble.pics-only { padding: 4px; }
+.b-bubble.pics-only .b-time { padding: 0 6px 2px; }
+.tp-body .b-pics { max-width: 520px; margin: 12px auto 0; }
+.b-reply-btn { position: absolute; top: -10px; right: 20px; width: 26px; height: 26px; opacity: 0; background: var(--glass-solid); border: 1px solid var(--glass-border); color: var(--text); }
+.b-reply-btn svg { width: 14px; height: 14px; }
+.bubble.mine .b-reply-btn { right: auto; left: 20px; }
+.bubble:hover .b-reply-btn, .bubble:focus-within .b-reply-btn { opacity: 1; }
+@media (hover: none) { .b-reply-btn { opacity: 1; } }
+.composer-extra { display: flex; flex-direction: column; gap: 6px; padding: 0 4px 6px; }
+.reply-bar { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px; border-radius: 14px; background: var(--glass-2); border-left: 3px solid var(--accent); font-size: .82rem; }
+.reply-bar > svg { width: 15px; height: 15px; flex: none; color: var(--accent-fg); }
+.reply-bar span { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.reply-bar small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-row { display: flex; gap: 6px; overflow-x: auto; }
+.attach-row .thumb { position: relative; flex: none; width: 64px; height: 64px; border-radius: 12px; overflow: hidden; }
+.attach-row img { width: 100%; height: 100%; object-fit: cover; }
+.attach-row button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 0; background: rgb(0 0 0 / .6); color: #fff; font-size: .7rem; }
+
+/* ---------- v8: comms icons ---------- */
+.ch-emoji { display: inline-grid; place-items: center; width: 20px; height: 20px; font-size: 16px; line-height: 1; }
+.ch-icon-img { width: 20px; height: 20px; border-radius: 6px; object-fit: cover; display: block; }
+.th-icon { display: inline-grid; place-items: center; width: 56px; height: 56px; margin: 6px 0 2px; border-radius: 16px; background: var(--glass-2); }
+.th-icon .ch-emoji { width: auto; height: auto; font-size: 30px; }
+.th-icon .ch-icon-img { width: 100%; height: 100%; border-radius: 16px; }
+.icon-picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+.icon-preview { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; background: var(--glass-2); margin-right: 4px; }
+.icon-preview .ch-emoji { font-size: 24px; width: auto; height: auto; }
+.icon-preview .ch-icon-img { width: 100%; height: 100%; border-radius: 13px; }
+.emoji-pick { width: 36px; height: 36px; padding: 0; border-radius: 10px; font-size: 18px; line-height: 1; }
+#t-icon-text { width: 9em; }
+.link-btn { white-space: nowrap; }
+
+/* ---------- v8: directory ---------- */
+.dir-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.dir-tools .search { flex: 1; min-width: 200px; margin: 0; }
+.dir-writer { margin: 22px 0 8px; }
+.dir-head { display: flex; align-items: center; gap: 12px; padding: 8px 4px 12px; border-bottom: 1px solid var(--glass-border); margin-bottom: 14px; }
+.dir-head:hover { text-decoration: none; }
+.dir-head b { display: block; font-size: 1.05rem; }
+.dir-head small { color: var(--muted); }
+.dir-head .av-wrap { position: relative; flex: none; }
+.char-grid.compact { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.dir-letter { margin-top: 22px; }
+@media (max-width: 899px) { .char-grid.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
+@media (hover: none) {
+  .b-reply-btn, .b-bubble .post-menu { opacity: 0; pointer-events: none; transition: opacity .15s; }
+  .bubble.show-actions .b-reply-btn, .bubble.show-actions .b-bubble .post-menu { opacity: 1; pointer-events: auto; }
+}
+.th-icon { display: grid; }

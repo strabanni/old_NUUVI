@@ -1,5 +1,6 @@
 // Row mappers, shared SELECTs and access checks.
 import { fail } from './http.js';
+import { plainText } from './text.js';
 
 export const toUser = (r, prefix = '') => ({
   id: r[`${prefix}id`],
@@ -44,6 +45,7 @@ export function toChannel(r) {
     id: r.id, storyId: r.story_id, name: r.name, topic: r.topic, position: r.position,
     kind: r.kind ?? 'thread', status: r.status ?? 'open', summary: r.summary ?? '', tags: splitWarnings(r.tags),
     eventAt: r.event_at ?? null, createdBy: r.created_by ?? null, starterCharacterId: r.starter_character_id ?? null,
+    icon: r.icon ?? null,
     createdAt: r.created_at, lastPostAt: r.last_post_at ?? null,
     turns: turnState(r), unread: r.unread ?? 0, mentions: r.mentions ?? 0, lastPostId: r.last_post_id ?? 0,
   };
@@ -54,6 +56,10 @@ export function toPost(r) {
     id: r.id, storyId: r.story_id, channelId: r.channel_id, userId: r.user_id, kind: r.kind,
     body: r.body, cw: r.cw, roll: r.roll ? JSON.parse(r.roll) : null, wordCount: r.word_count,
     createdAt: r.created_at, editedAt: r.edited_at,
+    media: r.media ? JSON.parse(r.media) : [],
+    replyTo: r.reply_to && r.reply_user_id != null
+      ? { id: r.reply_to, name: r.reply_name, color: r.reply_color ?? null, text: plainText(r.reply_body || ''), hasMedia: r.reply_media !== '[]' }
+      : null,
     author: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.user_avatar },
     character: r.character_id
       ? {
@@ -76,8 +82,12 @@ export const POST_SELECT = `
   SELECT p.*, u.username, u.display_name, u.avatar AS user_avatar,
     c.name AS character_name, c.color AS character_color, c.avatar AS character_avatar,
     c.portrait AS character_portrait, c.tagline AS character_tagline, c.details AS character_details,
-    c.aka AS character_aka, c.post_align AS character_align, c.verified AS character_verified
-  FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters c ON c.id = p.character_id`;
+    c.aka AS character_aka, c.post_align AS character_align, c.verified AS character_verified,
+    rp.body AS reply_body, rp.user_id AS reply_user_id, rp.media AS reply_media,
+    COALESCE(rc.name, ru.display_name) AS reply_name, rc.color AS reply_color
+  FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters c ON c.id = p.character_id
+  LEFT JOIN posts rp ON rp.id = p.reply_to AND rp.channel_id = p.channel_id
+  LEFT JOIN users ru ON ru.id = rp.user_id LEFT JOIN characters rc ON rc.id = rp.character_id`;
 
 export function requireUser(user) {
   if (!user) fail(401, 'Please sign in');
@@ -116,9 +126,20 @@ export function requireOwner(role, user) {
 }
 
 // Accepts null/'' (clear) or a path to an image this user uploaded.
+// A picture link from anywhere on the web (writers often keep pictures on Pinterest, Tumblr…).
+export function imageLink(value) {
+  if (typeof value !== 'string' || value.length > 2000) return null;
+  let u;
+  try { u = new URL(value); } catch { return null; }
+  return u.protocol === 'https:' && !u.username && !u.password ? u.href : null;
+}
+
+// An image the person uploaded here, or an https:// picture link.
 export function uploadRef(db, value, userId) {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
+  const link = imageLink(value);
+  if (link) return link;
   const m = typeof value === 'string' && value.match(/^\/uploads\/([\w-]+\.(?:png|jpg|webp|gif))$/);
   if (!m || !db.prepare('SELECT 1 FROM uploads WHERE name = ? AND user_id = ?').get(m[1], userId)) {
     fail(400, 'Upload the image first');

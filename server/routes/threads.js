@@ -1,11 +1,23 @@
 // Threads (a story's channels, typed as thread / comms / event / ooc), tagging characters, and the feed.
 import { fail, str, oneOf, id } from '../http.js';
 import { transaction } from '../db.js';
-import { toChannel, toCharacter, requireUser, storyAccess, channelAccess, isBlocked } from '../model.js';
+import { toChannel, toCharacter, requireUser, storyAccess, channelAccess, isBlocked, uploadRef } from '../model.js';
+import { plainText } from '../text.js';
 
 export const KINDS = ['thread', 'para', 'comms', 'event', 'ooc'];
 const OWNER_KINDS = ['event', 'ooc']; // only story owners create these
 const STATUSES = ['open', 'closed', 'complete'];
+
+// A channel's icon (shown for comms threads): an emoji or two, or a picture (upload or https link).
+function iconInput(db, value, userId) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (typeof value !== 'string') fail(400, 'Icon must be text');
+  const v = value.trim();
+  if (v.startsWith('/') || /^https?:/i.test(v)) return uploadRef(db, v, userId);
+  if ([...v].length > 8 || /\s/.test(v)) fail(400, 'Use an emoji (or two) or a picture for the icon');
+  return v;
+}
 
 function tagsInput(value) {
   if (value === undefined) return undefined;
@@ -119,6 +131,7 @@ export function threadRoutes(r, ctx) {
     const tags = tagsInput(body.tags) ?? '';
     const status = oneOf(body.status, 'Status', STATUSES) ?? 'open';
     const eventAt = eventInput(body.eventAt) ?? null;
+    const icon = iconInput(db, body.icon, user.id) ?? null;
     let starter = null;
     if (body.characterId != null) {
       starter = db.prepare('SELECT id, user_id FROM characters WHERE id = ? AND user_id = ?').get(Number(body.characterId), user.id);
@@ -129,9 +142,9 @@ export function threadRoutes(r, ctx) {
     const channel = transaction(db, () => {
       const position = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM channels WHERE story_id = ?').get(row.id).p;
       const { lastInsertRowid } = db.prepare(`INSERT INTO channels
-        (story_id, name, topic, position, kind, status, summary, tags, event_at, created_by, starter_character_id, last_post_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
-        .run(row.id, name, topic, position, kind, status, summary, tags, eventAt, user.id, starter?.id ?? null);
+        (story_id, name, topic, position, kind, status, summary, tags, event_at, created_by, starter_character_id, icon, last_post_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
+        .run(row.id, name, topic, position, kind, status, summary, tags, eventAt, user.id, starter?.id ?? null, icon);
       const ch = db.prepare('SELECT * FROM channels WHERE id = ?').get(lastInsertRowid);
       tagCharacters(ch, [...(starter ? [starter] : []), ...tagged], user);
       return ch;
@@ -153,6 +166,7 @@ export function threadRoutes(r, ctx) {
       tags: tagsInput(body.tags) ?? channel.tags,
       status: oneOf(body.status, 'Status', STATUSES) ?? channel.status,
       eventAt: body.eventAt === undefined ? channel.event_at : eventInput(body.eventAt),
+      icon: body.icon === undefined ? channel.icon : iconInput(db, body.icon, user.id),
     };
     let position = channel.position;
     if (body.move === 'up' || body.move === 'down') {
@@ -164,8 +178,8 @@ export function threadRoutes(r, ctx) {
         position = neighbour.position;
       }
     }
-    db.prepare(`UPDATE channels SET name = ?, topic = ?, summary = ?, tags = ?, status = ?, event_at = ?, kind = ?, position = ?
-      WHERE id = ?`).run(f.name, f.topic, f.summary, f.tags, f.status, f.eventAt, kind, position, channel.id);
+    db.prepare(`UPDATE channels SET name = ?, topic = ?, summary = ?, tags = ?, status = ?, event_at = ?, kind = ?, position = ?, icon = ?
+      WHERE id = ?`).run(f.name, f.topic, f.summary, f.tags, f.status, f.eventAt, kind, position, f.icon, channel.id);
     if (body.tagged !== undefined) tagCharacters(channel, validTagged(channel.story_id, body.tagged), user);
     storyChanged(channel.story_id);
     return { data: { channel: toChannel(db.prepare('SELECT * FROM channels WHERE id = ?').get(channel.id)) } };
@@ -228,7 +242,7 @@ export function threadRoutes(r, ctx) {
           participants: participants(row.id, 6),
           lastPost: lp ? {
             by: lp.character_name || lp.display_name,
-            text: lp.cw ? `CW: ${lp.cw}` : lp.body.replace(/[*_~|>]/g, '').replace(/\s+/g, ' ').slice(0, 160),
+            text: lp.cw ? `CW: ${lp.cw}` : plainText(lp.body, 160),
             createdAt: lp.created_at,
           } : null,
           sortAt: row.last_post_at || row.created_at,

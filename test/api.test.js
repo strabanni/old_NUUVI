@@ -539,3 +539,55 @@ test('stars, contact names and audio uploads with range requests', async () => {
   const fake = await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'video/mp4' }, raw: Buffer.from('not a video at all') });
   assert.equal(fake.status, 400);
 });
+
+test('replies, pictures and picture links in messages; comms icons; very long posts', async () => {
+  const a = await app.signUp('reply_a');
+  const b = await app.signUp('reply_b');
+  const { story, main, ooc } = await makeStory(a, { title: 'Replies', visibility: 'public' });
+  await b(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
+
+  const first = (await post(a, ooc.id, { kind: 'ooc', body: 'anyone up?' })).data.post;
+  const reply = await post(b, ooc.id, { kind: 'ooc', body: 'me!', replyTo: first.id });
+  assert.equal(reply.status, 201, JSON.stringify(reply.data));
+  assert.deepEqual(reply.data.post.replyTo, { id: first.id, name: 'reply_a', color: null, text: 'anyone up?', hasMedia: false });
+  assert.ok((await a('/api/notifications')).data.notifications.some((n) => n.type === 'reply'));
+  assert.equal((await post(b, ooc.id, { kind: 'ooc', body: 'x', replyTo: 999999 })).status, 400);
+
+  const link = 'https://i.pinimg.com/originals/aa/bb/cc.jpg';
+  const pic = await post(b, ooc.id, { kind: 'ooc', media: [link] });
+  assert.equal(pic.status, 201, JSON.stringify(pic.data));
+  assert.deepEqual(pic.data.post.media, [link]);
+  assert.equal((await post(b, ooc.id, { kind: 'ooc', body: '' })).status, 400);
+  for (const bad of ['http://insecure.example/x.jpg', 'javascript:alert(1)', '/uploads/not-mine.png']) {
+    assert.equal((await post(b, ooc.id, { kind: 'ooc', media: [bad] })).status, 400, bad);
+  }
+
+  const comms = await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'dms', kind: 'comms', icon: '💌' } });
+  assert.equal(comms.data.channel.icon, '💌');
+  const pictured = await a(`/api/channels/${comms.data.channel.id}`, { method: 'PUT', body: { icon: link } });
+  assert.equal(pictured.data.channel.icon, link);
+  assert.equal((await a(`/api/channels/${comms.data.channel.id}`, { method: 'PUT', body: { icon: 'way too long icon' } })).status, 400);
+
+  const avatarLink = await a('/api/characters', { method: 'POST', body: { name: 'Linked', avatar: link, portrait: link, banner: link } });
+  assert.equal(avatarLink.data.character.avatar, link);
+
+  const novel = 'word '.repeat(60000);
+  const long = await post(a, main.id, { kind: 'narration', body: novel });
+  assert.equal(long.status, 201);
+  assert.equal(long.data.post.wordCount, 60000);
+});
+
+test('the directory lists every writer by username with their characters', async () => {
+  const a = await app.signUp('dir_a');
+  const b = await app.signUp('dir_b');
+  await a('/api/characters', { method: 'POST', body: { name: 'Zed' } });
+  await a('/api/characters', { method: 'POST', body: { name: 'Amy' } });
+  await b('/api/characters', { method: 'POST', body: { name: 'Bo' } });
+  const { writers } = (await b('/api/directory')).data;
+  const mine = writers.find((w) => w.username === 'dir_a');
+  assert.deepEqual(mine.characters.map((c) => c.name), ['Amy', 'Zed']);
+  assert.ok(writers.find((w) => w.username === 'dir_b').characters.some((c) => c.name === 'Bo'));
+  const bId = writers.find((w) => w.username === 'dir_b').id;
+  await a('/api/blocks', { method: 'POST', body: { userId: bId } });
+  assert.ok(!(await b('/api/directory')).data.writers.some((w) => w.username === 'dir_a'));
+});

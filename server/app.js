@@ -16,9 +16,11 @@ import { adminRoutes } from './routes/admin.js';
 import { threadRoutes } from './routes/threads.js';
 import { socialRoutes, socialPostRoutes } from './routes/social.js';
 import { nameKey } from './names.js';
+import { plainText } from './text.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
-const MAX_JSON_BYTES = 256 * 1024;
+// Big enough for a novel-length thread post.
+const MAX_JSON_BYTES = 4 * 1024 * 1024;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -50,7 +52,7 @@ const SECURITY_HEADERS = {
   'X-Robots-Tag': 'noindex, nofollow',
   'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
   'Content-Security-Policy':
-    "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob:; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 
 // Live connections (Server-Sent Events). Each stream belongs to a user (or an anonymous
@@ -140,8 +142,7 @@ export function createApp({
 
   const snippet = (post) => {
     if (post.cw) return `CW: ${post.cw}`;
-    const text = post.body.replace(/[*_~`>]/g, '').replace(/\s+/g, ' ').trim();
-    return text.length > 140 ? text.slice(0, 139) + '…' : text;
+    return plainText(post.body) || (post.media?.length ? 'sent a picture' : '');
   };
 
   function createNotification({ userId, type, actorId = null, storyId = null, channelId = null, postId = null, characterId = null, socialId = null, text = '' }) {
@@ -177,6 +178,7 @@ export function createApp({
       like: () => ({ title: 'New like', body: text }),
       comment: () => ({ title: 'New comment', body: text }),
       tag: () => ({ title: `${n.actor?.displayName} tagged you in a thread`, body: `${where} · ${n.story?.title}` }),
+      reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),
     }[type]();
     ctx.pusher.send(userId, { ...push, url: `/${n.url}`, tag: n.channel ? `channel-${n.channel.id}` : `n-${n.id}` });
   }

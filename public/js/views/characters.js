@@ -1,4 +1,4 @@
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer } from './social.js';
@@ -23,11 +23,11 @@ function characterForm(c = {}) {
       <div class="char-pic-row">
         <div id="pic-preview">${avatar({ name: c.name || '?', src: c.avatar, color: c.color || '#F8769C', size: 'xl' })}</div>
         <div class="stack">
-          <label class="btn sm file-btn">Avatar picture<input type="file" accept="image/*" id="pic-file" hidden></label>
-          <label class="btn sm file-btn">Portrait (big picture)<input type="file" accept="image/*" id="portrait-file" hidden></label>
+          <span class="row-inline"><label class="btn sm file-btn">Avatar picture<input type="file" accept="image/*" id="pic-file" hidden></label><button type="button" class="sm link-btn" data-link="avatar">Link</button></span>
+          <span class="row-inline"><label class="btn sm file-btn">Portrait (big picture)<input type="file" accept="image/*" id="portrait-file" hidden></label><button type="button" class="sm link-btn" data-link="portrait">Link</button></span>
           <span class="hint" id="portrait-state">${c.portrait ? 'Portrait set ✓' : 'Shown large on their character card'}</span>
           <span class="row-inline">
-            <label class="btn sm file-btn">Profile banner<input type="file" accept="image/*" id="banner-file" hidden></label>
+            <label class="btn sm file-btn">Profile banner<input type="file" accept="image/*" id="banner-file" hidden></label><button type="button" class="sm link-btn" data-link="banner">Link</button>
             <button type="button" class="sm" id="banner-clear" ${c.banner ? '' : 'hidden'}>Remove banner</button>
           </span>
           <span class="hint" id="banner-state">${c.banner ? 'Banner set ✓' : 'Optional — a wide picture across the top of their profile'}</span>
@@ -49,11 +49,6 @@ function characterForm(c = {}) {
       <label for="c-aka">AKA line <span class="muted small">— shown under their name in threads. Wrap words in **double stars** to make them pink.</span></label>
       <input id="c-aka" name="aka" maxlength="200" value="${c.aka || ''}" placeholder="aka **the prodigy**, (he / him) ; twenty8 ; ceo of trinity healthcare">
       <div class="row">
-        <div><label for="c-align">Name in thread posts</label>
-          <select id="c-align" name="postAlign">
-            <option value="right" ${c.postAlign !== 'left' ? 'selected' : ''}>On the right (picture far right)</option>
-            <option value="left" ${c.postAlign === 'left' ? 'selected' : ''}>On the left (picture far left)</option>
-          </select></div>
         <div><label for="c-followers">Followers shown</label><input id="c-followers" name="followersDisplay" inputmode="numeric" placeholder="real count" value="${c.followersDisplay ?? ''}"></div>
         <div><label for="c-following">Following shown</label><input id="c-following" name="followingDisplay" inputmode="numeric" placeholder="real count" value="${c.followingDisplay ?? ''}"></div>
       </div>
@@ -82,16 +77,27 @@ export function editCharacter(c = {}) {
         if (!file) return;
         try { done(await uploadImage(file, size)); } catch (err) { toast(err.message); }
       });
-      upload('#pic-file', 512, (url) => { form.avatar.value = url; showPic(); });
-      upload('#portrait-file', 1400, (url) => {
-        form.portrait.value = url;
-        $('#portrait-state', d).textContent = 'Portrait set ✓';
-        if (!form.avatar.value) { form.avatar.value = url; showPic(); }
-      });
-      upload('#banner-file', 1800, (url) => {
-        form.banner.value = url;
-        $('#banner-state', d).textContent = 'Banner set ✓';
-        $('#banner-clear', d).hidden = false;
+      const set = {
+        avatar: (url) => { form.avatar.value = url; showPic(); },
+        portrait: (url) => {
+          form.portrait.value = url;
+          $('#portrait-state', d).textContent = 'Portrait set ✓';
+          if (!form.avatar.value) { form.avatar.value = url; showPic(); }
+        },
+        banner: (url) => {
+          form.banner.value = url;
+          $('#banner-state', d).textContent = 'Banner set ✓';
+          $('#banner-clear', d).hidden = false;
+        },
+      };
+      upload('#pic-file', 512, set.avatar);
+      upload('#portrait-file', 1400, set.portrait);
+      upload('#banner-file', 1800, set.banner);
+      d.addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-link]');
+        if (!b) return;
+        const url = await askImageLink();
+        if (url) set[b.dataset.link](url);
       });
       $('#banner-clear', d).addEventListener('click', (e) => {
         form.banner.value = '';
