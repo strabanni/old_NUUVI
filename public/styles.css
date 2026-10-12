@@ -1540,3 +1540,12 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 .tp-aka .accent, .aka-text .accent { color: var(--c, var(--accent-fg)); }
 .ig-profile .aka-text { font-weight: 600; }
 :root:is([data-theme=light], [data-theme=dark]) .bubble.mine[data-color] .body em.action { color: var(--c); opacity: 1; }
+
+/* ---------- v11: Dark mode uses the same logo as Light mode (pink tile, white n, pink wordmark) ---------- */
+:root[data-theme=dark]:not([data-accent]) {
+  --logo-tile: #EE719E;
+  --logo-ring: #EE719E;
+  --logo-n: #FFFFFF;
+  --logo-spark: #FFC9E0;
+  --logo-word: #EE719E;
+}
