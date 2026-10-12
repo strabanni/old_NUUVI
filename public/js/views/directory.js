@@ -5,7 +5,7 @@ import { characterCard } from './characters.js';
 
 export async function viewDirectory() {
   const alive = routeAlive();
-  const { writers } = await api('/api/directory');
+  const { writers, anonymous = [] } = await api('/api/directory');
   ensureAlive(alive);
   const all = writers.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w })))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
@@ -43,7 +43,9 @@ export async function viewDirectory() {
           </a>
           ${w.shownChars.length ? html`<div class="char-grid compact">${w.shownChars.map((c) => characterCard(c))}</div>`
             : html`<p class="muted small">No characters yet.</p>`}
-        </section>`)}` : html`<div class="empty"><p>Nobody matches “${q}”.</p></div>`);
+        </section>`)}
+        ${anonymous.length ? html`<section class="dir-writer"><div class="dir-head"><span class="grow"><b>Accounts</b><small>Run anonymously</small></span></div>
+          <div class="char-grid compact">${anonymous.map((c) => characterCard(c))}</div></section>` : ''}` : html`<div class="empty"><p>Nobody matches “${q}”.</p></div>`);
     } else {
       const shown = all.filter((c) => match(c.name, c.tagline, c.writer.username, c.writer.displayName));
       const groups = new Map();

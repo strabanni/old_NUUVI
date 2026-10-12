@@ -56,6 +56,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - **Threads:** plain forum-style posts without a frame, so writers can format them their own way. Each post shows the character's name in capitals, an "aka" line the owner writes, avatar, star button, and a "for …" footer. Names switch sides automatically each time a different writer posts. Bold, italic, underlined and quoted words take the character's own color. Comms and OOC channels read like text messages.
 - **Comms icons:** each comms thread can have its own icon, an emoji or a picture, to show which app it's in (texts, DMs, socials…).
 - **Comms titles are personal:** each person sets their own contact names for the other characters, so the chat is titled with whatever you saved them as.
+- **Usernames for characters:** every character has an @username, made from their name (editable). Their social posts and comments go out under it, and it's the big name on their profile, with their given name above.
 - **Character profiles (Instagram style):** an optional full-width banner, a rounded-square picture, posts/followers/following/threads counts, a verified badge, bio, and tabs for recent posts, threads and details. Owners can set the follower and following numbers shown, for celebrity characters.
 - **Character cards** show the character only; a writer's own page lists their characters.
 
@@ -70,9 +71,12 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - **The feed** shows only open threads, self paras, character social posts and events. Filters: all, open threads, self paras, social, events and mine. You can also search.
 - **Character social posts:** text, photos, videos, voice notes (record in the app or upload) and streams, with likes and comments made as a character. Any post can carry a song (title, artist and an optional link), shown under the character's name like on Instagram.
 - **Feed layout:** a brick wall. Each card is as tall as its content and they pack together in order, in columns on computers and two columns on phones.
-- **Events page:** upcoming events as cards or as a month calendar.
+- **Events:** put events on the calendar (title, start and end, place, details, banner) from the Events page, which shows them as cards or a month calendar. Starting a thread as type **Event** lets you pick one of the story's upcoming events; comms can optionally be part of one too. An event's page lists every thread and comms that's part of it.
+- **Phone:** every character has a phone (sidebar → **Phone**). Save other characters as contacts under any name you like, then text them one-to-one: pictures, replies and all. Only the two characters' writers can ever read a conversation. It's styled after a modern messaging app, with a soft gradient header, a contact strip and frosted chat bubbles.
+- **NPCs:** tick **This is an NPC** on a character for an NPC badge. NPCs can also post and comment **on their own**: give them lines to pick from (with placeholders like `{name}`) and they'll comment on new posts now and then and post every so often. Admins can run an **anonymous gossip account** that also posts tips when public threads start or finish (never about private threads or stories). Admin → **NPCs & bots** controls how often, and can make any of them post right away.
 - Characters follow other characters, and their owners get notified.
-- **Directory:** every writer by username, each with their whole cast, or every character A–Z. Searchable.
+- **Directory:** every writer by username, each with their whole cast, or every character A–Z. Searchable. The gossip account is listed on its own, never under whoever runs it.
+- **Profiles from the menu:** your name in the greeting and at the top of the sidebar opens your profile; writers in the Directory, the online list and a story's member list open theirs.
 
 **Safety and privacy**
 - **A quiet sign-in page:** just the logo and the form, nothing that describes the site.

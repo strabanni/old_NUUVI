@@ -391,8 +391,8 @@ test('threads: members start typed threads, tag characters, and statuses control
   const daehyun = (await b('/api/characters', { method: 'POST', body: { name: 'Bang Daehyun' } })).data.character;
   const outsider = (await (await app.signUp('thread_out'))('/api/characters', { method: 'POST', body: { name: 'Nobody' } })).data.character;
 
-  // Members can start threads and comms, but only the owner makes events.
-  assert.equal((await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'A party', kind: 'event' } })).status, 403);
+  // Event threads have to belong to a calendar event.
+  assert.equal((await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'A party', kind: 'event' } })).status, 400);
   assert.equal((await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'x', tagged: [outsider.id] } })).status, 400);
   const created = await a(`/api/stories/${story.id}/channels`, {
     method: 'POST',
@@ -590,4 +590,82 @@ test('the directory lists every writer by username with their characters', async
   const bId = writers.find((w) => w.username === 'dir_b').id;
   await a('/api/blocks', { method: 'POST', body: { userId: bId } });
   assert.ok(!(await b('/api/directory')).data.writers.some((w) => w.username === 'dir_a'));
+});
+
+test('calendar events: members add them, threads and comms join them, and the event lists its threads', async () => {
+  const gm = await app.signUp('cal_gm');
+  const a = await app.signUp('cal_a');
+  const { story } = await makeStory(gm, { title: 'Gala night', visibility: 'private' });
+  const invite = (await gm(`/api/stories/${story.id}`)).data.story.inviteCode;
+  await a(`/api/stories/${story.id}/join`, { method: 'POST', body: { inviteCode: invite } });
+  const outsider = await app.signUp('cal_out');
+
+  assert.equal((await a(`/api/stories/${story.id}/calendar`, { method: 'POST', body: { title: 'No date' } })).status, 400);
+  const made = await a(`/api/stories/${story.id}/calendar`, { method: 'POST', body: {
+    title: 'Trinity Gala', startsAt: '2026-10-14T20:00:00Z', endsAt: '2026-10-15T02:00:00Z', location: 'The Plaza', summary: 'Black tie.' } });
+  assert.equal(made.status, 201, JSON.stringify(made.data));
+  const ev = made.data.event;
+  assert.equal((await a(`/api/stories/${story.id}/calendar`, { method: 'POST', body: { title: 'Backwards', startsAt: '2026-10-14T20:00:00Z', endsAt: '2026-10-13T20:00:00Z' } })).status, 400);
+
+  const t1 = await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'the ballroom', kind: 'event', eventId: ev.id } });
+  assert.equal(t1.status, 201, JSON.stringify(t1.data));
+  assert.equal(t1.data.channel.eventId, ev.id);
+  const c1 = await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'gala texts', kind: 'comms', eventId: ev.id } });
+  assert.equal(c1.data.channel.eventId, ev.id);
+
+  const detail = (await gm(`/api/calendar/${ev.id}`)).data;
+  assert.deepEqual(detail.threads.map((t) => t.name).sort(), ['gala texts', 'the ballroom']);
+  assert.equal(detail.canEdit, true);
+  assert.equal((await gm('/api/calendar')).data.events.find((e) => e.id === ev.id).threadCount, 2);
+  assert.ok((await gm('/api/feed?filter=event')).data.items.some((i) => i.type === 'event' && i.id === ev.id));
+
+  // Private story: outsiders can't see the event.
+  assert.equal((await outsider(`/api/calendar/${ev.id}`)).status, 404);
+  assert.ok(!(await outsider('/api/calendar')).data.events.some((e) => e.id === ev.id));
+
+  const edited = await gm(`/api/calendar/${ev.id}`, { method: 'PUT', body: { location: 'Rooftop' } });
+  assert.equal(edited.data.event.location, 'Rooftop');
+  assert.equal((await gm(`/api/calendar/${ev.id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await a(`/api/channels/${t1.data.channel.id}`)).data.channel.eventId, null);
+});
+
+test('phones: contacts, private texts between two characters, unread counts and notifications', async () => {
+  const a = await app.signUp('phone_a');
+  const b = await app.signUp('phone_b');
+  const snoop = await app.signUp('phone_snoop');
+  const yoonoh = (await a('/api/characters', { method: 'POST', body: { name: 'Cha Yoonoh' } })).data.character;
+  const daehyun = (await b('/api/characters', { method: 'POST', body: { name: 'Bang Daehyun' } })).data.character;
+  assert.match(yoonoh.handle, /^chayoonoh\d*$/); // numbered if an earlier Cha Yoonoh took it
+
+  assert.equal((await b(`/api/phone/${yoonoh.id}`)).status, 404); // not your phone
+  const added = await a(`/api/phone/${yoonoh.id}/contacts`, { method: 'POST', body: { contactId: daehyun.id, name: 'daehyunie' } });
+  assert.equal(added.data.contact.name, 'daehyunie');
+  assert.equal((await a(`/api/phone/${yoonoh.id}/contacts`, { method: 'POST', body: { contactId: yoonoh.id } })).status, 400);
+
+  const thread = (await a(`/api/phone/${yoonoh.id}/threads`, { method: 'POST', body: { withId: daehyun.id } })).data.thread;
+  assert.equal(thread.name, 'daehyunie');
+  const sent = await a(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: yoonoh.id, body: 'are you free tonight?' } });
+  assert.equal(sent.status, 201);
+  const pic = await b(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: daehyun.id, media: ['https://i.pinimg.com/x.jpg'], replyTo: sent.data.message.id } });
+  assert.equal(pic.data.message.replyTo.text, 'are you free tonight?');
+
+  // Only the two writers can see it.
+  assert.equal((await snoop(`/api/phone/threads/${thread.id}`)).status, 404);
+  assert.equal((await snoop(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { body: 'hi' } })).status, 404);
+
+  const bPhone = (await b(`/api/phone/${daehyun.id}`)).data;
+  assert.equal(bPhone.threads[0].name, 'Cha Yoonoh'); // Daehyun hasn't saved him as a contact
+  assert.equal(bPhone.threads[0].unread, 0); // their own photo was the last message
+  const aPhone = (await a(`/api/phone/${yoonoh.id}`)).data;
+  assert.equal(aPhone.threads[0].unread, 1);
+  assert.equal(aPhone.threads[0].last.text, 'Photo');
+  assert.ok((await b('/api/notifications')).data.notifications.some((n) => n.type === 'dm' && n.url === `#/phone/${daehyun.id}`));
+
+  await a(`/api/phone/threads/${thread.id}/read`, { method: 'POST', body: { as: yoonoh.id, lastId: pic.data.message.id } });
+  assert.equal((await a(`/api/phone/${yoonoh.id}`)).data.threads[0].unread, 0);
+
+  // Blocking ends it.
+  await b('/api/blocks', { method: 'POST', body: { userId: (await a('/api/me')).data.user.id } });
+  assert.equal((await a(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: yoonoh.id, body: 'hello?' } })).status, 403);
+  assert.equal((await a(`/api/phone/${yoonoh.id}`)).data.threads.length, 0);
 });

@@ -55,7 +55,9 @@ export function socialRoutes(r, ctx) {
       data: {
         character: {
           ...toCharacter(row),
-          owner: { id: row.user_id, username: row.username, displayName: row.display_name, avatar: row.user_avatar },
+          // The gossip account is anonymous: nobody sees who runs it except that person.
+          owner: row.bot === 'gossip' && row.user_id !== user?.id ? null
+            : { id: row.user_id, username: row.username, displayName: row.display_name, avatar: row.user_avatar },
         },
         stats: shownStats(row, user?.id),
         threads,
@@ -98,7 +100,7 @@ export function socialRoutes(r, ctx) {
   r.get('/api/stories/:id/characters', ({ user, params }) => {
     requireUser(user);
     const rows = db.prepare(`SELECT c.*, u.display_name AS owner_name FROM characters c JOIN story_members m ON m.user_id = c.user_id
-      JOIN users u ON u.id = c.user_id WHERE m.story_id = ? ORDER BY c.name COLLATE NOCASE`).all(params.id);
+      JOIN users u ON u.id = c.user_id WHERE m.story_id = ? AND (c.bot IS NULL OR c.bot != 'gossip') ORDER BY c.name COLLATE NOCASE`).all(params.id);
     if (!db.prepare('SELECT 1 FROM story_members WHERE story_id = ? AND user_id = ?').get(params.id, user.id) && !user.isAdmin) fail(404, 'Story not found');
     return { data: { characters: rows.map((c) => ({ ...toCharacter(c), ownerName: c.owner_name })) } };
   });
@@ -115,8 +117,12 @@ const MEDIA_EXT = {
 
 export function socialPostRoutes(r, ctx) {
   const { db } = ctx;
-  const charCols = 'c.name AS c_name, c.avatar AS c_avatar, c.color AS c_color, c.verified AS c_verified, c.user_id AS c_user';
-  const charOf = (row) => ({ id: row.character_id, name: row.c_name, avatar: row.c_avatar, color: row.c_color, verified: !!row.c_verified, userId: row.c_user });
+  const charCols = `c.name AS c_name, c.avatar AS c_avatar, c.color AS c_color, c.verified AS c_verified, c.user_id AS c_user,
+    c.handle AS c_handle, c.npc AS c_npc, c.bot AS c_bot`;
+  const charOf = (row) => ({
+    id: row.character_id, name: row.c_name, avatar: row.c_avatar, color: row.c_color, verified: !!row.c_verified, userId: row.c_user,
+    handle: row.c_handle, npc: !!row.c_npc, bot: row.c_bot ?? null,
+  });
 
   function toSocial(row, viewerId, { allComments = false } = {}) {
     const comments = db.prepare(`SELECT sc.*, ${charCols} FROM social_comments sc JOIN characters c ON c.id = sc.character_id
@@ -238,6 +244,7 @@ export function socialPostRoutes(r, ctx) {
     if (kind === 'stream' && !title) fail(400, 'Give the stream a title');
     const { lastInsertRowid } = db.prepare('INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(metaInput(kind, body.meta), musicInput(body.music))));
+    ctx.bots?.onSocialPost(Number(lastInsertRowid));
     return { status: 201, data: { post: toSocial(load(lastInsertRowid, user), user.id) } };
   });
 

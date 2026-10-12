@@ -6,7 +6,10 @@ const KINDS = [['text', 'Text', 'text'], ['photo', 'Photo', 'image'], ['video', 
 export const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : n >= 1e3 ? `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}K` : String(n));
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
-export const nameBadge = (ch) => html`<span class="sp-name">${ch.name}</span>${ch.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}`;
+// Social posts go out under the character's @username (their given name shows on their profile).
+export const handleOf = (ch) => (ch.handle ? `@${ch.handle}` : ch.name);
+export const npcBadges = (ch) => html`${ch.npc ? html`<span class="npc-badge" title="NPC">NPC</span>` : ''}${ch.bot === 'bot' ? html`<span class="npc-badge auto" title="Posts and comments on its own">AUTO</span>` : ''}`;
+export const nameBadge = (ch) => html`<span class="sp-name">${handleOf(ch)}</span>${ch.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(ch)}`;
 
 function mediaHtml(p, { full = false } = {}) {
   if (p.kind === 'photo') {
@@ -62,7 +65,7 @@ export function socialCard(p, { full = false } = {}) {
         <a class="sm-act" href="#/p/${p.id}">${icons.chat}<span>${compact(p.commentCount)}</span></a>
       </footer>
       ${!full && p.comments.length ? html`<div class="sm-comments">${p.comments.map((c) => html`
-        <p><a href="#/c/${c.character.id}">${c.character.name}</a> ${c.body}</p>`)}
+        <p><a href="#/c/${c.character.id}">${handleOf(c.character)}</a> ${c.body}</p>`)}
         ${p.commentCount > p.comments.length ? html`<a class="small muted" href="#/p/${p.id}">View all ${p.commentCount} comments</a>` : ''}</div>` : ''}
     </article>`;
 }
@@ -329,7 +332,7 @@ export async function viewSocialPost(id) {
   const posts = new Map([[post.id, post]]);
   const body = page({
     alive,
-    title: html`${post.character.name}'s post`,
+    title: html`${handleOf(post.character)}'s post`,
     subtitle: timeAgo(post.createdAt),
     body: html`
       <div class="sm-single">
@@ -352,7 +355,7 @@ export async function viewSocialPost(id) {
     render($('#sm-comments', body), p.comments.length ? html`${p.comments.map((c) => html`
       <div class="comment" data-cid="${c.id}">
         <a href="#/c/${c.character.id}">${avatar({ name: c.character.name, src: c.character.avatar, color: c.character.color, size: 'sm' })}</a>
-        <div class="grow"><a href="#/c/${c.character.id}"><b>${c.character.name}</b></a> ${c.body}<div class="small muted">${timeAgo(c.createdAt)}</div></div>
+        <div class="grow"><a href="#/c/${c.character.id}"><b>${handleOf(c.character)}</b></a> ${c.body}<div class="small muted">${timeAgo(c.createdAt)}</div></div>
         ${c.userId === state.user.id || p.userId === state.user.id || state.user.isAdmin ? html`<button class="icon-btn sm" data-del="${c.id}" aria-label="Delete comment">✕</button>` : ''}
       </div>`)}` : html`<p class="muted small">No comments yet.</p>`);
   };

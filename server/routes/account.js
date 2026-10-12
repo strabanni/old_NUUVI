@@ -7,7 +7,7 @@ import { hashPassword, verifyPassword, createSession, destroySession, toSelf } f
 import { toUser, toCharacter, requireUser, uploadRef } from '../model.js';
 import { validateSubscription } from '../push.js';
 import { profileInput, detailsInput, parseProfile } from '../profile.js';
-import { transaction } from '../db.js';
+import { transaction, makeHandle } from '../db.js';
 import { validUsername, validDisplayName, nameKey } from '../names.js';
 
 const MB = 1024 * 1024;
@@ -271,7 +271,8 @@ export function accountRoutes(r, ctx) {
     requireUser(user);
     const rows = db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id) AS followers
       FROM characters c WHERE c.user_id = ? ORDER BY c.name COLLATE NOCASE`).all(user.id);
-    return { data: { characters: rows.map((c) => ({ ...toCharacter(c), followers: c.followers })) } };
+    // Your own characters include their NPC lines (for the editor).
+    return { data: { characters: rows.map((c) => ({ ...toCharacter(c), followers: c.followers, botLines: JSON.parse(c.bot_lines || '{}') })) } };
   });
 
   // Directory: every writer (by username) and every character in their cast.
@@ -284,13 +285,16 @@ export function accountRoutes(r, ctx) {
     const chars = db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id) AS followers
       FROM characters c ORDER BY c.name COLLATE NOCASE`).all();
     const byUser = new Map(users.map((u) => [u.id, []]));
-    for (const c of chars) byUser.get(c.user_id)?.push({ ...toCharacter(c), followers: c.followers });
+    const anonymous = [];
+    // The gossip account is listed on its own, never under whoever runs it.
+    for (const c of chars) (c.bot === 'gossip' ? anonymous : byUser.get(c.user_id))?.push({ ...toCharacter(c), followers: c.followers });
     return {
       data: {
         writers: users.map((u) => ({
           id: u.id, username: u.username, displayName: u.display_name, avatar: u.avatar ?? null,
           isAdmin: !!u.is_admin, joinedAt: u.created_at, characters: byUser.get(u.id),
         })),
+        anonymous,
       },
     };
   });
@@ -305,13 +309,44 @@ export function accountRoutes(r, ctx) {
   };
 
   // Styling and profile extras, applied after insert/update.
-  function applyExtras(characterId, userId, body, existing = {}) {
+  // Lines an automatic NPC picks from: up to 200 per list, each up to 500 characters.
+  function botLinesInput(v) {
+    if (!v || typeof v !== 'object') fail(400, 'NPC lines must be lists');
+    const out = {};
+    for (const key of ['comments', 'posts', 'tips', 'finished']) {
+      if (v[key] === undefined) continue;
+      if (!Array.isArray(v[key]) || v[key].length > 200) fail(400, 'At most 200 lines per list');
+      out[key] = v[key].map((l) => String(l).trim().slice(0, 500)).filter(Boolean);
+    }
+    return out;
+  }
+
+  function applyExtras(characterId, userId, body, existing = {}, isAdmin = false) {
     const aka = str(body.aka, 'AKA line', { max: 200 }) ?? existing.aka ?? '';
     const align = oneOf(body.postAlign, 'Name position', ['left', 'right']) ?? existing.post_align ?? 'right';
     const followers = countInput(body.followersDisplay, 'Followers');
     const following = countInput(body.followingDisplay, 'Following');
     const verified = body.verified === undefined ? existing.verified ?? 0 : body.verified ? 1 : 0;
     const banner = uploadRef(db, body.banner, userId);
+    let handle;
+    if (body.handle !== undefined && body.handle !== null && body.handle !== '') {
+      handle = String(body.handle).trim().replace(/^@/, '');
+      if (!/^[A-Za-z0-9._]{1,30}$/.test(handle)) fail(400, 'Usernames can use letters, numbers, dots and underscores (up to 30)');
+      if (db.prepare('SELECT 1 FROM characters WHERE handle = ? COLLATE NOCASE AND id != ?').get(handle, characterId)) fail(409, `@${handle} is taken`);
+    } else if (!existing.handle) {
+      handle = makeHandle(db, body.name ?? existing.name ?? 'character', characterId);
+    }
+    const npc = body.npc === undefined ? existing.npc ?? 0 : body.npc ? 1 : 0;
+    // Automatic NPCs post/comment on their own; the anonymous gossip account is admin-only.
+    let bot = existing.bot ?? null;
+    if (body.bot !== undefined) {
+      bot = oneOf(body.bot || null, 'Automation', ['bot', 'gossip']) ?? null;
+      if (bot === 'gossip' && !isAdmin) fail(403, 'Only admins can run the gossip account');
+      if (bot === 'bot' && !npc) fail(400, 'Only NPCs can post on their own');
+    }
+    const lines = body.botLines === undefined ? existing.bot_lines ?? '{}' : JSON.stringify(botLinesInput(body.botLines));
+    db.prepare('UPDATE characters SET handle = COALESCE(?, handle), npc = ?, bot = ?, bot_lines = ? WHERE id = ?')
+      .run(handle ?? null, npc, bot, lines, characterId);
     db.prepare('UPDATE characters SET aka = ?, post_align = ?, followers_display = ?, following_display = ?, verified = ?, banner = ? WHERE id = ?')
       .run(aka, align, followers === undefined ? existing.followers_display ?? null : followers,
         following === undefined ? existing.following_display ?? null : following, verified,
@@ -333,9 +368,13 @@ export function accountRoutes(r, ctx) {
     const avatar = uploadRef(db, body.avatar, user.id) ?? null;
     const portrait = uploadRef(db, body.portrait, user.id) ?? null;
     const details = JSON.stringify(detailsInput(body.details) ?? []);
-    const { lastInsertRowid } = db.prepare('INSERT INTO characters (user_id, name, tagline, bio, color, avatar, portrait, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(user.id, f.name, f.tagline, f.bio, f.color, avatar, portrait, details);
-    applyExtras(Number(lastInsertRowid), user.id, body);
+    // One transaction, so a taken @username doesn't leave a half-made character behind.
+    const lastInsertRowid = transaction(db, () => {
+      const row = db.prepare('INSERT INTO characters (user_id, name, tagline, bio, color, avatar, portrait, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(user.id, f.name, f.tagline, f.bio, f.color, avatar, portrait, details);
+      applyExtras(Number(row.lastInsertRowid), user.id, body, { name: f.name }, user.isAdmin);
+      return row.lastInsertRowid;
+    });
     return { status: 201, data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(lastInsertRowid)) } };
   });
 
@@ -347,10 +386,12 @@ export function accountRoutes(r, ctx) {
     const avatar = uploadRef(db, body.avatar, user.id);
     const portrait = uploadRef(db, body.portrait, user.id);
     const details = detailsInput(body.details);
-    db.prepare('UPDATE characters SET name = ?, tagline = ?, bio = ?, color = ?, avatar = ?, portrait = ?, details = ? WHERE id = ?')
-      .run(f.name, f.tagline, f.bio, f.color, avatar === undefined ? existing.avatar : avatar,
-        portrait === undefined ? existing.portrait : portrait, details === undefined ? existing.details : JSON.stringify(details), existing.id);
-    applyExtras(existing.id, user.id, body, existing);
+    transaction(db, () => {
+      db.prepare('UPDATE characters SET name = ?, tagline = ?, bio = ?, color = ?, avatar = ?, portrait = ?, details = ? WHERE id = ?')
+        .run(f.name, f.tagline, f.bio, f.color, avatar === undefined ? existing.avatar : avatar,
+          portrait === undefined ? existing.portrait : portrait, details === undefined ? existing.details : JSON.stringify(details), existing.id);
+      applyExtras(existing.id, user.id, body, existing, user.isAdmin);
+    });
     return { data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(existing.id)) } };
   });
 

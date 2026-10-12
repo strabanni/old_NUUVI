@@ -16,6 +16,7 @@ export function toCharacter(r) {
     details: r.details ? JSON.parse(r.details) : [], createdAt: r.created_at,
     aka: r.aka ?? '', postAlign: r.post_align ?? 'right', verified: !!r.verified,
     followersDisplay: r.followers_display ?? null, followingDisplay: r.following_display ?? null,
+    handle: r.handle ?? null, npc: !!r.npc, bot: r.bot ?? null,
   };
 }
 
@@ -45,7 +46,7 @@ export function toChannel(r) {
     id: r.id, storyId: r.story_id, name: r.name, topic: r.topic, position: r.position,
     kind: r.kind ?? 'thread', status: r.status ?? 'open', summary: r.summary ?? '', tags: splitWarnings(r.tags),
     eventAt: r.event_at ?? null, createdBy: r.created_by ?? null, starterCharacterId: r.starter_character_id ?? null,
-    icon: r.icon ?? null,
+    icon: r.icon ?? null, eventId: r.event_id ?? null,
     createdAt: r.created_at, lastPostAt: r.last_post_at ?? null,
     turns: turnState(r), unread: r.unread ?? 0, mentions: r.mentions ?? 0, lastPostId: r.last_post_id ?? 0,
   };

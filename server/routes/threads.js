@@ -5,7 +5,7 @@ import { toChannel, toCharacter, requireUser, storyAccess, channelAccess, isBloc
 import { plainText } from '../text.js';
 
 export const KINDS = ['thread', 'para', 'comms', 'event', 'ooc'];
-const OWNER_KINDS = ['event', 'ooc']; // only story owners create these
+const OWNER_KINDS = ['ooc']; // only story owners create these
 const STATUSES = ['open', 'closed', 'complete'];
 
 // A channel's icon (shown for comms threads): an emoji or two, or a picture (upload or https link).
@@ -42,6 +42,15 @@ export function threadRoutes(r, ctx) {
   const participants = (channelId, limit = 12) => db.prepare(`
     SELECT c.* FROM channel_characters cc JOIN characters c ON c.id = cc.character_id
     WHERE cc.channel_id = ? ORDER BY c.name COLLATE NOCASE LIMIT ?`).all(channelId, limit).map(toCharacter);
+
+  // A thread's event must be in the same story.
+  const eventLink = (storyId, value) => {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return null;
+    const ev = db.prepare('SELECT id FROM events WHERE id = ? AND story_id = ?').get(Number(value), storyId);
+    if (!ev) fail(400, 'That event is not in this story');
+    return ev.id;
+  };
 
   // Characters must belong to members of the story to be tagged.
   function validTagged(storyId, ids) {
@@ -132,6 +141,8 @@ export function threadRoutes(r, ctx) {
     const status = oneOf(body.status, 'Status', STATUSES) ?? 'open';
     const eventAt = eventInput(body.eventAt) ?? null;
     const icon = iconInput(db, body.icon, user.id) ?? null;
+    const eventId = eventLink(row.id, body.eventId) ?? null;
+    if (kind === 'event' && !eventId) fail(400, 'Pick which event this thread is part of');
     let starter = null;
     if (body.characterId != null) {
       starter = db.prepare('SELECT id, user_id FROM characters WHERE id = ? AND user_id = ?').get(Number(body.characterId), user.id);
@@ -142,14 +153,15 @@ export function threadRoutes(r, ctx) {
     const channel = transaction(db, () => {
       const position = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM channels WHERE story_id = ?').get(row.id).p;
       const { lastInsertRowid } = db.prepare(`INSERT INTO channels
-        (story_id, name, topic, position, kind, status, summary, tags, event_at, created_by, starter_character_id, icon, last_post_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
-        .run(row.id, name, topic, position, kind, status, summary, tags, eventAt, user.id, starter?.id ?? null, icon);
+        (story_id, name, topic, position, kind, status, summary, tags, event_at, created_by, starter_character_id, icon, event_id, last_post_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
+        .run(row.id, name, topic, position, kind, status, summary, tags, eventAt, user.id, starter?.id ?? null, icon, eventId);
       const ch = db.prepare('SELECT * FROM channels WHERE id = ?').get(lastInsertRowid);
       tagCharacters(ch, [...(starter ? [starter] : []), ...tagged], user);
       return ch;
     });
     storyChanged(row.id);
+    ctx.bots?.onThread(channel.id, 'started');
     return { status: 201, data: { channel: toChannel(channel) } };
   });
 
@@ -167,6 +179,7 @@ export function threadRoutes(r, ctx) {
       status: oneOf(body.status, 'Status', STATUSES) ?? channel.status,
       eventAt: body.eventAt === undefined ? channel.event_at : eventInput(body.eventAt),
       icon: body.icon === undefined ? channel.icon : iconInput(db, body.icon, user.id),
+      eventId: body.eventId === undefined ? channel.event_id : eventLink(channel.story_id, body.eventId),
     };
     let position = channel.position;
     if (body.move === 'up' || body.move === 'down') {
@@ -178,9 +191,10 @@ export function threadRoutes(r, ctx) {
         position = neighbour.position;
       }
     }
-    db.prepare(`UPDATE channels SET name = ?, topic = ?, summary = ?, tags = ?, status = ?, event_at = ?, kind = ?, position = ?, icon = ?
-      WHERE id = ?`).run(f.name, f.topic, f.summary, f.tags, f.status, f.eventAt, kind, position, f.icon, channel.id);
+    db.prepare(`UPDATE channels SET name = ?, topic = ?, summary = ?, tags = ?, status = ?, event_at = ?, kind = ?, position = ?, icon = ?, event_id = ?
+      WHERE id = ?`).run(f.name, f.topic, f.summary, f.tags, f.status, f.eventAt, kind, position, f.icon, f.eventId, channel.id);
     if (body.tagged !== undefined) tagCharacters(channel, validTagged(channel.story_id, body.tagged), user);
+    if (f.status === 'complete' && channel.status !== 'complete') ctx.bots?.onThread(channel.id, 'finished');
     storyChanged(channel.story_id);
     return { data: { channel: toChannel(db.prepare('SELECT * FROM channels WHERE id = ?').get(channel.id)) } };
   });
@@ -204,57 +218,63 @@ export function threadRoutes(r, ctx) {
     // all = open threads + self paras + events + social posts. "mine" (used on Home) = every thread my characters are in.
     const filter = query.get('filter') || 'all';
     const q = (query.get('q') || '').trim().slice(0, 100);
+    if (!['all', 'open', 'para', 'event', 'social', 'mine'].includes(filter)) fail(400, 'Unknown filter');
     let items = [];
-    if (filter !== 'social') {
-      const where = [`(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))`];
-      const args = { u: user.id };
-      if (filter === 'all') where.push("((c.kind = 'thread' AND c.status = 'open') OR c.kind IN ('para', 'event'))");
+    if (['all', 'open', 'para', 'mine'].includes(filter)) {
+      const where = [];
+      const args = {};
+      if (filter === 'all') where.push("(c.kind = 'thread' AND c.status = 'open') OR c.kind = 'para'");
       else if (filter === 'open') where.push("c.kind = 'thread' AND c.status = 'open'");
-      else if (filter === 'para' || filter === 'event') { where.push('c.kind = :kind'); args.kind = filter; }
+      else if (filter === 'para') where.push("c.kind = 'para'");
       else if (filter === 'mine') where.push("c.kind != 'ooc' AND c.id IN (SELECT cc.channel_id FROM channel_characters cc JOIN characters ch ON ch.id = cc.character_id WHERE ch.user_id = :u)");
-      else fail(400, 'Unknown filter');
       if (q) {
-        where.push("(c.name LIKE :q ESCAPE '\\' OR c.summary LIKE :q ESCAPE '\\' OR c.tags LIKE :q ESCAPE '\\' OR s.title LIKE :q ESCAPE '\\')");
-        args.q = `%${q.replace(/[\\%_]/g, (m) => '\\' + m)}%`;
+        where.push("c.name LIKE :q ESCAPE '\\' OR c.summary LIKE :q ESCAPE '\\' OR c.tags LIKE :q ESCAPE '\\' OR s.title LIKE :q ESCAPE '\\'");
+        args.q = likeArg(q);
       }
-      const rows = db.prepare(`
-        SELECT c.*, s.title AS story_title, s.color AS story_color, s.icon AS story_icon, s.banner AS story_banner,
-          (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id) AS post_count,
-          (SELECT MAX(p.id) FROM posts p WHERE p.channel_id = c.id) AS last_post_id,
-          (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id AND p.user_id != :u
-             AND p.id > COALESCE((SELECT last_read_id FROM channel_reads r WHERE r.channel_id = c.id AND r.user_id = :u), 0)
-             AND EXISTS (SELECT 1 FROM story_members m WHERE m.story_id = c.story_id AND m.user_id = :u)) AS unread
-        FROM channels c JOIN stories s ON s.id = c.story_id
-        WHERE ${where.join(' AND ')}
-        ORDER BY COALESCE(c.last_post_at, c.created_at) DESC, c.id DESC LIMIT 80`).all(args);
-      const lastPost = db.prepare(`SELECT p.body, p.cw, p.created_at, u.display_name, ch.name AS character_name
-        FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters ch ON ch.id = p.character_id WHERE p.id = ?`);
-      const starter = db.prepare('SELECT * FROM characters WHERE id = ?');
-      items = rows.map((row) => {
-        const lp = row.last_post_id ? lastPost.get(row.last_post_id) : null;
-        const st = row.starter_character_id ? starter.get(row.starter_character_id) : null;
-        return {
-          type: 'thread',
-          ...toChannel(row),
-          postCount: row.post_count,
-          story: { id: row.story_id, title: row.story_title, color: row.story_color, icon: row.story_icon, banner: row.story_banner },
-          starter: st ? toCharacter(st) : null,
-          participants: participants(row.id, 6),
-          lastPost: lp ? {
-            by: lp.character_name || lp.display_name,
-            text: lp.cw ? `CW: ${lp.cw}` : plainText(lp.body, 160),
-            createdAt: lp.created_at,
-          } : null,
-          sortAt: row.last_post_at || row.created_at,
-        };
-      });
+      items = ctx.threadItems({ userId: user.id, where, args });
     }
+    // Events (from the calendar) show in the feed as their own cards.
+    if (filter === 'all' || filter === 'event') items = items.concat(ctx.eventItems({ userId: user.id, q }));
     if (filter === 'all' || filter === 'social') {
       items = items.concat(ctx.socialFeed({ viewerId: user.id, q, limit: 60 }).map((p) => ({ ...p, sortAt: p.createdAt })));
     }
     items.sort((x, y) => (y.sortAt > x.sortAt ? 1 : y.sortAt < x.sortAt ? -1 : 0));
     return { data: { items: items.slice(0, 100) } };
   });
+
+  const likeArg = (q) => `%${q.replace(/[\\%_]/g, (m) => '\\' + m)}%`;
+
+  // Threads as feed cards, limited to stories the viewer can see. `where` adds conditions on c (channel) / s (story).
+  ctx.threadItems = ({ userId, where = [], args = {}, limit = 80 }) => {
+    const rows = db.prepare(`
+      SELECT c.*, s.title AS story_title, s.color AS story_color, s.icon AS story_icon, s.banner AS story_banner,
+        (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id) AS post_count,
+        (SELECT MAX(p.id) FROM posts p WHERE p.channel_id = c.id) AS last_post_id,
+        (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id AND p.user_id != :u
+           AND p.id > COALESCE((SELECT last_read_id FROM channel_reads r WHERE r.channel_id = c.id AND r.user_id = :u), 0)
+           AND EXISTS (SELECT 1 FROM story_members m WHERE m.story_id = c.story_id AND m.user_id = :u)) AS unread
+      FROM channels c JOIN stories s ON s.id = c.story_id
+      WHERE (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
+        ${where.map((w) => `AND (${w})`).join(' ')}
+      ORDER BY COALESCE(c.last_post_at, c.created_at) DESC, c.id DESC LIMIT ${Number(limit)}`).all({ ...args, u: userId });
+    const lastPost = db.prepare(`SELECT p.body, p.cw, p.created_at, u.display_name, ch.name AS character_name
+      FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters ch ON ch.id = p.character_id WHERE p.id = ?`);
+    const starter = db.prepare('SELECT * FROM characters WHERE id = ?');
+    return rows.map((row) => {
+      const lp = row.last_post_id ? lastPost.get(row.last_post_id) : null;
+      const st = row.starter_character_id ? starter.get(row.starter_character_id) : null;
+      return {
+        type: 'thread',
+        ...toChannel(row),
+        postCount: row.post_count,
+        story: { id: row.story_id, title: row.story_title, color: row.story_color, icon: row.story_icon, banner: row.story_banner },
+        starter: st ? toCharacter(st) : null,
+        participants: participants(row.id, 6),
+        lastPost: lp ? { by: lp.character_name || lp.display_name, text: lp.cw ? `CW: ${lp.cw}` : plainText(lp.body, 160), createdAt: lp.created_at } : null,
+        sortAt: row.last_post_at || row.created_at,
+      };
+    });
+  };
 
   // Who may write in a channel. Completed threads are read-only (except for their managers);
   // closed threads are for the people already in them.

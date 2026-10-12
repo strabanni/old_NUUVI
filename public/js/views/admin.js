@@ -2,7 +2,7 @@
 import { html, render, api, $, $$, bindForm, toast, avatar, confirmModal, promptModal, modal, timeAgo, formatPost, icons } from '../lib.js';
 import { state, page, refreshHome, copyText, routeAlive, ensureAlive } from '../main.js';
 
-const TABS = [['reports', 'Reports'], ['users', 'People'], ['invites', 'Invites'], ['stories', 'Stories'], ['log', 'Log']];
+const TABS = [['reports', 'Reports'], ['users', 'People'], ['invites', 'Invites'], ['stories', 'Stories'], ['log', 'Log'], ['npcs', 'NPCs & bots']];
 
 export async function viewAdmin() {
   const alive = routeAlive();
@@ -23,7 +23,7 @@ export async function viewAdmin() {
     tab = k;
     try { sessionStorage.setItem('nuuvi:admin-tab', k); } catch { /* ignore */ }
     $$('[data-tab]', body).forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === k)));
-    await ({ reports, users, invites, stories, log })[k](pane);
+    await ({ reports, users, invites, stories, log, npcs })[k](pane);
   };
   $$('[data-tab]', body).forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   await show(tab);
@@ -185,4 +185,54 @@ async function log(pane) {
   render(pane, entries.length ? html`<div class="log">${entries.map((e) => html`
     <div class="row-item"><span class="small muted nowrap">${timeAgo(e.createdAt)}</span><span class="grow"><strong>${e.actor ?? '—'}</strong> ${e.action.replace(/-/g, ' ')} <span class="muted">${e.detail}</span></span></div>`)}</div>`
     : html`<div class="empty">Nothing yet.</div>`);
+}
+
+// NPCs & bots: global automation settings, and every automatic NPC / gossip account with "try it now".
+async function npcs(pane) {
+  const { settings: s, characters } = await api('/api/admin/bots');
+  render(pane, html`
+    <section class="card">
+      <h3>Automation</h3>
+      <form id="bot-settings" class="stack">
+        <label class="check"><input type="checkbox" name="enabled" ${s.enabled ? 'checked' : ''}> NPCs post and comment on their own</label>
+        <div class="row">
+          <div><label for="b-chance">Chance an NPC comments on a new post</label>
+            <select id="b-chance" name="commentChance">${[0.1, 0.2, 0.35, 0.5, 0.75, 1].map((v) => html`<option value="${v}" ${Math.abs(s.commentChance - v) < 0.001 ? 'selected' : ''}>${Math.round(v * 100)}%</option>`)}</select></div>
+          <div><label for="b-max">Most NPC comments per post</label><input id="b-max" type="number" name="maxCommentsPerPost" min="0" max="10" value="${s.maxCommentsPerPost}"></div>
+          <div><label for="b-every">Each NPC posts about every</label>
+            <select id="b-every" name="postEveryHours">${[[3, '3 hours'], [6, '6 hours'], [12, '12 hours'], [24, 'day'], [72, '3 days'], [168, 'week']].map(([v, l]) => html`<option value="${v}" ${s.postEveryHours === v ? 'selected' : ''}>${l}</option>`)}</select></div>
+        </div>
+        <label class="check"><input type="checkbox" name="gossipAboutThreads" ${s.gossipAboutThreads ? 'checked' : ''}> The gossip account posts tips when public threads start or finish</label>
+        <p class="hint">Private threads and private stories are never gossiped about. Comments show up a minute or two after a post, like real people.</p>
+        <div class="error"></div>
+        <div class="actions"><button type="submit" class="primary">Save</button></div>
+      </form>
+    </section>
+    <section class="card">
+      <h3>Automatic NPCs and gossip accounts</h3>
+      ${characters.length ? html`<div class="stack">${characters.map((c) => html`
+        <div class="row-item">
+          ${avatar({ name: c.name, src: c.avatar, color: c.color })}
+          <div class="grow"><a href="#/c/${c.id}"><strong>${c.name}</strong></a> <span class="npc-badge">${c.bot === 'gossip' ? 'GOSSIP' : 'AUTO'}</span>
+            <div class="small muted">@${c.handle} · run by ${c.ownerName} · ${c.lines.comments || 0} comment lines · ${c.lines.posts || 0} post lines${c.bot === 'gossip' ? ` · ${(c.lines.tips || 0) + (c.lines.finished || 0)} tips` : ''}</div></div>
+          <button class="sm" data-run="${c.id}" data-what="post">Post now</button>
+          ${c.bot === 'bot' ? html`<button class="sm" data-run="${c.id}" data-what="comment">Comment now</button>` : ''}
+        </div>`)}</div>`
+        : html`<p class="muted">None yet. Open any character → Edit → tick <b>This is an NPC</b> and choose <b>They post and comment on their own</b> (or, for you as admin, <b>Anonymous gossip account</b>), then give them lines.</p>`}
+    </section>`);
+  bindForm($('#bot-settings', pane), async (data) => {
+    await api('/api/admin/bots', { method: 'PUT', body: {
+      enabled: !!pane.querySelector('[name=enabled]').checked, gossipAboutThreads: !!pane.querySelector('[name=gossipAboutThreads]').checked,
+      commentChance: Number(data.commentChance), maxCommentsPerPost: Number(data.maxCommentsPerPost), postEveryHours: Number(data.postEveryHours) } });
+    toast('Saved');
+  });
+  pane.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-run]');
+    if (!b) return;
+    try {
+      const { socialId } = await api('/api/admin/bots/run', { method: 'POST', body: { characterId: Number(b.dataset.run), what: b.dataset.what } });
+      toast(b.dataset.what === 'comment' ? 'Commented on the newest post' : 'Posted');
+      if (socialId) location.hash = `#/p/${socialId}`;
+    } catch (err) { toast(err.message); }
+  });
 }

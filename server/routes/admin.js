@@ -170,4 +170,43 @@ export function adminRoutes(r, ctx) {
     const rows = db.prepare(`SELECT l.*, u.display_name FROM mod_log l LEFT JOIN users u ON u.id = l.actor_id ORDER BY l.id DESC LIMIT 200`).all();
     return { data: { entries: rows.map((l) => ({ id: l.id, action: l.action, detail: l.detail, actor: l.display_name, createdAt: l.created_at })) } };
   });
+
+  // ---------- NPC automation ----------
+  r.get('/api/admin/bots', ({ user }) => {
+    requireAdmin(user);
+    const rows = db.prepare(`SELECT c.*, u.display_name AS owner_name FROM characters c JOIN users u ON u.id = c.user_id
+      WHERE c.bot IS NOT NULL ORDER BY c.bot DESC, c.name COLLATE NOCASE`).all();
+    return {
+      data: {
+        settings: ctx.bots.settings(),
+        characters: rows.map((c) => ({ id: c.id, name: c.name, handle: c.handle, bot: c.bot, avatar: c.avatar, color: c.color, ownerName: c.owner_name,
+          lines: Object.fromEntries(Object.entries(JSON.parse(c.bot_lines || '{}')).map(([k, v]) => [k, v.length])) })),
+      },
+    };
+  });
+
+  r.put('/api/admin/bots', ({ user, body }) => {
+    requireAdmin(user);
+    const cur = ctx.bots.settings();
+    const num = (v, lo, hi, fallback) => (v === undefined ? fallback : Number.isFinite(Number(v)) ? Math.min(hi, Math.max(lo, Number(v))) : fallback);
+    const next = {
+      enabled: body.enabled === undefined ? cur.enabled : !!body.enabled,
+      commentChance: num(body.commentChance, 0, 1, cur.commentChance),
+      maxCommentsPerPost: Math.round(num(body.maxCommentsPerPost, 0, 10, cur.maxCommentsPerPost)),
+      postEveryHours: num(body.postEveryHours, 1, 24 * 30, cur.postEveryHours),
+      gossipAboutThreads: body.gossipAboutThreads === undefined ? cur.gossipAboutThreads : !!body.gossipAboutThreads,
+    };
+    ctx.bots.saveSettings(next);
+    ctx.modLog(user.id, 'bot-settings', JSON.stringify(next));
+    return { data: { settings: next } };
+  });
+
+  // Try a character's lines right now.
+  r.post('/api/admin/bots/run', ({ user, body }) => {
+    requireAdmin(user);
+    const what = body.what === 'comment' ? 'comment' : 'post';
+    const res = ctx.bots.runNow(Number(body.characterId), what);
+    if (!res) fail(400, `Nothing to ${what} — add some ${what === 'comment' ? 'comment' : 'post'} lines first`);
+    return { data: { ok: true, socialId: res } };
+  });
 }

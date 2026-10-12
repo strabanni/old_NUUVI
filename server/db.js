@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -331,7 +331,83 @@ const MIGRATIONS = [
   `ALTER TABLE posts ADD COLUMN reply_to INTEGER REFERENCES posts(id) ON DELETE SET NULL;
    ALTER TABLE posts ADD COLUMN media TEXT NOT NULL DEFAULT '[]';
    ALTER TABLE channels ADD COLUMN icon TEXT;`,
+  // v7: character usernames, NPC / bot characters, calendar events (threads link to them),
+  // and phones: per-character contacts and private one-to-one texts.
+  `ALTER TABLE characters ADD COLUMN handle TEXT;
+   ALTER TABLE characters ADD COLUMN npc INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE characters ADD COLUMN bot TEXT;
+   ALTER TABLE characters ADD COLUMN bot_lines TEXT NOT NULL DEFAULT '{}';
+   CREATE UNIQUE INDEX characters_handle_idx ON characters(handle COLLATE NOCASE);
+
+   CREATE TABLE events (
+     id                INTEGER PRIMARY KEY,
+     story_id          INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+     title             TEXT NOT NULL,
+     starts_at         TEXT NOT NULL,
+     ends_at           TEXT,
+     location          TEXT NOT NULL DEFAULT '',
+     summary           TEXT NOT NULL DEFAULT '',
+     banner            TEXT,
+     created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+     created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+     legacy_channel_id INTEGER
+   );
+   CREATE INDEX events_story_idx ON events(story_id, starts_at);
+   ALTER TABLE channels ADD COLUMN event_id INTEGER REFERENCES events(id) ON DELETE SET NULL;
+   INSERT INTO events (story_id, title, starts_at, summary, created_by, created_at, legacy_channel_id)
+     SELECT story_id, name, COALESCE(event_at, created_at), summary, created_by, created_at, id FROM channels WHERE kind = 'event';
+   UPDATE channels SET event_id = (SELECT e.id FROM events e WHERE e.legacy_channel_id = channels.id) WHERE kind = 'event';
+
+   CREATE TABLE phone_contacts (
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     contact_id   INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     name         TEXT NOT NULL DEFAULT '',
+     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (character_id, contact_id)
+   );
+   CREATE TABLE phone_threads (
+     id         INTEGER PRIMARY KEY,
+     a_id       INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     b_id       INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     last_at    TEXT NOT NULL DEFAULT (datetime('now')),
+     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+     UNIQUE (a_id, b_id)
+   );
+   CREATE TABLE phone_messages (
+     id           INTEGER PRIMARY KEY,
+     thread_id    INTEGER NOT NULL REFERENCES phone_threads(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     body         TEXT NOT NULL DEFAULT '',
+     media        TEXT NOT NULL DEFAULT '[]',
+     reply_to     INTEGER REFERENCES phone_messages(id) ON DELETE SET NULL,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     edited_at    TEXT
+   );
+   CREATE INDEX phone_messages_thread_idx ON phone_messages(thread_id, id);
+   CREATE TABLE phone_reads (
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     thread_id    INTEGER NOT NULL REFERENCES phone_threads(id) ON DELETE CASCADE,
+     last_read_id INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (character_id, thread_id)
+   );`,
 ];
+
+// A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.
+export function makeHandle(db, name, exceptId = 0) {
+  const base = (String(name).normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9._]+/g, '').slice(0, 24)) || 'character';
+  for (let n = 0; ; n++) {
+    const h = n ? `${base}${n + 1}` : base;
+    if (!db.prepare('SELECT 1 FROM characters WHERE handle = ? COLLATE NOCASE AND id != ?').get(h, exceptId)) return h;
+  }
+}
+
+// Fill-ins that need code rather than SQL (safe to run on every start).
+function backfill(db) {
+  for (const c of db.prepare('SELECT id, name FROM characters WHERE handle IS NULL').all()) {
+    db.prepare('UPDATE characters SET handle = ? WHERE id = ?').run(makeHandle(db, c.name, c.id), c.id);
+  }
+}
 
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
@@ -355,6 +431,7 @@ export function openDb(path) {
   } else if (version > SCHEMA_VERSION) {
     throw new Error(`${path} was created by a newer version of NUUVI.`);
   }
+  backfill(db);
   return db;
 }
 

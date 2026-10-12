@@ -9,8 +9,10 @@ import { viewCharacters, viewCharacter } from './views/characters.js';
 import { viewUser, viewSettings } from './views/people.js';
 import { viewNotifications } from './views/notifications.js';
 import { viewAdmin } from './views/admin.js';
-import { viewFeed, openThreadForm, viewEvents } from './views/threads.js';
+import { viewFeed, openThreadForm } from './views/threads.js';
+import { viewEvents, viewEvent } from './views/events.js';
 import { viewDirectory } from './views/directory.js';
+import { viewPhone, viewPhoneThread } from './views/phone.js';
 import { viewSocialPost } from './views/social.js';
 
 export const state = {
@@ -182,7 +184,7 @@ function greetingFor(name) {
     greetingPick = pool[Math.floor(Math.random() * pool.length)];
   }
   const [before, after] = greetingPick.split('{n}');
-  return html`${before}<span class="grad-text">${name}</span>${after}`;
+  return html`${before}<a class="grad-text greet-name" href="#/u/${state.user.id}" title="Your profile">${name}</a>${after}`;
 }
 export const greeting = () => greetingFor(state.user.displayName);
 
@@ -287,9 +289,11 @@ function renderSidebar() {
       ${mobileWelcome}
       <div class="side-head"><a href="#/home" class="side-brand" aria-label="NUUVI home">${wordmark}</a><span class="script muted">your stories</span></div>
       <div class="side-scroll">
+        <a href="#/u/${state.user.id}" class="nav-link me-link ${hash === `#/u/${state.user.id}` ? 'active' : ''}">${avatar({ name: state.user.displayName, src: state.user.avatar, color: '#EE719E', size: 'xs' })}<span>${state.user.displayName}</span><small>@${state.user.username}</small></a>
         ${link('#/home', 'Home', icons.home)}
         ${link('#/feed', 'Feed', icons.apps)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
+        ${link('#/phone', 'Phone', icons.smartphone)}
         ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
         ${link('#/discover', 'Discover', icons.compass)}
@@ -456,7 +460,7 @@ function connectLive() {
   source = new EventSource(`/api/events${storyId ? `?story=${storyId}` : ''}`);
   let opened = false;
   source.addEventListener('open', () => { if (opened) emit('reconnect'); opened = true; });
-  for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence']) {
+  for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence', 'dm', 'dm-delete']) {
     source.addEventListener(type, (e) => handleLive(type, JSON.parse(e.data)));
   }
 }
@@ -496,6 +500,7 @@ function handleLive(type, data) {
       refreshHome().catch(() => {});
       if (data.type === 'turn') toast(`It's your turn in #${data.channel?.name}`);
       else if (data.type === 'mention') toast(`${data.actor?.displayName} mentioned you`);
+      else if (data.type === 'dm' && !location.hash.startsWith('#/phone')) toast(`💬 ${data.text}`);
     }
   }
   if (type === 'kicked' && state.route.storyId === data.storyId) {
@@ -514,11 +519,14 @@ const routes = [
   [/^#\/discover$/, viewDiscover],
   [/^#\/feed$/, viewFeed, true],
   [/^#\/events$/, viewEvents, true],
+  [/^#\/e\/(\d+)$/, viewEvent, true],
   [/^#\/p\/(\d+)$/, viewSocialPost, true],
   [/^#\/new$/, viewNewStory, true],
   [/^#\/notifications$/, viewNotifications, true],
   [/^#\/characters$/, viewCharacters, true],
   [/^#\/directory$/, viewDirectory, true],
+  [/^#\/phone(?:\/(\d+))?$/, viewPhone, true],
+  [/^#\/phone\/(\d+)\/t\/(\d+)$/, viewPhoneThread, true],
   [/^#\/c\/(\d+)$/, viewCharacter],
   [/^#\/u\/(\d+)$/, viewUser],
   [/^#\/settings$/, viewSettings, true],

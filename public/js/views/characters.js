@@ -1,7 +1,7 @@
 import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { openThreadForm } from './threads.js';
-import { compact, openSocialComposer } from './social.js';
+import { compact, openSocialComposer, handleOf, npcBadges } from './social.js';
 
 const DETAIL_SUGGESTIONS = ['Age', 'Pronouns', 'Face claim', 'Occupation', 'Species', 'Height', 'Birthday', 'Alignment'];
 
@@ -38,6 +38,7 @@ function characterForm(c = {}) {
       </div>
       <div class="row">
         <div><label for="c-name">Name</label><input id="c-name" name="name" required maxlength="60" value="${c.name || ''}"></div>
+        <div><label for="c-handle">Username</label><span class="at-input"><span>@</span><input id="c-handle" name="handle" maxlength="30" pattern="[A-Za-z0-9._]+" value="${c.handle || ''}" placeholder="made from their name"></span></div>
         <div class="fixed"><label for="c-color">Color</label><input id="c-color" type="color" name="color" value="${c.color || '#EE719E'}"></div>
       </div>
       <label for="c-tag">Tagline</label>
@@ -54,6 +55,28 @@ function characterForm(c = {}) {
       </div>
       <p class="hint">Leave the counts empty to show real follows. Set them for celebrities, influencers and the like.</p>
       <label class="check"><input type="checkbox" name="verified" ${c.verified ? 'checked' : ''}> Verified badge (for public figures)</label>
+      <p class="hint">Their username is who they post as on the feed; their name shows at the top of their profile.</p>
+      <fieldset class="npc-box">
+        <label class="check"><input type="checkbox" name="npc" ${c.npc ? 'checked' : ''}> This is an NPC <span class="muted small">(gets an NPC badge)</span></label>
+        <div class="npc-auto" ${c.npc ? '' : 'hidden'}>
+          <label class="check"><input type="radio" name="bot" value="" ${!c.bot ? 'checked' : ''}> I post for them myself</label>
+          <label class="check"><input type="radio" name="bot" value="bot" ${c.bot === 'bot' ? 'checked' : ''}> They post and comment on their own</label>
+          ${state.user?.isAdmin ? html`<label class="check"><input type="radio" name="bot" value="gossip" ${c.bot === 'gossip' ? 'checked' : ''}> Anonymous gossip account <span class="muted small">(admin only · nobody sees who runs it)</span></label>` : ''}
+          <div class="npc-lines" ${c.bot ? '' : 'hidden'}>
+            <p class="hint">One line per row. They pick one at random. Placeholders: <code>{name}</code> <code>{handle}</code> (whose post they're commenting on), <code>{someone}</code> (a random character), and for gossip tips <code>{a}</code> <code>{b}</code> <code>{thread}</code> <code>{story}</code>.</p>
+            <label for="c-l-comments">Comments on others' posts</label>
+            <textarea id="c-l-comments" rows="4" data-lines="comments" placeholder="{name} ate this 🔥">${(c.botLines?.comments || []).join('\n')}</textarea>
+            <label for="c-l-posts">Their own posts</label>
+            <textarea id="c-l-posts" rows="4" data-lines="posts" placeholder="people watching at the plaza is undefeated">${(c.botLines?.posts || []).join('\n')}</textarea>
+            <div class="npc-gossip" ${c.bot === 'gossip' ? '' : 'hidden'}>
+              <label for="c-l-tips">Tips when a public thread starts</label>
+              <textarea id="c-l-tips" rows="3" data-lines="tips" placeholder="👀 spotted: {a} and {b} at {thread}">${(c.botLines?.tips || []).join('\n')}</textarea>
+              <label for="c-l-finished">Tips when a thread is completed</label>
+              <textarea id="c-l-finished" rows="3" data-lines="finished" placeholder="so THAT is how {thread} ended">${(c.botLines?.finished || []).join('\n')}</textarea>
+            </div>
+          </div>
+        </div>
+      </fieldset>
       <label for="c-bio">Bio</label>
       <textarea id="c-bio" name="bio" maxlength="20000" rows="8" placeholder="Appearance, personality, history, relationships… (*formatting* works here too)">${c.bio || ''}</textarea>
       <div class="error"></div>
@@ -105,6 +128,14 @@ export function editCharacter(c = {}) {
         e.currentTarget.hidden = true;
       });
       form.color.addEventListener('input', showPic);
+      const npcBox = $('.npc-box', d);
+      const drawNpc = () => {
+        $('.npc-auto', d).hidden = !form.npc.checked;
+        const bot = form.querySelector('input[name=bot]:checked')?.value || '';
+        $('.npc-lines', d).hidden = !form.npc.checked || !bot;
+        $('.npc-gossip', d).hidden = bot !== 'gossip';
+      };
+      npcBox.addEventListener('change', drawNpc);
       const list = $('#details', d);
       $('#add-detail', d).addEventListener('click', () => {
         if (list.children.length >= 16) return toast('16 details at most');
@@ -120,6 +151,10 @@ export function editCharacter(c = {}) {
     },
     submit: async (data) => {
       data.verified = !!form.verified.checked;
+      data.npc = !!form.npc.checked;
+      data.bot = data.npc ? (form.querySelector('input[name=bot]:checked')?.value || null) : null;
+      data.botLines = Object.fromEntries($$('[data-lines]', form).map((t) => [t.dataset.lines, t.value.split('\n').map((l) => l.trim()).filter(Boolean)]));
+      if (!data.handle) delete data.handle;
       data.details = $$('.detail-row', form).map((r) => ({ label: r.querySelector('.d-label').value, value: r.querySelector('.d-value').value }))
         .filter((x) => x.label.trim() && x.value.trim());
       await api(c.id ? `/api/characters/${c.id}` : '/api/characters', { method: c.id ? 'PUT' : 'POST', body: data });
@@ -189,7 +224,7 @@ export async function viewCharacter(id) {
     api(`/api/social?character=${id}`),
   ]);
   ensureAlive(alive);
-  const own = c.owner.id === state.user?.id;
+  const own = c.owner?.id === state.user?.id;
   const pic = c.portrait || c.avatar;
   const following = followedBy.length > 0;
   const followable = mine.filter((m) => m.id !== c.id);
@@ -212,7 +247,7 @@ export async function viewCharacter(id) {
           </div>
         </header>
         <div class="ig-id">
-          <h1 class="ig-name">${c.name}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}</h1>
+          <h1 class="ig-name">${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(c)}</h1>
           ${c.tagline ? html`<p class="ig-tagline">${c.tagline}</p>` : ''}
           ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
         </div>
@@ -276,7 +311,7 @@ export async function viewCharacter(id) {
   $('#edit', body)?.addEventListener('click', async () => { if (await editCharacter(c)) { state.characters = null; reload(); } });
   $('#start-thread', body)?.addEventListener('click', () => openThreadForm({ tag: [c.id] }));
   $('#main #char-more').addEventListener('click', (e) => menu(e.currentTarget, [
-    { label: `View ${c.owner.displayName}'s profile`, action: () => { location.hash = `#/u/${c.owner.id}`; } },
+    c.owner && { label: `View ${c.owner.displayName}'s profile`, action: () => { location.hash = `#/u/${c.owner.id}`; } },
     own && { label: 'Edit character', action: () => $('#edit', body).click() },
   ]));
   $('#follow', body)?.addEventListener('click', (e) => {
