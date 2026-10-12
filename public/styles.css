@@ -2051,7 +2051,7 @@ dialog.modal { width: min(540px, calc(100vw / var(--ui-zoom) - 24px)); max-heigh
 /* ---------- v15: rotating header pictures on the main pages ---------- */
 .page-banner { position: relative; isolation: isolate; overflow: hidden; height: clamp(150px, 22vh, 230px); margin: 4px 0 18px; border-radius: 30px;
   background: var(--brand-mesh); box-shadow: var(--elev-1); display: flex; align-items: flex-end; padding: 14px; }
-.page-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; opacity: 0; transform: scale(1.04);
+.page-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 35%; z-index: -2; opacity: 0; transform: scale(1.04);
   transition: opacity 1.4s ease, transform 8s linear; }
 .page-banner img.on { opacity: 1; transform: scale(1); }
 .page-banner::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(transparent 45%, rgb(0 0 0 / .25)); }
@@ -2077,7 +2077,7 @@ dialog.modal { width: min(540px, calc(100vw / var(--ui-zoom) - 24px)); max-heigh
 @media (min-width: 900px) {
   .phone-split { gap: 14px; padding: 0 14px; }
   .phone-split > .phone { flex: 0 1 340px; max-width: 340px; }
-  .phone-split > .phone.chat, .phone-split > .ph-pick { flex: 0 1 420px; max-width: 420px; }
+  .phone-split > .phone.chat, .phone-split > .ph-pick { flex: 0 1 360px; max-width: 360px; }
   .phone-split .ph-hero h1 { font-size: 1.8rem; margin: 18px 0 14px; }
   .phone-split .ph-back { display: none; }
   .ph-pick { display: flex; align-items: center; justify-content: center; background: var(--glass); backdrop-filter: blur(18px); }
@@ -2085,3 +2085,59 @@ dialog.modal { width: min(540px, calc(100vw / var(--ui-zoom) - 24px)); max-heigh
   .ph-pick-inner svg { width: 34px; height: 34px; color: var(--faint); }
   .ph-row.active { background: var(--glass-3); box-shadow: inset 3px 0 0 var(--text); }
 }
+
+/* ---------- v16 ---------- */
+/* Phone: a deeper gradient behind the contacts so the white names and heading stand out. */
+.phone { --ph-grad: linear-gradient(118deg, #6E8E90 0%, #7C78AE 55%, #8C74B4 100%); }
+/* While the keyboard is up on a phone, the app fits the space above it (see theme.js). */
+body:not(.guest) { height: var(--app-h, calc(100dvh / var(--ui-zoom))); }
+@media (max-width: 899px) { .main { height: var(--app-h, 100dvh); } }
+html:has(body:not(.guest)) { overflow: hidden; overscroll-behavior: none; }
+/* More formatting: Discord-style and Jcink codes. */
+.fmt-guide dt.fmt-sec { grid-column: 1 / -1; margin-top: 6px; font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.fmt-guide dt code { white-space: pre-wrap; }
+.fx-h1, .fx-h2, .fx-h3 { font-weight: 800; line-height: 1.15; letter-spacing: -.01em; margin: .5em 0 .35em; color: var(--c, var(--text)); }
+.fx-h1 { font-size: 1.6em; } .fx-h2 { font-size: 1.3em; } .fx-h3 { font-size: 1.1em; }
+.fx-sub { font-size: .78em; color: var(--faint); margin: -.2em 0 .7em; }
+.fx-left { text-align: left; }
+.fx-indent { padding-left: 2em; }
+.fx-tiny { font-size: .7em; }
+.fx-list { margin: 0 0 .8em; padding-left: 1.4em; }
+.fx-list li { margin: .15em 0; }
+.fx-list li::marker { color: var(--faint); }
+.body code, .fx-code code, .prose code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .88em; padding: .1em .35em; border-radius: 6px; background: var(--glass-2); }
+.fx-code { margin: 0 0 .8em; padding: 12px 14px; border-radius: 12px; background: var(--glass-2); overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fx-code code { padding: 0; background: none; }
+.fx-quote cite { display: block; font-style: normal; font-size: .78em; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); margin-bottom: .4em; }
+.fx-quote cite::after { content: " wrote"; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.fx-quote > :last-child { margin-bottom: 0; }
+.fx-hl { color: inherit; background: color-mix(in srgb, var(--c, #ffe066) 45%, transparent); padding: 0 .15em; border-radius: 3px; }
+.body sup, .body sub { font-size: .72em; }
+.fx-font-serif { font-family: "Times New Roman", Times, serif; }
+.fx-font-georgia { font-family: Georgia, serif; }
+.fx-font-garamond { font-family: Garamond, "EB Garamond", Palatino, "Palatino Linotype", serif; }
+.fx-font-sans { font-family: Arial, Helvetica, sans-serif; }
+.fx-font-verdana { font-family: Verdana, Tahoma, sans-serif; }
+.fx-font-trebuchet { font-family: "Trebuchet MS", sans-serif; }
+.fx-font-mono { font-family: "Courier New", Courier, ui-monospace, monospace; }
+.fx-font-script { font-family: "Snell Roundhand", "Segoe Script", "Brush Script MT", cursive; }
+.fx-font-comic { font-family: "Comic Sans MS", "Chalkboard SE", cursive; }
+.fx-font-impact { font-family: Impact, "Arial Black", sans-serif; }
+/* Overview gossip: a column at the top and pull quotes, in a Lady Whistledown-for-the-group-chat voice. */
+.ov-letter { position: relative; margin: 0 0 22px; padding: 26px 28px 22px; border-radius: 26px; background: var(--surface, var(--glass)); border: 1px solid var(--glass-border); box-shadow: var(--shadow); overflow: hidden; }
+.ov-letter::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: linear-gradient(100deg, #EE719E, #C79AD8, #B8A6DB); }
+.ov-letter .eyebrow { color: var(--faint); }
+.ov-letter .prose { font-family: ui-serif, "New York", Georgia, "Times New Roman", serif; font-size: 1.08rem; line-height: 1.7; margin-top: 10px; }
+.ov-letter .prose > p:first-child { font-style: italic; font-size: 1.25rem; }
+.ov-signoff { margin: 14px 0 0; text-align: right; font-family: ui-serif, "New York", Georgia, serif; font-style: italic; color: var(--muted); }
+.ov-whisper { position: relative; margin: 14px 0 4px; padding: 14px 16px 14px 46px; border-radius: 18px; border: 0; background: var(--glass); }
+.ov-whisper .prose { font-family: ui-serif, "New York", Georgia, "Times New Roman", serif; font-style: italic; font-size: 1.02rem; line-height: 1.55; color: var(--text); }
+.ov-whisper .prose p:last-child { margin-bottom: 0; }
+.ov-qmark { position: absolute; left: 12px; top: 2px; font-family: Georgia, serif; font-size: 3rem; line-height: 1; font-style: normal;
+  background: linear-gradient(140deg, #EE719E, #C79AD8, #B8A6DB); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.ov-whisper.small { padding: 10px 14px 10px 40px; } .ov-whisper.small .prose { font-size: .92rem; } .ov-whisper.small .ov-qmark { font-size: 2.4rem; left: 10px; }
+.ov-indies-head .ov-whisper { flex: 1 1 280px; margin: 0; }
+.ov-motto { font-family: ui-serif, "New York", Georgia, serif; font-size: .98rem; color: var(--text); opacity: .85; }
+.ov-motto q { quotes: "“" "”"; }
+.ov-motto q::before, .ov-motto q::after { color: var(--faint); font-size: 1.2em; }
+@media (max-width: 899px) { .ov-letter { padding: 20px 18px 18px; border-radius: 22px; } .ov-letter .prose { font-size: 1rem; } }

@@ -44,3 +44,19 @@ test('usernames: anything goes except spaces and inappropriate words', async () 
   assert.equal(isInappropriate('Ｂｉｔｃｈ'), true);
   assert.equal(nameKey('ＲＯＳÉ'), nameKey('rosé'));
 });
+
+test('formatting: Discord and forum codes, and nothing unsafe gets through', async () => {
+  const { formatPost } = await import('../public/js/lib.js');
+  const f = (s) => String(formatPost(s).v ?? formatPost(s));
+  assert.equal(f('# Big\n-# small'), '<div class="fx-h1">Big</div><div class="fx-sub">small</div>');
+  assert.equal(f('- a\n- b'), '<ul class="fx-list"><li>a</li><li>b</li></ul>');
+  assert.match(f('```\n**raw** <b>\n```'), /<pre class="fx-code"><code>\*\*raw\*\* &lt;b&gt;<\/code><\/pre>/);
+  assert.match(f('[quote=Rose]hi[/quote]'), /<blockquote class="fx-quote"><cite>Rose<\/cite><p>hi<\/p><\/blockquote>/);
+  assert.match(f('[link](https://example.com)'), /<a href="https:\/\/example.com"[^>]*>link<\/a>/);
+  assert.match(f('https://media.tenor.com/x/y.gif'), /<img class="fx-img" src="https:\/\/media.tenor.com\/x\/y.gif"/);
+  assert.match(f('https://giphy.com/gifs/cat-JIX9t2j0ZTN9S'), /src="https:\/\/media.giphy.com\/media\/JIX9t2j0ZTN9S\/giphy.gif"/);
+  assert.match(f('"see https://x.com/a." ok'), /<a href="https:\/\/x.com\/a"[^>]*>https:\/\/x.com\/a<\/a>\.&quot;/);
+  // Nothing escapes: tags stay text, javascript: links and quote-breaking links are refused.
+  const evil = f('<img src=x onerror=1> [url=javascript:alert(1)]x[/url] [link](javascript:alert(1)) https://x.com/a"onmouseover=1 [font=x" onclick="1]t[/font] [color=red;x]c[/color]');
+  assert.doesNotMatch(evil, /<img|href="javascript|onmouseover="|onclick=/);
+});

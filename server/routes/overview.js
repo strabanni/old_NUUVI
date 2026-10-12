@@ -27,6 +27,7 @@ export function overviewInput(body) {
     motto: text(o.motto, 'Motto', 300),
     body: text(o.body, 'Description', 20000),
     credit: text(o.credit, 'Credit', 80),
+    whisper: text(o.whisper, 'Gossip line', 500),
   })).filter((o) => o.name);
   return {
     tagline: text(body.tagline, 'Tagline', 300),
@@ -34,6 +35,8 @@ export function overviewInput(body) {
     sections: list(body.sections, 'Sections', 40).map((x) => ({ title: text(x.title, 'Section title', 160), body: text(x.body, 'Section', 30000) }))
       .filter((x) => x.title || x.body),
     independentNote: text(body.independentNote, 'Note', 300),
+    letter: text(body.letter, 'Gossip column', 5000),
+    signoff: text(body.signoff, 'Sign-off', 120),
     orgs,
   };
 }

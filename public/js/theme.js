@@ -23,6 +23,7 @@
   var base = meta ? meta.getAttribute('content') : '';
   var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   var mobile = touch && Math.min(screen.width, screen.height) < 900;
+  var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function apply(ui) {
     var saved = null;
     try { saved = localStorage.getItem('nuuvi:ui'); } catch (e) { /* storage unavailable */ }
@@ -33,10 +34,13 @@
     if (touch) {
       root.style.removeProperty('zoom');
       if (!meta) return;
-      if (scale === 1) { meta.setAttribute('content', base); return; }
+      // iPhones zoom in whenever a text box is tapped (and stay zoomed, so the page jumps around).
+      // Capping the zoom at the chosen size stops that; iOS still lets people pinch to zoom.
+      var cap = ios ? ', maximum-scale=' + scale : '';
+      if (scale === 1) { meta.setAttribute('content', base + cap); return; }
       var portrait = window.matchMedia('(orientation: portrait)').matches;
       var side = portrait ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
-      meta.setAttribute('content', 'width=' + Math.round(side / scale) + ', initial-scale=' + scale +
+      meta.setAttribute('content', 'width=' + Math.round(side / scale) + ', initial-scale=' + scale + cap +
         ', viewport-fit=cover, interactive-widget=resizes-content');
     } else {
       root.style.setProperty('--ui-zoom', String(scale));
@@ -44,6 +48,28 @@
     }
   }
   apply();
+
+  // While typing on a phone, keep the app exactly the height of the space above the keyboard,
+  // so the message box stays put instead of the whole page sliding up and down.
+  if (touch && window.visualViewport) {
+    var vv = window.visualViewport;
+    var typing = function () {
+      var el = document.activeElement;
+      return !!el && (el.tagName === 'TEXTAREA' || el.isContentEditable || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file|color|range)$/.test(el.type)));
+    };
+    var fit = function () {
+      if (typing() && vv.height < window.innerHeight - 1) {
+        root.style.setProperty('--app-h', vv.height + 'px');
+        if (window.scrollY || vv.offsetTop) window.scrollTo(0, 0);
+      } else {
+        root.style.removeProperty('--app-h');
+      }
+    };
+    vv.addEventListener('resize', fit);
+    vv.addEventListener('scroll', fit);
+    document.addEventListener('focusin', function () { setTimeout(fit, 60); });
+    document.addEventListener('focusout', function () { setTimeout(fit, 60); });
+  }
   window.nuuviScale = { apply: apply, touch: touch, mobile: mobile };
   if (window.matchMedia) {
     var o = window.matchMedia('(orientation: portrait)');

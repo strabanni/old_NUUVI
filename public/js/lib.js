@@ -60,6 +60,11 @@ export async function api(path, { method = 'GET', body } = {}) {
 // Resizes an image in the browser (which also strips EXIF data like GPS location) and uploads it.
 export async function uploadImage(file, maxSize = 640) {
   if (!file.type.startsWith('image/')) throw new Error('Please choose an image');
+  // GIFs go up as they are, so they keep moving (resizing would flatten them to one frame).
+  if (file.type === 'image/gif') {
+    if (file.size > 15 * 1024 * 1024) throw new Error('GIFs can be up to 15 MB');
+    return uploadFile(file);
+  }
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
@@ -124,43 +129,119 @@ export function timeStamp(sqlDate) {
 
 export const minutesBetween = (a, b) => Math.abs(parseDate(a) - parseDate(b)) / 60000;
 
-// Roleplay formatting. Input is escaped first, so only these patterns produce markup:
-// **bold**, *action*, __underline__, ~~strike~~, ||spoiler||, "dialogue", @mentions, > quotes,
-// plus forum-style add-on codes writers use to build their own post layouts:
-//   [center] [right] [box] [h] … [/…] (blocks)   [hr]   [img]https://…[/img]   [url=https://…]text[/url]
-//   [color=#hex] [size=small|big|huge] [caps] [b] [i] [u] [s] … [/…] (inline)
-// Colors become data-color (applied by render()), so no inline styles are needed.
+// Roleplay formatting. Input is escaped first, so only these patterns produce markup.
+// Discord style: **bold**, *action*, _italic_, ***both***, __underline__, ~~strike~~, ||spoiler||,
+//   `code`, ```code blocks```, # / ## / ### headings, -# small print, > quote, >>> quote-the-rest,
+//   - lists, 1. lists, [text](https://link), bare links (picture and GIF links show as pictures).
+// Jcink / forum style: [center] [left] [right] [align=…] [box] [h] [indent] [quote(=Name)] [list(=1)][*]…
+//   [code] [hr] [img] [url(=…)] [color=…] [highlight=…] [size=small|big|huge|1-7] [font=…] [caps]
+//   [b] [i] [u] [s] [strike] [sup] [sub] [spoiler]
+// Plus "dialogue" and @mentions. Colors become data-color (applied by applyColors), so no inline styles.
 const PIC = /^(?:https:\/\/[^\s"<>\[\]]+|\/uploads\/[\w-]+\.(?:png|jpg|webp|gif))$/;
+const PIC_LINK = /^https:\/\/(?:[^\s"<>]+\.(?:png|jpe?g|gif|webp|avif)(?:[?#][^\s"<>]*)?|(?:media\d*|i)\.giphy\.com\/[^\s"<>]+|media\d*\.tenor\.com\/[^\s"<>]+)$/i;
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-const BLOCKS = { center: 'fx-center', right: 'fx-right', box: 'fx-box', h: 'fx-h' };
+const colorOk = (c) => HEX.test(c) || /^[a-z]{3,20}$/i.test(c);
+const BLOCKS = { center: 'fx-center', right: 'fx-right', left: 'fx-left', box: 'fx-box', h: 'fx-h', indent: 'fx-indent' };
+const SIZES = { tiny: 'small', small: 'small', big: 'big', huge: 'huge', 1: 'tiny', 2: 'small', 3: '', 4: 'big', 5: 'big', 6: 'huge', 7: 'huge' };
+const FONTS = {
+  serif: 'serif', 'times new roman': 'serif', times: 'serif', georgia: 'georgia', garamond: 'garamond', palatino: 'garamond',
+  sans: 'sans', 'sans-serif': 'sans', arial: 'sans', helvetica: 'sans', verdana: 'verdana', tahoma: 'verdana', trebuchet: 'trebuchet', 'trebuchet ms': 'trebuchet',
+  mono: 'mono', monospace: 'mono', courier: 'mono', 'courier new': 'mono', typewriter: 'mono',
+  cursive: 'script', script: 'script', 'comic sans ms': 'comic', comic: 'comic', impact: 'impact',
+};
 
 // Escaped quotes or brackets never belong in a link (they'd only be there to break out of it).
 const safeUrl = (url) => !/&(?:quot|#39|lt|gt);/.test(url);
+const LINK_OPEN = (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer nofollow">`;
 
 function inlineFormat(s) {
-  // Links are set aside first so no other formatting can reach inside an address.
+  // Code and links are set aside first so no other formatting can reach inside them.
   const kept = [];
   const keep = (markup) => `\u0000${kept.push(markup) - 1}\u0000`;
   return s
+    .replace(/`([^`\n]+)`/g, (m, code) => keep(`<code>${code}</code>`))
     .replace(/\[img\]\s*(\S+?)\s*\[\/img\]/gi, (m, url) => (PIC.test(url) && safeUrl(url)
       ? keep(`<img class="fx-img" src="${url}" alt="" loading="lazy">`) : m))
     .replace(/\[url=([^\]\s]+)\]([\s\S]*?)\[\/url\]/gi, (m, url, text) => (/^https?:\/\/[^\s"<>]+$/.test(url) && safeUrl(url)
-      ? `${keep(`<a href="${url}" target="_blank" rel="noopener noreferrer nofollow">`)}${text}</a>` : m))
-    .replace(/\[color=([^\]]+)\]([\s\S]*?)\[\/color\]/gi, (m, c, text) => (HEX.test(c) ? `<span class="fx-color" data-color="${c}">${text}</span>` : m))
-    .replace(/\[size=(small|big|huge)\]([\s\S]*?)\[\/size\]/gi, (m, size, text) => `<span class="fx-${size.toLowerCase()}">${text}</span>`)
+      ? `${keep(LINK_OPEN(url))}${text}</a>` : m))
+    .replace(/\[url\]\s*(https?:\/\/[^\s"<>\[]+?)\s*\[\/url\]/gi, (m, url) => (safeUrl(url) ? keep(`${LINK_OPEN(url)}${url}</a>`) : m))
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s()"<>]+)\)/g, (m, text, url) => (safeUrl(url) ? `${keep(LINK_OPEN(url))}${text}</a>` : m))
+    .replace(/(^|[\s(>]|&quot;|“)(https?:\/\/(?:(?!&(?:quot|#39|lt|gt);)[^\s<"])+)/g, (m, pre, found) => {
+      const url = pictureLink(found.replace(/[.,!?;:)\]']+$/, ''));
+      const rest = found.slice(found.replace(/[.,!?;:)\]']+$/, '').length);
+      if (!safeUrl(url) || url.length < 10) return m;
+      return pre + keep(PIC_LINK.test(url) ? `<img class="fx-img" src="${url}" alt="" loading="lazy">` : `${LINK_OPEN(url)}${url}</a>`) + rest;
+    })
+    .replace(/\[color=([^\]]+)\]([\s\S]*?)\[\/color\]/gi, (m, c, text) => (colorOk(c) ? `<span class="fx-color" data-color="${c}">${text}</span>` : m))
+    .replace(/\[highlight=([^\]]+)\]([\s\S]*?)\[\/highlight\]/gi, (m, c, text) => (colorOk(c) ? `<mark class="fx-hl" data-color="${c}">${text}</mark>` : m))
+    .replace(/\[size=([^\]]+)\]([\s\S]*?)\[\/size\]/gi, (m, size, text) => {
+      const k = SIZES[size.trim().toLowerCase()];
+      return k === undefined ? m : k ? `<span class="fx-${k}">${text}</span>` : text;
+    })
+    .replace(/\[font=([^\]]+)\]([\s\S]*?)\[\/font\]/gi, (m, font, text) => {
+      const k = FONTS[font.replace(/&quot;|&#39;/g, '').trim().toLowerCase()];
+      return k ? `<span class="fx-font-${k}">${text}</span>` : text;
+    })
     .replace(/\[caps\]([\s\S]*?)\[\/caps\]/gi, '<span class="fx-caps">$1</span>')
+    .replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, '<span class="spoiler" tabindex="0">$1</span>')
+    .replace(/\[sup\]([\s\S]*?)\[\/sup\]/gi, '<sup>$1</sup>')
+    .replace(/\[sub\]([\s\S]*?)\[\/sub\]/gi, '<sub>$1</sub>')
     .replace(/\[b\]([\s\S]*?)\[\/b\]/gi, '<strong>$1</strong>')
     .replace(/\[i\]([\s\S]*?)\[\/i\]/gi, '<em>$1</em>')
     .replace(/\[u\]([\s\S]*?)\[\/u\]/gi, '<u>$1</u>')
-    .replace(/\[s\]([\s\S]*?)\[\/s\]/gi, '<s>$1</s>')
+    .replace(/\[(?:s|strike)\]([\s\S]*?)\[\/(?:s|strike)\]/gi, '<s>$1</s>')
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em class="action">$1</em></strong>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em class="action">$1</em>')
     .replace(/__(.+?)__/g, '<u>$1</u>')
+    .replace(/(^|[\s(>])_([^_\s](?:[^_]*?[^_\s])?)_(?=$|[\s.,!?;:)<])/g, '$1<em>$2</em>')
     .replace(/~~(.+?)~~/g, '<s>$1</s>')
     .replace(/\|\|(.+?)\|\|/g, '<span class="spoiler" tabindex="0">$1</span>')
     .replace(/(&quot;|“)(.+?)(&quot;|”)/g, '<span class="dialogue">$1$2$3</span>')
     .replace(/(^|[\s(>])@([^\s@<&]+?)(?=[.,!?;:)\]]*(?:\s|$|<|&))/gu, '$1<span class="mention">@$2</span>')
     .replace(/\u0000(\d+)\u0000/g, (_, i) => kept[i]);
+}
+
+// Discord-style line codes inside a paragraph: headings, small print, quotes and lists.
+function lineBlocks(para) {
+  const lines = para.split('\n');
+  const out = [];
+  let text = [];
+  const flush = () => { if (text.length) out.push(`<p>${inlineFormat(text.join('\n')).replace(/\n/g, '<br>')}</p>`); text = []; };
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    let m;
+    if ((m = l.match(/^&gt;&gt;&gt; ?(.*)$/))) {
+      flush();
+      out.push(`<blockquote>${inlineFormat([m[1], ...lines.slice(i + 1)].join('\n')).replace(/\n/g, '<br>')}</blockquote>`);
+      break;
+    } else if (/^&gt;(?: |$)/.test(l)) {
+      flush();
+      const q = [];
+      while (i < lines.length && /^&gt;(?: |$)/.test(lines[i])) q.push(lines[i++].replace(/^&gt; ?/, ''));
+      i--;
+      out.push(`<blockquote>${inlineFormat(q.join('\n')).replace(/\n/g, '<br>')}</blockquote>`);
+    } else if ((m = l.match(/^(#{1,3}) (.+)$/))) {
+      flush();
+      out.push(`<div class="fx-h${m[1].length}">${inlineFormat(m[2])}</div>`);
+    } else if ((m = l.match(/^-# (.+)$/))) {
+      flush();
+      out.push(`<div class="fx-sub">${inlineFormat(m[1])}</div>`);
+    } else if (/^\s*(?:[-*•]|\d{1,3}[.)]) \S/.test(l)) {
+      flush();
+      const ordered = /^\s*\d/.test(l);
+      const items = [];
+      while (i < lines.length && (ordered ? /^\s*\d{1,3}[.)] \S/ : /^\s*[-*•] \S/).test(lines[i])) items.push(lines[i++].replace(/^\s*(?:[-*•]|\d{1,3}[.)]) /, ''));
+      i--;
+      const start = ordered ? Number(l.match(/\d+/)[0]) : 1;
+      const tag = ordered ? 'ol' : 'ul';
+      out.push(`<${tag} class="fx-list"${ordered && start !== 1 ? ` start="${start}"` : ''}>${items.map((it) => `<li>${inlineFormat(it)}</li>`).join('')}</${tag}>`);
+    } else {
+      text.push(l);
+    }
+  }
+  flush();
+  return out.join('');
 }
 
 function paragraphs(text) {
@@ -171,28 +252,42 @@ function paragraphs(text) {
     .filter((para) => para.trim())
     .map((para) => {
       if (/^\s*\[hr\]\s*$/i.test(para)) return '<hr class="fx-hr">';
-      const lines = para.split('\n');
-      if (lines.every((l) => l.startsWith('&gt; ') || l === '&gt;')) {
-        return `<blockquote>${inlineFormat(lines.map((l) => l.replace(/^&gt; ?/, '')).join('<br>'))}</blockquote>`;
-      }
-      return `<p>${inlineFormat(para).replace(/\n/g, '<br>')}</p>`;
+      if (/^\s*\u0001\d+\u0001\s*$/.test(para)) return para.trim();
+      return lineBlocks(para);
     })
     .join('');
 }
 
 // Block codes can hold several paragraphs (and other blocks), so they're split out first.
 function blocks(text) {
-  const m = text.match(/\[(center|right|box|h)\]([\s\S]*?)\[\/\1\]/i);
+  const m = text.match(/\[(center|right|left|box|h|indent|quote|list)(?:=([^\]\n]*))?\]([\s\S]*?)\[\/\1\]/i);
   if (!m) return paragraphs(text);
   const before = text.slice(0, m.index);
   const after = text.slice(m.index + m[0].length);
   const tag = m[1].toLowerCase();
-  const inner = tag === 'h' ? inlineFormat(m[2].trim()) : blocks(m[2]);
-  return `${paragraphs(before)}<div class="${BLOCKS[tag]}">${inner}</div>${blocks(after)}`;
+  let inner;
+  if (tag === 'quote') {
+    const who = (m[2] || '').replace(/&quot;|&#39;/g, '').trim();
+    inner = `<blockquote class="fx-quote">${who ? `<cite>${inlineFormat(who)}</cite>` : ''}${blocks(m[3])}</blockquote>`;
+  } else if (tag === 'list') {
+    const items = m[3].split(/\[\*\]/).slice(1).map((it) => it.trim()).filter(Boolean);
+    const ordered = !!m[2];
+    inner = `<${ordered ? 'ol' : 'ul'} class="fx-list">${items.map((it) => `<li>${inlineFormat(it).replace(/\n/g, '<br>')}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`;
+  } else {
+    inner = `<div class="${BLOCKS[tag]}">${tag === 'h' ? inlineFormat(m[3].trim()) : blocks(m[3])}</div>`;
+  }
+  return `${paragraphs(before)}${inner}${blocks(after)}`;
 }
 
 export function formatPost(text) {
-  return raw(blocks(esc(String(text ?? "").replace(/\u0000/g, ""))));
+  let s = esc(String(text ?? '').replace(/[\u0000\u0001]/g, ''));
+  // Code blocks keep their text exactly as typed, so they're set aside before anything else.
+  const codes = [];
+  const code = (body) => `\n\n\u0001${codes.push(`<pre class="fx-code"><code>${body.replace(/^\n+|\n+$/g, '')}</code></pre>`) - 1}\u0001\n\n`;
+  s = s.replace(/```(?:[\w+-]*\n)?([\s\S]*?)```/g, (m, body) => code(body))
+    .replace(/\[code\]([\s\S]*?)\[\/code\]/gi, (m, body) => code(body))
+    .replace(/\[align=(left|center|right)\]([\s\S]*?)\[\/align\]/gi, '[$1]$2[/$1]');
+  return raw(blocks(s).replace(/\u0001(\d+)\u0001/g, (_, i) => codes[i]));
 }
 
 const initial = (name) => (name || '?').trim().charAt(0).toUpperCase();
@@ -308,7 +403,7 @@ export const logoMark = raw('<svg class="logo-mark" viewBox="0 0 100 100" role="
 export const wordmark = raw('<svg class="wordmark" viewBox="0 0 142 40" role="img" aria-label="nuuvi"><g class="lg-word"><path d="M5 35V22.5a10 10 0 0 1 20 0V35"/><path d="M38 13V25.5a10 10 0 0 0 20 0V13V35"/><path d="M71 13V25.5a10 10 0 0 0 20 0V13V35"/><path d="M103 13L113.5 35L124 13"/><path d="M137 15V35"/></g><circle class="lg-dot" cx="137" cy="4.6" r="4.6"/></svg>');
 
 export const icons = {
-  // Uicons by Flaticon (flaticon.com/uicons): user, menu-burger, apps, user-add, power, fingerprint, music-alt, play.
+  // Uicons by Flaticon (flaticon.com/uicons): user, menu-burger, apps, user-add, power, fingerprint, music-alt, play, sparkles, layout-fluid.
   menu: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M22.5 10.5H1.5Q0.9 10.5 0.4 10.9Q0 11.4 0 12Q0 12.6 0.4 13.1Q0.9 13.5 1.5 13.5H22.5Q23.1 13.5 23.6 13.1Q24 12.6 24 12Q24 11.4 23.6 10.9Q23.1 10.5 22.5 10.5ZM1.5 6.5H22.5Q23.1 6.5 23.6 6Q24 5.6 24 5Q24 4.4 23.6 4Q23.1 3.5 22.5 3.5H1.5Q0.9 3.5 0.4 4Q0 4.4 0 5Q0 5.6 0.4 6Q0.9 6.5 1.5 6.5ZM22.5 17.5H1.5Q0.9 17.5 0.4 18Q0 18.4 0 19Q0 19.6 0.4 20Q0.9 20.5 1.5 20.5H22.5Q23.1 20.5 23.6 20Q24 19.6 24 19Q24 18.4 23.6 18Q23.1 17.5 22.5 17.5Z"/></svg>'),
   apps: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 0H7Q8.6 0 9.8 1.2Q11 2.3 11 4V7Q11 8.6 9.8 9.8Q8.6 11 7 11H4Q2.3 11 1.2 9.8Q0 8.6 0 7V4Q0 2.3 1.2 1.2Q2.3 0 4 0ZM17 0H20Q21.7 0 22.8 1.2Q24 2.3 24 4V7Q24 8.6 22.8 9.8Q21.7 11 20 11H17Q15.4 11 14.2 9.8Q13 8.6 13 7V4Q13 2.3 14.2 1.2Q15.4 0 17 0ZM4 13H7Q8.6 13 9.8 14.2Q11 15.4 11 17V20Q11 21.7 9.8 22.8Q8.6 24 7 24H4Q2.3 24 1.2 22.8Q0 21.7 0 20V17Q0 15.4 1.2 14.2Q2.3 13 4 13ZM17 13H20Q21.7 13 22.8 14.2Q24 15.4 24 17V20Q24 21.7 22.8 22.8Q21.7 24 20 24H17Q15.4 24 14.2 22.8Q13 21.7 13 20V17Q13 15.4 14.2 14.2Q15.4 13 17 13Z"/></svg>'),
   user: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6Q6 7.6 6.8 9Q7.6 10.4 9 11.2Q10.4 12 12 12Q13.6 12 15 11.2Q16.4 10.4 17.2 9Q18 7.6 18 6Q18 4.4 17.2 3Q16.4 1.6 15 0.8Q13.6 0 12 0Q10.4 0 9 0.8Q7.6 1.6 6.8 3Q6 4.4 6 6ZM12 14Q9.5 14 7.5 15.2Q5.4 16.4 4.2 18.5Q3 20.6 3 23Q3 23.4 3.3 23.7Q3.6 24 4 24H20Q20.4 24 20.7 23.7Q21 23.4 21 23Q21 20.6 19.8 18.5Q18.6 16.4 16.5 15.2Q14.5 14 12 14Z"/></svg>'),
@@ -316,13 +411,16 @@ export const icons = {
   power: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0Q12.6 0 13.1 0.4Q13.5 0.9 13.5 1.5V6.5Q13.5 7.1 13.1 7.6Q12.6 8 12 8Q11.4 8 10.9 7.6Q10.5 7.1 10.5 6.5V1.5Q10.5 0.9 10.9 0.4Q11.4 0 12 0ZM15.5 5Q15.5 5.8 16.2 6.2Q18 7.3 19 9.2Q20 11 20 13.2Q19.9 15.4 18.8 17.2Q17.7 19 15.8 20Q13.9 21 11.8 21Q9.7 21 7.8 19.8Q6 18.7 5 16.8Q4 15 4 12.8Q4.1 10.7 5.2 8.8Q6.2 7.2 7.8 6.2Q8.5 5.8 8.5 5Q8.5 4.3 8 3.9Q7.6 3.4 7 3.4Q6.6 3.4 6.2 3.7Q3.7 5.3 2.3 7.8Q1 10.4 1 13.3Q1.1 16.2 2.7 18.8Q4.2 21.4 6.8 22.7Q9.4 24.1 12.4 24Q15.3 23.9 17.8 22.4Q20.3 20.8 21.7 18.2Q23 15.6 23 12.7Q22.9 9.8 21.4 7.2Q20 5 17.8 3.7Q17.3 3.4 16.7 3.5Q16.1 3.6 15.8 4.2Q15.5 4.5 15.5 5Z"/></svg>'),
   fingerprint: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 22.3Q5.6 22.3 5.4 22.1Q5.1 21.8 5 21.5Q4.9 21.2 5 20.9Q5.2 20.6 5.4 20.4Q7.1 19.4 7.9 17.7Q8.6 16.2 8.9 14.2Q9 13 9 11Q9 9.8 9.9 8.9Q10.7 8 12 8Q13.3 8 14.2 8.9Q15 9.8 15 11Q15 11.4 14.7 11.7Q14.4 12 14 12Q13.6 12 13.3 11.7Q13 11.4 13 11Q13 10.6 12.7 10.3Q12.4 10 12 10Q11.6 10 11.3 10.3Q11 10.6 11 11Q11 13.3 10.8 14.6Q10.6 17 9.7 18.7Q8.6 20.9 6.5 22.2Q6.2 22.3 6 22.3ZM11 23.7Q14.4 20.2 14.9 14.1Q15 13.7 14.7 13.4Q14.4 13 14 13Q13.6 13 13.3 13.2Q13 13.5 12.9 13.9Q12.5 19.4 9.5 22.3Q9.2 22.6 9.2 23Q9.2 23.4 9.5 23.7Q9.8 24 10.2 24Q10.6 24 11 23.7ZM16.2 23.5Q17 22 17.7 20.3Q17.8 19.9 17.6 19.6Q17.4 19.2 17 19.1Q16.6 19 16.3 19.1Q15.9 19.3 15.8 19.7Q15.2 21.1 14.4 22.5Q14.2 22.8 14.3 23.2Q14.4 23.7 14.8 23.9Q15.1 24.1 15.5 24Q15.9 23.8 16.2 23.5ZM18.5 17.2Q19 14.2 19 11Q19 8.8 17.8 7Q16.6 5.3 14.5 4.5Q12.5 3.7 10.4 4.2Q8.2 4.7 6.8 6.3Q6.4 6.8 6.6 7.4Q6.7 7.9 7.3 8Q7.9 8.1 8.2 7.7Q9.3 6.5 10.8 6.1Q12.3 5.8 13.8 6.3Q15.2 6.9 16.1 8.2Q17 9.4 17 11Q17 13.9 16.6 16.8Q16.5 17.2 16.7 17.6Q17 17.9 17.4 18H17.5Q17.8 18 18.1 17.8Q18.4 17.5 18.5 17.2ZM7 11Q7 10.6 7 10.2Q7.2 9.6 6.8 9.2Q6.3 8.8 5.8 9Q5.2 9.2 5.1 9.8Q5 10.4 5 11Q5 18 1 18Q0.6 18 0.3 18.3Q0 18.6 0 19Q0 19.4 0.3 19.7Q0.6 20 1 20Q3.9 20 5.5 17.7Q7 15.4 7 11ZM20.7 23.4Q23.2 17.4 23 11Q23 8.5 21.9 6.2Q21.7 5.8 21.3 5.7Q21 5.6 20.6 5.8Q20.2 5.9 20 6.3Q19.9 6.7 20.1 7.1Q21 9 21 11Q21.2 17 18.9 22.6Q18.7 23 18.9 23.4Q19 23.8 19.4 23.9Q19.6 24 19.8 24Q20.1 24 20.3 23.8Q20.6 23.7 20.7 23.4ZM3 14V11Q3 8.6 4.2 6.5Q5.4 4.4 7.5 3.2Q9.5 2 12 2Q15 2 17.4 3.8Q17.8 4.1 18.2 4Q18.6 3.9 18.8 3.6Q19 3.3 19 2.9Q19 2.5 18.6 2.2Q17.2 1.1 15.5 0.6Q13.8 0 12 0Q9 0 6.5 1.5Q4 3 2.5 5.5Q1 8 1 11V14Q1 14.4 1.3 14.7Q1.6 15 2 15Q2.4 15 2.7 14.7Q3 14.4 3 14Z"/></svg>'),
   music: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M22.9 0.7Q22.4 0.2 21.8 0.1Q21.1 -0.1 20.5 0.1L8.5 2.3Q7.4 2.5 6.7 3.3Q6 4.2 6 5.3V16.6Q5 16 4 16Q2.3 16 1.2 17.2Q0 18.3 0 20Q0 21.7 1.2 22.8Q2.3 24 4 24Q5.7 24 6.8 22.8Q8 21.7 8 20V9.4L22 6.8V13.6Q21 13 20 13Q18.3 13 17.2 14.2Q16 15.4 16 17Q16 18.6 17.2 19.8Q18.3 21 20 21Q21.7 21 22.8 19.8Q24 18.6 24 17V3Q24 2.3 23.7 1.7Q23.4 1.1 22.9 0.7Z"/></svg>'),
-  episode: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 8 11 1Q9.8 0.2 8.4 0Q7 -0.1 5.7 0.6Q4.5 1.2 3.8 2.4Q3 3.6 3 5V19Q3 20.4 3.8 21.6Q4.5 22.8 5.8 23.4Q7 24.1 8.4 24Q9.8 23.8 11 23L20.5 16Q21.4 15.4 22 14.3Q22.6 13.2 22.6 12Q22.6 10.8 22 9.7Q21.4 8.6 20.5 8ZM19.3 14.4 9.8 21.4Q9.1 21.9 8.2 22Q7.4 22.1 6.6 21.7Q5.9 21.3 5.5 20.6Q5 19.8 5 19V5Q5 4.2 5.4 3.4Q5.9 2.7 6.6 2.4Q7.3 2 8 2Q9 2 9.8 2.6L19.3 9.6Q19.9 10 20.2 10.6Q20.6 11.3 20.6 12Q20.6 12.7 20.2 13.4Q19.9 14 19.3 14.4Z"/></svg>'),
+  // Drawn a little inside its box so it sits level with the text beside it.
+  episode: raw('<svg class="fi i-episode" viewBox="-3.5 -3.5 31 31" aria-hidden="true"><path d="M20.5 8 11 1Q9.8 0.2 8.4 0Q7 -0.1 5.7 0.6Q4.5 1.2 3.8 2.4Q3 3.6 3 5V19Q3 20.4 3.8 21.6Q4.5 22.8 5.8 23.4Q7 24.1 8.4 24Q9.8 23.8 11 23L20.5 16Q21.4 15.4 22 14.3Q22.6 13.2 22.6 12Q22.6 10.8 22 9.7Q21.4 8.6 20.5 8ZM19.3 14.4 9.8 21.4Q9.1 21.9 8.2 22Q7.4 22.1 6.6 21.7Q5.9 21.3 5.5 20.6Q5 19.8 5 19V5Q5 4.2 5.4 3.4Q5.9 2.7 6.6 2.4Q7.3 2 8 2Q9 2 9.8 2.6L19.3 9.6Q19.9 10 20.2 10.6Q20.6 11.3 20.6 12Q20.6 12.7 20.2 13.4Q19.9 14 19.3 14.4Z"/></svg>'),
   sparkle: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c.5 5.2 2 6.9 8 7.6-6 .7-7.5 2.4-8 7.6-.5-5.2-2-6.9-8-7.6 6-.7 7.5-2.4 8-7.6zM19 15.5c.2 2 .8 2.6 3 2.9-2.2.3-2.8.9-3 2.9-.2-2-.8-2.6-3-2.9 2.2-.3 2.8-.9 3-2.9z"/></svg>'),
   users: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.6c2.6.1 4.6 1.8 5.3 4.9"/></svg>'),
   home: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg>'),
   bell: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>'),
   compass: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg>'),
   plus: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>'),
+  sparkles: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 24Q19.2 24 19 23.8Q18.7 23.7 18.6 23.4L17.8 21.3L15.6 20.4Q15.4 20.2 15.2 20Q15 19.8 15 19.4Q15 19.1 15.2 18.9Q15.4 18.6 15.7 18.5L17.8 17.7L18.6 15.6Q18.7 15.4 19 15.2Q19.2 15 19.5 15Q19.8 15 20.1 15.2Q20.3 15.4 20.4 15.6L21.3 17.8L23.4 18.6Q23.7 18.7 23.8 19Q24 19.2 24 19.5Q24 19.8 23.8 20.1Q23.7 20.3 23.4 20.4L21.3 21.3L20.4 23.4Q20.3 23.7 20.1 23.8Q19.8 24 19.5 24ZM10 21Q9.4 21 8.8 20.6Q8.2 20.2 8.1 19.6L6.5 14.6L1.4 12.9Q0.7 12.6 0.4 12.1Q0 11.5 0 10.9Q0 10.2 0.4 9.7Q0.8 9.2 1.4 9L6.5 7.4L8.2 2.4Q8.3 1.8 8.9 1.4Q9.4 1 10.1 1Q10.8 1 11.3 1.4Q11.8 1.8 12 2.4L13.5 7.4L18.6 9Q19.2 9.3 19.6 9.8Q20 10.3 20 11Q20 11.7 19.6 12.2Q19.2 12.7 18.6 13L13.5 14.6L11.9 19.6Q11.8 20.2 11.2 20.6Q10.6 21 10 21ZM10.1 3 8.2 8.6Q8 9 7.5 9.2L2 10.9L7.6 12.8Q8.1 13 8.2 13.4L10 19L11.8 13.4Q11.9 13 12.5 12.8L18 11L12.5 9.2Q11.9 9 11.8 8.6ZM20.5 7Q20.2 7 19.9 6.8Q19.6 6.6 19.5 6.2L19.2 4.8L17.8 4.4Q17.4 4.3 17.2 4Q17 3.8 17 3.4Q17 3.1 17.2 2.8Q17.4 2.6 17.8 2.5L19.2 2.2L19.5 0.7Q19.6 0.4 19.9 0.2Q20.2 0 20.5 0Q20.9 0 21.1 0.2Q21.4 0.4 21.4 0.7L21.8 2.2L23.3 2.6Q23.6 2.6 23.8 2.9Q24 3.1 24 3.5Q24 3.8 23.8 4.1Q23.6 4.4 23.3 4.5L21.8 4.8L21.4 6.2Q21.4 6.6 21.1 6.8Q20.9 7 20.5 7Z"/></svg>'),
+  layout: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 11H13Q13.8 11 14.4 10.4Q15 9.8 15 9V2Q15 1.2 14.4 0.6Q13.8 0 13 0H2Q1.2 0 0.6 0.6Q0 1.2 0 2V9Q0 9.8 0.6 10.4Q1.2 11 2 11ZM2 2H13V9H2ZM22 0H19Q18.2 0 17.6 0.6Q17 1.2 17 2V9Q17 9.8 17.6 10.4Q18.2 11 19 11H22Q22.8 11 23.4 10.4Q24 9.8 24 9V2Q24 1.2 23.4 0.6Q22.8 0 22 0ZM22 9H19V2H22ZM5 13H2Q1.2 13 0.6 13.6Q0 14.2 0 15V22Q0 22.8 0.6 23.4Q1.2 24 2 24H5Q5.8 24 6.4 23.4Q7 22.8 7 22V15Q7 14.2 6.4 13.6Q5.8 13 5 13ZM5 22H2V15H5ZM22 13H11Q10.2 13 9.6 13.6Q9 14.2 9 15V22Q9 22.8 9.6 23.4Q10.2 24 11 24H22Q22.8 24 23.4 23.4Q24 22.8 24 22V15Q24 14.2 23.4 13.6Q22.8 13 22 13ZM22 22H11V15H22Z"/></svg>'),
   mask: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7c3-1 6-1 9 1 3-2 6-2 9-1 0 6-3 10-6 10-1.5 0-2-1.5-3-1.5S10.5 17 9 17c-3 0-6-4-6-10z"/><circle cx="8" cy="11" r="1.3"/><circle cx="16" cy="11" r="1.3"/></svg>'),
   gear: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>'),
   shield: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/></svg>'),
@@ -368,10 +466,16 @@ export const icons = {
 
 // Instead of uploading, use a picture that's already online (Pinterest, Tumblr, Imgur…).
 // Note: the site hosting the picture can see the addresses of people who view it.
+// A Giphy page link (giphy.com/gifs/…-ID) becomes the GIF itself, so it shows as a picture.
+export function pictureLink(url) {
+  const m = url.match(/^https:\/\/(?:www\.)?giphy\.com\/(?:gifs|stickers)\/(?:[\w-]*-)?([A-Za-z0-9]{6,})\/?(?:[?#].*)?$/);
+  return m ? `https://media.giphy.com/media/${m[1]}/giphy.gif` : url;
+}
+
 export async function askImageLink(title = 'Use a picture link') {
-  const v = await promptModal(title, { label: 'Paste the picture’s web address', placeholder: 'https://i.pinimg.com/…', maxlength: 2000, ok: 'Use picture' });
+  const v = await promptModal(title, { label: 'Paste the picture’s or GIF’s web address (Pinterest, Tumblr, Giphy, Tenor…)', placeholder: 'https://i.pinimg.com/…', maxlength: 2000, ok: 'Use picture' });
   if (!v) return null;
-  const url = v.trim();
+  const url = pictureLink(v.trim());
   try { if (new URL(url).protocol === 'https:') return url; } catch { /* not a URL */ }
   toast('That needs to be a picture link starting with https://');
   return null;
@@ -380,6 +484,7 @@ export async function askImageLink(title = 'Use a picture link') {
 // Post text as plain words (for previews): formatting codes and markup symbols removed.
 export const plainText = (body = '', max = 80) => {
   const t = String(body).replace(/\[img\][\s\S]*?\[\/img\]/gi, ' ').replace(/\[url=[^\]]*\]([\s\S]*?)\[\/url\]/gi, '$1')
-    .replace(/\[\/?(?:center|right|box|h|hr|color|size|caps|b|i|u|s)(?:=[^\]]*)?\]/gi, ' ').replace(/\|\||[*_~`>]/g, '').replace(/\s+/g, ' ').trim();
+    .replace(/\[([^\]\n]+)\]\(https?:\/\/[^\s)]+\)/g, '$1').replace(/^\s*(?:-#|#{1,3}|&gt;&gt;&gt;|>>>|[-•]|\d{1,3}[.)]) /gm, '')
+    .replace(/\[\/?(?:center|right|left|align|box|h|hr|indent|quote|list|code|color|highlight|size|font|caps|spoiler|sup|sub|strike|url|b|i|u|s|\*)(?:=[^\]]*)?\]/gi, ' ').replace(/\|\||[*_~`>]/g, '').replace(/\s+/g, ' ').trim();
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 };

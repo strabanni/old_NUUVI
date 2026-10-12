@@ -149,7 +149,7 @@ function userTiles({ vertical = false } = {}) {
       ${tile({ href: '#/feed' }, 'Feed', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
       ${tile({ href: '#/characters' }, 'Characters', icons.user)}
-      ${tile({ href: '#/settings' }, 'You & settings', icons.fingerprint)}
+      ${tile({ href: '#/settings' }, 'You & settings', icons.layout)}
       ${tile({ act: 'logout' }, 'Sign out', icons.power)}
     </nav>`;
 }
@@ -291,7 +291,7 @@ function renderSidebar() {
       <a href="${href}" class="nav-link ${hash === href ? 'active' : ''}">${icon}<span>${label}</span>${badge ? html`<span class="badge">${badge}</span>` : ''}</a>`;
     render(side, html`
       ${mobileWelcome}
-      <div class="side-head"><a href="#/home" class="side-brand" aria-label="NUUVI home">${wordmark}</a><span class="script muted">your stories</span></div>
+      <div class="side-head"><a href="#/home" class="side-brand" aria-label="NUUVI home">${wordmark}</a></div>
       <div class="side-scroll">
         <a href="#/u/${state.user.id}" class="nav-link me-link ${hash === `#/u/${state.user.id}` ? 'active' : ''}">${avatar({ name: state.user.displayName, src: state.user.avatar, color: '#EE719E', size: 'xs' })}<span>${state.user.displayName}</span><small>@${state.user.username}</small></a>
         ${link('#/home', 'Home', icons.home)}
@@ -300,7 +300,7 @@ function renderSidebar() {
         ${link('#/phone', 'Phone', icons.smartphone)}
         ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
-        ${link('#/npcs', 'NPCs', icons.mask)}
+        ${link('#/npcs', 'NPCs', icons.sparkles)}
         ${link('#/discover', 'Discover', icons.compass)}
         ${state.user.isAdmin ? link('#/admin', 'Admin', icons.shield, state.home.reportsOpen) : ''}
         <div class="side-section"><span>Your stories</span><a href="#/new" class="icon-btn sm" title="Start a story" aria-label="Start a story">${icons.plus}</a></div>
@@ -386,13 +386,23 @@ function startBanner(main) {
   const show = (pics) => {
     if (!pics.length || !banner.isConnected) return;
     let i = Math.floor(Math.random() * pics.length);
-    const imgs = pics.map((src, n) => { const img = new Image(); img.src = src; img.alt = ''; img.className = n === i ? 'on' : ''; banner.prepend(img); return img; });
+    // Pictures load one ahead of time, not all at once, to spare phone data.
+    const imgs = [];
+    const get = (n) => {
+      if (!imgs[n]) { const img = new Image(); img.alt = ''; img.decoding = 'async'; img.src = pics[n]; banner.prepend(img); imgs[n] = img; }
+      return imgs[n];
+    };
+    get(i).className = 'on';
     if (pics.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    get((i + 1) % pics.length);
     const timer = setInterval(() => {
       if (!banner.isConnected) return clearInterval(timer);
+      const next = get((i + 1) % pics.length);
+      if (!next.complete) return; // still loading: try again next time
       imgs[i].className = '';
-      i = (i + 1) % imgs.length;
-      imgs[i].className = 'on';
+      i = (i + 1) % pics.length;
+      next.className = 'on';
+      get((i + 1) % pics.length);
     }, 8000);
     onLeave(() => clearInterval(timer));
   };

@@ -22,7 +22,7 @@ const ebml = (b) => b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 
 const MEDIA_TYPES = {
   'image/png': { ext: 'png', max: 8 * MB, magic: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
   'image/jpeg': { ext: 'jpg', max: 8 * MB, magic: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
-  'image/gif': { ext: 'gif', max: 8 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'GIF8' },
+  'image/gif': { ext: 'gif', max: 15 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'GIF8' },
   'image/webp': { ext: 'webp', max: 8 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' },
   'video/mp4': { ext: 'mp4', max: 60 * MB, magic: ftyp },
   'video/quicktime': { ext: 'mov', max: 60 * MB, magic: ftyp },

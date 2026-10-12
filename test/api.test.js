@@ -713,7 +713,9 @@ test('gradient colors, shared NPCs with categories, header pictures, and no push
   assert.equal(ch.status, 201, JSON.stringify(ch.data));
   assert.equal((await b(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'no', tagged: [c.id] } })).status, 400);
 
-  assert.deepEqual((await a('/api/headers')).data.headers, []);
+  // Until an admin picks some, the pictures that ship in public/headers/ are used.
+  const bundled = (await a('/api/headers')).data.headers;
+  assert.ok(bundled.length > 0 && bundled.every((h) => /^\/headers\/[\w.-]+\.jpg$/.test(h)));
   assert.equal((await b('/api/headers', { method: 'PUT', body: { headers: ['/headers/one.jpg'] } })).status, 403);
   const set = await app.admin('/api/headers', { method: 'PUT', body: { headers: ['/headers/one.jpg', 'https://i.pinimg.com/x.jpg'] } });
   assert.deepEqual(set.data.headers, ['/headers/one.jpg', 'https://i.pinimg.com/x.jpg']);

@@ -7,6 +7,9 @@ import { state, page, loadStory, routeAlive, ensureAlive } from '../main.js';
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'section';
 const pad = (n) => String(n).padStart(2, '0');
 
+// A line from the gossip column, set as a pull quote.
+const whisper = (text, cls = '') => html`<blockquote class="ov-whisper ${cls}"><span class="ov-qmark" aria-hidden="true">“</span><div class="prose">${formatPost(text)}</div></blockquote>`;
+
 function orgCard(o, subs = []) {
   return html`
     <article class="ov-org ${o.kind}" data-org>
@@ -14,18 +17,19 @@ function orgCard(o, subs = []) {
         <div class="ov-org-id">
           <span class="eyebrow">${o.kind === 'conglomerate' ? 'Conglomerate' : o.kind === 'independent' ? 'Independent' : o.motto || 'Company'}</span>
           <h3>${o.name}</h3>
-          ${o.motto && o.kind !== 'subsidiary' ? html`<p class="ov-motto">${o.motto}</p>` : ''}
+          ${o.motto && o.kind !== 'subsidiary' ? html`<p class="ov-motto"><q>${o.motto}</q></p>` : ''}
         </div>
         ${o.founded ? html`<span class="ov-founded"><small>founded</small><b>${o.founded}</b></span>` : ''}
       </header>
       ${o.body ? html`<div class="ov-org-body prose clamp">${formatPost(o.body)}</div>
         <button type="button" class="ov-more" data-more>Read more ${icons.chevron}</button>` : ''}
+      ${o.whisper ? whisper(o.whisper) : ''}
       ${subs.length ? html`<div class="ov-subs">
         <span class="eyebrow">Subsidiaries</span>
         <div class="ov-sub-chips">${subs.map((s, i) => html`<button type="button" class="ov-sub-chip" data-sub="${i}" aria-expanded="false">${s.name}</button>`)}</div>
         ${subs.map((s, i) => html`<div class="ov-sub-panel" data-sub-panel="${i}" hidden>
           <div class="ov-sub-head"><b>${s.name}</b>${s.motto ? html`<span>${s.motto}</span>` : ''}</div>
-          <div class="prose">${formatPost(s.body || '')}</div></div>`)}
+          <div class="prose">${formatPost(s.body || '')}</div>${s.whisper ? whisper(s.whisper, 'small') : ''}</div>`)}
       </div>` : ''}
       ${o.credit ? html`<footer class="ov-credit">${o.credit}</footer>` : ''}
     </article>`;
@@ -72,6 +76,11 @@ export async function viewOverview(idStr) {
         </section>
         ${toc.length > 1 ? html`<nav class="ov-toc no-swipe" aria-label="Contents">${toc.map(([id, label]) => html`<a href="#ov-${id}" data-jump="${id}">${label}</a>`)}</nav>` : ''}
         ${empty ? html`<div class="card empty"><p>No overview yet.</p>${canEdit ? html`<p class="small">Write the lore everyone should read first: the world, its rules, its companies.</p>` : ''}</div>` : ''}
+        ${o.letter ? html`<section class="ov-letter">
+          <span class="eyebrow">the column · hot off the group chat</span>
+          <div class="prose">${formatPost(o.letter)}</div>
+          ${o.signoff ? html`<p class="ov-signoff">${o.signoff}</p>` : ''}
+        </section>` : ''}
         ${o.intro ? html`<section class="ov-block ov-intro" id="ov-the-world"><div class="prose">${formatPost(o.intro)}</div></section>` : ''}
         ${(o.sections || []).map((x, i) => html`
           <section class="ov-block ov-section" id="ov-${slug(x.title || `s${i}`)}">
@@ -83,7 +92,7 @@ export async function viewOverview(idStr) {
             <h2 class="section-title">Organizations</h2>
             <div class="ov-congloms">${congloms.map((c) => orgCard(c, subsOf(c.name)))}</div>
             ${indies.length ? html`
-              <div class="ov-indies-head"><h2 class="section-title">Independent companies</h2>${o.independentNote ? html`<p class="muted">${o.independentNote}</p>` : ''}</div>
+              <div class="ov-indies-head"><h2 class="section-title">Independent companies</h2>${o.independentNote ? whisper(o.independentNote, 'small') : ''}</div>
               <div class="ov-indies">${indies.map((x) => orgCard(x))}</div>` : ''}
           </section>` : ''}
       </article>`,
@@ -141,6 +150,7 @@ const orgRow = (x = {}) => html`
     </div>
     <input data-f="motto" maxlength="300" placeholder="Motto / one-line description" value="${x.motto || ''}">
     <textarea data-f="body" rows="4" placeholder="Description">${x.body || ''}</textarea>
+    <input data-f="whisper" maxlength="500" placeholder="Gossip line (optional): what the column says about them" value="${x.whisper || ''}">
     <input data-f="credit" maxlength="80" placeholder="Credit (optional, e.g. © coi)" value="${x.credit || ''}">
   </div>`;
 
@@ -155,7 +165,11 @@ async function editOverview(storyId, o) {
         <label for="ov-tag">Tagline</label><input id="ov-tag" name="tagline" maxlength="300" value="${o.tagline || ''}" placeholder="nobody in this world actually meets by accident.">
         <label for="ov-intro">Intro</label><textarea id="ov-intro" name="intro" rows="10" placeholder="Set the scene…">${o.intro || ''}</textarea>
         <p class="hint">All the formatting codes work here: **bold**, *italic*, [center], [h], [box], [hr], [color=#hex] and the rest.</p>
-        <button type="button" class="sm" id="ov-preset">${icons.book} Start from our lore (FOYAEN × ENTITY)</button>
+        <label for="ov-letter">Gossip column</label><textarea id="ov-letter" name="letter" rows="6" placeholder="dearest gentle reader…">${o.letter || ''}</textarea>
+        <label for="ov-signoff">Column sign-off</label><input id="ov-signoff" name="signoff" maxlength="120" value="${o.signoff || ''}" placeholder="yours truly, the column">
+        <p class="hint">The column sits at the top of the overview, like a letter from the city's gossip. Each organization can have its own gossip line too.</p>
+        <span class="row-inline"><button type="button" class="sm" id="ov-preset">${icons.book} Start from our lore (FOYAEN × ENTITY)</button>
+        <button type="button" class="sm" id="ov-gossip">☕︎ Add the gossip column only</button></span>
       </div>
       <div data-pane="sections" hidden><div id="ov-sections">${(o.sections || []).map(sectionRow)}</div><button type="button" class="sm" data-add="section">${icons.plus} Add section</button></div>
       <div data-pane="orgs" hidden>
@@ -189,9 +203,26 @@ async function editOverview(storyId, o) {
           form.tagline.value = p.tagline;
           form.intro.value = p.intro;
           form.independentNote.value = p.independentNote;
+          form.letter.value = p.letter;
+          form.signoff.value = p.signoff;
           render($('#ov-sections', d), html`${p.sections.map(sectionRow)}`);
           render($('#ov-orgs', d), html`${p.orgs.map(orgRow)}`);
           toast('Lore loaded — check it over, then save');
+          return;
+        }
+        if (e.target.closest('#ov-gossip')) {
+          // Fills in just the column and the gossip lines, keeping everything else as it is.
+          const { LORE_PRESET: p } = await import('../lore-preset.js');
+          if (!form.letter.value.trim()) form.letter.value = p.letter;
+          if (!form.signoff.value.trim()) form.signoff.value = p.signoff;
+          let n = 0;
+          for (const row of $$('[data-row="org"]', d)) {
+            const name = $('[data-f="name"]', row).value.trim().toLowerCase();
+            const match = p.orgs.find((x) => x.name.toLowerCase() === name);
+            const field = $('[data-f="whisper"]', row);
+            if (match?.whisper && !field.value.trim()) { field.value = match.whisper; n++; }
+          }
+          toast(`Gossip column added${n ? ` with ${n} gossip line${n === 1 ? '' : 's'}` : ''} — save to keep it`);
         }
       });
     },
@@ -199,7 +230,7 @@ async function editOverview(storyId, o) {
       const form = document.querySelector('dialog .ov-editor');
       const rows = (kind) => $$(`[data-row="${kind}"]`, form).map((r) => Object.fromEntries($$('[data-f]', r).map((f) => [f.dataset.f, f.value])));
       await api(`/api/stories/${storyId}/overview`, { method: 'PUT', body: {
-        tagline: data.tagline, intro: data.intro, independentNote: data.independentNote, sections: rows('section'), orgs: rows('org') } });
+        tagline: data.tagline, intro: data.intro, independentNote: data.independentNote, letter: data.letter, signoff: data.signoff, sections: rows('section'), orgs: rows('org') } });
       toast('Overview saved');
       return true;
     },

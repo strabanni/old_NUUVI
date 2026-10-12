@@ -16,21 +16,33 @@ const shortTime = (sql) => {
     : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
 };
 
-// Every formatting code, with what it looks like.
+// Every formatting code, with what it does. Discord-style shortcuts first, then forum (Jcink) codes.
 const FORMATS = [
-  ['*action*', 'italic action'], ['**bold**', 'bold'], ['__underline__', 'underline'], ['~~strike~~', 'strikethrough'],
-  ['"dialogue"', 'dialogue'], ['||spoiler||', 'hidden until tapped'], ['> quote', 'a quote (start the line with >)'], ['@username', 'mention someone'],
-  ['[center]…[/center]', 'centered (can hold paragraphs)'], ['[right]…[/right]', 'right-aligned'], ['[box]…[/box]', 'a box in your character’s color'],
-  ['[h]Heading[/h]', 'a big heading'], ['[hr]', 'a divider line (on its own line)'], ['[color=#ff7aa2]…[/color]', 'any color, as a #hex code'],
-  ['[size=small]…[/size]', 'small, big or huge'], ['[caps]…[/caps]', 'ALL CAPS'], ['[b] [i] [u] [s]', 'bold, italic, underline, strike'],
-  ['[img]https://…[/img]', 'a picture from a link'], ['[url=https://…]text[/url]', 'a link'],
+  ['Discord style', null],
+  ['*action* or _italic_', 'italic action'], ['**bold**', 'bold'], ['***bold italic***', 'both at once'], ['__underline__', 'underline'], ['~~strike~~', 'strikethrough'],
+  ['"dialogue"', 'dialogue'], ['||spoiler||', 'hidden until tapped'], ['`code`', 'typewriter text, no formatting inside'],
+  ['```\ncode block\n```', 'a block kept exactly as typed'],
+  ['# Heading', 'big heading (## and ### for smaller ones, at the start of a line)'], ['-# small print', 'small grey text under something'],
+  ['> quote', 'a quote (each line that starts with >)'], ['>>> quote', 'quotes everything after it in the paragraph'],
+  ['- item  /  1. item', 'bullet or numbered list (one per line)'], ['[text](https://…)', 'a link with your own words'],
+  ['https://…/pic.gif', 'picture and GIF links show as the picture'], ['@username', 'mention someone'],
+  ['Forum (Jcink) style', null],
+  ['[center]…[/center]', 'centered (can hold paragraphs); also [left] [right] [align=right]'], ['[indent]…[/indent]', 'indented'],
+  ['[box]…[/box]', 'a box in your character’s color'], ['[quote=Name]…[/quote]', 'a quote block, with who said it'],
+  ['[list][*]one[*]two[/list]', 'bullet list ([list=1] for numbers)'], ['[code]…[/code]', 'a code block'],
+  ['[h]Heading[/h]', 'a big heading'], ['[hr]', 'a divider line (on its own line)'],
+  ['[color=#ff7aa2]…[/color]', 'any color, as a #hex code or a name like red'], ['[highlight=yellow]…[/highlight]', 'highlighted, like a marker'],
+  ['[size=small]…[/size]', 'small, big or huge (or 1–7)'], ['[font=Georgia]…[/font]', 'Georgia, Garamond, Times, Arial, Verdana, Trebuchet, Courier, Impact, Comic Sans, cursive'],
+  ['[caps]…[/caps]', 'ALL CAPS'], ['[b] [i] [u] [s]', 'bold, italic, underline, strike'], ['[sup]…[/sup] [sub]…[/sub]', 'raised or lowered text'],
+  ['[spoiler]…[/spoiler]', 'hidden until tapped'], ['[img]https://…[/img]', 'a picture or GIF from a link'], ['[url=https://…]text[/url]', 'a link'],
 ];
+
 function formattingGuide() {
   modal(html`
     <div class="fmt-guide">
       <h2>Formatting</h2>
       <p class="muted small">Mix and match these to build your own post layouts. Formatted words take your character’s color.</p>
-      <dl>${FORMATS.map(([code, what]) => html`<dt><code>${code}</code></dt><dd>${what}</dd>`)}</dl>
+      <dl>${FORMATS.map(([code, what]) => (what === null ? html`<dt class="fmt-sec">${code}</dt>` : html`<dt><code>${code}</code></dt><dd>${what}</dd>`))}</dl>
       <div class="actions end"><button type="button" class="primary" data-close>Got it</button></div>
     </div>`);
 }
