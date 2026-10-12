@@ -1537,3 +1537,11 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 :root:is([data-theme=light], [data-theme=dark]) .b-reply:not([data-color]), :root:is([data-theme=light], [data-theme=dark]) .b-reply[data-color=""] { --c: var(--faint); }
 :root:is([data-theme=light], [data-theme=dark]) .bubble.mine .body :is(strong, em, u, s, .dialogue) { color: var(--c, inherit); }
 :root:is([data-theme=light], [data-theme=dark]) .b-pics { outline: 1px solid var(--glass-border); }
+
+/* ---------- v10: each character's color on their AKA line and formatted words, everywhere ---------- */
+.tp-aka .accent, .aka-text .accent { color: var(--c, var(--accent-fg)); }
+.ig-profile .aka-text { font-weight: 600; }
+/* Your own bubbles in the pink theme are deep pink, so the character's color is lightened enough to read on it. */
+:root[data-theme=base] .bubble.mine[data-color] .body :is(strong, em, u, s, .dialogue),
+:root[data-theme=base] .bubble.mine[data-color] .body em.action { color: color-mix(in srgb, var(--c) 40%, #FFFFFF); opacity: 1; }
+:root:is([data-theme=light], [data-theme=dark]) .bubble.mine[data-color] .body em.action { color: var(--c); opacity: 1; }

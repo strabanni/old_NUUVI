@@ -1,4 +1,4 @@
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink } from '../lib.js';
+import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer } from './social.js';
@@ -46,7 +46,7 @@ function characterForm(c = {}) {
       <div id="details">${details.map(detailRow)}</div>
       <datalist id="detail-suggestions">${DETAIL_SUGGESTIONS.map((d) => html`<option value="${d}">`)}</datalist>
       <button type="button" class="sm" id="add-detail">${icons.plus} Add detail</button>
-      <label for="c-aka">AKA line <span class="muted small">— shown under their name in threads. Wrap words in **double stars** to make them pink.</span></label>
+      <label for="c-aka">AKA line <span class="muted small">— shown under their name in threads. Wrap words in **double stars** to show them in the character's color.</span></label>
       <input id="c-aka" name="aka" maxlength="200" value="${c.aka || ''}" placeholder="aka **the prodigy**, (he / him) ; twenty8 ; ceo of trinity healthcare">
       <div class="row">
         <div><label for="c-followers">Followers shown</label><input id="c-followers" name="followersDisplay" inputmode="numeric" placeholder="real count" value="${c.followersDisplay ?? ''}"></div>
@@ -254,7 +254,7 @@ export async function viewCharacter(id) {
         </a>`)}</div>` : html`<div class="empty"><p>Not in any threads yet.</p></div>`);
     } else {
       render(pane, html`
-        ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div>${c.aka.replace(/\*\*/g, '')}</div></div>` : ''}
+        ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div class="aka-text">${raw(esc(c.aka).replace(/\*\*(.+?)\*\*/g, '<b class="accent">$1</b>'))}</div></div>` : ''}
         ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
         <div class="small-stats"><span><b>${compact(stats.posts)}</b> thread posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
         ${!c.aka && !c.details.length ? html`<div class="empty"><p>Nothing here yet.</p></div>` : ''}`);
