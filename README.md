@@ -39,7 +39,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - Per-story notification level: every post, mentions and turns only, or nothing.
 
 **Look and feel**
-- **Pink (`#EE719E`) only on the brand touches:** the logo and "nuuvi" wordmark, the "···" in the top strip, your name and numbers in the greeting, and the ring on the selected item in the left rail. Everything else (buttons, tabs, badges, icons, chat bubbles, writing) follows Light or Dark: whites and greys, or true blacks and dark greys. Light and Dark share the same pink logo.
+- **Pink (`#EE719E`) only on the brand touches:** the logo and "nuuvi" wordmark, the "···" in the top strip, your name and numbers in the greeting, and the ring on the selected item in the left rail. Everything else (buttons, tabs, badges, icons, chat bubbles, writing) follows Light or Dark: whites and greys with darkish-grey (`#48484A`) buttons and icons, or true blacks and dark greys with light-grey (`#B0AEAE`) ones. Light and Dark share the same pink logo.
   - **Light:** whites and light greys (`#FFFFFF` / `#F5F5F5` / `#B0AEAE`).
   - **Dark:** true blacks and dark greys (`#0E0E0F` / `#48484A`).
   - **Neutral light** and **Neutral dark:** the same, without the pink brand touches (grey logo; characters' and stories' own colors stay).

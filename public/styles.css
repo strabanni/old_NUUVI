@@ -1369,35 +1369,37 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
   --logo-spark: #B0AEAE;
 }
 [data-accent=neutral][data-theme=light] {
-  --accent: #111112;
-  --accent-fg: #111112;
-  --accent-strong: #1A1A1B;
+  /* Darkish grey, not black, for buttons, pills, badges and highlights. */
+  --accent: #48484A;
+  --accent-fg: #48484A;
+  --accent-strong: #48484A;
   --on-accent: #FFFFFF;
   --accent-ink: #FFFFFF;
-  --grad: linear-gradient(100deg, #111112, #6E6A6C);
-  --mention: #111112;
-  --logo-tile: #111112;
-  --logo-ring: #111112;
-  --logo-word: #111112;
+  --grad: linear-gradient(100deg, #48484A, #6E6A6C);
+  --mention: #48484A;
+  --logo-tile: #48484A;
+  --logo-ring: #48484A;
+  --logo-word: #48484A;
 }
 [data-accent=neutral][data-theme=dark] {
-  --accent: #F5F5F5;
-  --accent-fg: #FFFFFF;
-  --accent-strong: #F5F5F5;
+  /* Light grey, not white, for buttons, pills, badges and highlights. */
+  --accent: #B0AEAE;
+  --accent-fg: #C9C7C7;
+  --accent-strong: #B0AEAE;
   --on-accent: #0E0E0F;
   --accent-ink: #0E0E0F;
-  --grad: linear-gradient(100deg, #FFFFFF, #B0AEAE);
-  --mention: #FFFFFF;
+  --grad: linear-gradient(100deg, #C9C7C7, #B0AEAE);
+  --mention: #C9C7C7;
   --logo-tile: #0E0E0F;
-  --logo-ring: #F5F5F5;
-  --logo-word: #FFFFFF;
+  --logo-ring: #B0AEAE;
+  --logo-word: #C9C7C7;
 }
 [data-accent=neutral] .rail-item.rail-logo > svg.logo-mark,
 [data-accent=neutral] .hero-logo .logo-mark { filter: drop-shadow(0 6px 14px rgb(0 0 0 / .22)); }
 /* The app's own pink default for people without a picture turns grey too. */
 [data-accent=neutral]:not([data-brand]) :is([data-color="#F8769C" i], [data-color="#EE719E" i]) { --c: #6E6A6C !important; }
-.swatch[data-theme-pick=mono-light] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #FFFFFF; border: 2px solid #111112; }
-.swatch[data-theme-pick=mono-dark] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #0E0E0F; border: 2px solid #F5F5F5; }
+.swatch[data-theme-pick=mono-light] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #FFFFFF; border: 2px solid #48484A; }
+.swatch[data-theme-pick=mono-dark] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #0E0E0F; border: 2px solid #B0AEAE; }
 
 /* ---------- v8: thread posts without the frame — plain writing writers can format themselves ---------- */
 .tpost { background: none; border: 0; border-radius: 0; -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible; }
@@ -1568,3 +1570,6 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 [data-accent=neutral] .voice-note.playing .vn-play { background: color-mix(in srgb, var(--text) 22%, transparent); }
 [data-accent=neutral] .vn-bars i { background: color-mix(in srgb, var(--text) 35%, transparent); }
 [data-accent=neutral] .vn-bars i.done { background: var(--text); }
+/* Shortcut and navigation icons: darkish grey in Light, light grey in Dark (not black / white). */
+[data-accent=neutral] :is(.ub-tile, .nav-link, .tile, .rail-item.home-link, .rail-item.action, .ig-tabs button, .sm-act, .icon-btn) svg { color: var(--accent-fg); }
+[data-accent=neutral] .nav-link.active svg { color: var(--accent-fg); }
