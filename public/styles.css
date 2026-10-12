@@ -1,12 +1,12 @@
 /* NUUVI — frosted-glass design system in the NUUVI palette.
-   Brand: Pompadour #F8769C · Mimi Pink #FFDBED. Light: #F5F5F5 / #B0AEAE. Dark: #48484A / #0E0E0F.
+   Accent: #EE719E (deeper #C93D72 under white text, #C2416F as text on white). Light: #F5F5F5 / #B0AEAE. Dark: #48484A / #0E0E0F.
    Layout: Blue Hour-style user bar on top; Discord-style story rail | channels | content | members below.
-   Type: the device's own sans-serif (San Francisco on Apple devices). Theme on <html data-theme="base|light|dark">, following the logo's three variants:
-   base = blush with pink throughout, light = true white with pink accents only, dark = true black with pink accents only. */
+   Type: the device's own sans-serif (San Francisco on Apple devices). Theme on <html data-theme="light|dark"> (plus data-accent="neutral" for the no-pink versions):
+   light = whites and light greys, dark = true blacks and dark greys, pink #EE719E only on accents. */
 
 :root, [data-theme=dark] {
   /* True dark: neutral greys only (#0E0E0F → #48484A), pink used just for accents. */
-  --pompadour: #F8769C;
+  --pompadour: #EE719E;
   --mimi: #FFDBED;
   --base: #0E0E0F;
   --backdrop: linear-gradient(180deg, #151516, #0E0E0F 55%);
@@ -19,31 +19,31 @@
   --muted: #C9C7C7;
   --faint: #A3A1A1;
   --accent: var(--pompadour);
-  --accent-fg: #FF8EB0;
+  --accent-fg: #EE719E;
   --accent-soft: var(--mimi);
   /* Pink surfaces that carry text use a deeper pink with white text (≥ 4.5:1 contrast). */
-  --accent-strong: #C7366A;
+  --accent-strong: #C93D72;
   --on-accent: #FFFFFF;
   --accent-ink: #FFFFFF;
-  --grad: linear-gradient(100deg, var(--pompadour), var(--mimi));
+  --grad: linear-gradient(100deg, #EE719E, #F7A8C4);
   --danger: #ff7b7b;
   --ok: #7fd6a4;
-  --mention: var(--mimi);
+  --mention: #EE719E;
   --shadow: 0 20px 50px rgb(0 0 0 / .5);
   --grain: .035;
   /* Pink wash on bars and headers; strong in the base theme, faint or none elsewhere. */
-  --tint: rgb(248 118 156 / .07);
+  --tint: transparent;
   --heading: var(--text);
   /* Logo colors per theme. */
   --logo-tile: #0E0E0F;
-  --logo-ring: #F5638E;
+  --logo-ring: #EE719E;
   --logo-n: #FFFFFF;
-  --logo-spark: #F5638E;
+  --logo-spark: #EE719E;
   --logo-word: #FFFFFF;
   color-scheme: dark;
 }
-[data-theme=base], [data-theme=light] {
-  /* Base: blush and shades of pink (light's neutral overrides follow below). */
+[data-theme=light] {
+  /* Light: whites and light greys; pink (#EE719E) only on accents (neutral overrides follow below). */
   --base: #F8EFEF;
   --backdrop:
     radial-gradient(60% 50% at 100% 0%, rgb(255 219 237 / .95) 0%, transparent 70%),
@@ -53,27 +53,27 @@
   --glass-2: #FFE4EE;
   --glass-3: #FFD3E3;
   --glass-solid: #FFF8FA;
-  --glass-border: rgb(245 99 142 / .3);
+  --glass-border: rgb(176 174 174 / .42);
   --text: #1A1A1B;
   --muted: #4D4A4B;
   --faint: #6E6A6C;
-  --accent-fg: #B42E5D;
-  --accent-strong: #C7366A;
+  --accent-fg: #C2416F;
+  --accent-strong: #C93D72;
   --on-accent: #FFFFFF;
   --accent-ink: #FFFFFF;
-  --grad: linear-gradient(100deg, #C7366A, var(--pompadour));
+  --grad: linear-gradient(100deg, #C93D72, #EE719E);
   --danger: #c62f43;
   --ok: #1c7f52;
-  --mention: #B42E5D;
-  --shadow: 0 20px 50px rgb(199 54 106 / .14);
+  --mention: #C2416F;
+  --shadow: 0 14px 40px rgb(0 0 0 / .07);
   --grain: 0;
-  --tint: rgb(245 99 142 / .18);
-  --heading: #B42E5D;
-  --logo-tile: #F5638E;
-  --logo-ring: #F5638E;
+  --tint: transparent;
+  --heading: var(--text);
+  --logo-tile: #EE719E;
+  --logo-ring: #EE719E;
   --logo-n: #FFFFFF;
   --logo-spark: #FFC9E0;
-  --logo-word: #F5638E;
+  --logo-word: #EE719E;
   color-scheme: light;
 }
 [data-theme=light] {
@@ -718,9 +718,8 @@ label.btn { margin: 0; color: var(--text); font: 500 .8rem var(--display); lette
 
 /* ================= NUUVI v3: user bar, feed, threads, comms, social profiles ================= */
 .swatch[data-theme-pick=auto] i { background: linear-gradient(90deg, #FFFFFF 50%, #0E0E0F 50%); border: 1px solid #B0AEAE; }
-.swatch[data-theme-pick=base] i { background: radial-gradient(circle at 80% 20%, #FFC9E0 0 14%, transparent 15%), #F5638E; box-shadow: inset 0 0 0 5px #F8EFEF, inset 0 0 0 6px rgb(245 99 142 / .4); }
-.swatch[data-theme-pick=light] i { background: radial-gradient(circle at 80% 20%, #F5638E 0 14%, transparent 15%), #FFFFFF; border: 1px solid #B0AEAE; }
-.swatch[data-theme-pick=dark] i { background: radial-gradient(circle at 80% 20%, #F5638E 0 14%, transparent 15%), #0E0E0F; border: 2px solid #F5638E; }
+.swatch[data-theme-pick=light] i { background: radial-gradient(circle at 80% 20%, #EE719E 0 14%, transparent 15%), #FFFFFF; border: 1px solid #B0AEAE; }
+.swatch[data-theme-pick=dark] i { background: radial-gradient(circle at 80% 20%, #EE719E 0 14%, transparent 15%), #0E0E0F; border: 2px solid #EE719E; }
 
 /* ---- Blue Hour user bar ---- */
 body:not(.guest) { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
@@ -1011,10 +1010,10 @@ label.tag-option small { color: var(--faint); font-size: .7rem; }
 
 /* Online indicator (stands in for the logo for now) */
 .rail-item.online-indicator { padding: 0; border: 0; background: var(--glass-2); color: var(--text); flex-direction: column; gap: 0; cursor: pointer; }
-.online-indicator .pulse { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 rgb(248 118 156 / .6); animation: pulse 2s infinite; }
+.online-indicator .pulse { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 rgb(238 113 158 / .6); animation: pulse 2s infinite; }
 .online-indicator b { font-size: .72rem; font-weight: 700; margin-top: 3px; line-height: 1; }
 .online-indicator:not(.others) .pulse { background: var(--faint); animation: none; }
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgb(248 118 156 / .55); } 70% { box-shadow: 0 0 0 12px rgb(248 118 156 / 0); } 100% { box-shadow: 0 0 0 0 rgb(248 118 156 / 0); } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgb(238 113 158 / .55); } 70% { box-shadow: 0 0 0 12px rgb(238 113 158 / 0); } 100% { box-shadow: 0 0 0 0 rgb(238 113 158 / 0); } }
 .rail-item.home-link { color: var(--muted); }
 .rail-item.home-link.active, .rail-item.home-link:hover { color: var(--text); }
 .av-wrap { position: relative; display: inline-flex; flex: none; }
@@ -1307,7 +1306,7 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 .side-brand:hover { text-decoration: none; }
 
 .rail-item.rail-logo { position: relative; padding: 0; border: 0; background: transparent; overflow: visible; cursor: pointer; }
-.rail-item.rail-logo > svg.logo-mark { width: 100%; height: 100%; filter: drop-shadow(0 6px 14px rgb(245 99 142 / .28)); }
+.rail-item.rail-logo > svg.logo-mark { width: 100%; height: 100%; filter: drop-shadow(0 6px 14px rgb(238 113 158 / .28)); }
 .online-badge {
   position: absolute; right: -5px; bottom: -5px; display: inline-flex; align-items: center; gap: 3px; height: 20px; min-width: 20px; padding: 0 6px 0 5px;
   border-radius: 999px; background: var(--glass-solid); color: var(--text); border: 1px solid var(--glass-border); font-size: .66rem; font-weight: 700; line-height: 1;
@@ -1318,10 +1317,9 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 @keyframes online { 0% { box-shadow: 0 0 0 0 rgb(59 201 122 / .6); } 70% { box-shadow: 0 0 0 7px rgb(59 201 122 / 0); } 100% { box-shadow: 0 0 0 0 rgb(59 201 122 / 0); } }
 
 .hero-logo { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 8px; }
-.hero-logo .logo-mark { width: 96px; height: 96px; filter: drop-shadow(0 12px 28px rgb(245 99 142 / .3)); }
+.hero-logo .logo-mark { width: 96px; height: 96px; filter: drop-shadow(0 12px 28px rgb(238 113 158 / .3)); }
 .hero-logo .wordmark { height: 34px; }
 .rail-item.rail-logo:hover { border-radius: 50%; transform: translateY(-1px); }
-[data-theme=base] .ub-crumb { background: rgb(245 99 142 / .14); }
 [data-theme=light] .ub-crumb { background: #F5F5F5; }
 .song-t { flex: 0 .25 auto; min-width: 0; white-space: nowrap; }
 .song-a { flex: 0 1 auto; min-width: 0; white-space: nowrap; }
@@ -1397,7 +1395,7 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 [data-accent=neutral] .rail-item.rail-logo > svg.logo-mark,
 [data-accent=neutral] .hero-logo .logo-mark { filter: drop-shadow(0 6px 14px rgb(0 0 0 / .22)); }
 /* The app's own pink default for people without a picture turns grey too. */
-[data-accent=neutral] [data-color="#F8769C" i] { --c: #6E6A6C !important; }
+[data-accent=neutral] :is([data-color="#F8769C" i], [data-color="#EE719E" i]) { --c: #6E6A6C !important; }
 .swatch[data-theme-pick=mono-light] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #FFFFFF; border: 2px solid #111112; }
 .swatch[data-theme-pick=mono-dark] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #0E0E0F; border: 2px solid #F5F5F5; }
 
@@ -1541,7 +1539,4 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 /* ---------- v10: each character's color on their AKA line and formatted words, everywhere ---------- */
 .tp-aka .accent, .aka-text .accent { color: var(--c, var(--accent-fg)); }
 .ig-profile .aka-text { font-weight: 600; }
-/* Your own bubbles in the pink theme are deep pink, so the character's color is lightened enough to read on it. */
-:root[data-theme=base] .bubble.mine[data-color] .body :is(strong, em, u, s, .dialogue),
-:root[data-theme=base] .bubble.mine[data-color] .body em.action { color: color-mix(in srgb, var(--c) 40%, #FFFFFF); opacity: 1; }
 :root:is([data-theme=light], [data-theme=dark]) .bubble.mine[data-color] .body em.action { color: var(--c); opacity: 1; }

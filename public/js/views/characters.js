@@ -21,7 +21,7 @@ function characterForm(c = {}) {
       <span class="script muted">${c.id ? 'edit' : 'a new'} character</span>
       <h2>${c.name || 'Who are they?'}</h2>
       <div class="char-pic-row">
-        <div id="pic-preview">${avatar({ name: c.name || '?', src: c.avatar, color: c.color || '#F8769C', size: 'xl' })}</div>
+        <div id="pic-preview">${avatar({ name: c.name || '?', src: c.avatar, color: c.color || '#EE719E', size: 'xl' })}</div>
         <div class="stack">
           <span class="row-inline"><label class="btn sm file-btn">Avatar picture<input type="file" accept="image/*" id="pic-file" hidden></label><button type="button" class="sm link-btn" data-link="avatar">Link</button></span>
           <span class="row-inline"><label class="btn sm file-btn">Portrait (big picture)<input type="file" accept="image/*" id="portrait-file" hidden></label><button type="button" class="sm link-btn" data-link="portrait">Link</button></span>
@@ -38,7 +38,7 @@ function characterForm(c = {}) {
       </div>
       <div class="row">
         <div><label for="c-name">Name</label><input id="c-name" name="name" required maxlength="60" value="${c.name || ''}"></div>
-        <div class="fixed"><label for="c-color">Color</label><input id="c-color" type="color" name="color" value="${c.color || '#F8769C'}"></div>
+        <div class="fixed"><label for="c-color">Color</label><input id="c-color" type="color" name="color" value="${c.color || '#EE719E'}"></div>
       </div>
       <label for="c-tag">Tagline</label>
       <input id="c-tag" name="tagline" maxlength="140" placeholder="A wandering bard with a debt to pay" value="${c.tagline || ''}">

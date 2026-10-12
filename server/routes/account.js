@@ -322,7 +322,7 @@ export function accountRoutes(r, ctx) {
     name: str(body.name, 'Name', { min: 1, max: 60, required: !existing.name }) ?? existing.name,
     tagline: str(body.tagline, 'Tagline', { max: 140 }) ?? existing.tagline ?? '',
     bio: str(body.bio, 'Bio', { max: 20000 }) ?? existing.bio ?? '',
-    color: color(body.color) ?? existing.color ?? '#F8769C',
+    color: color(body.color) ?? existing.color ?? '#EE719E',
   });
 
   r.post('/api/characters', ({ user, body }) => {

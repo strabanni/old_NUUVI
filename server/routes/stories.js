@@ -8,7 +8,7 @@ import {
 } from '../model.js';
 
 const inviteCode = () => randomBytes(6).toString('base64url');
-const STORY_COLORS = ['#F8769C', '#e0628c', '#c96f8f', '#d98aa5', '#f2a7c0', '#48484A', '#6e6c6d', '#8f8d8e'];
+const STORY_COLORS = ['#EE719E', '#e0628c', '#c96f8f', '#d98aa5', '#f2a7c0', '#48484A', '#6e6c6d', '#8f8d8e'];
 
 function warnings(value) {
   if (value === undefined) return undefined;

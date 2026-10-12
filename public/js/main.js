@@ -87,19 +87,21 @@ export async function refreshBlocks() {
 }
 
 // ---------- Look & feel ----------
-export const THEMES = [['base', 'NUUVI'], ['light', 'Light'], ['dark', 'Dark'], ['mono-light', 'Neutral light'], ['mono-dark', 'Neutral dark'], ['auto', 'Auto']];
-const THEME_COLORS = { base: '#F8EFEF', light: '#FFFFFF', dark: '#0E0E0F' };
+export const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark'], ['mono-light', 'Neutral light'], ['mono-dark', 'Neutral dark']];
+const THEME_COLORS = { light: '#FFFFFF', dark: '#0E0E0F' };
 // The user bar's theme button steps through these (neutral themes flip between their own light and dark).
-const THEME_CYCLE = { base: 'light', light: 'dark', dark: 'base', auto: 'base', 'mono-light': 'mono-dark', 'mono-dark': 'mono-light' };
-const THEME_NAMES = { base: 'NUUVI pink', light: 'Light mode', dark: 'Dark mode', 'mono-light': 'Neutral light', 'mono-dark': 'Neutral dark' };
+const THEME_CYCLE = { light: 'dark', dark: 'light', 'mono-light': 'mono-dark', 'mono-dark': 'mono-light' };
+const THEME_NAMES = { light: 'Light mode', dark: 'Dark mode', 'mono-light': 'Neutral light', 'mono-dark': 'Neutral dark' };
+// Auto flips to whichever mode the device isn't showing right now.
+const nextTheme = () => THEME_CYCLE[currentThemePick()] || (document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 
 export function currentThemePick() {
   const v = store.get('nuuvi:theme');
-  return ['light', 'dark', 'mono-light', 'mono-dark', 'auto'].includes(v) ? v : 'base';
+  return ['light', 'dark', 'mono-light', 'mono-dark'].includes(v) ? v : 'auto';
 }
 
 export function applyTheme(pick = currentThemePick()) {
-  store.set('nuuvi:theme', pick === 'base' ? null : pick);
+  store.set('nuuvi:theme', pick === 'auto' ? null : pick);
   const light = window.matchMedia('(prefers-color-scheme: light)').matches;
   const theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick.replace('mono-', '');
   document.documentElement.dataset.theme = theme;
@@ -130,7 +132,7 @@ const fmt = (n) => Number(n || 0).toLocaleString();
 // The Blue Hour-style user bar. Horizontal across the top on computers; on phones it runs
 // vertically down the drawer, where the story rail is.
 function userTiles({ vertical = false } = {}) {
-  const next = THEME_CYCLE[currentThemePick()] || 'light';
+  const next = nextTheme();
   const n = state.home.notificationsUnread;
   const tile = (attrs, label, icon, badge = 0) => html`
     <${raw(attrs.href ? 'a' : 'button')} class="ub-tile" ${raw(attrs.href ? `href="${attrs.href}"` : `type="button" data-ub="${attrs.act}"`)} title="${label}" aria-label="${label}">
@@ -138,7 +140,7 @@ function userTiles({ vertical = false } = {}) {
     </${raw(attrs.href ? 'a' : 'button')}>`;
   return html`
     <nav class="ub-tiles ${vertical ? 'vertical' : ''}" aria-label="Your shortcuts">
-      ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon, base: icons.sparkle, 'mono-light': icons.sun, 'mono-dark': icons.moon }[next])}
+      ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon, 'mono-light': icons.sun, 'mono-dark': icons.moon }[next])}
       ${tile({ href: '#/feed' }, 'Feed', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
       ${tile({ href: '#/characters' }, 'Characters', icons.user)}
@@ -201,7 +203,7 @@ function renderUserbar() {
   render(bar, html`
     <div class="ub-crumb"><a href="#/home">NUUVI</a><i>···</i><span id="crumb">${crumb}</span></div>
     <div class="ub-main">
-      <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'square' })}</a>
+      <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'square' })}</a>
       ${welcomeText()}
       ${userTiles()}
     </div>`);
@@ -229,7 +231,7 @@ function renderRail() {
     <div class="rail-user only-mobile">
       <div class="rail-sep"></div>
       ${userTiles({ vertical: true })}
-      <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'square' })}</a>
+      <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'square' })}</a>
     </div>`);
 }
 
@@ -383,7 +385,7 @@ function setupDrawer() {
     if (e.target.closest('#online-btn')) { showOnline(e.target.closest('#online-btn')); return; }
     const ub = e.target.closest('[data-ub]');
     if (ub?.dataset.ub === 'theme') {
-      applyTheme(THEME_CYCLE[currentThemePick()] || 'light');
+      applyTheme(nextTheme());
       return;
     }
     if (ub?.dataset.ub === 'logout') {

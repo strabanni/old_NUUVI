@@ -1,10 +1,9 @@
 // Applies the saved theme before the page paints (loaded as a classic script in <head>).
-// Themes: base (NUUVI pink, the default), light, dark, neutral light/dark (no pink at all),
-// or auto (light/dark from the device).
+// Themes: light, dark, neutral light/dark (no pink at all), or auto (light/dark from the device, the default).
 (function () {
-  var pick = 'base';
-  try { pick = localStorage.getItem('nuuvi:theme') || 'base'; } catch (e) { /* storage unavailable */ }
-  if (['base', 'light', 'dark', 'mono-light', 'mono-dark', 'auto'].indexOf(pick) < 0) pick = 'base';
+  var pick = 'auto';
+  try { pick = localStorage.getItem('nuuvi:theme') || 'auto'; } catch (e) { /* storage unavailable */ }
+  if (['light', 'dark', 'mono-light', 'mono-dark', 'auto'].indexOf(pick) < 0) pick = 'auto';
   var light = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
   var root = document.documentElement;
   root.dataset.theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick.replace('mono-', '');

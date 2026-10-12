@@ -46,7 +46,7 @@ export async function viewHome() {
     title: html`<span class="script">home</span>`,
     body: html`
       <section class="card welcome phone-only">
-        ${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'xl square' })}
+        ${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'xl square' })}
         <div>
           <h1>${greeting()}</h1>
           <p class="stats-line">You have <b>${fmt(stats.posts)}</b> posts, <b>${fmt(stats.words)}</b> words and <b>${fmt(stats.characters)}</b> characters</p>
@@ -126,7 +126,7 @@ export function storyFields(s = {}) {
     <label for="contentWarnings">Content warnings <span class="muted small">(comma separated — readers see these before entering)</span></label>
     <input id="contentWarnings" name="contentWarnings" maxlength="800" placeholder="e.g. violence, character death" value="${(s.contentWarnings || []).join(', ')}">
     <div class="row">
-      <div class="fixed"><label for="color">Icon color</label><input type="color" id="color" name="color" value="${s.color || '#F8769C'}"></div>
+      <div class="fixed"><label for="color">Icon color</label><input type="color" id="color" name="color" value="${s.color || '#EE719E'}"></div>
       <div><label for="icon-file">Icon picture</label>
         <span class="row-inline"><input type="file" id="icon-file" accept="image/*"><button type="button" class="sm link-btn" data-link="icon">Link</button></span><input type="hidden" name="icon" value="${s.icon || ''}"></div>
     </div>

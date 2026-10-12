@@ -39,15 +39,12 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - Per-story notification level: every post, mentions and turns only, or nothing.
 
 **Look and feel**
-- NUUVI's own palette: Pompadour `#F8769C` and Mimi Pink `#FFDBED`.
-  - **Light mode:** `#F5F5F5` / `#B0AEAE`.
-  - **Dark mode:** `#48484A` / `#0E0E0F`.
-  - Three themes that follow the logo's variants. **NUUVI** (the default) is blush with pink throughout. **Light** is true white and soft grey, and **Dark** is true neutral black with no blue tint. Both keep pink for the interface's highlights (selected tabs, notifications, buttons, icons), but never in the writing itself: thread and chat text use the theme's own colors (plus each character's chosen color), and chat bubbles are the theme's greys.
-  - **Neutral light** and **Neutral dark:** white, grey and black only, with no pink anywhere (characters' and stories' own colors stay).
-  - **Auto:** switches between Light and Dark with the device.
-- **Logo:** the NUUVI mark sits at the top of the story rail, with a live count of who's online (tap it to see who). The "nuuvi" wordmark heads the sidebar and sign-in page.
-- **Icons:** [Uicons by Flaticon](https://www.flaticon.com/uicons) for the main shortcuts (feed, characters, profile, sign out, menu, follow, music).
-- Any pink surface that carries text uses a deep pink (`#C7366A`) with white text so it stays readable.
+- **Accent color:** `#EE719E`, used only for accents: buttons, tabs, badges, icons, highlights, the logo. Where white text sits on it, or pink text sits on white, a slightly deeper shade of the same pink is used (`#C93D72`, `#C2416F`) so it stays easy to read.
+  - **Light:** whites and light greys (`#FFFFFF` / `#F5F5F5` / `#B0AEAE`).
+  - **Dark:** true blacks and dark greys (`#0E0E0F` / `#48484A`).
+  - **Neutral light** and **Neutral dark:** the same, with no pink anywhere (characters' and stories' own colors stay).
+  - **Auto** (the default): Light or Dark, following the device.
+  - Chat bubbles and the writing itself are never pink: they use the theme's greys and text colors, plus each character's own chosen color for their AKA highlights and formatted words.
 - **Text size:** Normal, Large or Larger, under **You → Settings**. Post text is never justified.
 - **Interface size (phones and tablets):** Compact (the default, about Discord's scale), Standard or Large, under **You → Settings**.
 - **Greetings:** the "Welcome back" line changes: a hello on your first visit, "long time no see" after a while away, time-of-day greetings, and the odd quirky one.

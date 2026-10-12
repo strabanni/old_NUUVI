@@ -32,7 +32,7 @@ export async function viewUser(id) {
       <section class="profile-hero ${u.banner ? '' : 'no-img'}">
         ${u.banner ? html`<img class="hero-img" src="${u.banner}" alt="">` : ''}
         <div class="hero-row">
-          ${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'xxl square' })}
+          ${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'xxl square' })}
           <div>
             <h1 class="big-name">${u.displayName}</h1>
             <div class="handle">@${u.username} · joined ${timeAgo(u.joinedAt)}
@@ -125,7 +125,7 @@ export async function viewSettings() {
           <div class="seg" role="group" aria-label="Interface size">${[['compact', 'Compact'], ['standard', 'Standard'], ['large', 'Large']].map(([k, label]) => html`
             <button type="button" data-ui-size="${k}" aria-pressed="${(document.documentElement.dataset.ui || 'compact') === k}">${label}</button>`)}</div>
           <p class="hint">Compact fits more on screen. Standard and Large make buttons and text bigger everywhere. The app reloads to apply it.</p>
-          <p class="hint">NUUVI is pink throughout. Light and Dark keep pink just for highlights. Auto follows your device's light or dark setting.</p>
+          <p class="hint">Light and Dark use pink (#EE719E) only for highlights. The Neutral themes have no pink at all. Auto follows your device's light or dark setting.</p>
           <p class="hint">Icons: <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer">Uicons by Flaticon</a>.</p>
         </section>
 
@@ -133,7 +133,7 @@ export async function viewSettings() {
           <h2>Profile</h2>
           <form id="profile">
             <div class="char-pic-row">
-              <div id="me-pic">${avatar({ name: u.displayName, src: u.avatar, color: '#F8769C', size: 'xl square' })}</div>
+              <div id="me-pic">${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'xl square' })}</div>
               <div class="stack">
                 <span class="row-inline"><label class="btn sm file-btn">Profile picture<input type="file" accept="image/*" id="me-file" hidden></label><button type="button" class="sm link-btn" data-link="avatar">Link</button></span>
                 <span class="row-inline"><label class="btn sm file-btn">Banner<input type="file" accept="image/*" id="banner-file" hidden></label><button type="button" class="sm link-btn" data-link="banner">Link</button></span>
