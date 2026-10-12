@@ -75,7 +75,9 @@ export async function viewOverview(idStr) {
           </div>
         </section>
         ${toc.length > 1 ? html`<nav class="ov-toc no-swipe" aria-label="Contents">${toc.map(([id, label]) => html`<a href="#ov-${id}" data-jump="${id}">${label}</a>`)}</nav>` : ''}
-        ${empty ? html`<div class="card empty"><p>No overview yet.</p>${canEdit ? html`<p class="small">Write the lore everyone should read first: the world, its rules, its companies.</p>` : ''}</div>` : ''}
+        ${empty ? html`<div class="card empty"><p>No overview yet.</p>${canEdit ? html`<p class="small">Write the lore everyone should read first: the world, its rules, its companies.</p>
+          <p><button class="primary" id="ov-load-lore">${icons.book} Load the FOYAEN × ENTITY lore</button></p>
+          <p class="small muted">Puts in everything: the intro, the sections, all nine companies and the gossip column. You can edit any of it after.</p>` : ''}</div>` : ''}
         ${o.letter ? html`<section class="ov-letter">
           <span class="eyebrow">the column · hot off the group chat</span>
           <div class="prose">${formatPost(o.letter)}</div>
@@ -128,6 +130,14 @@ export async function viewOverview(idStr) {
       e.preventDefault();
       $(`#ov-${j.dataset.jump}`, body)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+  });
+  $('#main #ov-load-lore')?.addEventListener('click', async (e) => {
+    e.currentTarget.disabled = true;
+    const { LORE_PRESET } = await import('../lore-preset.js');
+    await api(`/api/stories/${storyId}/overview`, { method: 'PUT', body: LORE_PRESET });
+    toast('Lore loaded');
+    await loadStory(storyId);
+    viewOverview(idStr);
   });
   $('#main #ov-edit')?.addEventListener('click', async () => {
     if (await editOverview(storyId, o)) { await loadStory(storyId); viewOverview(idStr); }
