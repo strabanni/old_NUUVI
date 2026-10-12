@@ -1395,7 +1395,7 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 [data-accent=neutral] .rail-item.rail-logo > svg.logo-mark,
 [data-accent=neutral] .hero-logo .logo-mark { filter: drop-shadow(0 6px 14px rgb(0 0 0 / .22)); }
 /* The app's own pink default for people without a picture turns grey too. */
-[data-accent=neutral] :is([data-color="#F8769C" i], [data-color="#EE719E" i]) { --c: #6E6A6C !important; }
+[data-accent=neutral]:not([data-brand]) :is([data-color="#F8769C" i], [data-color="#EE719E" i]) { --c: #6E6A6C !important; }
 .swatch[data-theme-pick=mono-light] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #FFFFFF; border: 2px solid #111112; }
 .swatch[data-theme-pick=mono-dark] i { background: radial-gradient(circle at 80% 20%, #B0AEAE 0 14%, transparent 15%), #0E0E0F; border: 2px solid #F5F5F5; }
 
@@ -1542,10 +1542,29 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
 :root:is([data-theme=light], [data-theme=dark]) .bubble.mine[data-color] .body em.action { color: var(--c); opacity: 1; }
 
 /* ---------- v11: Dark mode uses the same logo as Light mode (pink tile, white n, pink wordmark) ---------- */
-:root[data-theme=dark]:not([data-accent]) {
+:root[data-brand=pink][data-theme=dark] {
   --logo-tile: #EE719E;
   --logo-ring: #EE719E;
   --logo-n: #FFFFFF;
   --logo-spark: #FFC9E0;
   --logo-word: #EE719E;
 }
+
+/* ---------- v12: pink only on the brand touches ---------- */
+/* Light and Dark: the interface is neutral; #EE719E appears only on the logo and wordmark, the "···"
+   in the top strip, your name and numbers in the greeting, and the ring on the selected rail item. */
+[data-brand=pink] { --brand: #EE719E; --brand-text: #C2416F; --brand-grad: linear-gradient(100deg, #D9548A, #EE719E); }
+[data-brand=pink][data-theme=dark] { --brand-text: #EE719E; --brand-grad: linear-gradient(100deg, #EE719E, #F7A8C4); }
+[data-brand=pink][data-theme=light] { --logo-tile: #EE719E; --logo-ring: #EE719E; --logo-n: #FFFFFF; --logo-spark: #FFC9E0; --logo-word: #EE719E; }
+[data-brand=pink] .rail-item.rail-logo > svg.logo-mark { filter: drop-shadow(0 6px 14px rgb(238 113 158 / .28)); }
+[data-brand=pink] .hero-logo .logo-mark { filter: drop-shadow(0 12px 28px rgb(238 113 158 / .3)); }
+[data-brand=pink] .ub-crumb i { color: var(--brand); }
+[data-brand=pink] :is(.ub-text h2, .welcome h1, .side-welcome h2) .grad-text { background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+[data-brand=pink] :is(.ub-text p b, .welcome .stats-line b) { color: var(--brand-text); }
+[data-brand=pink] .rail-item.active { box-shadow: 0 0 0 2px var(--brand); }
+[data-brand=pink] .rail-item.active .pill { background: var(--brand); }
+[data-accent=neutral] .voice-note { background: var(--glass-3); color: var(--text); }
+[data-accent=neutral] .vn-play { background: color-mix(in srgb, var(--text) 12%, transparent); }
+[data-accent=neutral] .voice-note.playing .vn-play { background: color-mix(in srgb, var(--text) 22%, transparent); }
+[data-accent=neutral] .vn-bars i { background: color-mix(in srgb, var(--text) 35%, transparent); }
+[data-accent=neutral] .vn-bars i.done { background: var(--text); }

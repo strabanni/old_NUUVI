@@ -7,7 +7,10 @@
   var light = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
   var root = document.documentElement;
   root.dataset.theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick.replace('mono-', '');
-  if (pick.indexOf('mono-') === 0) root.dataset.accent = 'neutral'; else delete root.dataset.accent;
+  // Every theme's interface is neutral (greys, black, white); Light and Dark add the pink brand
+  // touches (logo, greeting, rail selection) on top. The Neutral themes leave them out.
+  root.dataset.accent = 'neutral';
+  if (pick.indexOf('mono-') === 0) delete root.dataset.brand; else root.dataset.brand = 'pink';
   var size = null;
   try { size = localStorage.getItem('nuuvi:text'); } catch (e) { /* storage unavailable */ }
   if (size === 'large' || size === 'larger') document.documentElement.dataset.text = size;

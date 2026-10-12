@@ -39,10 +39,10 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - Per-story notification level: every post, mentions and turns only, or nothing.
 
 **Look and feel**
-- **Accent color:** `#EE719E`, used only for accents: buttons, tabs, badges, icons, highlights, the logo. Where white text sits on it, or pink text sits on white, a slightly deeper shade of the same pink is used (`#C93D72`, `#C2416F`) so it stays easy to read.
+- **Pink (`#EE719E`) only on the brand touches:** the logo and "nuuvi" wordmark, the "···" in the top strip, your name and numbers in the greeting, and the ring on the selected item in the left rail. Everything else (buttons, tabs, badges, icons, chat bubbles, writing) follows Light or Dark: whites and greys, or true blacks and dark greys. Light and Dark share the same pink logo.
   - **Light:** whites and light greys (`#FFFFFF` / `#F5F5F5` / `#B0AEAE`).
   - **Dark:** true blacks and dark greys (`#0E0E0F` / `#48484A`).
-  - **Neutral light** and **Neutral dark:** the same, with no pink anywhere (characters' and stories' own colors stay).
+  - **Neutral light** and **Neutral dark:** the same, without the pink brand touches (grey logo; characters' and stories' own colors stay).
   - **Auto** (the default): Light or Dark, following the device.
   - Chat bubbles and the writing itself are never pink: they use the theme's greys and text colors, plus each character's own chosen color for their AKA highlights and formatted words.
 - **Text size:** Normal, Large or Larger, under **You → Settings**. Post text is never justified.

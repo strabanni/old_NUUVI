@@ -105,8 +105,9 @@ export function applyTheme(pick = currentThemePick()) {
   const light = window.matchMedia('(prefers-color-scheme: light)').matches;
   const theme = pick === 'auto' ? (light ? 'light' : 'dark') : pick.replace('mono-', '');
   document.documentElement.dataset.theme = theme;
-  if (pick.startsWith('mono-')) document.documentElement.dataset.accent = 'neutral';
-  else delete document.documentElement.dataset.accent;
+  document.documentElement.dataset.accent = 'neutral';
+  if (pick.startsWith('mono-')) delete document.documentElement.dataset.brand;
+  else document.documentElement.dataset.brand = 'pink';
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', THEME_COLORS[theme]);
   if (state.user) { renderUserbar(); renderRail(); }
 }
