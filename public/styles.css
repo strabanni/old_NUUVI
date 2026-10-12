@@ -1510,3 +1510,30 @@ a.song:hover .song-t { text-decoration: underline; text-underline-offset: 2px; }
   .bubble.show-actions .b-reply-btn, .bubble.show-actions .b-bubble .post-menu { opacity: 1; pointer-events: auto; }
 }
 .th-icon { display: grid; }
+
+/* ---------- v9: true Light / Dark — pink stays on the interface, never in the writing ---------- */
+/* Written text in threads and chats uses the theme's own colors (characters' chosen colors stay),
+   and chat bubbles are the theme's greys instead of pink. The NUUVI (base) theme keeps its pink. */
+:root:is([data-theme=light], [data-theme=dark]) {
+  --bubble-mine: #E4E3E3;
+  --bubble-mine-text: #111112;
+  --bubble-other: #F7F7F7;
+}
+:root[data-theme=dark] {
+  --bubble-mine: #48484A;
+  --bubble-mine-text: #F5F5F5;
+  --bubble-other: #1E1E1F;
+}
+:root:is([data-theme=light], [data-theme=dark]) :is(.tpost, .bubble):not([data-color]) { --c: var(--text); }
+:root:is([data-theme=light], [data-theme=dark]) .tpost .body blockquote { border-left-color: var(--glass-3); }
+:root:is([data-theme=light], [data-theme=dark]) :is(.tpost, .bubble) .body a { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+:root:is([data-theme=light], [data-theme=dark]) :is(.tpost, .bubble) .body .mention {
+  color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+:root:is([data-theme=light], [data-theme=dark]) .b-bubble { background: var(--bubble-other); border-color: var(--glass-border); }
+:root:is([data-theme=light], [data-theme=dark]) .bubble.mine .b-bubble { background: var(--bubble-mine); color: var(--bubble-mine-text); }
+:root:is([data-theme=light], [data-theme=dark]) .bubble.mine .body .mention { background: color-mix(in srgb, var(--bubble-mine-text) 12%, transparent); }
+:root:is([data-theme=light], [data-theme=dark]) .bubble.mine .b-reply { background: color-mix(in srgb, var(--bubble-mine-text) 8%, transparent); border-left-color: var(--c, var(--faint)); }
+:root:is([data-theme=light], [data-theme=dark]) .b-reply:not([data-color]), :root:is([data-theme=light], [data-theme=dark]) .b-reply[data-color=""] { --c: var(--faint); }
+:root:is([data-theme=light], [data-theme=dark]) .bubble.mine .body :is(strong, em, u, s, .dialogue) { color: var(--c, inherit); }
+:root:is([data-theme=light], [data-theme=dark]) .b-pics { outline: 1px solid var(--glass-border); }

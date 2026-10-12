@@ -42,7 +42,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - NUUVI's own palette: Pompadour `#F8769C` and Mimi Pink `#FFDBED`.
   - **Light mode:** `#F5F5F5` / `#B0AEAE`.
   - **Dark mode:** `#48484A` / `#0E0E0F`.
-  - Three themes that follow the logo's variants. **NUUVI** (the default) is blush with pink throughout. **Light** is true white and soft grey, and **Dark** is true neutral black with no blue tint. Both keep pink only for highlights: selected tabs, notifications, buttons and media.
+  - Three themes that follow the logo's variants. **NUUVI** (the default) is blush with pink throughout. **Light** is true white and soft grey, and **Dark** is true neutral black with no blue tint. Both keep pink for the interface's highlights (selected tabs, notifications, buttons, icons), but never in the writing itself: thread and chat text use the theme's own colors (plus each character's chosen color), and chat bubbles are the theme's greys.
   - **Neutral light** and **Neutral dark:** white, grey and black only, with no pink anywhere (characters' and stories' own colors stay).
   - **Auto:** switches between Light and Dark with the device.
 - **Logo:** the NUUVI mark sits at the top of the story rail, with a live count of who's online (tap it to see who). The "nuuvi" wordmark heads the sidebar and sign-in page.
