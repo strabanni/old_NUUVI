@@ -127,7 +127,7 @@ export async function viewSettings() {
           <label>Interface size</label>
           <div class="seg scale-seg" role="group" aria-label="Interface size">${[['xsmall', 'Smallest'], ['compact', 'Small'], ['standard', 'Standard'], ['large', 'Large'], ['xlarge', 'Largest']].map(([k, label]) => html`
             <button type="button" data-ui-size="${k}" aria-pressed="${document.documentElement.dataset.ui === k}">${label}</button>`)}</div>
-          <p class="hint">Makes the whole app smaller or bigger on this device — buttons, text and pictures together.${window.nuuviScale?.touch ? ' The app reloads to apply it.' : ''}</p>
+          <p class="hint">Makes the whole app smaller or bigger on this device — buttons, text and pictures together.</p>
           <p class="hint">Light and Dark use pink (#EE719E) only for highlights. Auto follows your device's light or dark setting.</p>
           <p class="hint">Icons: <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer">Uicons by Flaticon</a>.</p>
           <p class="hint">You're on update <b>${APP_BUILD}</b>. <button type="button" class="link" id="whats-new">What's new?</button></p>
@@ -297,7 +297,6 @@ export async function viewSettings() {
     if (us) {
       if (us.dataset.uiSize === document.documentElement.dataset.ui) return;
       try { localStorage.setItem('nuuvi:ui', us.dataset.uiSize); } catch { /* ignore */ }
-      if (window.nuuviScale?.touch) { location.reload(); return; }
       window.nuuviScale?.apply(us.dataset.uiSize);
       body.querySelectorAll('[data-ui-size]').forEach((b) => b.setAttribute('aria-pressed', String(b === us)));
       return;

@@ -16,15 +16,18 @@
   try { size = localStorage.getItem('nuuvi:text'); } catch (e) { /* storage unavailable */ }
   if (size === 'large' || size === 'larger') document.documentElement.dataset.text = size;
 
-  // Interface size, on every device. Phones default to Compact (closer to Discord's scale),
-  // computers to Standard. Phones and tablets scale through the viewport (so everything shrinks
-  // evenly in Safari and Chrome); computers use CSS zoom on the page.
+  // Interface size, on every device. Phones default to Small (closer to Discord's scale), computers
+  // to Standard. The whole page is zoomed (heights that use the screen size are divided back by
+  // --ui-zoom in styles.css), so the page always fills the screen exactly — including the
+  // home-screen app on iPhone.
   var SCALES = { xsmall: 0.78, compact: 0.86, standard: 1, large: 1.12, xlarge: 1.25 };
   var meta = document.querySelector('meta[name=viewport]');
-  var base = meta ? meta.getAttribute('content') : '';
   var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   var mobile = touch && Math.min(screen.width, screen.height) < 900;
   var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // iPhones zoom in whenever a text box is tapped (and stay zoomed, so the page jumps around).
+  // maximum-scale stops that; iOS still lets people pinch to zoom.
+  if (meta && ios) meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');
   function apply(ui) {
     var saved = null;
     try { saved = localStorage.getItem('nuuvi:ui'); } catch (e) { /* storage unavailable */ }
@@ -32,21 +35,8 @@
     if (!SCALES[ui]) ui = mobile ? 'compact' : 'standard';
     root.dataset.ui = ui;
     var scale = SCALES[ui];
-    if (touch) {
-      root.style.removeProperty('zoom');
-      if (!meta) return;
-      // iPhones zoom in whenever a text box is tapped (and stay zoomed, so the page jumps around).
-      // Capping the zoom at the chosen size stops that; iOS still lets people pinch to zoom.
-      var cap = ios ? ', maximum-scale=' + scale : '';
-      if (scale === 1) { meta.setAttribute('content', base + cap); return; }
-      var portrait = window.matchMedia('(orientation: portrait)').matches;
-      var side = portrait ? Math.min(screen.width, screen.height) : Math.max(screen.width, screen.height);
-      meta.setAttribute('content', 'width=' + Math.round(side / scale) + ', initial-scale=' + scale + cap +
-        ', viewport-fit=cover, interactive-widget=resizes-content');
-    } else {
-      root.style.setProperty('--ui-zoom', String(scale));
-      if (scale === 1) root.style.removeProperty('zoom'); else root.style.zoom = String(scale);
-    }
+    root.style.setProperty('--ui-zoom', String(scale));
+    if (scale === 1) root.style.removeProperty('zoom'); else root.style.zoom = String(scale);
   }
   apply();
 
@@ -60,7 +50,7 @@
     };
     var fit = function () {
       if (typing() && vv.height < window.innerHeight - 1) {
-        root.style.setProperty('--app-h', vv.height + 'px');
+        root.style.setProperty('--app-h', (vv.height / (Number(root.style.getPropertyValue('--ui-zoom')) || 1)) + 'px');
         if (window.scrollY || vv.offsetTop) window.scrollTo(0, 0);
       } else {
         root.style.removeProperty('--app-h');

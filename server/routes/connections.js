@@ -2,20 +2,23 @@
 // hoodie…") on THE : NU. Anyone can pick it up for one of their characters; once taken it stays
 // on THE : NU, locked, showing who took it.
 import { fail, str } from '../http.js';
-import { toCharacter, requireUser, uploadRef, isBlocked } from '../model.js';
+import { toCharacter, toUser, requireUser, uploadRef, isBlocked } from '../model.js';
 
 export function connectionRoutes(r, ctx) {
   const { db } = ctx;
   const charById = db.prepare('SELECT * FROM characters WHERE id = ?');
+  const userById = db.prepare('SELECT * FROM users WHERE id = ?');
 
   const toConnection = (row) => {
     const taker = row.taken_character_id ? charById.get(row.taken_character_id) : null;
     return {
       type: 'connection',
       id: row.id, title: row.title, body: row.body, media: JSON.parse(row.media), userId: row.user_id,
+      // Connections are posted by the writer, for one of their muses.
+      author: toUser(userById.get(row.user_id)),
       tags: row.tags ? row.tags.split(',') : [],
       character: toCharacter(charById.get(row.character_id)),
-      takenBy: taker ? { character: toCharacter(taker), userId: row.taken_user_id, at: row.taken_at } : null,
+      takenBy: taker ? { character: toCharacter(taker), userId: row.taken_user_id, user: row.taken_user_id ? toUser(userById.get(row.taken_user_id)) : null, at: row.taken_at } : null,
       createdAt: row.created_at, sortAt: row.created_at,
     };
   };

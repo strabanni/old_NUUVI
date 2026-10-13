@@ -1,7 +1,7 @@
 // THE : NU — everything happening in NUUVI, laid out like an Instagram feed: one column of posts,
 // newest first, in the order they were made. Character posts, open episodes, self paras, events
 // and connections (muse ideas anyone can pick up) all share the same post shape.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost, timeAgo, applyColors, gradAttr, uploadImage, askImageLink } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost, timeAgo, applyColors, gradAttr, userGrad, uploadImage, askImageLink } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { socialCard, bindSocial, openSocialComposer, styleBars, handleOf, nameBadge, agoShort } from './social.js';
 
@@ -9,17 +9,26 @@ const ONE = { thread: 'Episode', para: 'Self para', event: 'Event', comms: 'Comm
 const FILTERS = [['all', 'All'], ['social', 'Posts'], ['open', 'Episodes'], ['connection', 'Connections'], ['event', 'Events']];
 const parseDate = (d) => new Date(String(d).includes('T') ? d : `${String(d).replace(' ', 'T')}Z`);
 
+// Posts that come from a writer (connections, episodes): their picture, display name and @username.
+const writerHead = (u, sub) => html`
+  <a class="np-av" href="#/u/${u.id}">${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'sm' })}</a>
+  <div class="np-id">
+    <div class="np-line"><a class="np-who" href="#/u/${u.id}"><span class="sp-name u-grad"${userGrad(u)}>${u.displayName}</span></a><span class="np-user">@${u.username}</span></div>
+    <span class="np-sub">${sub}</span>
+  </div>`;
+
 // An episode or self para, as a post: the story as the poster, the cover as the picture.
 function threadPost(it) {
   const pic = it.story.banner || it.starter?.portrait || it.starter?.avatar;
   return html`
     <article class="np np-thread-post" data-color="${it.story.color}">
       <header class="np-head">
+        ${it.author ? writerHead(it.author, html`${kindIcon(it.kind)} ${ONE[it.kind] || 'Episode'} in <a href="#/s/${it.storyId}">${it.story.title}</a> · ${agoShort(it.createdAt)}`) : html`
         <a class="np-av story" href="#/s/${it.storyId}">${avatar({ name: it.story.title, src: it.story.icon, color: it.story.color, size: 'sm' })}</a>
         <div class="np-id">
           <div class="np-line"><a class="np-who" href="#/s/${it.storyId}">${it.story.title}</a><span class="np-dot">•</span><span class="np-ago">${agoShort(it.createdAt)}</span></div>
           <span class="np-sub">${kindIcon(it.kind)} ${ONE[it.kind] || 'Episode'}${it.status === 'open' ? ' · open to join' : ''}</span>
-        </div>
+        </div>`}
       </header>
       <a class="np-media np-cover ${pic ? '' : 'no-img'}" href="#/s/${it.storyId}/${it.id}">
         ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : ''}
@@ -71,11 +80,7 @@ export function connectionPost(k) {
   return html`
     <article class="np np-conn ${k.takenBy ? 'taken' : ''}" data-conn="${k.id}" data-color="${ch.color}"${gradAttr(ch)}>
       <header class="np-head">
-        <a class="np-av" href="#/c/${ch.id}">${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })}</a>
-        <div class="np-id">
-          <div class="np-line"><a class="np-who" href="#/c/${ch.id}">${nameBadge(ch)}</a><span class="np-dot">•</span><span class="np-ago">${agoShort(k.createdAt)}</span></div>
-          <span class="np-sub">${icons.link} Connection</span>
-        </div>
+        ${writerHead(k.author || { id: k.userId, displayName: 'A writer', username: '' }, html`${icons.link} Connection for <a href="#/c/${ch.id}" class="np-handle c-name" data-color="${ch.color}"${gradAttr(ch)}>${handleOf(ch)}</a> · ${agoShort(k.createdAt)}`)}
         ${mineToo || k.takenBy?.userId === state.user.id || state.user.isAdmin ? html`<button class="icon-btn sm np-more" data-k="more" aria-label="Connection options">${icons.more}</button>` : ''}
       </header>
       <div class="np-media np-conn-card ${k.media.length ? '' : 'no-img'}">
@@ -84,11 +89,11 @@ export function connectionPost(k) {
         <span class="np-cover-title">${k.title}</span>
       </div>
       <div class="np-actions">
-        ${k.takenBy ? html`<span class="np-lock">${icons.lock} Picked up by <a href="#/c/${k.takenBy.character.id}">${handleOf(k.takenBy.character)}</a></span>`
+        ${k.takenBy ? html`<span class="np-lock">${icons.lock} Picked up by ${k.takenBy.user ? html`<a href="#/u/${k.takenBy.user.id}">${k.takenBy.user.displayName}</a> for ` : ''}<a href="#/c/${k.takenBy.character.id}">${handleOf(k.takenBy.character)}</a></span>`
           : mineToo ? html`<span class="np-with muted">Waiting for someone to pick it up</span>`
           : html`<button type="button" class="primary sm np-cta" data-k="take">Pick it up</button>`}
       </div>
-      ${k.body ? html`<div class="np-caption"><a class="np-handle" href="#/c/${ch.id}">${handleOf(ch)}</a> <span class="body">${formatPost(k.body)}</span></div>` : ''}
+      ${k.body ? html`<div class="np-caption">${k.author ? html`<a class="np-handle" href="#/u/${k.author.id}">${k.author.username}</a> ` : ''}<span class="body">${formatPost(k.body)}</span></div>` : ''}
       ${k.tags.length ? html`<div class="np-tags">${k.tags.map((t) => html`<span>#${t}</span>`)}</div>` : ''}
       <span class="np-time">${timeAgo(k.createdAt)}</span>
     </article>`;
@@ -101,7 +106,7 @@ async function takeConnection(k) {
   const res = await modal(html`<form>
     <span class="eyebrow">Pick up a connection</span>
     <h2>${k.title}</h2>
-    <p class="muted small">From ${handleOf(k.character)}. Once you pick it up it's locked for everyone else.</p>
+    <p class="muted small">From ${k.author ? k.author.displayName : 'a writer'}, for ${handleOf(k.character)}. Once you pick it up it's locked for everyone else.</p>
     <label for="k-as">Which muse is this for?</label>
     <select id="k-as" name="characterId">${mine.map((c) => html`<option value="${c.id}">${c.name}${c.handle ? ` (@${c.handle})` : ''}</option>`)}</select>
     <div class="error"></div>
@@ -119,7 +124,7 @@ export async function openConnectionComposer() {
     <span class="eyebrow">New connection</span>
     <h2>Looking for someone?</h2>
     <p class="muted small">Put out an idea for your muse. Anyone can pick it up for one of theirs; then it locks.</p>
-    <label for="k-char">For</label>
+    <label for="k-char">Which muse is it for?</label>
     <select id="k-char" name="characterId">${mine.map((c) => html`<option value="${c.id}">${c.name}</option>`)}</select>
     <label for="k-title">What are you looking for?</label>
     <input id="k-title" name="title" maxlength="140" required placeholder="the ex who still has my hoodie">

@@ -1,7 +1,7 @@
 // Threads (a story's channels, typed as thread / comms / event / ooc), tagging characters, and the feed.
 import { fail, str, oneOf, id } from '../http.js';
 import { transaction } from '../db.js';
-import { toChannel, toCharacter, requireUser, storyAccess, channelAccess, isBlocked, uploadRef } from '../model.js';
+import { toChannel, toCharacter, toUser, requireUser, storyAccess, channelAccess, isBlocked, uploadRef } from '../model.js';
 import { plainText } from '../text.js';
 
 export const KINDS = ['thread', 'para', 'comms', 'event', 'ooc'];
@@ -265,6 +265,7 @@ export function threadRoutes(r, ctx) {
     const lastPost = db.prepare(`SELECT p.body, p.cw, p.created_at, u.display_name, ch.name AS character_name
       FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters ch ON ch.id = p.character_id WHERE p.id = ?`);
     const starter = db.prepare('SELECT * FROM characters WHERE id = ?');
+    const writer = db.prepare('SELECT * FROM users WHERE id = ?');
     return rows.map((row) => {
       const lp = row.last_post_id ? lastPost.get(row.last_post_id) : null;
       const st = row.starter_character_id ? starter.get(row.starter_character_id) : null;
@@ -274,6 +275,8 @@ export function threadRoutes(r, ctx) {
         postCount: row.post_count,
         story: { id: row.story_id, title: row.story_title, color: row.story_color, icon: row.story_icon, banner: row.story_banner },
         starter: st ? toCharacter(st) : null,
+        // Who started it (episodes on THE : NU show the writer, not a character).
+        author: row.created_by ? (() => { const u = writer.get(row.created_by); return u ? toUser(u) : null; })() : null,
         participants: participants(row.id, 6),
         lastPost: lp ? { by: lp.character_name || lp.display_name, text: lp.cw ? `CW: ${lp.cw}` : plainText(lp.body, 160), createdAt: lp.created_at } : null,
         sortAt: row.last_post_at || row.created_at,
