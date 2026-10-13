@@ -9,7 +9,8 @@ export async function viewStorySettings(idStr) {
   const id = Number(idStr);
   const s = await loadStory(id);
   ensureAlive(alive);
-  if (s.role !== 'owner') return location.replace(`#/s/${id}`);
+  // Story owners and admins.
+  if (s.role !== 'owner' && !state.user?.isAdmin) return location.replace(`#/s/${id}`);
   const story = s.story;
   const inviteLink = () => `${location.origin}/#/join/${id}/${state.story.story.inviteCode}`;
 

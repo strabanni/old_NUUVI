@@ -172,19 +172,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
       { label: 'Remove contact', danger: true, action: async () => { await api(`/api/phone/${cid}/contacts/${id}`, { method: 'DELETE' }); reload(); } },
     ]);
   }
-  // Long-press (phones) opens the same menu as a right-click: rename, change picture, remove.
-  let pressTimer = null;
-  let pressed = false;
-  root.addEventListener('touchstart', (e) => {
-    const c = e.target.closest('[data-open], [data-contact]');
-    if (!c) return;
-    pressed = false;
-    pressTimer = setTimeout(() => { pressed = true; navigator.vibrate?.(12); contactMenu(c, Number(c.dataset.open || c.dataset.contact)); }, 480);
-  }, { passive: true });
-  const cancelPress = () => clearTimeout(pressTimer);
-  root.addEventListener('touchend', cancelPress);
-  root.addEventListener('touchmove', cancelPress, { passive: true });
-  root.addEventListener('click', (e) => { if (pressed) { e.preventDefault(); e.stopPropagation(); pressed = false; } }, true);
+  // Long-press on phones is turned into a right-click app-wide (main.js), so these menus open either way.
   root.addEventListener('contextmenu', (e) => {
     const row = e.target.closest('[data-contact]');
     if (!row) return;

@@ -1,6 +1,6 @@
 // App shell: Discord-style chrome (story rail, sidebar, members panel, mobile drawer + tab bar),
 // routing, and the live event connection.
-import { html, raw, render, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, logoMark, wordmark, userGrad } from './lib.js';
+import { html, raw, render, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, logoMark, wordmark, userGrad, uploadImage, uploadBanner, askImageLink } from './lib.js';
 import { viewLanding, viewReset } from './views/auth.js';
 import { viewHome, viewDiscover, viewNewStory, viewJoin } from './views/home.js';
 import { viewChannel } from './views/channel.js';
@@ -230,7 +230,7 @@ function renderRail() {
     <a href="#/home" class="rail-item home-link ${!active ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
     <div class="rail-sep"></div>
     ${state.home.stories.map((s) => html`
-      <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" title="${s.title}" aria-label="${s.title}">
+      <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" data-story-id="${s.id}" title="${s.title}" aria-label="${s.title}">
         <span class="pill"></span>${storyIcon(s)}
         ${s.mentions ? html`<span class="badge">${s.mentions}</span>` : ''}
       </a>`)}
@@ -352,6 +352,33 @@ async function joinCurrentStory() {
   } catch (err) { toast(err.message); }
 }
 
+// Story owners and admins can change a story.
+export const canManageStory = (s) => s?.role === 'owner' || !!state.user?.isAdmin;
+
+// Change a story's header picture or icon straight from its menu (upload or link).
+async function changeStoryPicture(id, field, anchor) {
+  const pick = () => new Promise((resolve) => {
+    menu(anchor && anchor.isConnected ? anchor : $('#main .main-head') || document.body, [
+      { label: field === 'banner' ? 'Upload a header picture' : 'Upload an icon', action: () => {
+        const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*';
+        f.onchange = async () => { try { resolve(field === 'banner' ? await uploadBanner(f.files[0]) : await uploadImage(f.files[0], 400)); } catch (err) { toast(err.message); resolve(null); } };
+        f.click();
+      } },
+      { label: 'Use a picture link', action: async () => resolve(await askImageLink(field === 'banner' ? 'Header picture link' : 'Icon link')) },
+      { label: field === 'banner' ? 'Remove the header picture' : 'Remove the icon', danger: true, action: () => resolve('') },
+    ]);
+  });
+  const value = await pick();
+  if (value === null || value === undefined) return;
+  try {
+    await api(`/api/stories/${id}`, { method: 'PUT', body: { [field]: value } });
+    toast(field === 'banner' ? (value ? 'Header picture changed' : 'Header picture removed') : (value ? 'Icon changed' : 'Icon removed'));
+    await refreshHome();
+    if (state.story?.story.id === id) await loadStory(id);
+    renderRail(); renderSidebar();
+  } catch (err) { toast(err.message); }
+}
+
 function storyMenu(anchor) {
   const s = state.story;
   const id = s.story.id;
@@ -361,8 +388,10 @@ function storyMenu(anchor) {
     toast({ all: 'Notifying you about every post', mentions: 'Only @mentions and your turns', none: 'Muted (turns still notify)' }[level]);
   };
   menu(anchor, [
-    s.role === 'owner' && { label: 'Story settings', action: () => { location.hash = `#/s/${id}/settings`; } },
-    s.role === 'owner' && { label: 'Copy invite link', action: () => copyText(`${location.origin}/#/join/${id}/${s.story.inviteCode}`, 'Invite link copied') },
+    canManageStory(s) && { label: 'Story settings', action: () => { location.hash = `#/s/${id}/settings`; } },
+    canManageStory(s) && { label: 'Change header picture', action: () => changeStoryPicture(id, 'banner', anchor) },
+    canManageStory(s) && { label: 'Change icon', action: () => changeStoryPicture(id, 'icon', anchor) },
+    canManageStory(s) && s.story.inviteCode && { label: 'Copy invite link', action: () => copyText(`${location.origin}/#/join/${id}/${s.story.inviteCode}`, 'Invite link copied') },
     s.role && { label: `${s.notify === 'all' ? '✓ ' : ''}Notify: every post`, action: () => setNotify('all') },
     s.role && { label: `${s.notify === 'mentions' ? '✓ ' : ''}Notify: mentions & turns`, action: () => setNotify('mentions') },
     s.role && { label: `${s.notify === 'none' ? '✓ ' : ''}Notify: nothing`, action: () => setNotify('none') },
@@ -456,6 +485,65 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
 let navDepth = 0;
 let backing = false;
 window.addEventListener('hashchange', () => { navDepth = backing ? Math.max(0, navDepth - 1) : navDepth + 1; backing = false; });
+
+// ---------- Long-press (phones) = right-click (computers) ----------
+// Holding a finger on something opens the same menu a right-click does: story icons, the story
+// header, contacts, episodes in the sidebar…
+let pressTimer = null;
+let pressFired = false;
+let pressStart = null;
+document.addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 1) return;
+  const t = e.touches[0];
+  pressFired = false;
+  pressStart = [t.clientX, t.clientY];
+  const target = e.target;
+  clearTimeout(pressTimer);
+  pressTimer = setTimeout(() => {
+    pressFired = true;
+    navigator.vibrate?.(12);
+    target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: t.clientX, clientY: t.clientY }));
+  }, 480);
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  const t = e.touches[0];
+  if (pressStart && t && Math.hypot(t.clientX - pressStart[0], t.clientY - pressStart[1]) > 10) clearTimeout(pressTimer);
+}, { passive: true });
+document.addEventListener('touchend', () => clearTimeout(pressTimer));
+document.addEventListener('touchcancel', () => clearTimeout(pressTimer));
+// The tap that ends a long-press shouldn't also open the link underneath.
+document.addEventListener('click', (e) => { if (pressFired) { e.preventDefault(); e.stopPropagation(); pressFired = false; } }, true);
+
+document.addEventListener('contextmenu', async (e) => {
+  if (!state.user) return;
+  const railStory = e.target.closest('[data-story-id]');
+  const head = e.target.closest('#story-menu');
+  const chan = e.target.closest('.side-scroll a.chan[href^="#/s/"]');
+  if (!railStory && !head && !chan) return;
+  e.preventDefault();
+  if (head) { storyMenu(head); return; }
+  if (chan) {
+    const id = Number(chan.getAttribute('href').split('/')[3]);
+    const c = state.story?.channels.find((x) => x.id === id);
+    if (!c) return;
+    const mineToManage = canManageStory(state.story) || c.createdBy === state.user.id;
+    menu(chan, [
+      { label: 'Open', action: () => { location.hash = chan.getAttribute('href'); } },
+      mineToManage && { label: 'Edit episode', action: () => openThreadForm({ storyId: state.story.story.id, channel: c }) },
+      { label: 'Copy link', action: () => copyText(`${location.origin}/${chan.getAttribute('href')}`, 'Link copied') },
+    ]);
+    return;
+  }
+  const id = Number(railStory.dataset.storyId);
+  const st = state.home.stories.find((x) => x.id === id);
+  const manage = st?.role === 'owner' || st?.ownerId === state.user.id || state.user.isAdmin;
+  menu(railStory, [
+    { label: 'Open', action: () => { location.hash = `#/s/${id}`; } },
+    manage && { label: 'Story settings', action: () => { location.hash = `#/s/${id}/settings`; } },
+    manage && { label: 'Change header picture', action: () => changeStoryPicture(id, 'banner', railStory) },
+    manage && { label: 'Change icon', action: () => changeStoryPicture(id, 'icon', railStory) },
+  ]);
+});
 
 // ---------- Mobile drawer ----------
 const closeDrawers = () => document.body.classList.remove('drawer-open', 'members-open');

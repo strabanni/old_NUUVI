@@ -33,7 +33,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - **The lore:** one page about the whole NUUVI world, not tied to any story (sidebar → **Lore**, or the lore card on Home). It opens with the FOYAEN × ENTITY lore built in: a tagline, the world's numbers, a gossip column from the city's anonymous insider (loosely in the spirit of Gossip Girl, Euphoria and Scandal), the intro, numbered sections, and the organizations (conglomerates with their subsidiaries, then independents), each with a gossip line. Cards expand when tapped, and a contents bar jumps between sections. Admins edit it with **Edit** on the Lore page.
 - Public (listed in Discover) or private (invite link only).
 - Open or closed to new writers.
-- Owners can add, rename, reorder and delete channels, and remove writers.
+- Owners (and admins) can add, rename, reorder and delete channels, remove writers, and change the story's header picture and icon. Long-press on phones, or right-click on computers, a story icon in the rail, the story name or an episode for quick options (settings, change header picture or icon, edit episode).
 
 **Notifications**
 - Unread badges on stories and channels.

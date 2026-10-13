@@ -128,7 +128,7 @@ export function storyRoutes(r, ctx) {
       SELECT c.* FROM characters c WHERE c.id IN (SELECT DISTINCT character_id FROM posts WHERE story_id = ?)
       ORDER BY c.name COLLATE NOCASE`).all(row.id).map(toCharacter);
     const story = toStory(row);
-    if (role === 'owner') story.inviteCode = row.invite_code;
+    if (role === 'owner' || user?.isAdmin) story.inviteCode = row.invite_code;
     const notify = role ? db.prepare('SELECT notify FROM story_members WHERE story_id = ? AND user_id = ?').get(row.id, user.id).notify : null;
     return { data: { story, role, notify, members, cast, channels: channelsFor(row.id, role ? user.id : null) } };
   });

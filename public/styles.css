@@ -2496,3 +2496,5 @@ dialog.modal[open]::backdrop { animation: fade-in .3s ease both; }
 .member .avatar, .th-cast .avatar, .chip-link .avatar, img.avatar { object-fit: cover; }
 /* The invisible copy used to size the message box (see channel.js). */
 .ta-mirror { position: fixed; left: -9999px; top: 0; height: auto !important; min-height: 0; max-height: none; overflow: hidden; visibility: hidden; pointer-events: none; resize: none; }
+/* Long-press opens menus on phones: no system callout or text selection on these. */
+.rail-item, .story-head-btn, .side-scroll .chan { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
