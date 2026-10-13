@@ -1,7 +1,7 @@
 // Characters as social profiles: following other characters, followers, and the threads they're in.
 import { fail, id, str, oneOf } from '../http.js';
 import { addBuzz, buzzForFollowers, autoLikes, autoCommentLikes } from '../buzz.js';
-import { toCharacter, requireUser, isBlocked, imageLink } from '../model.js';
+import { toCharacter, requireUser, isBlocked, imageLink, adminCanSee } from '../model.js';
 
 export function socialRoutes(r, ctx) {
   const { db } = ctx;
@@ -105,10 +105,10 @@ export function socialRoutes(r, ctx) {
       WHERE (c.bot IS NULL OR c.bot != 'gossip')
         AND (c.npc = 1 OR EXISTS (SELECT 1 FROM story_members m WHERE m.user_id = c.user_id AND m.story_id = ?))
       ORDER BY c.npc, c.name COLLATE NOCASE`).all(params.id);
-    // Members only (admins too, for public stories; private stories are members only, admins included).
-    const st = db.prepare('SELECT visibility FROM stories WHERE id = ?').get(params.id);
+    // Members only, plus admins (except another admin's private story they aren't in).
+    const st = db.prepare('SELECT * FROM stories WHERE id = ?').get(params.id);
     const member = db.prepare('SELECT 1 FROM story_members WHERE story_id = ? AND user_id = ?').get(params.id, user.id);
-    if (!st || (!member && !(user.isAdmin && st.visibility === 'public'))) fail(404, 'Story not found');
+    if (!st || (!member && !(user.isAdmin && (st.visibility === 'public' || adminCanSee(db, st, user))))) fail(404, 'Story not found');
     return { data: { characters: rows.map((c) => ({ ...toCharacter(c), ownerName: c.owner_name })) } };
   });
 }

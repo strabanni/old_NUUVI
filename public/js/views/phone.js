@@ -2,7 +2,7 @@
 // Styled after a modern messaging app: a soft gradient header, a contact strip and a chat list,
 // and conversations on a gradient with small frosted bubbles.
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, promptModal, formatPost, uploadImage, askImageLink, plainText, applyColors, store, attachSheet } from '../lib.js';
-import { state, page, myCharacters, routeAlive, ensureAlive, onLeave, bus } from '../main.js';
+import { state, page, myCharacters, routeAlive, ensureAlive, onLeave, bus, loadStory } from '../main.js';
 
 const lastKey = 'nuuvi:phone';
 const clock = (sql) => new Date(`${sql.replace(' ', 'T')}Z`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -59,8 +59,17 @@ async function pickContact(me, existing) {
 }
 
 // ---------- Phone home: contacts strip + conversations ----------
+// Opened from inside a story (#/s/5/phone…) the phone stays in that story, with its sidebar;
+// from the main menu it's #/phone….
+const phoneBase = () => location.hash.match(/^#\/s\/\d+\/phone/)?.[0] ?? '#/phone';
+async function keepStory() {
+  const sid = Number(location.hash.match(/^#\/s\/(\d+)\/phone/)?.[1]);
+  if (sid && state.story?.story.id !== sid) await loadStory(sid);
+}
+
 export async function viewPhone(cidStr) {
   const alive = routeAlive();
+  await keepStory();
   const mine = await myCharacters(true);
   ensureAlive(alive);
   if (!mine.length) {
@@ -68,8 +77,8 @@ export async function viewPhone(cidStr) {
     return;
   }
   const cid = Number(cidStr) || Number(store.get(lastKey)) || mine[0].id;
-  if (!mine.some((c) => c.id === cid)) return location.replace(`#/phone/${mine[0].id}`);
-  if (!cidStr) return location.replace(`#/phone/${cid}`);
+  if (!mine.some((c) => c.id === cid)) return location.replace(`${phoneBase()}/${mine[0].id}`);
+  if (!cidStr) return location.replace(`${phoneBase()}/${cid}`);
   store.set(lastKey, String(cid));
   const data0 = await api(`/api/phone/${cid}`);
   ensureAlive(alive);
@@ -106,7 +115,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
       </section>
       <section class="ph-list">
         ${threads.length ? threads.map((t) => html`
-          <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="#/phone/${me.id}/t/${t.id}" data-contact="${t.other.id}">
+          <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="${phoneBase()}/${me.id}/t/${t.id}" data-contact="${t.other.id}">
             <span class="ph-row-av">${avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color })}</span>
             <span class="grow"><b>${t.name}</b><small>${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'Say hi 👋'}</small></span>
             <span class="ph-meta">${t.lastAt ? html`<small>${shortWhen(t.lastAt)}</small>` : ''}${t.unread ? html`<span class="badge">${t.unread}</span>` : ''}</span>
@@ -119,7 +128,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
   const reload = async () => { data = await api(`/api/phone/${cid}`); draw(); };
   const open = async (otherId) => {
     const { thread } = await api(`/api/phone/${cid}/threads`, { method: 'POST', body: { withId: otherId } });
-    location.hash = `#/phone/${cid}/t/${thread.id}`;
+    location.hash = `${phoneBase()}/${cid}/t/${thread.id}`;
   };
   root.addEventListener('input', (e) => {
     if (e.target.id !== 'ph-q') return;
@@ -140,7 +149,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     }
     const sw = e.target.closest('#ph-switch');
     if (sw) {
-      menu(sw, mine.map((m) => ({ label: `${m.id === cid ? '✓ ' : ''}${m.name}'s phone`, action: () => { location.hash = `#/phone/${m.id}`; } })));
+      menu(sw, mine.map((m) => ({ label: `${m.id === cid ? '✓ ' : ''}${m.name}'s phone`, action: () => { location.hash = `${phoneBase()}/${m.id}`; } })));
     }
   });
   root.addEventListener('contextmenu', async (e) => {
@@ -185,6 +194,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
 // ---------- A conversation ----------
 export async function viewPhoneThread(cidStr, tidStr) {
   const alive = routeAlive();
+  await keepStory();
   const cid = Number(cidStr);
   let { thread, messages, hasMore } = await api(`/api/phone/threads/${tidStr}?as=${cid}`);
   ensureAlive(alive);
@@ -200,7 +210,7 @@ export async function viewPhoneThread(cidStr, tidStr) {
     <div class="phone chat">
       <section class="ph-chat">
         <header class="ph-chat-head">
-          <a class="ph-back" href="#/phone/${cid}" aria-label="Back">${icons.back}</a>
+          <a class="ph-back" href="${phoneBase()}/${cid}" aria-label="Back">${icons.back}</a>
           <a class="ph-chat-av" href="#/c/${other.id}">${avatar({ name: other.name, src: other.avatar, color: other.color, size: 'sm' })}</a>
           <h2>${thread.name}</h2>
           <span class="ph-chat-actions">

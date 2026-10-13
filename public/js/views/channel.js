@@ -473,7 +473,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   let mention = () => {};
   let startReply = () => {};
   if (role && !detail.canPost) {
-    render(wrap, html`<div class="composer-locked">${channel().status === 'complete' ? 'This episode is complete — it\'s read-only now.' : 'This is a private episode for the characters in it.'}</div>`);
+    render(wrap, html`<div class="composer-locked">${story.completedAt ? html`${icons.archive} This story is complete and kept in the Archive. It's read-only.` : channel().status === 'complete' ? 'This episode is complete — it\'s read-only now.' : 'This is a private episode for the characters in it.'}</div>`);
   } else if (!role) {
     render(wrap, state.user
       ? html`<div class="composer-locked">${story.status === 'open' ? html`You're reading as a guest. <button class="primary sm" id="join-here">Join to write</button>` : 'This story is closed to new writers.'}</div>`

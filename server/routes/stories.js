@@ -4,7 +4,7 @@ import { fail, str, oneOf, color, id } from '../http.js';
 import { transaction } from '../db.js';
 import {
   toStory, toChannel, toCharacter, toUser, turnState, STORY_SELECT,
-  requireUser, storyAccess, channelAccess, requireOwner, membership, uploadRef, isBlocked, modLog,
+  requireUser, storyAccess, channelAccess, requireOwner, membership, uploadRef, isBlocked, modLog, adminCanSee,
 } from '../model.js';
 
 const inviteCode = () => randomBytes(6).toString('base64url');
@@ -59,7 +59,7 @@ export function storyRoutes(r, ctx) {
   r.get('/api/home', ({ user }) => {
     requireUser(user);
     const rows = db.prepare(`
-      SELECT s.*, u.display_name AS owner_name,
+      SELECT s.*, u.display_name AS owner_name, me.role AS my_role,
         (SELECT COUNT(*) FROM story_members m WHERE m.story_id = s.id) AS member_count,
         (SELECT COUNT(*) FROM posts p WHERE p.story_id = s.id) AS post_count,
         (SELECT COUNT(*) FROM posts p WHERE p.story_id = s.id AND p.user_id != :u
@@ -73,7 +73,7 @@ export function storyRoutes(r, ctx) {
     const reportsOpen = user.isAdmin ? db.prepare("SELECT COUNT(*) AS n FROM reports WHERE status = 'open'").get().n : 0;
     return {
       data: {
-        stories: rows.map((row) => ({ ...toStory(row), unread: row.unread, mentions: row.mentions })),
+        stories: rows.map((row) => ({ ...toStory(row), role: row.my_role, unread: row.unread, mentions: row.mentions })),
         notificationsUnread,
         reportsOpen,
         messagesUnread: ctx.messageUnread?.(user.id) ?? 0,
@@ -162,11 +162,13 @@ export function storyRoutes(r, ctx) {
       icon: uploadRef(db, body.icon, user.id),
       banner: uploadRef(db, body.banner, user.id),
       code: body.regenerateInvite ? inviteCode() : row.invite_code,
+      // Mark the whole story complete (it moves to the Archive) or reopen it.
+      completed: body.complete === undefined ? row.completed_at : body.complete ? (row.completed_at ?? new Date().toISOString().slice(0, 19).replace('T', ' ')) : null,
     };
     db.prepare(`UPDATE stories SET title = ?, summary = ?, genre = ?, rating = ?, content_warnings = ?, visibility = ?, status = ?,
-      color = ?, icon = ?, banner = ?, invite_code = ?, updated_at = datetime('now') WHERE id = ?`)
+      color = ?, icon = ?, banner = ?, invite_code = ?, completed_at = ?, updated_at = datetime('now') WHERE id = ?`)
       .run(f.title, f.summary, f.genre, f.rating, f.cw, f.visibility, f.status, f.color,
-        f.icon === undefined ? row.icon : f.icon, f.banner === undefined ? row.banner : f.banner, f.code, row.id);
+        f.icon === undefined ? row.icon : f.icon, f.banner === undefined ? row.banner : f.banner, f.code, f.completed, row.id);
     const story = toStory(db.prepare(`${STORY_SELECT} WHERE s.id = ?`).get(row.id));
     story.inviteCode = f.code;
     storyChanged(row.id);
@@ -189,11 +191,12 @@ export function storyRoutes(r, ctx) {
     if (!row) fail(404, 'Story not found');
     if (membership(db, row.id, user.id)) return { data: { ok: true } };
     const codeMatches = typeof body.inviteCode === 'string' && body.inviteCode === row.invite_code;
-    if (row.visibility === 'private' && !codeMatches) fail(404, 'Story not found');
+    const asAdmin = adminCanSee(db, row, user);
+    if (row.visibility === 'private' && !codeMatches && !asAdmin) fail(404, 'Story not found');
     if (db.prepare('SELECT 1 FROM story_bans WHERE story_id = ? AND user_id = ?').get(row.id, user.id) || isBlocked(db, row.owner_id, user.id)) {
       fail(403, "You can't join this story");
     }
-    if (row.status === 'closed' && !codeMatches) fail(403, 'This story is closed to new writers');
+    if (row.status === 'closed' && !codeMatches && !asAdmin) fail(403, 'This story is closed to new writers');
     db.prepare('INSERT INTO story_members (story_id, user_id) VALUES (?, ?)').run(row.id, user.id);
     catchUp(row.id, user.id);
     storyChanged(row.id);

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 13;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -453,6 +453,8 @@ const MIGRATIONS = [
    );`,
   // v12: each writer's own order for the stories in their sidebar (set by dragging; empty = newest activity first).
   `ALTER TABLE story_members ADD COLUMN rail_pos INTEGER;`,
+  // v13: a story marked complete moves to the Archive (read-only; the owner can reopen it).
+  `ALTER TABLE stories ADD COLUMN completed_at TEXT;`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

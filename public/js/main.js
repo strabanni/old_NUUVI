@@ -16,6 +16,7 @@ import { viewEvents, viewEvent } from './views/events.js';
 import { viewDirectory } from './views/directory.js';
 import { viewPhone, viewPhoneThread } from './views/phone.js';
 import { viewLore } from './views/overview.js';
+import { viewArchive } from './views/archive.js';
 import { viewNpcs } from './views/npcs.js';
 import { viewSocialPost } from './views/social.js';
 
@@ -224,16 +225,21 @@ function renderRail() {
   const rail = $('#rail');
   if (railDrag) return; // not while a story is being dragged
   if (!state.user) return render(rail, html``);
-  const active = state.route.storyId;
   const u = state.user;
+  // Completed stories live in the Archive (a fixed item under Home), not in the list.
+  const archivedCount = state.home.stories.filter((s) => s.completedAt).length;
+  const activeStory = state.home.stories.find((s) => s.id === state.route.storyId);
+  const inArchive = /^#\/archive/.test(location.hash) || !!activeStory?.completedAt;
+  const active = inArchive ? null : state.route.storyId;
   render(rail, html`
     <button type="button" class="rail-item rail-logo ${state.online.length > 1 ? 'others' : ''}" id="online-btn"
       title="NUUVI · ${state.online.length} online" aria-label="NUUVI — ${state.online.length} people online">
       ${logoMark}<span class="online-badge"><span class="pulse"></span>${state.online.length || ''}</span>
     </button>
-    <a href="#/home" class="rail-item home-link ${!active ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
+    <a href="#/home" class="rail-item home-link ${!active && !inArchive ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
+    <a href="#/archive" class="rail-item archive-link ${inArchive ? 'active' : ''}" title="Archive: completed stories" aria-label="Archive">${icons.archive}${archivedCount ? html`<i class="rail-count">${archivedCount}</i>` : ''}</a>
     <div class="rail-sep"></div>
-    ${state.home.stories.map((s) => html`
+    ${state.home.stories.filter((s) => !s.completedAt).map((s) => html`
       <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" data-story-id="${s.id}" draggable="false" title="${s.title}" aria-label="${s.title}">
         <span class="pill"></span>${storyIcon(s)}
         ${s.mentions ? html`<span class="badge">${s.mentions}</span>` : ''}
@@ -261,8 +267,8 @@ function renderSidebar() {
   const s = state.story;
   const mobileWelcome = html`<div class="side-welcome only-mobile">${welcomeText()}</div>`;
   if (state.route.storyId && s && s.story.id === state.route.storyId) {
-    // Comms became the Phone, and OOC became private Messages: those links sit where the old
-    // channels were. Older comms/OOC channels stay readable under "Archive".
+    // Comms became the Phone (and OOC became private Messages, in the main menu). Older comms/OOC
+    // channels stay readable under "Old chats".
     const groups = ['thread', 'para', 'event'].map((k) => [k, s.channels.filter((c) => c.kind === k)]).filter(([, list]) => list.length);
     const archived = s.channels.filter((c) => c.kind === 'comms' || c.kind === 'ooc');
     render(side, html`
@@ -275,7 +281,8 @@ function renderSidebar() {
         ${!s.role ? html`<div class="join-hint">
             <p>You're reading as a guest.</p>
             ${s.story.status === 'open' ? html`<button class="primary block" id="side-join">Join this story</button>` : html`<p class="muted small">Closed to new writers.</p>`}
-          </div>` : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New episode</button>`}
+          </div>` : s.story.completedAt ? html`<a class="side-archived" href="#/archive">${icons.archive}<span>Complete · in the Archive</span></a>`
+          : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New episode</button>`}
         ${groups.map(([kind, list]) => html`
           <div class="side-section"><span>${KIND_LABELS[kind]}</span></div>
           ${list.map((c) => {
@@ -288,10 +295,9 @@ function renderSidebar() {
               ${c.mentions ? html`<span class="badge">${c.mentions}</span>` : ''}
             </a>`;
           })}`)}
-        <div class="side-section"><span>Texts & messages</span></div>
-        <a href="#/phone" class="chan">${icons.smartphone}<span class="name">Phone</span></a>
-        <a href="#/messages" class="chan">${icons.chat}<span class="name">Messages</span>${state.home.messagesUnread ? html`<span class="badge">${state.home.messagesUnread}</span>` : ''}</a>
-        ${archived.length ? html`<details class="side-archive"><summary class="side-section"><span>Archive</span></summary>${archived.map((c) => html`
+        <div class="side-section"><span>Texts</span></div>
+        <a href="#/s/${s.story.id}/phone" class="chan ${/^#\/s\/\d+\/phone/.test(hash) ? 'active' : ''}">${icons.smartphone}<span class="name">Phone</span></a>
+        ${archived.length ? html`<details class="side-archive"><summary class="side-section"><span>Old chats</span></summary>${archived.map((c) => html`
           <a href="#/s/${s.story.id}/${c.id}" class="chan ${state.route.channelId === c.id ? 'active' : ''} ${c.unread ? 'unread' : ''}"><span class="hash">${channelIcon(c)}</span><span class="name">${c.name}</span></a>`)}</details>` : ''}
       </div>`);
     $('#story-menu').addEventListener('click', (e) => storyMenu(e.currentTarget));
@@ -383,6 +389,19 @@ async function changeStoryPicture(id, field, anchor) {
   } catch (err) { toast(err.message); }
 }
 
+// Completing a story moves it to the Archive: still readable, but nobody can post in it.
+export async function setStoryComplete(id, complete) {
+  if (complete && !(await confirmModal('Mark this story complete? It moves to the Archive and becomes read-only. You can reopen it any time.', { ok: 'Mark complete' }))) return;
+  try {
+    await api(`/api/stories/${id}`, { method: 'PUT', body: { complete } });
+    await refreshHome();
+    if (state.story?.story.id === id) await loadStory(id);
+    renderRail();
+    toast(complete ? 'Moved to the Archive' : 'Reopened. It\'s back in your stories');
+    if (/^#\/s\//.test(location.hash)) router();
+  } catch (err) { toast(err.message); }
+}
+
 function storyMenu(anchor) {
   const s = state.story;
   const id = s.story.id;
@@ -395,6 +414,9 @@ function storyMenu(anchor) {
     canManageStory(s) && { label: 'Story settings', action: () => { location.hash = `#/s/${id}/settings`; } },
     canManageStory(s) && { label: 'Change header picture', action: () => changeStoryPicture(id, 'banner', anchor) },
     canManageStory(s) && { label: 'Change icon', action: () => changeStoryPicture(id, 'icon', anchor) },
+    canManageStory(s) && (s.story.completedAt
+      ? { label: 'Reopen story (take it out of the Archive)', action: () => setStoryComplete(id, false) }
+      : { label: 'Mark story complete (move to the Archive)', action: () => setStoryComplete(id, true) }),
     canManageStory(s) && s.story.inviteCode && { label: 'Copy invite link', action: () => copyText(`${location.origin}/#/join/${id}/${s.story.inviteCode}`, 'Invite link copied') },
     s.role && { label: `${s.notify === 'all' ? '✓ ' : ''}Notify: every post`, action: () => setNotify('all') },
     s.role && { label: `${s.notify === 'mentions' ? '✓ ' : ''}Notify: mentions & turns`, action: () => setNotify('mentions') },
@@ -647,6 +669,7 @@ document.addEventListener('contextmenu', async (e) => {
     manage && { label: 'Story settings', action: () => { location.hash = `#/s/${id}/settings`; } },
     manage && { label: 'Change header picture', action: () => changeStoryPicture(id, 'banner', railStory) },
     manage && { label: 'Change icon', action: () => changeStoryPicture(id, 'icon', railStory) },
+    manage && { label: 'Mark story complete (move to the Archive)', action: () => setStoryComplete(id, true) },
   ]);
 });
 
@@ -824,6 +847,7 @@ const routes = [
   [/^#\/directory$/, viewDirectory, true],
   [/^#\/npcs$/, viewNpcs, true],
   [/^#\/lore$/, viewLore, true],
+  [/^#\/archive$/, viewArchive, true],
   [/^#\/phone(?:\/(\d+))?$/, viewPhone, true],
   [/^#\/phone\/(\d+)\/t\/(\d+)$/, viewPhoneThread, true],
   [/^#\/c\/(\d+)$/, viewCharacter],
@@ -832,6 +856,9 @@ const routes = [
   [/^#\/admin$/, viewAdmin, true],
   [/^#\/join\/(\d+)\/([\w-]+)$/, viewJoin, true],
   [/^#\/s\/(\d+)\/settings$/, viewStorySettings, true],
+  // The phone, opened from inside a story: same phone, the story's sidebar stays.
+  [/^#\/s\/\d+\/phone(?:\/(\d+))?$/, viewPhone, true],
+  [/^#\/s\/\d+\/phone\/(\d+)\/t\/(\d+)$/, viewPhoneThread, true],
   // Old story-overview links lead to the one Lore page.
   [/^#\/s\/(\d+)\/overview$/, () => location.replace('#/lore'), true],
   [/^#\/s\/(\d+)(?:\/(\d+))?$/, viewChannel],

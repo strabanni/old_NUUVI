@@ -165,7 +165,7 @@ async function invites(pane) {
 async function stories(pane) {
   const { stories: list } = await api('/api/admin/stories');
   render(pane, html`
-    <p class="small muted">Private stories stay private, from admins too: unless you're in one, you only see that it exists and who owns it. Reported posts show up under Reports.</p>
+    <p class="small muted">Admins can open every writer's stories. Another admin's private story stays theirs: unless they add you, you only see that it exists and who owns it. Reported posts show up under Reports.</p>
     <div class="stack">${list.map((s) => html`
     <div class="row-item wrap" data-id="${s.id}">
       <div class="grow"><strong class="${s.hidden ? 'muted' : ''}">${s.title}</strong> <span class="tag">${s.visibility}</span>

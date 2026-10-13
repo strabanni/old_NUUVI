@@ -876,26 +876,38 @@ test('each writer can drag their stories into their own sidebar order', async ()
   assert.equal((await a('/api/home/order', { method: 'PUT', body: { storyIds: 'nope' } })).status, 400);
 });
 
-test('private stories stay private from admins until the owner adds them', async () => {
-  const owner = await app.signUp('private_owner');
-  const { story, main } = await makeStory(owner, { title: 'Secret Garden', visibility: 'private' });
+test('admins can see every writer\'s private story, but not another admin\'s unless added', async () => {
   const admin = app.admin;
-  // The admin can't open, find, delete or read anything in it.
+  // A regular writer's private story: admins can open it, list it and moderate it.
+  const writer = await app.signUp('private_writer');
+  const { story: wStory, main: wMain } = await makeStory(writer, { title: 'Writer Secret', visibility: 'private' });
+  assert.equal((await admin(`/api/stories/${wStory.id}`)).status, 200);
+  assert.equal((await admin(`/api/channels/${wMain.id}`)).status, 200);
+  assert.equal((await admin('/api/admin/stories')).data.stories.find((s) => s.id === wStory.id).title, 'Writer Secret');
+  // Ordinary writers still can't.
+  const stranger = await app.signUp('private_stranger');
+  assert.equal((await stranger(`/api/stories/${wStory.id}`)).status, 404);
+
+  // A private story that belongs to an admin stays theirs: other admins can't get in.
+  const boss = await app.signUp('private_boss');
+  const bossId = (await boss('/api/me')).data.user.id;
+  await admin(`/api/admin/users/${bossId}/role`, { method: 'PUT', body: { isAdmin: true } });
+  const { story, main } = await makeStory(boss, { title: 'Secret Garden', visibility: 'private' });
   assert.equal((await admin(`/api/stories/${story.id}`)).status, 404);
   assert.equal((await admin(`/api/channels/${main.id}`)).status, 404);
   assert.equal((await admin(`/api/stories/${story.id}/characters`)).status, 404);
+  assert.equal((await admin(`/api/stories/${story.id}/join`, { method: 'POST', body: {} })).status, 404);
   const listed = (await admin('/api/admin/stories')).data.stories.find((s) => s.id === story.id);
   assert.equal(listed.title, 'Private story');
   assert.equal(listed.hidden, true);
   assert.equal((await admin(`/api/admin/stories/${story.id}`, { method: 'DELETE' })).status, 404);
-  // Only the owner adds people, by username.
+  // The owner adds people by username.
   const adminName = (await admin('/api/me')).data.user.username;
-  const stranger = await app.signUp('private_stranger');
   assert.equal((await stranger(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status, 404);
-  assert.equal((await owner(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: 'nobody_here' } })).status, 404);
-  const added = await owner(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: `@${adminName}` } });
+  assert.equal((await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: 'nobody_here' } })).status, 404);
+  const added = await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: `@${adminName}` } });
   assert.equal(added.status, 201, JSON.stringify(added.data));
-  assert.equal((await owner(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status, 400);
+  assert.equal((await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status, 400);
   assert.equal((await admin(`/api/stories/${story.id}`)).status, 200);
   assert.equal((await admin('/api/admin/stories')).data.stories.find((s) => s.id === story.id).title, 'Secret Garden');
   assert.ok((await admin('/api/notifications')).data.notifications.some((n) => n.type === 'added' && n.url === `#/s/${story.id}`));
@@ -907,4 +919,25 @@ test('any channel can be deleted, even the last one', async () => {
   assert.equal((await owner(`/api/channels/${ooc.id}`, { method: 'DELETE' })).status, 200);
   assert.equal((await owner(`/api/channels/${main.id}`, { method: 'DELETE' })).status, 200);
   assert.equal((await owner(`/api/stories/${story.id}`)).data.channels.length, 0);
+});
+
+test('a story marked complete goes to the Archive: read-only until reopened', async () => {
+  const owner = await app.signUp('archive_owner');
+  const { story, main } = await makeStory(owner, { title: 'Finished Tale' });
+  assert.equal((await post(owner, main.id, { kind: 'ooc', body: 'last words' })).status, 201);
+  const done = await owner(`/api/stories/${story.id}`, { method: 'PUT', body: { complete: true } });
+  assert.equal(done.status, 200, JSON.stringify(done.data));
+  assert.ok(done.data.story.completedAt);
+  const home = (await owner('/api/home')).data.stories.find((s) => s.id === story.id);
+  assert.ok(home.completedAt);
+  assert.equal(home.role, 'owner');
+  // Still readable, but nobody can post or start episodes.
+  assert.equal((await owner(`/api/channels/${main.id}`)).status, 200);
+  assert.equal((await owner(`/api/channels/${main.id}`)).data.canPost, false);
+  assert.equal((await post(owner, main.id, { kind: 'ooc', body: 'one more?' })).status, 403);
+  assert.equal((await owner(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'sequel', kind: 'thread' } })).status, 403);
+  // Reopen it.
+  await owner(`/api/stories/${story.id}`, { method: 'PUT', body: { complete: false } });
+  assert.equal((await owner('/api/home')).data.stories.find((s) => s.id === story.id).completedAt, null);
+  assert.equal((await post(owner, main.id, { kind: 'ooc', body: 'we are back' })).status, 201);
 });

@@ -41,7 +41,7 @@ export function toStory(r) {
     id: r.id, ownerId: r.owner_id, title: r.title, summary: r.summary, genre: r.genre,
     rating: r.rating, contentWarnings: splitWarnings(r.content_warnings),
     visibility: r.visibility, status: r.status, color: r.color, icon: r.icon, banner: r.banner ?? null,
-    createdAt: r.created_at, updatedAt: r.updated_at,
+    createdAt: r.created_at, updatedAt: r.updated_at, completedAt: r.completed_at ?? null,
     memberCount: r.member_count, postCount: r.post_count, ownerName: r.owner_name,
     hasOverview: !!r.overview && r.overview !== '{}',
     loreTagline: loreTagline(r.overview),
@@ -123,12 +123,20 @@ export function membership(db, storyId, userId) {
   return db.prepare('SELECT role FROM story_members WHERE story_id = ? AND user_id = ?').get(storyId, userId)?.role ?? null;
 }
 
-// Loads a story the user may read; private stories are invisible to non-members.
+// Can this person see a private story they aren't in? Admins can see every regular writer's
+// stories (for moderation); a private story that belongs to an admin stays that admin's own:
+// other admins only get in when they're added.
+export function adminCanSee(db, story, user) {
+  if (!user?.isAdmin || story.owner_id === user.id) return !!user?.isAdmin;
+  return !db.prepare('SELECT is_admin FROM users WHERE id = ?').get(story.owner_id)?.is_admin;
+}
+
+// Loads a story the user may read; private stories are invisible to non-members (see adminCanSee).
 export function storyAccess(db, storyId, user) {
   const row = db.prepare(`${STORY_SELECT} WHERE s.id = ?`).get(storyId);
   if (!row) fail(404, 'Story not found');
   const role = membership(db, storyId, user?.id);
-  if (row.visibility === 'private' && !role) fail(404, 'Story not found');
+  if (row.visibility === 'private' && !role && !adminCanSee(db, row, user)) fail(404, 'Story not found');
   return { row, role };
 }
 

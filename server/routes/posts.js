@@ -40,7 +40,7 @@ export function postRoutes(r, ctx) {
     const { channel, story, role } = channelAccess(db, params.id, user);
     if (!role) fail(403, 'Join the story to write in it');
     if (!ctx.canPost(channel, role, user)) {
-      fail(403, channel.status === 'complete' ? 'This thread is complete' : 'This thread is private to the characters in it');
+      fail(403, story.completed_at ? 'This story is complete and archived' : channel.status === 'complete' ? 'This thread is complete' : 'This thread is private to the characters in it');
     }
     const kind = oneOf(body.kind, 'Kind', ['ic', 'ooc', 'narration']) ?? 'ic';
     const media = pictures(body.media, user.id);

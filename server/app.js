@@ -91,10 +91,13 @@ function createHub(db) {
       for (const s of streams) if (s.userId === userId) write(s, event, data);
     },
     sendStory(storyId, event, data) {
-      const story = db.prepare('SELECT visibility FROM stories WHERE id = ?').get(storyId);
+      const story = db.prepare('SELECT * FROM stories WHERE id = ?').get(storyId);
       const members = new Set(db.prepare('SELECT user_id FROM story_members WHERE story_id = ?').all(storyId).map((m) => m.user_id));
+      // Admins reading a writer's private story get live updates too (not another admin's private story).
+      const adminsSee = story?.visibility === 'private' && !db.prepare('SELECT is_admin FROM users WHERE id = ?').get(story.owner_id)?.is_admin;
+      const admins = adminsSee ? new Set(db.prepare('SELECT id FROM users WHERE is_admin = 1').all().map((u) => u.id)) : new Set();
       for (const s of streams) {
-        if ((s.userId && members.has(s.userId)) || (s.storyId === storyId && story?.visibility === 'public')) write(s, event, data);
+        if ((s.userId && members.has(s.userId)) || (s.storyId === storyId && (story?.visibility === 'public' || admins.has(s.userId)))) write(s, event, data);
       }
     },
     // A tab tells us when it's in front of the user; while one is, we don't push to their devices.

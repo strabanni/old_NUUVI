@@ -133,6 +133,7 @@ export function threadRoutes(r, ctx) {
     requireUser(user);
     const { row, role } = storyAccess(db, params.id, user);
     if (!role && !user.isAdmin) fail(403, 'Join the story to start a thread');
+    if (db.prepare('SELECT completed_at FROM stories WHERE id = ?').get(params.id)?.completed_at) fail(403, 'This story is complete. Reopen it to add episodes');
     const kind = oneOf(body.kind, 'Type', KINDS) ?? 'thread';
     if (OWNER_KINDS.includes(kind) && role !== 'owner' && !user.isAdmin) fail(403, 'Only the story owner can create that');
     if (db.prepare('SELECT COUNT(*) AS n FROM channels WHERE story_id = ?').get(row.id).n >= 500) fail(400, 'This story has too many threads');
@@ -285,6 +286,8 @@ export function threadRoutes(r, ctx) {
   // closed threads are for the people already in them.
   ctx.canPost = (channel, role, user) => {
     if (!role) return false;
+    // A story marked complete is in the Archive: everything in it is read-only.
+    if (db.prepare('SELECT completed_at FROM stories WHERE id = ?').get(channel.story_id)?.completed_at) return false;
     if (channel.kind === 'ooc' || canManage(channel, role, user)) return true;
     if (channel.status === 'complete') return false;
     if (channel.status === 'closed') {

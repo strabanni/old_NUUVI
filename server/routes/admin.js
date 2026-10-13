@@ -1,7 +1,7 @@
 // Site moderation for admin accounts: reports, users, invites, stories and the mod log.
 import { randomBytes } from 'node:crypto';
 import { fail, str, oneOf } from '../http.js';
-import { toUser, requireAdmin, STORY_SELECT, toStory } from '../model.js';
+import { toUser, requireAdmin, STORY_SELECT, toStory, adminCanSee } from '../model.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -150,13 +150,17 @@ export function adminRoutes(r, ctx) {
     return { data: { ok: true } };
   });
 
-  // Admins see public stories, and private ones only if they're in them. Any other private story
-  // shows as "Private story" with its owner, nothing more (no title, picture or summary).
+  // Admins see every story, except another admin's private stories they haven't been added to:
+  // those show as "Private story" with their owner, nothing more, and can't be deleted from here.
   r.get('/api/admin/stories', ({ user }) => {
     requireAdmin(user);
     const mine = new Set(db.prepare('SELECT story_id FROM story_members WHERE user_id = ?').all(user.id).map((m) => m.story_id));
-    const stories = db.prepare(`${STORY_SELECT} ORDER BY s.updated_at DESC`).all().map(toStory).map((st) => (st.visibility !== 'private' || mine.has(st.id) ? st
-      : { ...st, title: 'Private story', summary: '', genre: '', icon: null, banner: null, contentWarnings: [], loreTagline: null, hidden: true }));
+    const rows = db.prepare(`${STORY_SELECT} ORDER BY s.updated_at DESC`).all();
+    const stories = rows.map((r) => {
+      const st = toStory(r);
+      return r.visibility !== 'private' || mine.has(r.id) || adminCanSee(db, r, user) ? st
+        : { ...st, title: 'Private story', summary: '', genre: '', icon: null, banner: null, contentWarnings: [], loreTagline: null, hidden: true };
+    });
     return { data: { stories } };
   });
 
@@ -164,7 +168,7 @@ export function adminRoutes(r, ctx) {
     requireAdmin(user);
     const s = db.prepare('SELECT * FROM stories WHERE id = ?').get(params.id) ?? fail(404, 'Story not found');
     const inIt = db.prepare('SELECT 1 FROM story_members WHERE story_id = ? AND user_id = ?').get(s.id, user.id);
-    if (s.visibility === 'private' && !inIt) fail(404, 'Story not found'); // private stories are their owner's business
+    if (s.visibility === 'private' && !inIt && !adminCanSee(db, s, user)) fail(404, 'Story not found');
     hub.sendStory(s.id, 'story', { storyId: s.id });
     db.prepare('DELETE FROM stories WHERE id = ?').run(s.id);
     log(user.id, 'delete-story', `#${s.id} "${s.title}"`);
