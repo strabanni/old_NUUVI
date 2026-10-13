@@ -216,7 +216,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
 
   // Chat bubble (comms texts, OOC chatter, and OOC asides inside threads).
   function bubble(p, prev) {
-    const mine = channel().kind === 'comms' && p.kind === 'ic' && p.character
+    // OOC reads like Discord (everyone on the left, no bubbles); comms read like a phone.
+    const mine = p.kind === 'ooc' ? false : channel().kind === 'comms' && p.kind === 'ic' && p.character
       ? p.character.id === senderId() : p.userId === state.user?.id;
     const ch = p.kind === 'ic' ? p.character : null;
     const name = ch ? shownName(ch) : p.kind === 'narration' ? 'Narrator' : p.author.displayName;

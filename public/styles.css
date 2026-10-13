@@ -2498,3 +2498,26 @@ dialog.modal[open]::backdrop { animation: fade-in .3s ease both; }
 .ta-mirror { position: fixed; left: -9999px; top: 0; height: auto !important; min-height: 0; max-height: none; overflow: hidden; visibility: hidden; pointer-events: none; resize: none; }
 /* Long-press opens menus on phones: no system callout or text selection on these. */
 .rail-item, .story-head-btn, .side-scroll .chan { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+/* ---------- v19: Messages and OOC without bubbles (Discord-style) ---------- */
+.dm-msgs { gap: 0; padding: 10px 6px 14px; }
+.dm-msg, .dm-msg.mine { align-self: stretch; max-width: none; flex-direction: row; align-items: flex-start; gap: 12px; padding: 3px 10px; border-radius: 8px; }
+.dm-msg:not(.grouped) { margin-top: 12px; }
+.dm-msg:hover { background: var(--glass); }
+.dm-av .avatar { width: 40px; height: 40px; }
+.dm-gutter { flex: none; width: 40px; text-align: center; padding-top: 3px; }
+.dm-gutter time { font-size: .62rem; color: var(--faint); opacity: 0; transition: opacity .15s; }
+.dm-msg:hover .dm-gutter time { opacity: 1; }
+.dm-content { flex: 1; min-width: 0; }
+.dm-meta-line { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.dm-name { font-weight: 700; font-size: .95rem; color: var(--text); }
+.dm-name:hover { text-decoration: underline; }
+.dm-meta-line time { font-size: .72rem; color: var(--faint); }
+.dm-content .body { font-size: .95rem; line-height: 1.45; overflow-wrap: anywhere; }
+.dm-content .body p { margin: 0; }
+.dm-content .b-pics { margin: 4px 0; max-width: 340px; }
+.dm-del { align-self: center; }
+/* OOC: posts and chats out of character have no bubble behind them. */
+.bubble.kind-ooc .b-bubble, .bubble.kind-ooc.mine .b-bubble {
+  background: transparent !important; box-shadow: none !important; border: 0 !important; padding-left: 0; padding-right: 0; }
+.bubble.kind-ooc .b-bubble::before, .bubble.kind-ooc .b-bubble::after { display: none; }

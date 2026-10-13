@@ -95,12 +95,16 @@ export async function viewMessages(userIdStr) {
       const d = parse(m.createdAt);
       if (d.toDateString() !== day) { day = d.toDateString(); items.push(html`<div class="dm-day"><span>${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span></div>`); }
       const mine = m.userId === state.user.id;
+      const who = mine ? state.user : other;
       const grouped = prev && prev.userId === m.userId && d - parse(prev.createdAt) < 5 * 60000;
+      // Discord-style: no bubbles. Picture, name and time once, then the messages underneath.
       items.push(html`<div class="dm-msg ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''}" data-id="${m.id}">
-        <div class="dm-bubble">
+        ${grouped ? html`<span class="dm-gutter"><time>${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></span>`
+          : html`<a class="dm-av" href="#/u/${who.id}">${avatar({ name: who.displayName, src: who.avatar, color: '#8F8D8E' })}</a>`}
+        <div class="dm-content">
+          ${grouped ? '' : html`<div class="dm-meta-line"><a href="#/u/${who.id}" class="dm-name u-grad"${userGrad(who)}>${who.displayName}</a><time>${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>`}
           ${m.media.length ? html`<div class="b-pics n${Math.min(m.media.length, 4)}">${m.media.map((u) => html`<a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="" loading="lazy"></a>`)}</div>` : ''}
           ${m.body ? html`<div class="body">${formatPost(m.body)}</div>` : ''}
-          <time>${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time>
         </div>
         ${mine ? html`<button type="button" class="dm-del" data-del="${m.id}" aria-label="Delete">✕</button>` : ''}
       </div>`);
