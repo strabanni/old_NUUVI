@@ -106,7 +106,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
       </section>
       <section class="ph-list">
         ${threads.length ? threads.map((t) => html`
-          <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="#/phone/${me.id}/t/${t.id}">
+          <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="#/phone/${me.id}/t/${t.id}" data-contact="${t.other.id}">
             <span class="ph-row-av">${avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color })}</span>
             <span class="grow"><b>${t.name}</b><small>${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'Say hi 👋'}</small></span>
             <span class="ph-meta">${t.lastAt ? html`<small>${shortWhen(t.lastAt)}</small>` : ''}${t.unread ? html`<span class="badge">${t.unread}</span>` : ''}</span>
@@ -150,17 +150,47 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     contactMenu(c, Number(c.dataset.open));
   });
   async function contactMenu(anchor, id) {
-    const contact = data.contacts.find((x) => x.id === id);
+    const contact = data.contacts.find((x) => x.id === id)
+      || (() => { const t = data.threads.find((x) => x.other.id === id); return t && { id, name: t.name, character: t.other }; })();
+    if (!contact) return;
+    // Pictures and names saved here are this phone's own: the character's writer still sees theirs.
+    const savePic = async (avatar) => { await api(`/api/phone/${cid}/contacts`, { method: 'POST', body: { contactId: id, avatar } }); reload(); toast('Contact picture changed'); };
     menu(anchor, [
       { label: 'Text', action: () => open(id) },
       { label: 'Rename contact', action: async () => {
         const name = await promptModal('Save them as', { value: contact.name, required: false, maxlength: 60 });
         if (name !== null) { await api(`/api/phone/${cid}/contacts`, { method: 'POST', body: { contactId: id, name } }); reload(); }
       } },
+      { label: 'Change contact picture', action: () => {
+        const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*';
+        f.onchange = async () => { try { await savePic(await uploadImage(f.files[0], 400)); } catch (err) { toast(err.message); } };
+        f.click();
+      } },
+      { label: 'Use a picture link', action: async () => { const u = await askImageLink('Contact picture'); if (u) savePic(u); } },
+      contact.customAvatar && { label: 'Back to their own picture', action: () => savePic('') },
       { label: 'View profile', action: () => { location.hash = `#/c/${id}`; } },
       { label: 'Remove contact', danger: true, action: async () => { await api(`/api/phone/${cid}/contacts/${id}`, { method: 'DELETE' }); reload(); } },
     ]);
   }
+  // Long-press (phones) opens the same menu as a right-click: rename, change picture, remove.
+  let pressTimer = null;
+  let pressed = false;
+  root.addEventListener('touchstart', (e) => {
+    const c = e.target.closest('[data-open], [data-contact]');
+    if (!c) return;
+    pressed = false;
+    pressTimer = setTimeout(() => { pressed = true; navigator.vibrate?.(12); contactMenu(c, Number(c.dataset.open || c.dataset.contact)); }, 480);
+  }, { passive: true });
+  const cancelPress = () => clearTimeout(pressTimer);
+  root.addEventListener('touchend', cancelPress);
+  root.addEventListener('touchmove', cancelPress, { passive: true });
+  root.addEventListener('click', (e) => { if (pressed) { e.preventDefault(); e.stopPropagation(); pressed = false; } }, true);
+  root.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('[data-contact]');
+    if (!row) return;
+    e.preventDefault();
+    contactMenu(row, Number(row.dataset.contact));
+  });
   live('dm', () => reload());
 }
 
@@ -193,10 +223,10 @@ export async function viewPhoneThread(cidStr, tidStr) {
         <div class="ph-msgs" id="ph-msgs"></div>
       </section>
       <div class="ph-extra" id="ph-extra" hidden></div>
-      <form class="ph-compose" id="ph-compose">
-        <button type="button" class="ph-plus" id="ph-attach" aria-label="Add a photo">${icons.plus}</button>
-        <input name="body" id="ph-input" autocomplete="off" placeholder="Your Message…" aria-label="Message">
-        <button type="submit" class="ph-send" aria-label="Send">${icons.send}</button>
+      <form class="chatbar ph-compose" id="ph-compose">
+        <button type="button" class="chatbar-plus" id="ph-attach" aria-label="Add a photo">${icons.plus}</button>
+        <input name="body" id="ph-input" autocomplete="off" placeholder="Message ${thread.name}" aria-label="Message">
+        <button type="submit" class="chatbar-send" aria-label="Send">${icons.send}</button>
       </form>
     </div></div>` });
   if (wide) {
@@ -311,6 +341,7 @@ export async function viewPhoneThread(cidStr, tidStr) {
   $('#ph-call', body).addEventListener('click', () => toast(`Calling ${thread.name}… 📞 (calls are just for the story)`));
 
   let sending = false;
+  form.addEventListener('input', () => form.classList.toggle('has-text', !!input.value.trim()));
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = input.value.trim();
@@ -320,6 +351,7 @@ export async function viewPhoneThread(cidStr, tidStr) {
       const { message } = await api(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: me.id, body: text, media: attached, replyTo: replying?.id ?? null } });
       byId.set(message.id, message);
       input.value = '';
+      form.classList.remove('has-text');
       attached = [];
       replying = null;
       drawExtra();

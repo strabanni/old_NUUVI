@@ -12,7 +12,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 ## Features
 
 **Writing**
-- In-character posts (with the character's picture and color), narration, and OOC chat.
+- In-character posts (with the character's picture and color), narration, and OOC asides.
 - Formatting:
   - `*actions*`, `**bold**`, `__underline__`, `~~strike~~`
   - `||spoilers||`
@@ -71,19 +71,22 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - **Gradient colors:** new characters start with the NUUVI gradient; instead of one color, a character can use a gradient of 2 or 3 colors (presets or your own). Their writing then picks colors from it: **bold** takes the first color, *actions* the middle, underlines the last, and their dialogue, name and AKA line sweep through the whole gradient.
 - **Character cards** show the character only; a writer's own page lists their characters.
 
-**Episodes & feed**
-- Each story's channels are typed: **episode**, **self para** (solo writing), **comms** (texts), **event** (with a date) and **OOC**.
+**Episodes & THE : NU**
+- Each story's channels are typed: **episode**, **self para** (solo writing) and **event** (with a date). Texts happen on the **Phone** and out-of-character talk in **Messages**; new stories no longer get an OOC channel.
 - Any writer can start an episode or comms. Story owners make events and OOC channels.
 - **Episodes can be:**
   - **Open:** anyone in the story can write.
   - **Private:** only the tagged characters can write.
   - **Complete:** read-only.
 - **An episode can have:** a starring character, tagged characters (who get notified), a plot summary and tags.
-- **The feed** shows only open threads, self paras, character social posts and events. Filters: all, open episodes, self paras, social, events and mine. You can also search.
+- **THE : NU** (the feed) is laid out like Instagram: story bubbles of who posted recently, then one column of posts, newest first, in the order they were made (character posts, open episodes, self paras, events and connections). On computers a side panel shows your cast and quick buttons. Posts with several photos show a "1/3" counter and dots; swipe on phones or use the arrows on computers. Double-tap a photo to like it.
+- **Connections:** put out an idea for your muse (who you're looking for, details, pictures, tags). Anyone can **Pick it up** for one of their characters from a dropdown; it then stays on THE : NU, locked, showing who took it. Either side can open it up again.
+- **Likes and comments:** a post's likes start from a share of the character's followers (or the number the writer set), and every real like adds one. Fans comment on their own, with lines that fit the post, and more of them when the writer raises the comment number. Characters' names show in their own colors among the fans. Comments can be replied to, show like counts (bigger for famous characters), and have **See translation** when they aren't in English (on-device in recent Chrome, otherwise Google Translate).
+- **Messages:** private, out-of-character conversations between writers (sidebar → **Messages**, or **Message** on anyone's profile). They replace OOC channels; older OOC and comms channels stay readable under **Archive** in a story. Only the two people can read a conversation.
+- **Filters** on THE : NU: all, posts, episodes, connections and events.
 - **Character social posts:** text, photos, videos, voice notes (record in the app or upload) and streams, with likes and comments made as a character. The writer can set the like and comment numbers shown on each post (••• → **Set like & comment numbers**), for famous characters. Any post can carry a song (title, artist and an optional link), shown under the character's name like on Instagram.
-- **Feed layout:** a brick wall. Each card is as tall as its content and they pack together in order, in columns on computers and two columns on phones.
 - **Events:** put events on the calendar (title, start and end, place, details, banner) from the Events page, which shows them as cards or a month calendar. Starting a thread as type **Event** lets you pick one of the story's upcoming events; comms can optionally be part of one too. An event's page lists every thread and comms that's part of it.
-- **Phone:** every character has a phone (sidebar → **Phone**). Save other characters as contacts under any name you like, then text them one-to-one: pictures, replies and all. Only the two characters' writers can ever read a conversation. It's styled after a modern messaging app, with a soft gradient header, a contact strip and frosted chat bubbles. On computers your contacts and the conversation fill the page side by side, with a deeper gradient behind the contacts.
+- **Phone** (replaces comms; linked from every story's channel list): every character has a phone (sidebar → **Phone**). Save other characters as contacts under any name you like, then text them one-to-one: pictures, replies and all. Only the two characters' writers can ever read a conversation. It's styled after a modern messaging app, with a soft gradient header, a contact strip and frosted chat bubbles. Change a contact's picture for your phone only (their writer still sees their own), and long-press contacts on phones to rename or change them. The message bar is Discord-style. On computers your contacts and the conversation fill the page side by side, with a deeper gradient behind the contacts.
 - **NPCs page:** everyone's NPCs in one place (sidebar → **NPCs**), searchable and sorted into categories their writer picks (like `staff`, `foyaen`, `nightlife`). Open a category and its name shows in capitals with the NUUVI gradient. Anyone can tag any NPC into their episodes, even in stories the NPC's writer isn't in.
 - **NPCs:** tick **This is an NPC** on a character for an NPC badge. NPCs can also post and comment **on their own**: give them lines to pick from (with placeholders like `{name}`) and they'll comment on new posts now and then and post every so often. Admins can run an **anonymous gossip account** that also posts tips when public threads start or finish (never about private threads or stories). Admin → **NPCs & bots** controls how often, and can make any of them post right away.
 - Characters follow other characters, and their owners get notified.

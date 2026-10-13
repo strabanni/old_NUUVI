@@ -32,6 +32,9 @@ export function phoneRoutes(r, ctx) {
   }
 
   const contactName = (meId, otherId) => db.prepare('SELECT name FROM phone_contacts WHERE character_id = ? AND contact_id = ?').get(meId, otherId)?.name || '';
+  // The picture this phone saved for a contact (only this phone sees it; the character keeps their own).
+  const contactAvatar = (meId, otherId) => db.prepare('SELECT avatar FROM phone_contacts WHERE character_id = ? AND contact_id = ?').get(meId, otherId)?.avatar || null;
+  const asContact = (meId, c) => { const ch = toCharacter(c); const pic = contactAvatar(meId, c.id); return pic ? { ...ch, avatar: pic } : ch; };
 
   function toMessage(m) {
     const reply = m.reply_to ? db.prepare('SELECT id, body, media, character_id FROM phone_messages WHERE id = ?').get(m.reply_to) : null;
@@ -48,7 +51,7 @@ export function phoneRoutes(r, ctx) {
     const last = db.prepare('SELECT * FROM phone_messages WHERE thread_id = ? ORDER BY id DESC LIMIT 1').get(t.id);
     const read = db.prepare('SELECT last_read_id FROM phone_reads WHERE character_id = ? AND thread_id = ?').get(meId, t.id)?.last_read_id ?? 0;
     return {
-      id: t.id, other: toCharacter(other), name: contactName(meId, otherId) || other.name,
+      id: t.id, other: asContact(meId, other), name: contactName(meId, otherId) || other.name,
       last: last ? { text: plainText(last.body, 90) || (last.media !== '[]' ? 'Photo' : ''), at: last.created_at, mine: last.character_id === meId } : null,
       unread: db.prepare('SELECT COUNT(*) AS n FROM phone_messages WHERE thread_id = ? AND id > ? AND character_id != ?').get(t.id, read, meId).n,
       lastAt: t.last_at,
@@ -59,10 +62,10 @@ export function phoneRoutes(r, ctx) {
   r.get('/api/phone/:id', ({ user, params }) => {
     requireUser(user);
     const me = ownCharacter(params.id, user);
-    const contacts = db.prepare(`SELECT pc.name AS contact_name, c.* FROM phone_contacts pc JOIN characters c ON c.id = pc.contact_id
+    const contacts = db.prepare(`SELECT pc.name AS contact_name, pc.avatar AS contact_avatar, c.* FROM phone_contacts pc JOIN characters c ON c.id = pc.contact_id
       WHERE pc.character_id = ? ORDER BY COALESCE(NULLIF(pc.name, ''), c.name) COLLATE NOCASE`).all(me.id)
       .filter((c) => !blockedEitherWay(user.id, c.user_id))
-      .map((c) => ({ id: c.id, name: c.contact_name || c.name, character: toCharacter(c) }));
+      .map((c) => ({ id: c.id, name: c.contact_name || c.name, character: { ...toCharacter(c), avatar: c.contact_avatar || c.avatar }, customAvatar: !!c.contact_avatar }));
     const threads = db.prepare('SELECT * FROM phone_threads WHERE a_id = ? OR b_id = ? ORDER BY last_at DESC').all(me.id, me.id)
       .map((t) => summary(t, me.id))
       .filter((t) => !blockedEitherWay(user.id, t.other.userId) && (t.last || contacts.some((c) => c.id === t.other.id)));
@@ -76,10 +79,13 @@ export function phoneRoutes(r, ctx) {
     const other = character(id(body.contactId, 'Contact'));
     if (!other || other.id === me.id) fail(400, 'Pick someone else to add');
     if (blockedEitherWay(user.id, other.user_id)) fail(403, "You can't add this character");
-    const name = str(body.name, 'Contact name', { max: 60 }) ?? '';
-    db.prepare(`INSERT INTO phone_contacts (character_id, contact_id, name) VALUES (?, ?, ?)
-      ON CONFLICT(character_id, contact_id) DO UPDATE SET name = excluded.name`).run(me.id, other.id, name);
-    return { status: 201, data: { contact: { id: other.id, name: name || other.name, character: toCharacter(other) } } };
+    const existing = db.prepare('SELECT * FROM phone_contacts WHERE character_id = ? AND contact_id = ?').get(me.id, other.id);
+    const name = body.name === undefined ? existing?.name ?? '' : str(body.name, 'Contact name', { max: 60 }) ?? '';
+    const pic = uploadRef(db, body.avatar, user.id);
+    const avatar = pic === undefined ? existing?.avatar ?? null : pic;
+    db.prepare(`INSERT INTO phone_contacts (character_id, contact_id, name, avatar) VALUES (?, ?, ?, ?)
+      ON CONFLICT(character_id, contact_id) DO UPDATE SET name = excluded.name, avatar = excluded.avatar`).run(me.id, other.id, name, avatar);
+    return { status: 201, data: { contact: { id: other.id, name: name || other.name, character: { ...toCharacter(other), avatar: avatar || other.avatar }, customAvatar: !!avatar } } };
   });
 
   r.delete('/api/phone/:id/contacts/:contactId', ({ user, params }) => {
@@ -112,7 +118,7 @@ export function phoneRoutes(r, ctx) {
     if (hasMore) rows.shift();
     return {
       data: {
-        thread: { id: t.id, me: toCharacter(me), other: toCharacter(other), name: contactName(me.id, other.id) || other.name },
+        thread: { id: t.id, me: toCharacter(me), other: asContact(me.id, other), name: contactName(me.id, other.id) || other.name },
         messages: rows.map(toMessage), hasMore,
       },
     };

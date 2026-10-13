@@ -26,6 +26,7 @@ export async function viewUser(id) {
     alive,
     title: html`<span class="eyebrow">Viewing profile</span>`,
     actions: !me && state.user ? html`
+      <a class="btn sm primary" href="#/messages/${u.id}">${icons.chat}<span class="lbl">Message</span></a>
       <button class="sm" id="block">${blocked ? 'Unblock' : 'Block'}</button>
       <button class="sm" id="report">Report</button>` : me ? html`<a class="btn sm" href="#/settings">Edit profile</a>` : '',
     body: html`
@@ -112,6 +113,7 @@ export async function viewSettings() {
   const body = page({
     alive,
     title: 'Settings',
+    actions: html`<button type="button" class="primary" id="settings-save">${icons.check}<span class="lbl">Save</span></button>`,
     body: html`
       <div class="settings-grid">
         <section class="card">
@@ -183,7 +185,7 @@ export async function viewSettings() {
             <label for="p-limits">Limits — not interested in</label>
             <textarea id="p-limits" name="limits" maxlength="4000" rows="3" placeholder="Hard limits, banned face claims…">${pr.limits || ''}</textarea>
             <div class="error"></div>
-            <div class="actions"><button type="submit" class="primary">Save profile</button><a class="btn" href="#/u/${u.id}">View profile</a></div>
+            <div class="actions"><a class="btn" href="#/u/${u.id}">View profile</a></div>
           </form>
         </section>
 
@@ -306,6 +308,8 @@ export async function viewSettings() {
     body.querySelectorAll('[data-theme-pick]').forEach((b) => b.setAttribute('aria-pressed', String(b === sw)));
   });
   $('#whats-new', body).addEventListener('click', () => showWhatsNew());
+  // Save sits at the top of the page, always in reach.
+  $('#main #settings-save').addEventListener('click', () => profile.requestSubmit());
   bindForm(profile, async (data) => {
     const styles = {};
     for (const r of profile.querySelectorAll('input[type=range]')) if (r.dataset.set) styles[r.name.slice(6)] = Number(r.value);

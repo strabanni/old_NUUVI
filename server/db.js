@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 10;
+const SCHEMA_VERSION = 11;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -401,6 +401,56 @@ const MIGRATIONS = [
   `ALTER TABLE users ADD COLUMN gradient TEXT;
    ALTER TABLE social_posts ADD COLUMN likes_display INTEGER;
    ALTER TABLE social_posts ADD COLUMN comments_display INTEGER;`,
+  // v11: comment replies; generated "fan" comments; connections (muse ideas anyone can pick up);
+  // a phone's own picture for each contact; private messages between writers.
+  `ALTER TABLE social_comments ADD COLUMN parent_id INTEGER REFERENCES social_comments(id) ON DELETE CASCADE;
+   CREATE TABLE social_buzz (
+     id         INTEGER PRIMARY KEY,
+     post_id    INTEGER NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+     handle     TEXT NOT NULL,
+     body       TEXT NOT NULL,
+     likes      INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX social_buzz_post_idx ON social_buzz(post_id, id);
+   CREATE TABLE connections (
+     id                 INTEGER PRIMARY KEY,
+     user_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     character_id       INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     title              TEXT NOT NULL,
+     body               TEXT NOT NULL DEFAULT '',
+     media              TEXT NOT NULL DEFAULT '[]',
+     tags               TEXT NOT NULL DEFAULT '',
+     taken_user_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+     taken_character_id INTEGER REFERENCES characters(id) ON DELETE SET NULL,
+     taken_at           TEXT,
+     created_at         TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX connections_time_idx ON connections(created_at);
+   ALTER TABLE phone_contacts ADD COLUMN avatar TEXT;
+   CREATE TABLE dm_threads (
+     id         INTEGER PRIMARY KEY,
+     user_a     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     user_b     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+     last_at    TEXT,
+     UNIQUE (user_a, user_b)
+   );
+   CREATE TABLE dm_messages (
+     id         INTEGER PRIMARY KEY,
+     thread_id  INTEGER NOT NULL REFERENCES dm_threads(id) ON DELETE CASCADE,
+     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     body       TEXT NOT NULL DEFAULT '',
+     media      TEXT NOT NULL DEFAULT '[]',
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX dm_messages_thread_idx ON dm_messages(thread_id, id);
+   CREATE TABLE dm_reads (
+     thread_id    INTEGER NOT NULL REFERENCES dm_threads(id) ON DELETE CASCADE,
+     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     last_read_id INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (thread_id, user_id)
+   );`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

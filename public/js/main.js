@@ -9,7 +9,9 @@ import { viewCharacters, viewCharacter } from './views/characters.js';
 import { viewUser, viewSettings } from './views/people.js';
 import { viewNotifications } from './views/notifications.js';
 import { viewAdmin } from './views/admin.js';
-import { viewFeed, openThreadForm } from './views/threads.js';
+import { openThreadForm } from './views/threads.js';
+import { viewNu } from './views/nu.js';
+import { viewMessages } from './views/messages.js';
 import { viewEvents, viewEvent } from './views/events.js';
 import { viewDirectory } from './views/directory.js';
 import { viewPhone, viewPhoneThread } from './views/phone.js';
@@ -147,10 +149,10 @@ function userTiles({ vertical = false } = {}) {
   return html`
     <nav class="ub-tiles ${vertical ? 'vertical' : ''}" aria-label="Your shortcuts">
       ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon }[next])}
-      ${tile({ href: '#/feed' }, 'Feed', icons.apps)}
+      ${tile({ href: '#/nu' }, 'THE : NU', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
       ${tile({ href: '#/characters' }, 'Characters', icons.user)}
-      ${tile({ href: '#/settings' }, 'You & settings', icons.layout)}
+      ${tile({ href: '#/settings' }, 'You & settings', icons.crown)}
       ${tile({ act: 'logout' }, 'Sign out', icons.power)}
     </nav>`;
 }
@@ -255,7 +257,10 @@ function renderSidebar() {
   const s = state.story;
   const mobileWelcome = html`<div class="side-welcome only-mobile">${welcomeText()}</div>`;
   if (state.route.storyId && s && s.story.id === state.route.storyId) {
-    const groups = ['thread', 'para', 'comms', 'event', 'ooc'].map((k) => [k, s.channels.filter((c) => c.kind === k)]).filter(([, list]) => list.length);
+    // Comms became the Phone, and OOC became private Messages: those links sit where the old
+    // channels were. Older comms/OOC channels stay readable under "Archive".
+    const groups = ['thread', 'para', 'event'].map((k) => [k, s.channels.filter((c) => c.kind === k)]).filter(([, list]) => list.length);
+    const archived = s.channels.filter((c) => c.kind === 'comms' || c.kind === 'ooc');
     render(side, html`
       ${mobileWelcome}
       <button class="side-head story-head-btn ${s.story.banner ? 'has-banner' : ''}" id="story-menu">
@@ -279,6 +284,11 @@ function renderSidebar() {
               ${c.mentions ? html`<span class="badge">${c.mentions}</span>` : ''}
             </a>`;
           })}`)}
+        <div class="side-section"><span>Texts & messages</span></div>
+        <a href="#/phone" class="chan">${icons.smartphone}<span class="name">Phone</span></a>
+        <a href="#/messages" class="chan">${icons.chat}<span class="name">Messages</span>${state.home.messagesUnread ? html`<span class="badge">${state.home.messagesUnread}</span>` : ''}</a>
+        ${archived.length ? html`<details class="side-archive"><summary class="side-section"><span>Archive</span></summary>${archived.map((c) => html`
+          <a href="#/s/${s.story.id}/${c.id}" class="chan ${state.route.channelId === c.id ? 'active' : ''} ${c.unread ? 'unread' : ''}"><span class="hash">${channelIcon(c)}</span><span class="name">${c.name}</span></a>`)}</details>` : ''}
       </div>`);
     $('#story-menu').addEventListener('click', (e) => storyMenu(e.currentTarget));
     $('#side-join')?.addEventListener('click', joinCurrentStory);
@@ -294,9 +304,10 @@ function renderSidebar() {
       <div class="side-scroll">
         <a href="#/u/${state.user.id}" class="nav-link me-link ${hash === `#/u/${state.user.id}` ? 'active' : ''}">${avatar({ name: state.user.displayName, src: state.user.avatar, color: '#EE719E', size: 'xs' })}<span class="u-grad"${userGrad(state.user)}>${state.user.displayName}</span><small>@${state.user.username}</small></a>
         ${link('#/home', 'Home', icons.home)}
-        ${link('#/feed', 'Feed', icons.apps)}
+        ${link('#/nu', 'THE : NU', icons.apps)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
         ${link('#/phone', 'Phone', icons.smartphone)}
+        ${link('#/messages', 'Messages', icons.chat, state.home.messagesUnread)}
         ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
         ${link('#/npcs', 'NPCs', icons.sparkles)}
@@ -423,24 +434,39 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
   if (banner) {
     body = html`<section class="page-banner" aria-hidden="true"><div class="pb-glass"><span class="eyebrow">nuuvi</span><b>${banner === true ? title : banner}</b></div></section>${body}`;
   }
+  // Phones: a back arrow on every page but Home; the menu button moves to the right-hand end.
+  const atHome = /^#\/(home)?$/.test(location.hash || '#/');
+  const menuBtn = html`<button class="icon-btn only-mobile" data-drawer aria-label="Open navigation">${icons.menu}</button>`;
   render(main, html`
     <header class="main-head">
-      <button class="icon-btn only-mobile" data-drawer aria-label="Open navigation">${icons.menu}</button>
+      ${atHome ? menuBtn : html`<button class="icon-btn only-mobile back-btn" data-back aria-label="Back">${icons.back}</button>`}
       <div class="head-title"><h1>${title}</h1>${subtitle ? html`<span class="topic">${subtitle}</span>` : ''}</div>
-      <div class="head-actions">${actions}${state.route.storyId ? html`<button class="icon-btn" data-members aria-label="Members" title="Members">${icons.users}</button>` : ''}</div>
+      <div class="head-actions">${actions}${state.route.storyId ? html`<button class="icon-btn" data-members aria-label="Members" title="Members">${icons.users}</button>` : ''}${atHome ? '' : menuBtn}</div>
     </header>
     <div class="main-body ${className}">${body}</div>`);
+  // Replay the page's entrance animation (see "Motion" in styles.css).
+  main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter');
   const crumb = $('#crumb');
   if (crumb) crumb.textContent = $('.head-title h1', main)?.textContent.trim() || '';
   if (banner) startBanner(main);
   return $('.main-body', main);
 }
 
+// How many pages deep we are in this visit (for the back button).
+let navDepth = 0;
+let backing = false;
+window.addEventListener('hashchange', () => { navDepth = backing ? Math.max(0, navDepth - 1) : navDepth + 1; backing = false; });
+
 // ---------- Mobile drawer ----------
 const closeDrawers = () => document.body.classList.remove('drawer-open', 'members-open');
 function setupDrawer() {
   document.addEventListener('click', async (e) => {
     if (e.target.closest('#online-btn')) { showOnline(e.target.closest('#online-btn')); return; }
+    if (e.target.closest('[data-back]')) {
+      // Back to the previous page in NUUVI, or Home if this was the first page opened.
+      if (navDepth > 0) { backing = true; history.back(); } else location.hash = '#/home';
+      return;
+    }
     const ub = e.target.closest('[data-ub]');
     if (ub?.dataset.ub === 'theme') {
       applyTheme(nextTheme());
@@ -539,7 +565,7 @@ function connectLive() {
   source = new EventSource(`/api/events?${params}`);
   let opened = false;
   source.addEventListener('open', () => { if (opened) emit('reconnect'); opened = true; });
-  for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence', 'dm', 'dm-delete']) {
+  for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence', 'dm', 'dm-delete', 'message', 'message-delete']) {
     source.addEventListener(type, (e) => handleLive(type, JSON.parse(e.data)));
   }
 }
@@ -592,7 +618,10 @@ const routes = [
   [/^#\/reset\/([\w-]+)$/, (token) => viewReset(token)],
   [/^#\/home$/, viewHome, true],
   [/^#\/discover$/, viewDiscover],
-  [/^#\/feed$/, viewFeed, true],
+  [/^#\/messages$/, () => viewMessages(), true],
+  [/^#\/messages\/(\d+)$/, viewMessages, true],
+  [/^#\/nu$/, viewNu, true],
+  [/^#\/feed$/, () => location.replace('#/nu'), true],
   [/^#\/events$/, viewEvents, true],
   [/^#\/e\/(\d+)$/, viewEvent, true],
   [/^#\/p\/(\d+)$/, viewSocialPost, true],
@@ -678,7 +707,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-17';
+export const APP_BUILD = 'NV-18';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

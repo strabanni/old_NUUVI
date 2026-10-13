@@ -74,8 +74,8 @@ export async function viewHome() {
         <nav class="quick-tiles" aria-label="Shortcuts">
           <a class="tile" href="#/new" title="Start a story" aria-label="Start a story">${icons.plus}</a>
           <a class="tile" href="#/notifications" title="Notifications" aria-label="Notifications">${icons.bell}${state.home.notificationsUnread ? html`<span class="badge">${state.home.notificationsUnread}</span>` : ''}</a>
-          <a class="tile" href="#/feed" title="Feed" aria-label="Feed">${icons.apps}</a>
-          <a class="tile" href="#/u/${u.id}" title="Your profile" aria-label="Your profile">${icons.layout}</a>
+          <a class="tile" href="#/nu" title="THE : NU" aria-label="THE : NU">${icons.apps}</a>
+          <a class="tile" href="#/u/${u.id}" title="Your profile" aria-label="Your profile">${icons.crown}</a>
           <a class="tile" href="#/settings" title="Settings" aria-label="Settings">${icons.gear}</a>
         </nav>
       </section>
@@ -116,9 +116,9 @@ export async function viewHome() {
         ${turns.map((t) => html`<a class="card turn-card" href="#/s/${t.story.id}/${t.channel.id}">${icons.hourglass}<span>It's your turn in <strong>#${t.channel.name}</strong> · ${t.story.title}</span></a>`)}
       </section>` : ''}
 
-      <h2 class="section-title">Your episodes <a class="see-all" href="#/feed">See all</a></h2>
+      <h2 class="section-title">Your episodes <a class="see-all" href="#/nu">See all</a></h2>
       ${mine.items.length ? html`<div class="feed-grid">${mine.items.slice(0, 4).map(feedCard)}</div>`
-        : html`<div class="card empty small"><p>No episodes yet. Open a story and tap <b>New episode</b>, or browse the <a href="#/feed">feed</a> for open ones.</p></div>`}
+        : html`<div class="card empty small"><p>No episodes yet. Open a story and tap <b>New episode</b>, or browse <a href="#/nu">THE : NU</a> for open ones.</p></div>`}
 
       <h2 class="section-title">Your cast</h2>
       <div class="cast-row no-swipe">
@@ -152,7 +152,7 @@ export async function viewHome() {
     const q = e.target.closest('[data-quick]');
     if (!q) return;
     if (q.dataset.quick === 'thread') { const { openThreadForm } = await import('./threads.js'); openThreadForm(); }
-    if (q.dataset.quick === 'post') { const { openSocialComposer } = await import('./social.js'); if (await openSocialComposer()) location.hash = '#/feed'; }
+    if (q.dataset.quick === 'post') { const { openSocialComposer } = await import('./social.js'); if (await openSocialComposer()) location.hash = '#/nu'; }
     if (q.dataset.quick === 'event') {
       const { openEventForm } = await import('./events.js');
       const made = await openEventForm();

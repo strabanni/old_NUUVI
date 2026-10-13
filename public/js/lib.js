@@ -427,7 +427,7 @@ export const logoMark = raw('<svg class="logo-mark" viewBox="0 0 100 100" role="
 export const wordmark = raw('<svg class="wordmark" viewBox="0 0 142 40" role="img" aria-label="nuuvi"><g class="lg-word"><path d="M5 35V22.5a10 10 0 0 1 20 0V35"/><path d="M38 13V25.5a10 10 0 0 0 20 0V13V35"/><path d="M71 13V25.5a10 10 0 0 0 20 0V13V35"/><path d="M103 13L113.5 35L124 13"/><path d="M137 15V35"/></g><circle class="lg-dot" cx="137" cy="4.6" r="4.6"/></svg>');
 
 export const icons = {
-  // Uicons by Flaticon (flaticon.com/uicons): user, menu-burger, apps, user-add, power, fingerprint, music-alt, play, sparkles, layout-fluid.
+  // Uicons by Flaticon (flaticon.com/uicons): user, menu-burger, apps, user-add, power, fingerprint, music-alt, play, sparkles, layout-fluid, crown.
   menu: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M22.5 10.5H1.5Q0.9 10.5 0.4 10.9Q0 11.4 0 12Q0 12.6 0.4 13.1Q0.9 13.5 1.5 13.5H22.5Q23.1 13.5 23.6 13.1Q24 12.6 24 12Q24 11.4 23.6 10.9Q23.1 10.5 22.5 10.5ZM1.5 6.5H22.5Q23.1 6.5 23.6 6Q24 5.6 24 5Q24 4.4 23.6 4Q23.1 3.5 22.5 3.5H1.5Q0.9 3.5 0.4 4Q0 4.4 0 5Q0 5.6 0.4 6Q0.9 6.5 1.5 6.5ZM22.5 17.5H1.5Q0.9 17.5 0.4 18Q0 18.4 0 19Q0 19.6 0.4 20Q0.9 20.5 1.5 20.5H22.5Q23.1 20.5 23.6 20Q24 19.6 24 19Q24 18.4 23.6 18Q23.1 17.5 22.5 17.5Z"/></svg>'),
   apps: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 0H7Q8.6 0 9.8 1.2Q11 2.3 11 4V7Q11 8.6 9.8 9.8Q8.6 11 7 11H4Q2.3 11 1.2 9.8Q0 8.6 0 7V4Q0 2.3 1.2 1.2Q2.3 0 4 0ZM17 0H20Q21.7 0 22.8 1.2Q24 2.3 24 4V7Q24 8.6 22.8 9.8Q21.7 11 20 11H17Q15.4 11 14.2 9.8Q13 8.6 13 7V4Q13 2.3 14.2 1.2Q15.4 0 17 0ZM4 13H7Q8.6 13 9.8 14.2Q11 15.4 11 17V20Q11 21.7 9.8 22.8Q8.6 24 7 24H4Q2.3 24 1.2 22.8Q0 21.7 0 20V17Q0 15.4 1.2 14.2Q2.3 13 4 13ZM17 13H20Q21.7 13 22.8 14.2Q24 15.4 24 17V20Q24 21.7 22.8 22.8Q21.7 24 20 24H17Q15.4 24 14.2 22.8Q13 21.7 13 20V17Q13 15.4 14.2 14.2Q15.4 13 17 13Z"/></svg>'),
   user: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6Q6 7.6 6.8 9Q7.6 10.4 9 11.2Q10.4 12 12 12Q13.6 12 15 11.2Q16.4 10.4 17.2 9Q18 7.6 18 6Q18 4.4 17.2 3Q16.4 1.6 15 0.8Q13.6 0 12 0Q10.4 0 9 0.8Q7.6 1.6 6.8 3Q6 4.4 6 6ZM12 14Q9.5 14 7.5 15.2Q5.4 16.4 4.2 18.5Q3 20.6 3 23Q3 23.4 3.3 23.7Q3.6 24 4 24H20Q20.4 24 20.7 23.7Q21 23.4 21 23Q21 20.6 19.8 18.5Q18.6 16.4 16.5 15.2Q14.5 14 12 14Z"/></svg>'),
@@ -461,6 +461,8 @@ export const icons = {
   quill: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4c-7 1-11 5-13 12l-2 4"/><path d="M8 14c3 0 6-1 8-4"/></svg>'),
   chat: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4 4v-4h0.5A2.5 2.5 0 0 1 4 13.5z"/></svg>'),
   calendar: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>'),
+  crown: raw('<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M22.8 4.6Q22.2 4.3 21.6 4.4Q21 4.6 20.6 5L18 7.6L13.4 3Q12.8 2.4 12 2.4Q11.2 2.4 10.6 3L6 7.6L3.4 5Q3 4.6 2.4 4.4Q1.8 4.3 1.2 4.6Q0.6 4.8 0.3 5.3Q0 5.8 0 6.4V17Q0 18.3 0.7 19.5Q1.4 20.6 2.5 21.3Q3.7 22 5 22H19Q20.3 22 21.5 21.3Q22.6 20.6 23.3 19.5Q24 18.3 24 17V6.4Q24 5.8 23.7 5.3Q23.4 4.8 22.8 4.6Z"/></svg>'),
+  link: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.2 1.2"/><path d="M14 10a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.2-1.2"/></svg>'),
   lock: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'),
   check: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg>'),
   star: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" class="fill"/></svg>'),
@@ -512,3 +514,34 @@ export const plainText = (body = '', max = 80) => {
     .replace(/\[\/?(?:center|right|left|align|box|h|hr|indent|quote|list|code|color|highlight|size|font|caps|spoiler|sup|sub|strike|url|b|i|u|s|\*)(?:=[^\]]*)?\]/gi, ' ').replace(/\|\||[*_~`>]/g, '').replace(/\s+/g, ' ').trim();
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 };
+
+// ---------- Translation ----------
+// Shows "See translation" only on text that doesn't look like English. Uses the browser's own
+// on-device translator where there is one (recent Chrome), otherwise opens Google Translate.
+const FOREIGN_SCRIPT = /[\p{Script=Hangul}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Cyrillic}\p{Script=Arabic}\p{Script=Thai}\p{Script=Hebrew}\p{Script=Devanagari}\p{Script=Greek}]/u;
+const FOREIGN_WORDS = new Set('que de el la los las por para con una pero muy est une des avec pas mais pour und der die das nicht ist ich du não você muito está obrigado che sono non della kamu aku yang dan tidak ang mga naman siya ako ikaw'.split(' '));
+const ENGLISH_WORDS = new Set('the and you i is it to of a in that this for my me so be are was on with what just like love omg lol'.split(' '));
+export function looksForeign(text = '') {
+  const t = String(text);
+  if (FOREIGN_SCRIPT.test(t)) return true;
+  const words = t.toLowerCase().match(/\p{L}+/gu) || [];
+  if (words.length < 2) return false;
+  const foreign = words.filter((w) => FOREIGN_WORDS.has(w)).length;
+  const english = words.filter((w) => ENGLISH_WORDS.has(w)).length;
+  return foreign >= 2 && foreign > english;
+}
+export async function translateText(text) {
+  try {
+    if ('LanguageDetector' in self && 'Translator' in self) {
+      const detector = await self.LanguageDetector.create();
+      const [best] = await detector.detect(text);
+      const from = best?.detectedLanguage;
+      if (from && from !== 'en' && from !== 'und') {
+        const translator = await self.Translator.create({ sourceLanguage: from, targetLanguage: 'en' });
+        return await translator.translate(text);
+      }
+    }
+  } catch { /* fall through to Google Translate */ }
+  window.open(`https://translate.google.com/?sl=auto&tl=en&op=translate&text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+  return null;
+}

@@ -220,7 +220,7 @@ export function threadRoutes(r, ctx) {
     // all = open threads + self paras + events + social posts. "mine" (used on Home) = every thread my characters are in.
     const filter = query.get('filter') || 'all';
     const q = (query.get('q') || '').trim().slice(0, 100);
-    if (!['all', 'open', 'para', 'event', 'social', 'mine'].includes(filter)) fail(400, 'Unknown filter');
+    if (!['all', 'open', 'para', 'event', 'social', 'connection', 'mine'].includes(filter)) fail(400, 'Unknown filter');
     let items = [];
     if (['all', 'open', 'para', 'mine'].includes(filter)) {
       const where = [];
@@ -240,6 +240,9 @@ export function threadRoutes(r, ctx) {
     if (filter === 'all' || filter === 'social') {
       items = items.concat(ctx.socialFeed({ viewerId: user.id, q, limit: 60 }).map((p) => ({ ...p, sortAt: p.createdAt })));
     }
+    if (filter === 'all' || filter === 'connection') items = items.concat(ctx.connectionItems({ userId: user.id, q }));
+    // THE : NU is chronological: everything stays in the order it was made (Home's "mine" list goes by activity).
+    if (filter !== 'mine') for (const it of items) if (it.type === 'thread') it.sortAt = it.createdAt;
     items.sort((x, y) => (y.sortAt > x.sortAt ? 1 : y.sortAt < x.sortAt ? -1 : 0));
     return { data: { items: items.slice(0, 100) } };
   });

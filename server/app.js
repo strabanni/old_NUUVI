@@ -18,6 +18,8 @@ import { eventRoutes } from './routes/events.js';
 import { phoneRoutes } from './routes/phone.js';
 import { overviewRoutes } from './routes/overview.js';
 import { socialRoutes, socialPostRoutes } from './routes/social.js';
+import { connectionRoutes } from './routes/connections.js';
+import { messageRoutes } from './routes/messages.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
 import { createBots } from './bots.js';
@@ -149,6 +151,7 @@ export function createApp({
     characterId: row.character_id ?? null,
     socialId: row.social_id ?? null,
     url: row.type === 'report' ? '#/admin' : row.type === 'dm' ? `#/phone/${row.character_id}` : row.social_id ? `#/p/${row.social_id}`
+      : row.type === 'message' ? `#/messages/${row.actor_id}` : row.type === 'connection' ? '#/nu'
       : row.type === 'follow' && row.character_id ? `#/c/${row.character_id}`
       : row.story_id && row.channel_id ? `#/s/${row.story_id}/${row.channel_id}` : '#/notifications',
   });
@@ -164,7 +167,9 @@ export function createApp({
     const existing = (type === 'post' && db.prepare(`SELECT id FROM notifications
       WHERE user_id = ? AND type = 'post' AND channel_id = ? AND read_at IS NULL`).get(userId, channelId))
       || (type === 'dm' && db.prepare(`SELECT id FROM notifications
-      WHERE user_id = ? AND type = 'dm' AND character_id = ? AND read_at IS NULL`).get(userId, characterId));
+      WHERE user_id = ? AND type = 'dm' AND character_id = ? AND read_at IS NULL`).get(userId, characterId))
+      || (type === 'message' && db.prepare(`SELECT id FROM notifications
+      WHERE user_id = ? AND type = 'message' AND actor_id = ? AND read_at IS NULL`).get(userId, actorId));
     if (existing) {
       db.prepare(`UPDATE notifications SET count = count + 1, actor_id = ?, post_id = ?, text = ?, created_at = datetime('now') WHERE id = ?`)
         .run(actorId, postId, text, existing.id);
@@ -196,6 +201,8 @@ export function createApp({
       tag: () => ({ title: `${n.actor?.displayName} tagged you in a thread`, body: `${where} · ${n.story?.title}` }),
       dm: () => ({ title: n.count > 1 ? `${n.count} new texts` : 'New text', body: text }),
       reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),
+      message: () => ({ title: n.count > 1 ? `${n.count} messages from ${n.actor?.displayName}` : `Message from ${n.actor?.displayName}`, body: text }),
+      connection: () => ({ title: 'Connection picked up', body: text }),
     }[type]();
     // Phone/desktop pop-ups only when they're not actively using NUUVI.
     if (!hub.isActive(userId)) ctx.pusher.send(userId, { ...push, url: `/${n.url}`, tag: n.channel ? `channel-${n.channel.id}` : `n-${n.id}` });
@@ -273,6 +280,8 @@ export function createApp({
   overviewRoutes(router, ctx);
   socialRoutes(router, ctx);
   socialPostRoutes(router, ctx);
+  connectionRoutes(router, ctx);
+  messageRoutes(router, ctx);
 
   // ---------- Live updates ----------
   function handleEvents(req, res, user, query) {

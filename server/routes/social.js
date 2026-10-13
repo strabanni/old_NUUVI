@@ -1,5 +1,6 @@
 // Characters as social profiles: following other characters, followers, and the threads they're in.
 import { fail, id, str, oneOf } from '../http.js';
+import { addBuzz, buzzForFollowers, autoLikes, autoCommentLikes } from '../buzz.js';
 import { toCharacter, requireUser, isBlocked, imageLink } from '../model.js';
 
 export function socialRoutes(r, ctx) {
@@ -121,7 +122,8 @@ const MEDIA_EXT = {
 export function socialPostRoutes(r, ctx) {
   const { db } = ctx;
   const charCols = `c.name AS c_name, c.avatar AS c_avatar, c.color AS c_color, c.verified AS c_verified, c.user_id AS c_user,
-    c.handle AS c_handle, c.npc AS c_npc, c.bot AS c_bot, c.gradient AS c_gradient`;
+    c.handle AS c_handle, c.npc AS c_npc, c.bot AS c_bot, c.gradient AS c_gradient,
+    COALESCE(c.followers_display, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id)) AS c_followers`;
   const charOf = (row) => ({
     id: row.character_id, name: row.c_name, avatar: row.c_avatar, color: row.c_color, verified: !!row.c_verified, userId: row.c_user,
     handle: row.c_handle, npc: !!row.c_npc, bot: row.c_bot ?? null, gradient: row.c_gradient ? row.c_gradient.split(',') : null,
@@ -131,19 +133,26 @@ export function socialPostRoutes(r, ctx) {
     const comments = db.prepare(`SELECT sc.*, ${charCols} FROM social_comments sc JOIN characters c ON c.id = sc.character_id
       WHERE sc.post_id = ? ORDER BY sc.id ${allComments ? '' : 'DESC LIMIT 2'}`).all(row.id);
     if (!allComments) comments.reverse();
+    const buzz = db.prepare(`SELECT * FROM social_buzz WHERE post_id = ? ORDER BY created_at, id ${allComments ? '' : 'LIMIT 2'}`).all(row.id);
+    const realLikes = db.prepare('SELECT COUNT(*) AS n FROM social_likes WHERE post_id = ?').get(row.id).n;
+    const realComments = db.prepare('SELECT COUNT(*) AS n FROM social_comments WHERE post_id = ?').get(row.id).n
+      + db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
     return {
       type: 'social',
       id: row.id, kind: row.kind, body: row.body, title: row.title,
       media: JSON.parse(row.media), meta: JSON.parse(row.meta),
       createdAt: row.created_at, editedAt: row.edited_at, userId: row.user_id,
       character: charOf(row),
-      // The writer can set the numbers shown (for famous characters); otherwise they're the real counts.
-      likes: row.likes_display ?? db.prepare('SELECT COUNT(*) AS n FROM social_likes WHERE post_id = ?').get(row.id).n,
-      commentCount: row.comments_display ?? db.prepare('SELECT COUNT(*) AS n FROM social_comments WHERE post_id = ?').get(row.id).n,
+      // Likes start from the character's fame (a share of their followers, or the number the writer set)
+      // and every real like adds one. Comments show the writer's number, or the real ones plus the crowd's.
+      likes: (row.likes_display ?? autoLikes(row.c_followers, row.id)) + realLikes,
+      commentCount: row.comments_display ?? realComments,
       likesDisplay: row.likes_display ?? null, commentsDisplay: row.comments_display ?? null,
       likedBy: viewerId ? db.prepare(`SELECT l.character_id FROM social_likes l JOIN characters c ON c.id = l.character_id
         WHERE l.post_id = ? AND c.user_id = ?`).all(row.id, viewerId).map((x) => x.character_id) : [],
-      comments: comments.map((cm) => ({ id: cm.id, body: cm.body, createdAt: cm.created_at, userId: cm.user_id, character: charOf(cm) })),
+      comments: comments.map((cm) => ({ id: cm.id, body: cm.body, createdAt: cm.created_at, userId: cm.user_id, parentId: cm.parent_id ?? null,
+        likes: autoCommentLikes(cm.c_followers, cm.id), character: charOf(cm) })),
+      buzz: buzz.map((b) => ({ id: b.id, handle: b.handle, body: b.body, likes: b.likes, createdAt: b.created_at })),
     };
   }
 
@@ -250,6 +259,9 @@ export function socialPostRoutes(r, ctx) {
     const { lastInsertRowid } = db.prepare('INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(metaInput(kind, body.meta), musicInput(body.music))));
     ctx.bots?.onSocialPost(Number(lastInsertRowid));
+    const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(lastInsertRowid);
+    const fame = db.prepare(`SELECT COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = ?)) AS n FROM characters WHERE id = ?`).get(c.id, c.id).n;
+    addBuzz(db, fresh, buzzForFollowers(fame), { handle: c.handle, followers: fame });
     return { status: 201, data: { post: toSocial(load(lastInsertRowid, user), user.id) } };
   });
 
@@ -273,6 +285,12 @@ export function socialPostRoutes(r, ctx) {
     const onlyCounts = body.body === undefined && body.title === undefined && body.meta === undefined && body.music === undefined;
     db.prepare(`UPDATE social_posts SET body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`)
       .run(text, title, meta, likesShown, commentsShown, row.id);
+    // A bigger comment number brings in some crowd comments to go with it (a handful, not thousands).
+    if (commentsShown && commentsShown !== row.comments_display) {
+      const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
+      const want = Math.min(commentsShown, 6 + Math.floor(Math.random() * 7));
+      addBuzz(db, db.prepare('SELECT * FROM social_posts WHERE id = ?').get(row.id), want - have, { handle: row.c_handle, followers: row.c_followers });
+    }
     return { data: { post: toSocial(load(row.id, user), user.id) } };
   });
 
@@ -293,7 +311,7 @@ export function socialPostRoutes(r, ctx) {
     if (changes && row.user_id !== user.id) {
       ctx.notify({ userId: row.user_id, type: 'like', actorId: user.id, characterId: me.id, socialId: row.id, text: `${me.name} liked ${row.c_name}'s post` });
     }
-    return { data: { post: toSocial(load(row.id, user), user.id) } };
+    return { data: { post: toSocial(load(row.id, user), user.id, { allComments: true }) } };
   });
 
   r.post('/api/social/:id/unlike', ({ user, body, params }) => {
@@ -301,7 +319,7 @@ export function socialPostRoutes(r, ctx) {
     const row = load(params.id, user);
     const me = ownCharacter(body.asCharacterId, user.id);
     db.prepare('DELETE FROM social_likes WHERE post_id = ? AND character_id = ?').run(row.id, me.id);
-    return { data: { post: toSocial(load(row.id, user), user.id) } };
+    return { data: { post: toSocial(load(row.id, user), user.id, { allComments: true }) } };
   });
 
   r.post('/api/social/:id/comments', ({ user, body, params }) => {
@@ -309,7 +327,13 @@ export function socialPostRoutes(r, ctx) {
     const row = load(params.id, user);
     const me = ownCharacter(body.characterId, user.id);
     const text = str(body.body, 'Comment', { min: 1, max: 2000, required: true });
-    db.prepare('INSERT INTO social_comments (post_id, character_id, user_id, body) VALUES (?, ?, ?, ?)').run(row.id, me.id, user.id, text);
+    // A reply hangs under a comment on the same post (replies to replies go under the same comment).
+    let parentId = null;
+    if (body.parentId != null) {
+      const parent = db.prepare('SELECT id, parent_id FROM social_comments WHERE id = ? AND post_id = ?').get(Number(body.parentId), row.id) ?? fail(400, 'That comment is gone');
+      parentId = parent.parent_id ?? parent.id;
+    }
+    db.prepare('INSERT INTO social_comments (post_id, character_id, user_id, body, parent_id) VALUES (?, ?, ?, ?, ?)').run(row.id, me.id, user.id, text, parentId);
     if (row.user_id !== user.id) {
       ctx.notify({ userId: row.user_id, type: 'comment', actorId: user.id, characterId: me.id, socialId: row.id, text: `${me.name}: ${text.slice(0, 120)}` });
     }

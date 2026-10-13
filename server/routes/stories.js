@@ -63,6 +63,7 @@ export function storyRoutes(r, ctx) {
         stories: rows.map((row) => ({ ...toStory(row), unread: row.unread, mentions: row.mentions })),
         notificationsUnread,
         reportsOpen,
+        messagesUnread: ctx.messageUnread?.(user.id) ?? 0,
         stats: ctx.userStats(user.id),
       },
     };
@@ -110,7 +111,7 @@ export function storyRoutes(r, ctx) {
       const ins = db.prepare(`INSERT INTO channels (story_id, name, topic, position, kind, created_by, last_post_at)
         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`);
       ins.run(sid, 'main-story', 'The story itself — write in character here.', 0, 'thread', user.id);
-      ins.run(sid, 'ooc-chat', 'Out-of-character planning and chatter.', 1, 'ooc', user.id);
+      // Out-of-character talk happens in Messages (private, between writers) — no OOC channel.
       return sid;
     });
     const story = toStory(db.prepare(`${STORY_SELECT} WHERE s.id = ?`).get(storyId));

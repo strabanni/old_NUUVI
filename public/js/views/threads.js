@@ -1,7 +1,5 @@
 // The feed (every thread you can see, filterable by type) and the start/edit-a-thread form.
 import { html, render, applyColors, api, $, $$, toast, avatar, icons, modal, uploadImage, askImageLink } from '../lib.js';
-import { socialCard, bindSocial, openSocialComposer, styleBars } from './social.js';
-import { eventFeedCard } from './events.js';
 import { state, page, loadStory, refreshHome, myCharacters, routeAlive, KIND_LABELS, kindIcon, channelIcon } from '../main.js';
 
 const STATUS_LABELS = { open: 'Open', closed: 'Private', complete: 'Complete' };
@@ -54,78 +52,6 @@ export function masonry(root) {
   for (const el of root.querySelectorAll('.feed-grid > *')) { fitBrick(el); bricks.observe(el); }
 }
 
-const FILTERS = [['all', 'All'], ['open', 'Open episodes'], ['para', 'Self paras'], ['social', 'Social'], ['event', 'Events']];
-
-function dayGroup(item) {
-  const d = parseDate(item.sortAt || item.lastPostAt || item.createdAt);
-  const mins = (Date.now() - d) / 60000;
-  if (mins < 60) return 'Now';
-  const today = new Date();
-  if (d.toDateString() === today.toDateString()) return 'Today';
-  const y = new Date(today); y.setDate(today.getDate() - 1);
-  if (d.toDateString() === y.toDateString()) return 'Yesterday';
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
-}
-
-export async function viewFeed() {
-  const alive = routeAlive();
-  let filter = sessionStorage.getItem('nuuvi:feed-filter') || 'all';
-  if (!FILTERS.some(([k]) => k === filter)) filter = 'all';
-  const body = page({
-    alive,
-    title: 'Feed',
-    banner: 'what everyone’s up to',
-    subtitle: 'Open threads, self paras, social posts and events',
-    actions: html`<a class="btn sm" href="#/events" aria-label="Events">${icons.calendar}<span class="lbl">Events</span></a><button class="primary sm" id="new-post">${icons.plus}<span class="lbl">New post</span></button>`,
-    body: html`
-      <div class="feed-tools no-swipe">
-        <label class="search-pill">${icons.compass}<input type="search" id="q" placeholder="Search threads, tags, stories…" aria-label="Search the feed"></label>
-        <div class="chips scroll-x" role="tablist">${FILTERS.map(([k, label]) => html`<button class="chip-btn" data-f="${k}" aria-pressed="${k === filter}">${label}</button>`)}</div>
-      </div>
-      <div id="feed-list"></div>`,
-  });
-  const list = $('#feed-list', body);
-  let q = '';
-  const load = async () => {
-    const { items } = await api(`/api/feed?filter=${filter}&q=${encodeURIComponent(q)}`);
-    if (!items.length) {
-      return render(list, html`<div class="empty"><p>Nothing here yet.</p>${state.home.stories.length ? html`<p class="small">Start a thread from any story's sidebar.</p>` : html`<p class="small"><a href="#/discover">Find a story</a> to join.</p>`}</div>`);
-    }
-    socialPosts.clear();
-    for (const it of items) if (it.type === 'social') socialPosts.set(it.id, it);
-    const groups = [];
-    for (const it of items) {
-      const g = dayGroup(it);
-      if (!groups.length || groups.at(-1).label !== g) groups.push({ label: g, items: [] });
-      groups.at(-1).items.push(it);
-    }
-    render(list, html`${groups.map((g) => html`
-      <div class="feed-day"><span class="${g.label === 'Now' ? 'now' : ''}">${g.label}</span></div>
-      <div class="feed-grid">${g.items.map((it) => (it.type === 'social' ? socialCard(it) : it.type === 'event' ? eventFeedCard(it) : feedCard(it)))}</div>`)}`);
-    styleBars(list);
-    masonry(list);
-  };
-  const socialPosts = new Map();
-  bindSocial(list, socialPosts, (p) => {
-    socialPosts.set(p.id, p);
-    const el = list.querySelector(`[data-social="${p.id}"]`);
-    if (el) { el.outerHTML = socialCard(p).v; applyColors(list); styleBars(list); masonry(list); }
-  });
-  $('#main #new-post').addEventListener('click', async () => { if (await openSocialComposer()) load(); });
-  $$('[data-f]', body).forEach((b) => b.addEventListener('click', () => {
-    filter = b.dataset.f;
-    try { sessionStorage.setItem('nuuvi:feed-filter', filter); } catch { /* ignore */ }
-    $$('[data-f]', body).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-    load().catch((err) => toast(err.message));
-  }));
-  let t;
-  $('#q', body).addEventListener('input', (e) => {
-    clearTimeout(t);
-    t = setTimeout(() => { q = e.target.value; load().catch((err) => toast(err.message)); }, 250);
-  });
-  await load();
-}
-
 // Start a new thread, or edit one (pass `channel`). If no story is given, the form asks which.
 // Quick picks for a comms thread's icon (texts, DMs, socials, work chat…).
 const COMMS_EMOJI = ['💬', '📱', '💌', '📸', '🐦', '🎮', '💼', '🖤', '🩷', '✨', '🔒', '📞'];
@@ -137,8 +63,10 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
   const myStories = state.home.stories;
   if (!sid && !myStories.length) return toast('Join or start a story first');
   const [characters, storyDetail] = await Promise.all([myCharacters(true), sid ? api(`/api/stories/${sid}`) : null]);
-  const isOwner = storyDetail?.role === 'owner' || state.user.isAdmin;
-  const kinds = [['thread', 'Episode'], ['para', 'Self para (solo writing)'], ['comms', 'Comms (texts)'], ['event', 'Event'], ...(isOwner || channel?.kind === 'ooc' ? [['ooc', 'OOC channel']] : [])];
+  // Texts live in the Phone now, and out-of-character talk in Messages: no new comms or OOC channels
+  // (older ones can still be edited).
+  const kinds = [['thread', 'Episode'], ['para', 'Self para (solo writing)'], ['event', 'Event'],
+    ...(channel?.kind === 'comms' ? [['comms', 'Comms (texts)']] : []), ...(channel?.kind === 'ooc' ? [['ooc', 'OOC channel']] : [])];
   const c = channel || { kind: startKind || 'thread', eventId };
 
   const result = await modal(html`

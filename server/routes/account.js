@@ -383,7 +383,8 @@ export function accountRoutes(r, ctx) {
     // Automatic NPCs post/comment on their own; the anonymous gossip account is admin-only.
     let bot = existing.bot ?? null;
     if (body.bot !== undefined) {
-      bot = oneOf(body.bot || null, 'Automation', ['bot', 'gossip']) ?? null;
+      // No choice (null / '') means a normal member of your cast: no automation.
+      bot = body.bot ? oneOf(body.bot, 'Automation', ['bot', 'gossip']) : null;
       if (bot === 'gossip' && !isAdmin) fail(403, 'Only admins can run the gossip account');
       if (bot === 'bot' && !npc) fail(400, 'Only NPCs can post on their own');
     }
