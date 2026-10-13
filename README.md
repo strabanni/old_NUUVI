@@ -2,7 +2,7 @@
 
 A private, invite-only writing home for a roleplay group. It's a **website** and an **installable app** (phone and desktop) from one codebase, laid out like Discord:
 
-- **Story rail** (left): each story is like a server.
+- **Story rail** (left): each story is like a server. Drag story icons to put them in your own order (on phones, hold a story, then slide your finger). Your order is saved to your account; new stories show at the top until you place them.
 - **Channels**: the scenes inside each story.
 - **Feed**: long-form, forum-style posts.
 - **Members panel** (right): who's in the story, plus its cast of characters.

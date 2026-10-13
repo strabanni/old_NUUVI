@@ -852,3 +852,26 @@ test('saving a character without choosing bot or NPC keeps them in your own cast
   assert.equal(saved.data.character.bot, null);
   assert.equal((await a(`/api/characters/${c.id}`, { method: 'PUT', body: { bot: '' } })).status, 200);
 });
+
+test('each writer can drag their stories into their own sidebar order', async () => {
+  const a = await app.signUp('rail_sorter');
+  const s1 = (await makeStory(a, { title: 'One' })).story;
+  const s2 = (await makeStory(a, { title: 'Two' })).story;
+  const s3 = (await makeStory(a, { title: 'Three' })).story;
+  const ids = async () => (await a('/api/home')).data.stories.map((s) => s.id);
+  assert.deepEqual(await ids(), [s3.id, s2.id, s1.id]); // newest activity first until sorted
+  const saved = await a('/api/home/order', { method: 'PUT', body: { storyIds: [s1.id, s3.id, s2.id] } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.data));
+  assert.deepEqual(await ids(), [s1.id, s3.id, s2.id]);
+  // Activity doesn't shuffle a sorted sidebar; a new story shows on top until it's placed.
+  await post(a, (await a(`/api/stories/${s2.id}`)).data.channels[0].id, { kind: 'ooc', body: 'bump' });
+  const s4 = (await makeStory(a, { title: 'Four' })).story;
+  assert.deepEqual(await ids(), [s4.id, s1.id, s3.id, s2.id]);
+  // Stories you're not in are ignored.
+  const other = (await makeStory(await app.signUp('rail_other'))).story;
+  assert.equal((await a('/api/home/order', { method: 'PUT', body: { storyIds: [other.id, s2.id] } })).status, 200);
+  const after = await ids();
+  assert.equal(after.includes(other.id), false);
+  assert.equal(after.at(-1), s2.id);
+  assert.equal((await a('/api/home/order', { method: 'PUT', body: { storyIds: 'nope' } })).status, 400);
+});

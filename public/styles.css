@@ -2551,3 +2551,9 @@ img.fx-img, .b-pics img { cursor: zoom-in; }
 .bubble.kind-ooc .b-reply-btn { right: 56px; left: auto; }
 .bubble.kind-ooc .b-bubble .post-menu { right: 20px; left: auto; }
 .bubble.kind-ooc.grouped .b-reply-btn, .bubble.kind-ooc.grouped .b-bubble .post-menu { top: -18px; }
+/* Dragging stories in the sidebar into your own order */
+.rail-item[data-story-id] { cursor: pointer; -webkit-user-drag: none; }
+.rail-item[data-story-id] img { -webkit-user-drag: none; pointer-events: none; }
+.rail.sorting { cursor: grabbing; }
+.rail.sorting .rail-item[data-story-id] { transition: border-radius .2s, box-shadow .2s; }
+.rail-item.dragging { z-index: 5; cursor: grabbing; border-radius: 17px; box-shadow: 0 10px 26px rgb(0 0 0 / .28), 0 0 0 2px var(--accent); opacity: .95; }

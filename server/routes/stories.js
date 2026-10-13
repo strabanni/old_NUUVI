@@ -43,6 +43,19 @@ export function storyRoutes(r, ctx) {
 
   const storyChanged = (storyId) => hub.sendStory(storyId, 'story', { storyId });
 
+  // Your own order for the stories in your sidebar (drag and drop). Stories left out keep no spot
+  // and show first, newest activity on top, until you place them.
+  r.put('/api/home/order', ({ user, body }) => {
+    requireUser(user);
+    if (!Array.isArray(body.storyIds) || body.storyIds.length > 500) fail(400, 'Expected a list of stories');
+    const set = db.prepare('UPDATE story_members SET rail_pos = ? WHERE story_id = ? AND user_id = ?');
+    transaction(db, () => {
+      db.prepare('UPDATE story_members SET rail_pos = NULL WHERE user_id = ?').run(user.id);
+      body.storyIds.forEach((sid, i) => set.run(i, Number(sid) || 0, user.id));
+    });
+    return { data: { ok: true } };
+  });
+
   r.get('/api/home', ({ user }) => {
     requireUser(user);
     const rows = db.prepare(`
@@ -54,8 +67,8 @@ export function storyRoutes(r, ctx) {
         (SELECT COUNT(*) FROM notifications n WHERE n.story_id = s.id AND n.user_id = :u
            AND n.read_at IS NULL AND n.type IN ('mention', 'turn')) AS mentions
       FROM stories s JOIN users u ON u.id = s.owner_id
-      WHERE s.id IN (SELECT story_id FROM story_members WHERE user_id = :u)
-      ORDER BY s.updated_at DESC, s.id DESC`).all({ u: user.id });
+      JOIN story_members me ON me.story_id = s.id AND me.user_id = :u
+      ORDER BY me.rail_pos IS NOT NULL, me.rail_pos, s.updated_at DESC, s.id DESC`).all({ u: user.id });
     const notificationsUnread = db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL').get(user.id).n;
     const reportsOpen = user.isAdmin ? db.prepare("SELECT COUNT(*) AS n FROM reports WHERE status = 'open'").get().n : 0;
     return {

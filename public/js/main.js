@@ -19,6 +19,9 @@ import { viewLore } from './views/overview.js';
 import { viewNpcs } from './views/npcs.js';
 import { viewSocialPost } from './views/social.js';
 
+let railDrag = null; // a story being dragged in the sidebar (see "Drag stories" below)
+let railDragged = false;
+
 export const state = {
   user: null,
   home: { stories: [], notificationsUnread: 0, reportsOpen: 0 },
@@ -219,6 +222,7 @@ function renderUserbar() {
 
 function renderRail() {
   const rail = $('#rail');
+  if (railDrag) return; // not while a story is being dragged
   if (!state.user) return render(rail, html``);
   const active = state.route.storyId;
   const u = state.user;
@@ -230,7 +234,7 @@ function renderRail() {
     <a href="#/home" class="rail-item home-link ${!active ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
     <div class="rail-sep"></div>
     ${state.home.stories.map((s) => html`
-      <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" data-story-id="${s.id}" title="${s.title}" aria-label="${s.title}">
+      <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" data-story-id="${s.id}" draggable="false" title="${s.title}" aria-label="${s.title}">
         <span class="pill"></span>${storyIcon(s)}
         ${s.mentions ? html`<span class="badge">${s.mentions}</span>` : ''}
       </a>`)}
@@ -529,6 +533,81 @@ document.addEventListener('touchend', () => clearTimeout(pressTimer));
 document.addEventListener('touchcancel', () => clearTimeout(pressTimer));
 // The tap that ends a long-press shouldn't also open the link underneath.
 document.addEventListener('click', (e) => { if (pressFired) { e.preventDefault(); e.stopPropagation(); pressFired = false; } }, true);
+
+// ---------- Drag stories in the sidebar to put them in your own order ----------
+// Computers: press and drag a story icon. Phones: hold a story (its menu opens), then slide your
+// finger and the menu gives way to the drag. The order is saved to your account.
+const railZoom = () => Number(getComputedStyle(document.documentElement).zoom) || 1;
+function railDragStart(item, y) {
+  document.querySelector('.popover')?.remove();
+  const rail = $('#rail');
+  railDrag = { item, rail, y, grabY: y, scroll: rail.scrollTop };
+  railDragged = true;
+  item.classList.add('dragging');
+  rail.classList.add('sorting');
+  navigator.vibrate?.(8);
+}
+function railDragMove(y) {
+  const d = railDrag;
+  if (!d) return;
+  d.y = y;
+  const { item, rail } = d;
+  const others = [...rail.querySelectorAll('.rail-item[data-story-id]')].filter((x) => x !== item);
+  // Move the icon in the list once the finger/pointer passes the middle of a neighbour.
+  const before = others.find((x) => { const r = x.getBoundingClientRect(); return y < r.top + r.height / 2; });
+  const firstAfter = before ?? others.at(-1)?.nextElementSibling ?? null;
+  if (firstAfter !== item && item.nextElementSibling !== firstAfter) {
+    const top = item.getBoundingClientRect().top;
+    rail.insertBefore(item, firstAfter);
+    d.grabY += item.getBoundingClientRect().top - top;
+  }
+  // Scroll the sidebar when dragging near its top or bottom edge.
+  const rr = rail.getBoundingClientRect();
+  if (y < rr.top + 40) rail.scrollTop -= 8; else if (y > rr.bottom - 40) rail.scrollTop += 8;
+  item.style.transform = `translateY(${(y - d.grabY) / railZoom()}px) scale(1.08)`;
+}
+async function railDragEnd() {
+  const d = railDrag;
+  if (!d) return;
+  railDrag = null;
+  d.item.classList.remove('dragging');
+  d.item.style.transform = '';
+  d.rail.classList.remove('sorting');
+  setTimeout(() => { railDragged = false; }, 0);
+  const ids = [...d.rail.querySelectorAll('.rail-item[data-story-id]')].map((x) => Number(x.dataset.storyId));
+  if (ids.join() === state.home.stories.map((x) => x.id).join()) return;
+  const byId = new Map(state.home.stories.map((x) => [x.id, x]));
+  state.home.stories = ids.map((id) => byId.get(id)).filter(Boolean);
+  try { await api('/api/home/order', { method: 'PUT', body: { storyIds: ids } }); } catch (err) { toast(err.message); }
+  renderRail();
+}
+// Mouse
+let railPress = null;
+document.addEventListener('mousedown', (e) => {
+  const item = e.button === 0 && e.target.closest('#rail .rail-item[data-story-id]');
+  if (item) railPress = { item, y: e.clientY };
+});
+document.addEventListener('mousemove', (e) => {
+  if (railDrag) { e.preventDefault(); railDragMove(e.clientY); return; }
+  if (railPress && Math.abs(e.clientY - railPress.y) > 6) { railDragStart(railPress.item, railPress.y); railPress = null; railDragMove(e.clientY); }
+});
+document.addEventListener('mouseup', () => { railPress = null; railDragEnd(); });
+document.addEventListener('dragstart', (e) => { if (e.target.closest?.('#rail')) e.preventDefault(); });
+// Touch: after the long-press, sliding the finger starts the drag (and keeps the page from scrolling).
+let railTouch = null;
+document.addEventListener('touchstart', (e) => {
+  const item = e.touches.length === 1 && e.target.closest('#rail .rail-item[data-story-id]');
+  railTouch = item ? { item, y: e.touches[0].clientY, at: Date.now() } : null;
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  const y = e.touches[0]?.clientY;
+  if (railDrag) { e.preventDefault(); railDragMove(y); return; }
+  if (railTouch && pressFired && Math.abs(y - railTouch.y) > 8) { e.preventDefault(); railDragStart(railTouch.item, railTouch.y); railTouch = null; railDragMove(y); }
+}, { passive: false });
+document.addEventListener('touchend', () => { railTouch = null; railDragEnd(); });
+document.addEventListener('touchcancel', () => { railTouch = null; railDragEnd(); });
+// A drop shouldn't also open the story underneath.
+document.addEventListener('click', (e) => { if (railDragged && e.target.closest('#rail')) { e.preventDefault(); e.stopPropagation(); } }, true);
 
 document.addEventListener('contextmenu', async (e) => {
   if (!state.user) return;
