@@ -1,6 +1,6 @@
 // App shell: Discord-style chrome (story rail, sidebar, members panel, mobile drawer + tab bar),
 // routing, and the live event connection.
-import { html, raw, render, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, logoMark, wordmark, userGrad, uploadImage, uploadBanner, askImageLink } from './lib.js';
+import { html, raw, render, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, logoMark, wordmark, userGrad, uploadImage, uploadBanner, askImageLink, openLightbox } from './lib.js';
 import { viewLanding, viewReset } from './views/auth.js';
 import { viewHome, viewDiscover, viewNewStory, viewJoin } from './views/home.js';
 import { viewChannel } from './views/channel.js';
@@ -485,6 +485,22 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
 let navDepth = 0;
 let backing = false;
 window.addEventListener('hashchange', () => { navDepth = backing ? Math.max(0, navDepth - 1) : navDepth + 1; backing = false; });
+
+// Pictures people send (in messages, texts, chats, episodes and formatted posts) open in the
+// in-app viewer instead of a new tab.
+document.addEventListener('click', (e) => {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  const link = e.target.closest('.b-pics a');
+  const inline = !link && e.target.closest('img.fx-img');
+  if (!link && !inline) return;
+  e.preventDefault();
+  if (link) {
+    const all = [...link.closest('.b-pics').querySelectorAll('a')];
+    openLightbox(all.map((a) => a.getAttribute('href')), all.indexOf(link));
+  } else {
+    openLightbox([inline.getAttribute('src')]);
+  }
+});
 
 // ---------- Long-press (phones) = right-click (computers) ----------
 // Holding a finger on something opens the same menu a right-click does: story icons, the story

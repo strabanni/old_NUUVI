@@ -545,3 +545,43 @@ export async function translateText(text) {
   window.open(`https://translate.google.com/?sl=auto&tl=en&op=translate&text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   return null;
 }
+
+// ---------- Picture viewer ----------
+// Pictures people send open full-screen inside NUUVI (not a new tab). Several pictures in one
+// message can be flipped through with the arrows, a swipe, or the arrow keys.
+export function openLightbox(urls, start = 0) {
+  if (!urls.length) return;
+  let i = Math.max(0, Math.min(start, urls.length - 1));
+  document.querySelector('.lightbox')?.remove();
+  const box = document.createElement('div');
+  box.className = 'lightbox';
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-label', 'Picture');
+  const draw = () => render(box, html`
+    <button type="button" class="lb-close" data-lb="close" aria-label="Close">✕</button>
+    ${urls.length > 1 ? html`<span class="lb-count">${i + 1} / ${urls.length}</span>
+      <button type="button" class="lb-nav prev" data-lb="prev" aria-label="Previous" ${i === 0 ? 'hidden' : ''}>${icons.chevron}</button>
+      <button type="button" class="lb-nav next" data-lb="next" aria-label="Next" ${i === urls.length - 1 ? 'hidden' : ''}>${icons.chevron}</button>` : ''}
+    <img class="lb-img" src="${urls[i]}" alt="">
+    <a class="lb-open" href="${urls[i]}" target="_blank" rel="noopener noreferrer">Open original</a>`);
+  const go = (d) => { const n = i + d; if (n >= 0 && n < urls.length) { i = n; draw(); } };
+  const close = () => { box.classList.add('out'); document.removeEventListener('keydown', onKey); setTimeout(() => box.remove(), 180); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); if (e.key === 'ArrowLeft') go(-1); if (e.key === 'ArrowRight') go(1); };
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-lb]');
+    if (b) { e.preventDefault(); if (b.dataset.lb === 'close') close(); else go(b.dataset.lb === 'next' ? 1 : -1); return; }
+    if (e.target === box) close();
+  });
+  let sx = null;
+  box.addEventListener('touchstart', (e) => { sx = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+  box.addEventListener('touchend', (e) => {
+    if (sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+    sx = null;
+  });
+  document.addEventListener('keydown', onKey);
+  draw();
+  document.body.append(box);
+}

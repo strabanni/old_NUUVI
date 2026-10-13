@@ -22,6 +22,7 @@ On phones the story rail stays on screen at all times, like Discord, with your s
   - **Forum (Jcink) codes** for building your own post layouts: `[center]`, `[left]`, `[right]`, `[align=…]`, `[indent]`, `[box]`, `[h]`, `[hr]`, `[quote=Name]`, `[list][*]…[/list]`, `[code]`, `[color=#hex or name]`, `[highlight=…]`, `[size=small|big|huge or 1–7]`, `[font=Verdana…]` (sans-serif fonts only), `[caps]`, `[b] [i] [u] [s] [strike]`, `[sup] [sub]`, `[spoiler]`, `[img]link[/img]`, `[url=link]text[/url]`. The full list is under **+ → Formatting guide** in the composer.
 - **No length limit** on posts (technically capped at about 170,000 words, to protect the server).
 - **GIFs:** uploaded GIFs keep moving (up to 15 MB), and GIF links work anywhere a picture link does. A Giphy page link is turned into the GIF itself.
+- **Picture viewer:** tapping a picture someone sent opens it full-screen inside NUUVI (swipe or arrows for the others, ✕, Escape or a tap outside to close, and an "Open original" link).
 - **Pictures in any channel:** attach uploads or picture links to messages in comms, OOC and threads.
 - **Replies** in comms and OOC chats: reply to a message and it's quoted above yours (tap the quote to jump to it), and the person you replied to is notified.
 - Content warnings on stories (readers confirm before entering) and on single posts (tap to reveal).

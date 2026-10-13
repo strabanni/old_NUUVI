@@ -2521,3 +2521,19 @@ dialog.modal[open]::backdrop { animation: fade-in .3s ease both; }
 .bubble.kind-ooc .b-bubble, .bubble.kind-ooc.mine .b-bubble {
   background: transparent !important; box-shadow: none !important; border: 0 !important; padding-left: 0; padding-right: 0; }
 .bubble.kind-ooc .b-bubble::before, .bubble.kind-ooc .b-bubble::after { display: none; }
+/* In-app picture viewer */
+.lightbox { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: calc(56px + var(--sat)) 16px calc(56px + var(--sab));
+  background: rgb(8 8 10 / .92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: fade-in .2s ease both; }
+.lightbox.out { opacity: 0; transition: opacity .18s; }
+.lb-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; box-shadow: 0 20px 60px rgb(0 0 0 / .5); animation: dialog-in .3s cubic-bezier(.2, 1.2, .4, 1) both; touch-action: pinch-zoom; user-select: none; }
+.lb-close { position: absolute; top: calc(14px + var(--sat)); right: 14px; width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 0; background: rgb(255 255 255 / .14); color: #fff; font-size: 1.1rem; }
+.lb-count { position: absolute; top: calc(22px + var(--sat)); left: 50%; transform: translateX(-50%); color: rgb(255 255 255 / .85); font-size: .85rem; font-weight: 600; }
+.lb-nav { position: absolute; top: 50%; translate: 0 -50%; width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 50%; border: 0; background: rgb(255 255 255 / .16); color: #fff; }
+.lb-nav svg { width: 20px; height: 20px; }
+.lb-nav.prev { left: 14px; } .lb-nav.prev svg { transform: rotate(90deg); }
+.lb-nav.next { right: 14px; } .lb-nav.next svg { transform: rotate(-90deg); }
+.lb-open { position: absolute; bottom: calc(16px + var(--sab)); left: 50%; transform: translateX(-50%); color: rgb(255 255 255 / .7); font-size: .8rem; }
+.lb-open:hover { color: #fff; }
+img.fx-img, .b-pics img { cursor: zoom-in; }
+.lightbox { grid-template-rows: minmax(0, 1fr); }
+.lb-img { max-height: calc(100dvh / var(--ui-zoom) - 120px - var(--sat) - var(--sab)); max-width: min(100%, 1400px); width: auto; height: auto; }
