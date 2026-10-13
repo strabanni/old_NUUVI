@@ -2489,3 +2489,8 @@ dialog.modal[open]::backdrop { animation: fade-in .3s ease both; }
 .np-user { color: var(--faint); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .np-sub a { color: var(--text); font-weight: 600; }
 .np-sub .np-handle.c-name { font-weight: 700; }
+/* Character pictures beside episode posts (either side): always cropped to fill their square,
+   in every browser (Safari ignores 100% heights inside a centered grid). */
+.tp-avatar { position: relative; }
+.tp-avatar > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 25%; display: block; }
+.member .avatar, .th-cast .avatar, .chip-link .avatar, img.avatar { object-fit: cover; }
