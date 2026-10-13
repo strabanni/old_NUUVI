@@ -48,18 +48,26 @@
       var el = document.activeElement;
       return !!el && (el.tagName === 'TEXTAREA' || el.isContentEditable || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file|color|range)$/.test(el.type)));
     };
-    var fit = function () {
-      if (typing() && vv.height < window.innerHeight - 1) {
-        root.style.setProperty('--app-h', (vv.height / (Number(root.style.getPropertyValue('--ui-zoom')) || 1)) + 'px');
-        if (window.scrollY || vv.offsetTop) window.scrollTo(0, 0);
-      } else {
+    // Only reacts when the keyboard opens or closes (a resize), never to iOS scrolling the page to
+    // keep your cursor in view — fighting that scrolling is what made the screen jump while typing.
+    var lastH = 0;
+    var fit = function (e) {
+      var keyboardUp = typing() && vv.height < window.innerHeight - 80;
+      if (keyboardUp) {
+        var h = Math.round(vv.height);
+        if (Math.abs(h - lastH) > 1) {
+          lastH = h;
+          root.style.setProperty('--app-h', (h / (Number(root.style.getPropertyValue('--ui-zoom')) || 1)) + 'px');
+          if (window.scrollY) window.scrollTo(0, 0);
+        }
+      } else if (lastH && (!e || e.type !== 'focusin')) {
+        lastH = 0;
         root.style.removeProperty('--app-h');
       }
     };
     vv.addEventListener('resize', fit);
-    vv.addEventListener('scroll', fit);
-    document.addEventListener('focusin', function () { setTimeout(fit, 60); });
-    document.addEventListener('focusout', function () { setTimeout(fit, 60); });
+    document.addEventListener('focusin', function () { setTimeout(function () { fit({ type: 'focusin' }); }, 300); });
+    document.addEventListener('focusout', function () { setTimeout(fit, 120); });
   }
   window.nuuviScale = { apply: apply, touch: touch, mobile: mobile };
   if (window.matchMedia) {

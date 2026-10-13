@@ -570,9 +570,21 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       ta.focus();
     }
 
+    // Grow the box with the text. It's measured on an invisible copy, so the real box never
+    // collapses while you type (that collapse made the page jump on phones).
+    const mirror = document.createElement('textarea');
+    mirror.setAttribute('aria-hidden', 'true');
+    mirror.tabIndex = -1;
+    mirror.className = 'ta-mirror';
+    onLeave(() => mirror.remove());
     const autosize = () => {
-      ta.style.height = 'auto';
-      ta.style.height = `${Math.min(ta.scrollHeight + 2, window.innerHeight * 0.45)}px`;
+      const cs = getComputedStyle(ta);
+      for (const k of ['font', 'letterSpacing', 'padding', 'border', 'boxSizing', 'lineHeight', 'whiteSpace', 'wordBreak', 'overflowWrap']) mirror.style[k] = cs[k];
+      mirror.style.width = `${ta.clientWidth + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth)}px`;
+      if (!mirror.isConnected) document.body.append(mirror);
+      mirror.value = ta.value || ' ';
+      const h = `${Math.min(mirror.scrollHeight + 2, window.innerHeight * 0.45)}px`;
+      if (ta.style.height !== h) ta.style.height = h;
     };
     ta.value = store.get(draftKey) || '';
     const update = () => { wc.textContent = `${words(ta.value)} words`; autosize(); };
