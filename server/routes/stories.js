@@ -209,6 +209,24 @@ export function storyRoutes(r, ctx) {
     return { data: { ok: true } };
   });
 
+  // The owner adds a writer by username (the only way into a private story besides the invite link).
+  r.post('/api/stories/:id/members', ({ user, body, params }) => {
+    requireUser(user);
+    const { row, role } = storyAccess(db, params.id, user);
+    requireOwner(role, user);
+    const name = String(body.username ?? '').trim().replace(/^@/, '');
+    const target = name && db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(name);
+    if (!target) fail(404, `Nobody is called @${name || '…'}`);
+    if (membership(db, row.id, target.id)) fail(400, `@${target.username} is already in this story`);
+    if (isBlocked(db, target.id, user.id) || isBlocked(db, user.id, target.id)) fail(403, "You can't add this person");
+    db.prepare('DELETE FROM story_bans WHERE story_id = ? AND user_id = ?').run(row.id, target.id);
+    db.prepare('INSERT INTO story_members (story_id, user_id) VALUES (?, ?)').run(row.id, target.id);
+    catchUp(row.id, target.id);
+    ctx.notify({ userId: target.id, type: 'added', actorId: user.id, storyId: row.id, text: `added you to ${row.title}` });
+    storyChanged(row.id);
+    return { status: 201, data: { member: { ...toUser(target), role: 'writer' } } };
+  });
+
   r.post('/api/stories/:id/kick', ({ user, body, params }) => {
     requireUser(user);
     const { row, role } = storyAccess(db, params.id, user);

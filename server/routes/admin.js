@@ -150,15 +150,21 @@ export function adminRoutes(r, ctx) {
     return { data: { ok: true } };
   });
 
-  // Titles and owners only; admins don't get to read private stories.
+  // Admins see public stories, and private ones only if they're in them. Any other private story
+  // shows as "Private story" with its owner, nothing more (no title, picture or summary).
   r.get('/api/admin/stories', ({ user }) => {
     requireAdmin(user);
-    return { data: { stories: db.prepare(`${STORY_SELECT} ORDER BY s.updated_at DESC`).all().map(toStory) } };
+    const mine = new Set(db.prepare('SELECT story_id FROM story_members WHERE user_id = ?').all(user.id).map((m) => m.story_id));
+    const stories = db.prepare(`${STORY_SELECT} ORDER BY s.updated_at DESC`).all().map(toStory).map((st) => (st.visibility !== 'private' || mine.has(st.id) ? st
+      : { ...st, title: 'Private story', summary: '', genre: '', icon: null, banner: null, contentWarnings: [], loreTagline: null, hidden: true }));
+    return { data: { stories } };
   });
 
   r.delete('/api/admin/stories/:id', ({ user, params }) => {
     requireAdmin(user);
     const s = db.prepare('SELECT * FROM stories WHERE id = ?').get(params.id) ?? fail(404, 'Story not found');
+    const inIt = db.prepare('SELECT 1 FROM story_members WHERE story_id = ? AND user_id = ?').get(s.id, user.id);
+    if (s.visibility === 'private' && !inIt) fail(404, 'Story not found'); // private stories are their owner's business
     hub.sendStory(s.id, 'story', { storyId: s.id });
     db.prepare('DELETE FROM stories WHERE id = ?').run(s.id);
     log(user.id, 'delete-story', `#${s.id} "${s.title}"`);

@@ -875,3 +875,36 @@ test('each writer can drag their stories into their own sidebar order', async ()
   assert.equal(after.at(-1), s2.id);
   assert.equal((await a('/api/home/order', { method: 'PUT', body: { storyIds: 'nope' } })).status, 400);
 });
+
+test('private stories stay private from admins until the owner adds them', async () => {
+  const owner = await app.signUp('private_owner');
+  const { story, main } = await makeStory(owner, { title: 'Secret Garden', visibility: 'private' });
+  const admin = app.admin;
+  // The admin can't open, find, delete or read anything in it.
+  assert.equal((await admin(`/api/stories/${story.id}`)).status, 404);
+  assert.equal((await admin(`/api/channels/${main.id}`)).status, 404);
+  assert.equal((await admin(`/api/stories/${story.id}/characters`)).status, 404);
+  const listed = (await admin('/api/admin/stories')).data.stories.find((s) => s.id === story.id);
+  assert.equal(listed.title, 'Private story');
+  assert.equal(listed.hidden, true);
+  assert.equal((await admin(`/api/admin/stories/${story.id}`, { method: 'DELETE' })).status, 404);
+  // Only the owner adds people, by username.
+  const adminName = (await admin('/api/me')).data.user.username;
+  const stranger = await app.signUp('private_stranger');
+  assert.equal((await stranger(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status, 404);
+  assert.equal((await owner(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: 'nobody_here' } })).status, 404);
+  const added = await owner(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: `@${adminName}` } });
+  assert.equal(added.status, 201, JSON.stringify(added.data));
+  assert.equal((await owner(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status, 400);
+  assert.equal((await admin(`/api/stories/${story.id}`)).status, 200);
+  assert.equal((await admin('/api/admin/stories')).data.stories.find((s) => s.id === story.id).title, 'Secret Garden');
+  assert.ok((await admin('/api/notifications')).data.notifications.some((n) => n.type === 'added' && n.url === `#/s/${story.id}`));
+});
+
+test('any channel can be deleted, even the last one', async () => {
+  const owner = await app.signUp('chan_deleter');
+  const { story, main, ooc } = await makeStory(owner);
+  assert.equal((await owner(`/api/channels/${ooc.id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await owner(`/api/channels/${main.id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await owner(`/api/stories/${story.id}`)).data.channels.length, 0);
+});

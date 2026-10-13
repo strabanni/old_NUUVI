@@ -487,8 +487,84 @@ export const icons = {
   card: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9.5" cy="11" r="2"/><path d="M6.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h3M14.5 13.5h3"/></svg>'),
   smartphone: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10.5 5.5h3M11 18.5h2"/></svg>'),
   book: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7.5h8M8 11h5"/></svg>'),
+  camera: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>'),
+  warning: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.3"/></svg>'),
   hourglass: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9"/></svg>'),
 };
+
+// The picture panel behind every + that adds pictures (Discord-style): it slides up from the
+// bottom with a camera tile and your recent pictures (tap to pick, then Add), and a bar of buttons
+// underneath: Photos (your device's library), Link (a picture or GIF from the web), plus anything
+// the chat box adds (content warning, formatting…). Browsers can't show a phone's camera roll
+// directly, so the grid shows pictures you've already put on NUUVI.
+export function attachSheet({ max = 10, onPictures, extras = [] } = {}) {
+  document.querySelector('dialog.sheet')?.remove();
+  const d = document.createElement('dialog');
+  d.className = 'sheet';
+  document.body.append(d);
+  let recent = null;
+  const chosen = [];
+  const close = () => { d.classList.add('closing'); setTimeout(() => { d.close(); d.remove(); }, 180); };
+  const fileInput = (capture) => {
+    const f = document.createElement('input');
+    f.type = 'file'; f.accept = 'image/*'; f.hidden = true;
+    if (capture) f.setAttribute('capture', 'environment'); else f.multiple = true;
+    f.addEventListener('change', async () => {
+      const files = [...f.files].slice(0, max);
+      close();
+      if (!files.length) return;
+      toast(files.length > 1 ? `Uploading ${files.length} pictures…` : 'Uploading…');
+      const urls = [];
+      for (const file of files) { try { urls.push(await uploadImage(file, 1600)); } catch (err) { toast(err.message); } }
+      if (urls.length) onPictures(urls);
+    });
+    d.append(f);
+    return f;
+  };
+  const draw = () => {
+    render(d, html`<div class="sheet-panel">
+      <div class="sheet-grip" aria-hidden="true"></div>
+      <div class="sheet-head"><b>${chosen.length ? `${chosen.length} picked` : 'Add pictures'}</b>
+        ${chosen.length ? html`<button type="button" class="primary sm" data-add>Add ${chosen.length}</button>` : html`<button type="button" class="icon-btn sm" data-x aria-label="Close">✕</button>`}</div>
+      <div class="sheet-grid">
+        <button type="button" class="sheet-tile sheet-cam" data-cam aria-label="Take a photo">${icons.camera}</button>
+        ${recent === null ? [0, 1, 2, 3, 4, 5, 6].map(() => html`<span class="sheet-tile sheet-wait"></span>`)
+          : recent.map((u) => { const n = chosen.indexOf(u) + 1; return html`<button type="button" class="sheet-tile sheet-pic ${n ? 'on' : ''}" data-pic="${u}" aria-pressed="${!!n}"><img src="${u}" alt="" loading="lazy"><span class="sheet-check">${n || ''}</span></button>`; })}
+        ${recent && !recent.length ? html`<p class="sheet-empty">Pictures you put on NUUVI show up here. Tap <b>Photos</b> to choose from your device.</p>` : ''}
+      </div>
+      <nav class="sheet-bar">
+        <button type="button" data-photos>${icons.image}<span>Photos</span></button>
+        <button type="button" data-link>${icons.link}<span>Link / GIF</span></button>
+        ${extras.filter(Boolean).map((x, i) => html`<button type="button" data-extra="${i}">${x.icon || icons.more}<span>${x.label}</span></button>`)}
+      </nav>
+    </div>`);
+  };
+  draw();
+  d.showModal();
+  api('/api/uploads/recent').then((r) => { recent = r.pictures; if (d.isConnected) draw(); }).catch(() => { recent = []; if (d.isConnected) draw(); });
+  const list = extras.filter(Boolean);
+  d.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
+  d.addEventListener('click', async (e) => {
+    if (e.target === d || e.target.closest('[data-x]')) return close();
+    const pic = e.target.closest('[data-pic]');
+    if (pic) {
+      const i = chosen.indexOf(pic.dataset.pic);
+      if (i >= 0) chosen.splice(i, 1); else if (chosen.length < max) chosen.push(pic.dataset.pic); else toast(`Up to ${max} pictures`);
+      return draw();
+    }
+    if (e.target.closest('[data-add]')) { const urls = [...chosen]; close(); return onPictures(urls); }
+    if (e.target.closest('[data-cam]')) return fileInput(true).click();
+    if (e.target.closest('[data-photos]')) return fileInput(false).click();
+    if (e.target.closest('[data-link]')) { close(); const u = await askImageLink(); if (u) onPictures([u]); return; }
+    const x = e.target.closest('[data-extra]');
+    if (x) { close(); list[Number(x.dataset.extra)].action(); }
+  });
+  // Swipe the panel down to close it.
+  let y0 = null;
+  d.addEventListener('touchstart', (e) => { y0 = e.target.closest('.sheet-grip, .sheet-head') ? e.touches[0].clientY : null; }, { passive: true });
+  d.addEventListener('touchmove', (e) => { if (y0 !== null && e.touches[0].clientY - y0 > 70) { y0 = null; close(); } }, { passive: true });
+  return { close };
+}
 
 // Instead of uploading, use a picture that's already online (Pinterest, Tumblr, Imgur…).
 // Note: the site hosting the picture can see the addresses of people who view it.

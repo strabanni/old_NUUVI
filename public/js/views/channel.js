@@ -1,7 +1,7 @@
 // A channel inside a story: the post feed, turn order bar and composer.
 import {
   html, raw, esc, render, applyColors, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
-  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr,
+  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr, attachSheet,
 } from '../lib.js';
 import {
   state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon,
@@ -69,7 +69,13 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   if (!channelIdStr) {
     const last = Number(store.get(`nuuvi:last-channel:${storyId}`));
     const target = s.channels.find((c) => c.id === last) ?? s.channels[0];
-    return location.replace(`#/s/${storyId}/${target.id}`);
+    if (target) return location.replace(`#/s/${storyId}/${target.id}`);
+    // Every channel was deleted: an empty story with a way to start again.
+    const body = page({ alive, title: s.story.title, subtitle: 'No channels yet', body: html`<div class="empty-story">
+      ${icons.episode}<h2>Nothing here yet</h2><p class="muted">This story has no channels or episodes.</p>
+      ${s.role ? html`<button class="primary" id="es-new">Start an episode</button>` : ''}</div>` });
+    $('#es-new', body)?.addEventListener('click', () => openThreadForm({ storyId }));
+    return;
   }
   const channelId = Number(channelIdStr);
   const channel = () => state.story.channels.find((c) => c.id === channelId);
@@ -529,24 +535,6 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       if (rm) { attached.splice(Number(rm.dataset.unattach), 1); drawExtra(); }
     });
     startReply = (p) => { replying = p; drawExtra(); ta.focus(); };
-    const picker = document.createElement('input');
-    picker.type = 'file';
-    picker.accept = 'image/*';
-    picker.multiple = true;
-    picker.hidden = true;
-    form.append(picker);
-    picker.addEventListener('change', async () => {
-      for (const f of [...picker.files].slice(0, 10 - attached.length)) {
-        try { toast('Uploading…'); attached.push(await uploadImage(f, 1600)); } catch (err) { toast(err.message); }
-      }
-      picker.value = '';
-      drawExtra();
-    });
-    const addPictureLink = async () => {
-      const url = await askImageLink();
-      if (url) { attached.push(url); drawExtra(); }
-    };
-
     function drawIdentity() {
       const ch = identity.startsWith('c:') ? characters.find((x) => `c:${x.id}` === identity) : null;
       render(idBtn, ch
@@ -605,14 +593,19 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     cwChip.addEventListener('click', () => { cw = ''; cwChip.hidden = true; });
 
     const moreBtn = $('#more-btn', form);
-    moreBtn.addEventListener('click', () => menu(moreBtn, [
-      attached.length < 10 && { label: 'Add pictures…', action: () => picker.click() },
-      attached.length < 10 && { label: 'Add a picture link…', action: addPictureLink },
-      { label: `${cw ? 'Change' : 'Add'} content warning`, action: askCw },
-      detail.canManage && channel().kind !== 'ooc' && { label: 'Episode details…', action: editThread },
-      channel().kind === 'comms' && { label: 'Contact names…', action: editContacts },
-      { label: 'Formatting guide', action: formattingGuide },
-    ]));
+    moreBtn.addEventListener('click', () => {
+      if (attached.length >= 10) toast('Up to 10 pictures per post');
+      attachSheet({
+        max: Math.max(0, 10 - attached.length),
+        onPictures: (urls) => { attached.push(...urls.slice(0, 10 - attached.length)); drawExtra(); ta.focus(); },
+        extras: [
+          { label: cw ? 'Change warning' : 'Warning', icon: icons.warning, action: askCw },
+          detail.canManage && channel().kind !== 'ooc' && { label: 'Episode', icon: icons.episode, action: editThread },
+          channel().kind === 'comms' && { label: 'Contacts', icon: icons.users, action: editContacts },
+          { label: 'Formatting', icon: icons.text, action: formattingGuide },
+        ],
+      });
+    });
 
     async function sendPost(payload) {
       const { post } = await api(`/api/channels/${channelId}/posts`, { method: 'POST', body: payload });

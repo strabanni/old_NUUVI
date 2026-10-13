@@ -105,7 +105,10 @@ export function socialRoutes(r, ctx) {
       WHERE (c.bot IS NULL OR c.bot != 'gossip')
         AND (c.npc = 1 OR EXISTS (SELECT 1 FROM story_members m WHERE m.user_id = c.user_id AND m.story_id = ?))
       ORDER BY c.npc, c.name COLLATE NOCASE`).all(params.id);
-    if (!db.prepare('SELECT 1 FROM story_members WHERE story_id = ? AND user_id = ?').get(params.id, user.id) && !user.isAdmin) fail(404, 'Story not found');
+    // Members only (admins too, for public stories; private stories are members only, admins included).
+    const st = db.prepare('SELECT visibility FROM stories WHERE id = ?').get(params.id);
+    const member = db.prepare('SELECT 1 FROM story_members WHERE story_id = ? AND user_id = ?').get(params.id, user.id);
+    if (!st || (!member && !(user.isAdmin && st.visibility === 'public'))) fail(404, 'Story not found');
     return { data: { characters: rows.map((c) => ({ ...toCharacter(c), ownerName: c.owner_name })) } };
   });
 }

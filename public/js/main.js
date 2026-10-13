@@ -625,6 +625,16 @@ document.addEventListener('contextmenu', async (e) => {
     menu(chan, [
       { label: 'Open', action: () => { location.hash = chan.getAttribute('href'); } },
       mineToManage && { label: 'Edit episode', action: () => openThreadForm({ storyId: state.story.story.id, channel: c }) },
+      mineToManage && { label: 'Delete', danger: true, action: async () => {
+        if (!(await confirmModal(`Delete "${c.name}" and every post in it?`, { ok: 'Delete', danger: true }))) return;
+        try {
+          await api(`/api/channels/${c.id}`, { method: 'DELETE' });
+          const sid = state.story.story.id;
+          await loadStory(sid);
+          renderSidebar();
+          if (state.route.channelId === c.id) location.hash = `#/s/${sid}`;
+        } catch (err) { toast(err.message); }
+      } },
       { label: 'Copy link', action: () => copyText(`${location.origin}/${chan.getAttribute('href')}`, 'Link copied') },
     ]);
     return;

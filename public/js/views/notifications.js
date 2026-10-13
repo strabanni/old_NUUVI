@@ -11,6 +11,7 @@ function describe(n) {
     case 'follow': return html`<strong>${n.text}</strong>`;
     case 'tag': return html`<strong>${n.actor?.displayName}</strong> tagged your character in ${where}`;
     case 'reply': return html`<strong>${n.actor?.displayName}</strong> replied to you in ${where}`;
+    case 'added': return html`<strong>${n.actor?.displayName}</strong> added you to <strong>${n.story?.title}</strong>`;
     case 'dm': return html`<strong>${n.count > 1 ? `${n.count} new texts` : 'New text'}</strong>`;
     default: return n.text;
   }
@@ -60,7 +61,7 @@ export async function viewNotifications() {
         <span class="notif-icon">${iconFor(n)}</span>
         <span class="grow">
           <span>${describe(n)}</span>
-          ${n.text && !['report', 'follow', 'tag'].includes(n.type) ? html`<span class="notif-text">${n.text}</span>` : ''}
+          ${n.text && !['report', 'follow', 'tag', 'added'].includes(n.type) ? html`<span class="notif-text">${n.text}</span>` : ''}
         </span>
         <span class="notif-when">${timeAgo(n.createdAt)}</span>
       </a>`)}</div>`

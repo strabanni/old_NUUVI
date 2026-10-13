@@ -196,7 +196,7 @@ export function storyFields(s = {}) {
         </select></div>
       <div><label for="visibility">Who can see it</label>
         <select id="visibility" name="visibility">
-          <option value="private" ${s.visibility !== 'public' ? 'selected' : ''}>Private — invite only</option>
+          <option value="private" ${s.visibility !== 'public' ? 'selected' : ''}>Private — only writers you add (admins too)</option>
           <option value="public" ${s.visibility === 'public' ? 'selected' : ''}>Public — listed in Discover</option>
         </select></div>
     </div>

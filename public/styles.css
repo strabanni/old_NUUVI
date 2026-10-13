@@ -2557,3 +2557,46 @@ img.fx-img, .b-pics img { cursor: zoom-in; }
 .rail.sorting { cursor: grabbing; }
 .rail.sorting .rail-item[data-story-id] { transition: border-radius .2s, box-shadow .2s; }
 .rail-item.dragging { z-index: 5; cursor: grabbing; border-radius: 17px; box-shadow: 0 10px 26px rgb(0 0 0 / .28), 0 0 0 2px var(--accent); opacity: .95; }
+/* Picture panel behind the + buttons (Discord-style): slides up from the bottom. */
+dialog.sheet { position: fixed; inset: auto 0 0 0; margin: 0 auto; width: 100%; max-width: 620px; max-height: min(78dvh, 720px);
+  padding: 0; border: 0; background: transparent; color: var(--text); overflow: visible; }
+dialog.sheet::backdrop { background: rgb(0 0 0 / .35); }
+dialog.sheet[open] { animation: sheet-up .26s var(--ease, cubic-bezier(.2, .8, .2, 1)); } /* on the dialog: picking re-draws the panel */
+dialog.sheet.closing { transform: translateY(100%); transition: transform .18s ease-in; }
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-panel { position: relative; display: flex; flex-direction: column; max-height: inherit; background: var(--glass-solid);
+  border-radius: 26px 26px 0 0; box-shadow: 0 -10px 40px rgb(0 0 0 / .18); padding-bottom: calc(var(--sab, 0px) + 10px); }
+.sheet-grip { width: 42px; height: 5px; border-radius: 3px; background: var(--glass-3, rgb(127 127 127 / .35)); margin: 9px auto 2px; flex: none; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 16px 10px; flex: none; }
+.sheet-head b { font-size: .95rem; }
+.sheet-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 0 8px 96px; overflow-y: auto; overscroll-behavior: contain; min-height: 220px; }
+@media (min-width: 700px) { .sheet-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.sheet-tile { position: relative; aspect-ratio: 1; border: 0; padding: 0; border-radius: 10px; overflow: hidden; background: var(--glass-2); color: var(--text); cursor: pointer; }
+.sheet-tile:first-child { border-top-left-radius: 18px; }
+.sheet-tile:nth-child(4) { border-top-right-radius: 18px; }
+@media (min-width: 700px) { .sheet-tile:nth-child(4) { border-top-right-radius: 10px; } .sheet-tile:nth-child(5) { border-top-right-radius: 18px; } }
+.sheet-cam { display: grid; place-items: center; }
+.sheet-cam svg { width: 34px; height: 34px; }
+.sheet-pic img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .15s; }
+.sheet-pic.on img { transform: scale(.9); border-radius: 8px; }
+.sheet-check { position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff;
+  background: rgb(0 0 0 / .25); color: #fff; font: 700 .72rem/18px var(--sans, inherit); text-align: center; box-shadow: 0 1px 4px rgb(0 0 0 / .3); }
+.sheet-pic.on .sheet-check { background: var(--accent-strong, #EE719E); }
+.sheet-wait { cursor: default; animation: sheet-wait 1.2s ease-in-out infinite alternate; }
+@keyframes sheet-wait { from { opacity: .45; } to { opacity: .9; } }
+.sheet-empty { grid-column: 2 / -1; align-self: center; margin: 0; padding: 0 10px; color: var(--muted); font-size: .85rem; line-height: 1.45; }
+.sheet-bar { position: absolute; left: 50%; bottom: calc(var(--sab, 0px) + 14px); transform: translateX(-50%); width: calc(100% - 28px); max-width: 520px;
+  display: flex; justify-content: space-around; gap: 4px; padding: 10px 8px 8px; border-radius: 26px; background: var(--glass-solid);
+  border: 1px solid var(--glass-border); box-shadow: 0 8px 30px rgb(0 0 0 / .18); }
+.sheet-bar button { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 4px 2px; border: 0; background: none;
+  color: var(--text); font-size: .74rem; border-radius: 14px; cursor: pointer; }
+.sheet-bar button:hover { background: var(--glass-2); }
+.sheet-bar svg { width: 26px; height: 26px; }
+.sheet-bar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* A story whose channels have all been deleted. */
+.empty-story { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 18vh 20px; }
+.empty-story svg { width: 44px; height: 44px; color: var(--muted); }
+.empty-story h2 { margin: 6px 0 0; }
+/* Adding a writer by username in story settings. */
+.add-writer { display: flex; gap: 8px; margin: 8px 0 14px; }
+.add-writer input { flex: 1; min-width: 0; }

@@ -243,6 +243,15 @@ export function accountRoutes(r, ctx) {
     return { status: 201, data: { url: `/uploads/${name}` } };
   }, { raw: MAX_UPLOAD_BYTES });
 
+  // Your own recent pictures, newest first, for the picture panel behind every + button.
+  r.get('/api/uploads/recent', ({ user }) => {
+    requireUser(user);
+    const rows = db.prepare(`SELECT name FROM uploads WHERE user_id = ?
+      AND (name LIKE '%.png' OR name LIKE '%.jpg' OR name LIKE '%.webp' OR name LIKE '%.gif')
+      ORDER BY created_at DESC, rowid DESC LIMIT 60`).all(user.id);
+    return { data: { pictures: rows.map((r) => `/uploads/${r.name}`) } };
+  });
+
   // ---------- Notifications ----------
   r.get('/api/notifications', ({ user, query }) => {
     requireUser(user);

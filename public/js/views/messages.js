@@ -1,6 +1,6 @@
 // Messages: private, out-of-character conversations between writers (this replaced OOC channels).
 // Computers show the conversation list and the open conversation side by side; phones show one at a time.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, formatPost, uploadImage, askImageLink, userGrad } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, formatPost, userGrad, attachSheet } from '../lib.js';
 import { state, page, routeAlive, ensureAlive, onLeave, bus, refreshHome } from '../main.js';
 import { agoShort } from './social.js';
 
@@ -158,13 +158,6 @@ export async function viewMessages(userIdStr) {
     form.classList.remove('has-text');
     send({ body: text });
   });
-  $('#dm-attach', body).addEventListener('click', (e) => menu(e.currentTarget, [
-    { label: 'Upload a photo', action: () => {
-      const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*';
-      f.onchange = async () => { try { send({ media: [await uploadImage(f.files[0], 1600)] }); } catch (err) { toast(err.message); } };
-      f.click();
-    } },
-    { label: 'Photo or GIF link', action: async () => { const u = await askImageLink(); if (u) send({ media: [u] }); } },
-  ]));
+  $('#dm-attach', body).addEventListener('click', () => attachSheet({ onPictures: (urls) => send({ media: urls }) }));
   if (wide()) input.focus();
 }

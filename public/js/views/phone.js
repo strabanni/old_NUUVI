@@ -1,7 +1,7 @@
 // Phones: each character has one, with contacts and private one-to-one texts.
 // Styled after a modern messaging app: a soft gradient header, a contact strip and a chat list,
 // and conversations on a gradient with small frosted bubbles.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, promptModal, formatPost, uploadImage, askImageLink, plainText, applyColors, store } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, promptModal, formatPost, uploadImage, askImageLink, plainText, applyColors, store, attachSheet } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, onLeave, bus } from '../main.js';
 
 const lastKey = 'nuuvi:phone';
@@ -312,20 +312,10 @@ export async function viewPhoneThread(cidStr, tidStr) {
     }
   });
 
-  const picker = document.createElement('input');
-  picker.type = 'file'; picker.accept = 'image/*'; picker.multiple = true; picker.hidden = true;
-  form.append(picker);
-  picker.addEventListener('change', async () => {
-    for (const f of [...picker.files].slice(0, 10 - attached.length)) {
-      try { toast('Uploading…'); attached.push(await uploadImage(f, 1600)); } catch (err) { toast(err.message); }
-    }
-    picker.value = '';
-    drawExtra();
-  });
-  $('#ph-attach', body).addEventListener('click', (e) => menu(e.currentTarget, [
-    { label: 'Photo from your device', action: () => picker.click() },
-    { label: 'Photo link', action: async () => { const url = await askImageLink(); if (url) { attached.push(url); drawExtra(); } } },
-  ]));
+  $('#ph-attach', body).addEventListener('click', () => attachSheet({
+    max: Math.max(0, 10 - attached.length),
+    onPictures: (urls) => { attached.push(...urls.slice(0, 10 - attached.length)); drawExtra(); },
+  }));
   $('#ph-call', body).addEventListener('click', () => toast(`Calling ${thread.name}… 📞 (calls are just for the story)`));
 
   let sending = false;

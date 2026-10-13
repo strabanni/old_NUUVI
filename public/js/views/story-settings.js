@@ -59,6 +59,11 @@ export async function viewStorySettings(idStr) {
 
         <section class="card">
           <h2>Writers</h2>
+          <p class="muted small">${story.visibility === 'private' ? "This story is private: only the writers here can see it (admins too, unless you add them)." : 'Add someone straight in by their username.'}</p>
+          <form class="add-writer" id="add-writer">
+            <input name="username" placeholder="@username" autocomplete="off" aria-label="Username" required>
+            <button class="primary" type="submit">Add</button>
+          </form>
           <div id="member-list" class="stack"></div>
         </section>
 
@@ -203,6 +208,17 @@ export async function viewStorySettings(idStr) {
       </div>`)}`);
   }
   drawMembers();
+  $('#add-writer', body).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = e.target.username;
+    try {
+      const { member } = await api(`/api/stories/${id}/members`, { method: 'POST', body: { username: input.value } });
+      input.value = '';
+      toast(`${member.displayName} was added`);
+      await loadStory(id);
+      drawMembers();
+    } catch (err) { toast(err.message); }
+  });
   membersEl.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-kick]');
     if (!b) return;

@@ -205,9 +205,6 @@ export function threadRoutes(r, ctx) {
     requireUser(user);
     const { channel, role } = channelAccess(db, params.id, user);
     if (!canManage(channel, role, user)) fail(403, 'Only the thread starter or story owner can delete this');
-    if (db.prepare('SELECT COUNT(*) AS n FROM channels WHERE story_id = ?').get(channel.story_id).n <= 1) {
-      fail(400, 'A story needs at least one channel');
-    }
     db.prepare('DELETE FROM channels WHERE id = ?').run(channel.id);
     storyChanged(channel.story_id);
     return { data: { ok: true } };

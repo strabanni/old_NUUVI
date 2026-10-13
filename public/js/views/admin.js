@@ -165,12 +165,12 @@ async function invites(pane) {
 async function stories(pane) {
   const { stories: list } = await api('/api/admin/stories');
   render(pane, html`
-    <p class="small muted">Admins see titles only — private stories stay private. Reported posts show up under Reports.</p>
+    <p class="small muted">Private stories stay private, from admins too: unless you're in one, you only see that it exists and who owns it. Reported posts show up under Reports.</p>
     <div class="stack">${list.map((s) => html`
     <div class="row-item wrap" data-id="${s.id}">
-      <div class="grow"><strong>${s.title}</strong> <span class="tag">${s.visibility}</span>
+      <div class="grow"><strong class="${s.hidden ? 'muted' : ''}">${s.title}</strong> <span class="tag">${s.visibility}</span>
         <div class="small muted">by ${s.ownerName} · ${s.memberCount} writers · ${s.postCount} posts · updated ${timeAgo(s.updatedAt)}</div></div>
-      <button class="sm danger" data-act="delete">Delete</button>
+      ${s.hidden ? '' : html`<button class="sm danger" data-act="delete">Delete</button>`}
     </div>`)}</div>`);
   pane.onclick = async (e) => {
     const b = e.target.closest('[data-act="delete"]');

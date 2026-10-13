@@ -153,6 +153,7 @@ export function createApp({
     url: row.type === 'report' ? '#/admin' : row.type === 'dm' ? `#/phone/${row.character_id}` : row.social_id ? `#/p/${row.social_id}`
       : row.type === 'message' ? `#/messages/${row.actor_id}` : row.type === 'connection' ? '#/nu'
       : row.type === 'follow' && row.character_id ? `#/c/${row.character_id}`
+      : row.type === 'added' && row.story_id ? `#/s/${row.story_id}`
       : row.story_id && row.channel_id ? `#/s/${row.story_id}/${row.channel_id}` : '#/notifications',
   });
 
@@ -203,7 +204,8 @@ export function createApp({
       reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),
       message: () => ({ title: n.count > 1 ? `${n.count} messages from ${n.actor?.displayName}` : `Message from ${n.actor?.displayName}`, body: text }),
       connection: () => ({ title: 'Connection picked up', body: text }),
-    }[type]();
+      added: () => ({ title: `Added to ${n.story?.title ?? 'a story'}`, body: `${n.actor?.displayName} added you` }),
+    }[type]?.() ?? { title: 'NUUVI', body: text };
     // Phone/desktop pop-ups only when they're not actively using NUUVI.
     if (!hub.isActive(userId)) ctx.pusher.send(userId, { ...push, url: `/${n.url}`, tag: n.channel ? `channel-${n.channel.id}` : `n-${n.id}` });
   }

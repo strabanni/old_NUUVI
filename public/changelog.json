@@ -19,7 +19,11 @@
       "Fixed: saving a character without choosing bot or NPC now just keeps them in your cast. Character pictures beside episode posts are always cropped to fit. Typing in messages and chats on a phone no longer makes the screen jump.",
       "On phones, the reply and ••• buttons on messages now sit up by the name instead of on top of the words.",
       "Character pictures beside episode posts show on iPhones again.",
-      "Drag stories in the sidebar into your own order. On phones, hold a story and slide your finger. Your order is saved to your account."
+      "Drag stories in the sidebar into your own order. On phones, hold a story and slide your finger. Your order is saved to your account.",
+      "Private stories are private from admins too: unless you add them, other admins only see that a private story exists, and can't open or delete it.",
+      "Add writers to a story by username (Story settings → Writers).",
+      "Delete any channel, even the last one. Long-press or right-click a channel in the sidebar for Delete.",
+      "The + in chats opens a Discord-style picture panel: camera, your recent pictures, Photos, Link / GIF and more."
     ]
   },
   {
