@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-35",
+    "date": "2026-10-14",
+    "title": "Edit comments",
+    "items": [
+      "Your characters' comments on posts now have an Edit button: change the words or the date, then Save.",
+      "Anyone newly @tagged in the edit gets a notification."
+    ]
+  },
+  {
     "code": "NV-34",
     "date": "2026-10-14",
     "title": "Special characters in usernames",

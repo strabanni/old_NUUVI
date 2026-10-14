@@ -493,6 +493,20 @@ export function socialPostRoutes(r, ctx) {
     return { status: 201, data: { post: toSocial(load(row.id, user), user.id, { allComments: true }) } };
   });
 
+  // Your character's comment can be changed: the words, and its date.
+  r.put('/api/social/comments/:id', ({ user, body, params }) => {
+    requireUser(user);
+    const cm = db.prepare('SELECT sc.*, c.name AS c_name FROM social_comments sc JOIN characters c ON c.id = sc.character_id WHERE sc.id = ?').get(params.id);
+    if (!cm || cm.user_id !== user.id) fail(404, 'Comment not found');
+    const post = load(cm.post_id, user);
+    const text = body.body === undefined ? cm.body : str(body.body, 'Comment', { min: 1, max: 2000, required: true });
+    const postedAt = body.postedAt === undefined ? cm.created_at : whenInput(body.postedAt) ?? cm.created_at;
+    db.prepare('UPDATE social_comments SET body = ?, created_at = ? WHERE id = ?').run(text, postedAt, cm.id);
+    // Anyone newly @tagged by the edit hears about it (people tagged before don't hear twice).
+    notifyTags(user, { id: cm.character_id, name: cm.c_name }, post.id, text, 'comment', [post.user_id], cm.body);
+    return { data: { post: toSocial(load(post.id, user), user.id, { allComments: true }) } };
+  });
+
   r.delete('/api/social/comments/:id', ({ user, params }) => {
     requireUser(user);
     const cm = db.prepare('SELECT sc.*, p.user_id AS post_owner FROM social_comments sc JOIN social_posts p ON p.id = sc.post_id WHERE sc.id = ?').get(params.id);

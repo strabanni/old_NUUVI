@@ -104,3 +104,21 @@ test('fan usernames are a mix, not mostly Korean names', () => {
   const korean = names.filter((h) => /^(yuna|jae|dae|hyun|mina|yuri|roro|jiwoo|seo|minji|haru)/.test(h));
   assert.equal(korean.length, 0, korean.join(', '));
 });
+
+test('your character\'s comment can be edited (words and date); nobody else\'s', async () => {
+  const a = await app.signUp('comment_editor');
+  const b = await app.signUp('comment_other');
+  const ca = await mk(a, 'Rose');
+  const cb = await mk(b, 'Theo');
+  const p = (await b('/api/social', { method: 'POST', body: { characterId: cb.id, body: 'sunset' } })).data.post;
+  const after = (await a(`/api/social/${p.id}/comments`, { method: 'POST', body: { characterId: ca.id, body: 'so pretty' } })).data.post;
+  const cid = after.comments[0].id;
+  const edited = await a(`/api/social/comments/${cid}`, { method: 'PUT', body: { body: 'so pretty!! wish i was there', postedAt: '2025-03-01T18:00:00.000Z' } });
+  assert.equal(edited.status, 200, JSON.stringify(edited.data));
+  const cm = edited.data.post.comments.find((c) => c.id === cid);
+  assert.equal(cm.body, 'so pretty!! wish i was there');
+  assert.equal(cm.createdAt, '2025-03-01 18:00:00');
+  // The post's writer can delete it but not change the words.
+  assert.equal((await b(`/api/social/comments/${cid}`, { method: 'PUT', body: { body: 'hacked' } })).status, 404);
+  assert.equal((await a(`/api/social/comments/${cid}`, { method: 'PUT', body: { body: '' } })).status, 400);
+});

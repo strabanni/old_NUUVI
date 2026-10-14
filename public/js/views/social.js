@@ -748,6 +748,7 @@ export async function viewSocialPost(id) {
             ${c.likes ? html`<span>${c.likes.toLocaleString()} ${c.likes === 1 ? 'like' : 'likes'}</span>` : ''}
             ${mine.length ? html`<button type="button" class="link" data-reply="${ch ? c.id : ''}" data-handle="${ch ? (ch.handle || ch.name) : c.handle}">Reply</button>` : ''}
             ${looksForeign(c.body) ? html`<button type="button" class="link" data-tr>See translation</button>` : ''}
+            ${ch && c.userId === state.user.id ? html`<button type="button" class="link" data-edit="${c.id}">Edit</button>` : ''}
             ${canDelete ? html`<button type="button" class="link" data-del="${c.id}">Delete</button>` : ''}
           </div>
         </div>
@@ -798,6 +799,30 @@ export async function viewSocialPost(id) {
       tr.textContent = 'Translating…';
       const text = await translateText($('.cm-body', row).textContent);
       if (text) { out.textContent = text; out.hidden = false; tr.textContent = 'Hide translation'; } else tr.textContent = 'See translation';
+      return;
+    }
+    const ed = e.target.closest('[data-edit]');
+    if (ed) {
+      const c = posts.get(post.id)?.comments.find((x) => x.id === Number(ed.dataset.edit));
+      if (!c) return;
+      const updated = await modal(html`
+        <form class="social-form">
+          <span class="eyebrow">Edit comment</span>
+          <label for="ec-body">${c.character.name}'s comment</label>
+          <textarea id="ec-body" name="body" rows="3" maxlength="2000" required>${c.body}</textarea>
+          <label for="ec-when">Date</label>
+          <input id="ec-when" name="postedAt" type="datetime-local" value="${localInput(c.createdAt)}">
+          <div class="error"></div>
+          <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Save</button></div>
+        </form>`, {
+        init: (d) => { const f = $('#ec-body', d); mentionPicker(f); f.focus(); f.setSelectionRange(f.value.length, f.value.length); },
+        submit: async (data) => {
+          const payload = { body: data.body };
+          if (data.postedAt && data.postedAt !== localInput(c.createdAt)) payload.postedAt = new Date(data.postedAt).toISOString();
+          return (await api(`/api/social/comments/${c.id}`, { method: 'PUT', body: payload })).post;
+        },
+      });
+      if (updated) { draw(updated); toast('Comment saved'); }
       return;
     }
     const del = e.target.closest('[data-del]');
