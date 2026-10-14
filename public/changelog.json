@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-31",
+    "date": "2026-10-14",
+    "title": "Change pictures from the profile",
+    "items": [
+      "On your own character's profile, tap their profile picture or banner (look for the little camera) to change it.",
+      "No banner yet? Tap the empty space at the top to add one. The banner menu also has Remove banner."
+    ]
+  },
+  {
     "code": "NV-30",
     "date": "2026-10-14",
     "title": "Location photos",

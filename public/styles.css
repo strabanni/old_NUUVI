@@ -3065,3 +3065,14 @@ a.hashtag:hover { text-decoration: underline; }
 .pl-gal .pl-move button { position: static; pointer-events: auto; width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; background: rgb(0 0 0 / .6); color: #fff; }
 .pl-gal .pl-move button[data-to]:only-child:not(:first-child) { margin-left: auto; }
 .place-card .cc-name { white-space: normal; text-align: center; line-height: 1.15; padding: 0 12px; overflow-wrap: anywhere; }
+
+/* NV-31: change a character's picture or banner from their profile */
+button.ig-avatar.own, button.ig-banner.own { position: relative; display: block; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+button.ig-banner.own { width: calc(100% + 48px); border: 0; border-radius: 0; }
+button.ig-banner.own.empty { height: 120px; background: linear-gradient(135deg, rgb(238 113 158 / .18), rgb(199 154 216 / .18)); }
+.ig-cam { position: absolute; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: rgb(0 0 0 / .55); color: #fff;
+  font: 600 .74rem var(--display); backdrop-filter: blur(6px); opacity: .9; transition: opacity .2s, transform .2s; pointer-events: none; }
+.ig-cam svg { width: 15px; height: 15px; }
+button.ig-banner.own .ig-cam { right: 16px; bottom: 14px; }
+button.ig-avatar.own .ig-cam { right: 6px; bottom: 6px; padding: 7px; }
+button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity: 1; transform: scale(1.05); }

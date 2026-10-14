@@ -1,4 +1,4 @@
-import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, BRAND_GRADIENT, GRADIENT_PRESETS } from '../lib.js';
+import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, attachSheet, BRAND_GRADIENT, GRADIENT_PRESETS } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
@@ -282,10 +282,13 @@ export async function viewCharacter(id) {
     subtitle: c.tagline,
     actions: html`<button class="icon-btn" id="char-more" aria-label="More">${icons.more}</button>`,
     body: html`
-      ${c.banner ? html`<div class="ig-banner"><img src="${c.banner}" alt=""></div>` : ''}
+      ${own ? html`<button type="button" class="ig-banner own ${c.banner ? '' : 'empty'}" id="pic-banner" aria-label="${c.banner ? 'Change the banner' : 'Add a banner'}">
+          ${c.banner ? html`<img src="${c.banner}" alt="">` : ''}<span class="ig-cam">${icons.camera}<span>${c.banner ? 'Change banner' : 'Add a banner'}</span></span></button>`
+        : c.banner ? html`<div class="ig-banner"><img src="${c.banner}" alt=""></div>` : ''}
       <article class="ig-profile ${c.banner ? 'has-banner' : ''}" data-color="${c.color}"${gradAttr(c)}>
         <header class="ig-head">
-          <span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>
+          ${own ? html`<button type="button" class="ig-avatar own" id="pic-avatar" aria-label="Change the profile picture">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}<span class="ig-cam">${icons.camera}</span></button>`
+            : html`<span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>`}
           <div class="ig-stats">
             <button type="button" data-tab-go="posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
             <button type="button" data-list="followers"><b>${compact(stats.followers)}</b><span>Followers</span></button>
@@ -368,6 +371,19 @@ export async function viewCharacter(id) {
     b.dataset.list === 'followers' ? `Following ${c.name}` : `${c.name} follows`, `/api/characters/${c.id}/${b.dataset.list}`,
   )));
   const reload = () => viewCharacter(id);
+  // Your own character: tap the profile picture or the banner to change it right here.
+  const changePic = (field, label) => attachSheet({
+    max: 1,
+    onPictures: async ([url]) => {
+      if (!url) return;
+      try { await api(`/api/characters/${c.id}`, { method: 'PUT', body: { [field]: url } }); toast(`${label} updated`); reload(); } catch (err) { toast(err.message); }
+    },
+    extras: [field === 'banner' && c.banner && { label: 'Remove banner', icon: icons.warning, action: async () => {
+      try { await api(`/api/characters/${c.id}`, { method: 'PUT', body: { banner: '' } }); toast('Banner removed'); reload(); } catch (err) { toast(err.message); }
+    } }],
+  });
+  $('#pic-avatar', body)?.addEventListener('click', () => changePic('avatar', 'Profile picture'));
+  $('#pic-banner', body)?.addEventListener('click', () => changePic('banner', 'Banner'));
   async function newPost() { if (await openSocialComposer({ characterId: c.id })) { tab = 'posts'; reload(); } }
   $('#new-post', body)?.addEventListener('click', newPost);
   $('#edit', body)?.addEventListener('click', async () => { if (await editCharacter(c)) { state.characters = null; reload(); } });
