@@ -409,10 +409,12 @@ export function socialPostRoutes(r, ctx) {
     const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(row.id);
     if (body.freshComments === true || contentChanged || postedAt !== row.created_at) {
-      newBuzz(fresh, commentsShown ? buzzTarget(commentsShown, row.c_followers) : have, row.c_followers);
+      // Same number as before: if the last set is still being written, the number it was writing.
+      const before = Math.max(have, ctx.aiBuzz?.pendingCount?.(row.id) ?? 0);
+      newBuzz(fresh, commentsShown ? buzzTarget(commentsShown, row.c_followers) : before, row.c_followers);
     } else if (commentsShown !== row.comments_display) {
       const want = buzzTarget(commentsShown, row.c_followers);
-      if (want !== have) newBuzz(fresh, want, row.c_followers);
+      if (want !== Math.max(have, ctx.aiBuzz?.pendingCount?.(row.id) ?? 0)) newBuzz(fresh, want, row.c_followers);
     }
     return { data: { post: toSocial(load(row.id, user), user.id, { allComments: true }) } };
   });

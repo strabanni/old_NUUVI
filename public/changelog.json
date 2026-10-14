@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-33",
+    "date": "2026-10-14",
+    "title": "No more doubled fan comments",
+    "items": [
+      "Editing a post again before its new fan comments arrived could bring back comments from the earlier version. Now only the newest version's comments ever show.",
+      "Fan comments written by Claude no longer repeat each other: each batch sees what's already been said, and near-copies (same words, different emojis) are dropped."
+    ]
+  },
+  {
     "code": "NV-32",
     "date": "2026-10-14",
     "title": "Fan comments that get it",

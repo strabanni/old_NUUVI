@@ -46,3 +46,37 @@ test('built-in fan comments use what the tagged person is to the poster', () => 
   assert.ok(!all.some((t) => /you and @hana are so cute|couple goals/.test(t)), 'no partner lines for an ex');
   assert.ok(!all.some((t) => /@hana (looks so good here|in the pics|photobombing)/.test(t)), 'never says an untagged-in-picture person is in it');
 });
+
+test('near-identical fan comments count as the same', async () => {
+  const { sameness } = await import('../server/ai-buzz.js');
+  assert.equal(sameness('omg the lighting!! 😍'), sameness('THE LIGHTING 😭'));
+  assert.equal(sameness('soooo pretty fr'), sameness('so pretty'));
+  assert.notEqual(sameness('love the jacket'), sameness('love the shoes'));
+});
+
+test('a quick second edit wins: the first edit\'s comments never land', async () => {
+  const client = { beta: { messages: { async create(req) {
+    await new Promise((r) => setTimeout(r, 150));
+    const all = req.messages[0].content.map((b) => b.text || '').join(' ');
+    const cap = all.match(/Caption: "([^"]*)"/)?.[1];
+    const n = Number(req.messages[0].content.at(-1).text.match(/exactly (\d+)/)[1]);
+    return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ scene: '', comments: Array.from({ length: n }, (_, i) => ({ handle: `f${i}`, text: `${cap} comment number ${i}`, mood: 'love' })) }) }] };
+  } } } };
+  const ai = await startApp({ ai: { client } });
+  try {
+    const w = await ai.signUp('quick_editor');
+    const c = (await w('/api/characters', { method: 'POST', body: { name: 'Jun', color: '#c97a96' } })).data.character;
+    // A famous character with an automatic comment number (8 fan comments).
+    await w(`/api/characters/${c.id}`, { method: 'PUT', body: { followersDisplay: 1000000 } });
+    const p = (await w('/api/social', { method: 'POST', body: { characterId: c.id, body: 'first' } })).data.post;
+    await w(`/api/social/${p.id}`, { method: 'PUT', body: { body: 'second', freshComments: true } });
+    await w(`/api/social/${p.id}`, { method: 'PUT', body: { body: 'third', freshComments: true } });
+    let post;
+    for (let i = 0; i < 100; i++) { post = (await w(`/api/social/${p.id}`)).data.post; if (!post.buzzPending) break; await new Promise((r) => setTimeout(r, 25)); }
+    await new Promise((r) => setTimeout(r, 400)); // let any older run finish
+    post = (await w(`/api/social/${p.id}`)).data.post;
+    assert.equal(post.buzz.length, 8);
+    assert.ok(post.buzz.every((b) => b.body.startsWith('third ')), JSON.stringify(post.buzz.map((b) => b.body)));
+    assert.equal(new Set(post.buzz.map((b) => b.body)).size, post.buzz.length);
+  } finally { ai.close(); }
+});

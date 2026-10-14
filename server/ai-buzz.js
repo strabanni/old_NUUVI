@@ -68,6 +68,12 @@ function taggedLines(tagged, people) {
   }).join('\n')}`;
 }
 
+// Two comments count as the same when only emojis, punctuation, capitals or little filler words differ.
+const FILLER = /\b(ok|okay|omg|ngl|lol|lmao|fr|tbh|istg|wait|honestly|lowkey|stop|girl|bro|so|sooo+|really|literally|just|the|a|an)\b/g;
+export function sameness(text) {
+  return String(text || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(FILLER, ' ').replace(/(.)\1{2,}/g, '$1$1').replace(/\s+/g, ' ').trim();
+}
+
 export function createAiBuzz({ db, hub, uploadDir, ai }) {
   const enabled = !!ai?.enabled;
   const runs = new Map(); // post id → the latest run (an edit while one is running replaces it)
@@ -120,23 +126,32 @@ export function createAiBuzz({ db, hub, uploadDir, ai }) {
   async function write(post, count) {
     const pictures = await pictureBlocks(post);
     const about = { type: 'text', text: describe(post) };
-    // The first batch looks at the pictures and says what's in them; the rest work from that note.
+    const seen = new Set();
+    const handles = new Set();
+    const comments = [];
+    const take = (list) => {
+      for (const c of list || []) {
+        const body = String(c.text || '').trim().slice(0, 300);
+        const key = sameness(body);
+        if (!body || !key || seen.has(key)) continue;
+        seen.add(key);
+        let handle = String(c.handle || '').replace(/[^\w.]/g, '').slice(0, 30) || 'fan';
+        while (handles.has(handle.toLowerCase())) handle = `${handle.slice(0, 27)}${Math.floor(Math.random() * 90) + 10}`;
+        handles.add(handle.toLowerCase());
+        comments.push({ handle, body, mood: c.mood });
+      }
+    };
+    // The first batch looks at the pictures and says what's in them; the rest work from that note,
+    // one after another, each told what's already been said so nothing gets said twice.
     const first = await ask([...pictures, about], Math.min(PER_CALL, count), ANGLES[0]);
     const scene = String(first.scene || '').slice(0, 600);
-    const more = [];
-    for (let left = count - first.comments.length, i = 1; left > 0; left -= PER_CALL, i++) {
-      const note = { type: 'text', text: scene ? `What's in the pictures: ${scene}` : 'There are no pictures.' };
-      more.push(ask([about, note], Math.min(PER_CALL, left), ANGLES[i % ANGLES.length]).catch(() => ({ comments: [] })));
-    }
-    const all = [first, ...(await Promise.all(more))].flatMap((r) => r.comments || []);
-    const seen = new Set();
-    const comments = [];
-    for (const c of all) {
-      const body = String(c.text || '').trim().slice(0, 300);
-      const key = body.toLowerCase();
-      if (!body || seen.has(key)) continue;
-      seen.add(key);
-      comments.push({ handle: String(c.handle || '').replace(/[^\w.]/g, '').slice(0, 30) || 'fan', body, mood: c.mood });
+    take(first.comments);
+    const note = { type: 'text', text: scene ? `What's in the pictures: ${scene}` : 'There are no pictures.' };
+    for (let i = 1, tries = 0; comments.length < count && tries < Math.ceil(count / PER_CALL) + 2; i++, tries++) {
+      const said = { type: 'text', text: `Already written (don't repeat these or say the same thing in other words):\n${comments.slice(-150).map((c) => `- ${c.body}`).join('\n')}` };
+      const more = await ask([about, note, said], Math.min(PER_CALL, count - comments.length), ANGLES[i % ANGLES.length]).catch(() => null);
+      if (!more) break;
+      take(more.comments);
     }
     return { comments: comments.slice(0, count), scene };
   }
@@ -144,11 +159,15 @@ export function createAiBuzz({ db, hub, uploadDir, ai }) {
   return {
     enabled,
     pending: (id) => runs.has(id),
+    // How many comments the run in progress is writing (0 when none is).
+    pendingCount: (id) => runs.get(id)?.count ?? 0,
     // Replaces a post's fan comments with `count` new ones (old ones go now). Returns the run.
     queue(post, count, { followers = 0 } = {}) {
       db.prepare('DELETE FROM social_buzz WHERE post_id = ?').run(post.id);
+      // Any run still writing for an older version of the post is dropped (its comments never land).
+      runs.delete(post.id);
       if (count <= 0) return null;
-      const token = {};
+      const token = { count };
       const run = (async () => {
         let result = null;
         try { result = await write(post, count); } catch (err) { console.error('AI comments failed, using the built-in writer:', err.message); }
