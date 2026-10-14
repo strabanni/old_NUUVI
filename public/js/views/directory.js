@@ -20,7 +20,8 @@ export async function viewDirectory() {
   let npcData = null;
   let npcTag = '';
   let placeData = null;
-  let placeTag = ''; // "b:<borough>" or "v:<venue>"
+  let placeTag = ''; // "b:<borough>"
+  let placeVenue = '';
 
   const body = page({
     alive,
@@ -87,41 +88,57 @@ export async function viewDirectory() {
               ${n.npcTags.map((t) => html`<button type="button" class="tag" data-tag="${t}">#${t}</button>`)}</div>
           </div>`)}</div>` : html`<div class="empty"><p>${npcs.length ? 'No NPCs match.' : 'No NPCs yet.'}</p></div>`}`);
     } else if (view === 'places') {
-      // Locations: places in Ardell City, with the borough and kind of venue as tags.
+      // Locations: the guide to Ardell City. The map on top, then the boroughs and their spots.
       if (!placeData) {
         render(list, html`<p class="muted small">Loading locations…</p>`);
         api('/api/places').then((r) => { placeData = r; if (view === 'places') draw(); }).catch(() => {});
         return;
       }
-      const { places, boroughs, venues } = placeData;
-      const [kind, value] = placeTag ? [placeTag[0], placeTag.slice(2)] : [null, null];
-      const shown = places.filter((p) => (!kind || (kind === 'b' ? p.borough === value : p.venue === value))
+      const { places, boroughs, venues, districts = [], intro } = placeData;
+      const borough = placeTag.startsWith('b:') ? placeTag.slice(2) : '';
+      const shown = places.filter((p) => (!borough || p.borough === borough) && (!placeVenue || p.venue === placeVenue)
         && match(p.name, p.borough, p.venue, p.description));
-      render(list, html`
-        <div id="city-map-box"></div>
-        <div class="npc-head"><div class="chips no-swipe"><button type="button" class="chip-btn" data-ptag="" aria-pressed="${!placeTag}">All places</button>
-          ${boroughs.map((b) => html`<button type="button" class="chip-btn" data-ptag="b:${b}" aria-pressed="${placeTag === `b:${b}`}">${icons.pin} ${b}</button>`)}
-          ${venues.map((v) => html`<button type="button" class="chip-btn" data-ptag="v:${v}" aria-pressed="${placeTag === `v:${v}`}">#${v}</button>`)}</div>
-          <button type="button" class="primary sm" id="new-place">${icons.plus} Add a location</button></div>
-        <p class="hint">Places in Ardell City for everyone's stories. Anyone can add one and pin it on the map. Characters show up on the map where their open episode is set (tag the episode's location, or move the scene with the Location button).</p>
-        ${placeTag ? html`<h2 class="cat-title"><span>${value}</span><small>${shown.length} ${shown.length === 1 ? 'place' : 'places'}</small></h2>` : ''}
-        ${shown.length ? html`<div class="char-grid npc-grid">${shown.map((p) => html`
+      const about = districts.find((d) => d.name === borough);
+      const card = (p) => html`
           <div class="npc-item">
             <button type="button" class="char-card place-card" data-place="${p.id}" data-color="#C79AD8">
               ${p.picture ? html`<img src="${p.picture}" alt="" loading="lazy">` : html`<span class="initial">${icons.pin}</span>`}
               <span class="cc-top">${p.venue ? html`<span class="cc-badge">${p.venue}</span>` : ''}<span class="cc-name">${p.name}</span></span>
-              <span class="cc-glass"><span class="cc-who"><b>${p.name}</b>${p.borough ? html`<small>${p.borough}</small>` : ''}</span><span class="cc-btn">${p.here.length ? html`<span class="cm-live"></span> ${p.here.length} here` : 'View'}</span></span>
+              <span class="cc-glass"><span class="cc-who"><b>${p.name}</b><small>${[p.borough, p.price].filter(Boolean).join(' · ')}</small></span><span class="cc-btn">${p.here.length ? html`<span class="cm-live"></span> ${p.here.length} here` : 'View'}</span></span>
             </button>
             <div class="npc-meta">${p.borough ? html`<button type="button" class="tag" data-ptag="b:${p.borough}">${icons.pin} ${p.borough}</button>` : ''}
-              ${p.venue ? html`<button type="button" class="tag" data-ptag="v:${p.venue}">#${p.venue}</button>` : ''}
+              ${p.venue ? html`<button type="button" class="tag" data-pvenue="${p.venue}">#${p.venue}</button>` : ''}
               ${p.lat == null ? html`<span class="cm-unpinned">· not on the map yet</span>` : ''}</div>
-          </div>`)}</div>` : html`<div class="empty"><p>${places.length ? 'No places match.' : 'No locations yet. Add the first one!'}</p></div>`}`);
-      // The map, with the places shown by the filter.
-      mountCityMap($('#city-map-box', list), { ...placeData, places: shown }, {
+          </div>`;
+      // With no borough picked, the spots are grouped by borough (Ardell City's own five first).
+      const groups = borough ? [[borough, shown]] : boroughs.map((b) => [b, shown.filter((p) => p.borough === b)]).concat([['Elsewhere', shown.filter((p) => !p.borough)]]).filter(([, l]) => l.length);
+      render(list, html`
+        ${intro ? html`<section class="ardell-intro">
+          <span class="eyebrow">Ardell City</span>
+          <h2>${intro.title}</h2>
+          <p class="ardell-tag">${intro.tagline}</p>
+          <div class="body prose">${formatPost(intro.body)}</div>
+          <p class="hint">${intro.note}</p>
+        </section>` : ''}
+        <div id="city-map-box"></div>
+        <div class="npc-head"><div class="chips no-swipe"><button type="button" class="chip-btn" data-ptag="" aria-pressed="${!borough}">All of Ardell City</button>
+          ${boroughs.map((b) => html`<button type="button" class="chip-btn" data-ptag="b:${b}" aria-pressed="${borough === b}">${icons.pin} ${b}</button>`)}</div>
+          <span class="row-inline"><select id="place-venue" aria-label="Kind of place"><option value="">Every kind of place</option>${venues.map((v) => html`<option value="${v}" ${v === placeVenue ? 'selected' : ''}>${v}</option>`)}</select>
+          <button type="button" class="primary sm" id="new-place">${icons.plus} Add a location</button></span></div>
+        ${about ? html`<section class="borough-card"><h2>${about.name}</h2><p>${about.blurb}</p></section>` : ''}
+        <p class="hint">Characters show up on the map where their open episode is set: tag the episode's location, or move the scene with the Location button.</p>
+        ${groups.length ? groups.map(([name, list2]) => html`
+          <h2 class="cat-title"><span>${name}</span><small>${list2.length} ${list2.length === 1 ? 'place' : 'places'}</small></h2>
+          <div class="char-grid npc-grid">${list2.map(card)}</div>`)
+          : html`<div class="empty"><p>${places.length ? 'No places match.' : 'No locations yet. Add the first one!'}</p></div>`}`);
+      $('#place-venue', list).addEventListener('change', (e) => { placeVenue = e.target.value; draw(); });
+      // The map, with the places shown by the filter, and the boroughs' names.
+      mountCityMap($('#city-map-box', list), { ...placeData, places: shown, districts }, {
+        focus: about ? { lat: about.lat, lng: about.lng } : null,
         onPlace: (p) => {
-          const card = $('#cm-card', list);
-          render(card, placeCard(p, { canEdit: p.owner.id === state.user.id || state.user.isAdmin }));
-          card.hidden = false;
+          const cardBox = $('#cm-card', list);
+          render(cardBox, placeCard(p, { canEdit: p.owner.id === state.user.id || state.user.isAdmin }));
+          cardBox.hidden = false;
         },
       });
     } else {
@@ -143,6 +160,8 @@ export async function viewDirectory() {
   body.addEventListener('click', async (e) => {
     const pt = e.target.closest('[data-ptag]');
     if (pt && view === 'places') { placeTag = pt.dataset.ptag === placeTag ? '' : pt.dataset.ptag; draw(); return; }
+    const pv = e.target.closest('[data-pvenue]');
+    if (pv && view === 'places') { placeVenue = pv.dataset.pvenue === placeVenue ? '' : pv.dataset.pvenue; draw(); return; }
     if (e.target.closest('#new-place')) { if (await editPlace({}, placeData)) { placeData = null; forgetLocations(); draw(); } return; }
     if (e.target.closest('[data-close-card]')) { $('#cm-card', list).hidden = true; return; }
     const ep = e.target.closest('[data-edit-place]');
@@ -183,6 +202,12 @@ async function showPlace(p, data) {
     <h2>${p.name}</h2>
     <div class="npc-meta">${p.borough ? html`<span class="tag">${icons.pin} ${p.borough}</span>` : ''}${p.venue ? html`<span class="tag">#${p.venue}</span>` : ''}</div>
     ${p.description ? html`<div class="body prose">${formatPost(p.description)}</div>` : ''}
+    ${p.venue || p.hours || p.price || p.since ? html`<dl class="place-facts">
+      ${p.venue ? html`<div><dt>Lot type</dt><dd>${p.venue}</dd></div>` : ''}
+      ${p.hours ? html`<div><dt>Hours</dt><dd>${p.hours}</dd></div>` : ''}
+      ${p.price ? html`<div><dt>Expense range</dt><dd>${p.price}</dd></div>` : ''}
+      ${p.since ? html`<div><dt>Since</dt><dd>${p.since}</dd></div>` : ''}
+    </dl>` : ''}
     ${p.here?.length ? html`<div class="cm-here"><span class="cm-live"></span><span>Here now</span></div>
       <div class="cm-here-list">${p.here.map((c) => html`<a href="#/s/${c.episode.storyId}/${c.episode.id}" data-close>${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}<span><b>${c.name}</b><small>${c.episode.name}</small></span></a>`)}</div>` : ''}
     <p class="muted small">Added by @${p.owner.username}${p.lat == null ? ' · not on the map yet' : ''}</p>
@@ -215,7 +240,12 @@ async function editPlace(p, data) {
     <label for="pl-name">Name</label><input id="pl-name" name="name" required maxlength="80" value="${p.name || ''}" placeholder="The Velvet Room">
     <div class="row">
       <div><label for="pl-borough">Borough</label><input id="pl-borough" name="borough" maxlength="40" list="pl-boroughs" value="${p.borough || ''}" placeholder="Where in Ardell City"></div>
-      <div><label for="pl-venue">Type of venue</label><input id="pl-venue" name="venue" maxlength="40" list="pl-venues" value="${p.venue || ''}" placeholder="Bar, club, café…"></div>
+      <div><label for="pl-venue">Lot type</label><input id="pl-venue" name="venue" maxlength="60" list="pl-venues" value="${p.venue || ''}" placeholder="bar, nightclub, café…"></div>
+    </div>
+    <div class="row">
+      <div><label for="pl-hours">Hours</label><input id="pl-hours" name="hours" maxlength="80" value="${p.hours || ''}" placeholder="9:00 pm – 3:00 am"></div>
+      <div><label for="pl-price">Expense range</label><input id="pl-price" name="price" maxlength="80" value="${p.price || ''}" placeholder="$30 – $90"></div>
+      <div><label for="pl-since">Since</label><input id="pl-since" name="since" maxlength="60" value="${p.since || ''}" placeholder="est. 2021"></div>
     </div>
     <datalist id="pl-boroughs">${(data?.boroughs || []).map((b) => html`<option value="${b}"></option>`)}</datalist>
     <datalist id="pl-venues">${[...new Set([...(data?.venues || []), ...VENUES])].map((v) => html`<option value="${v}"></option>`)}</datalist>

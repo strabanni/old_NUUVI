@@ -60,7 +60,7 @@ function nightMode(map) {
 
 // Draws the map into `el`. `onPlace(place)` runs when a pin is tapped; in pick mode `onPick(lat, lng)`
 // runs when the map is tapped.
-export function mountCityMap(el, data, { onPlace = null, pick = false, onPick = null, pin = null } = {}) {
+export function mountCityMap(el, data, { onPlace = null, pick = false, onPick = null, pin = null, focus = null } = {}) {
   dropMap(el);
   const pinned = (data.places || []).filter((p) => p.lat != null && p.lng != null);
   const out = pinned.reduce((n, p) => n + p.here.length, 0);
@@ -83,7 +83,7 @@ export function mountCityMap(el, data, { onPlace = null, pick = false, onPick = 
   };
   loadMapLibre().then((ml) => {
     if (!el.isConnected || fellBack) return;
-    const start = pin ? { ...HOME, center: [pin.lng, pin.lat], zoom: 14.5 } : HOME;
+    const start = pin ? { ...HOME, center: [pin.lng, pin.lat], zoom: 14.5 } : focus ? { ...HOME, center: [focus.lng, focus.lat], zoom: 12.3 } : HOME;
     const map = new ml.Map({ container: box, style: STYLE, ...start, maxBounds: BOUNDS, minZoom: 9.5, maxZoom: 18.5, attributionControl: { compact: true } });
     el._map = map;
     map.addControl(new ml.NavigationControl({ visualizePitch: true }), 'top-right');
@@ -100,6 +100,15 @@ export function mountCityMap(el, data, { onPlace = null, pick = false, onPick = 
     requestAnimationFrame(() => map.resize());
     // 3D: tilt to see the buildings, or lie flat.
     $('#cm-3d', el).addEventListener('click', () => map.easeTo({ pitch: map.getPitch() > 5 ? 0 : 55, duration: 600 }));
+
+    // Ardell City's borough names, where the real ones would be.
+    for (const d of data.districts || []) {
+      if (d.lat == null || d.lng == null) continue;
+      const label = document.createElement('span');
+      label.className = 'ml-borough';
+      label.textContent = d.name;
+      new ml.Marker({ element: label, anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(map);
+    }
 
     if (pick) {
       let marker = pin ? new ml.Marker({ color: '#C79AD8' }).setLngLat([pin.lng, pin.lat]).addTo(map) : null;
@@ -120,8 +129,8 @@ export function mountCityMap(el, data, { onPlace = null, pick = false, onPick = 
       node.addEventListener('click', (e) => { e.stopPropagation(); onPlace?.(p, node); map.easeTo({ center: [p.lng, p.lat], duration: 500 }); });
       new ml.Marker({ element: node, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(map);
     }
-    // Start framed on the places (when there are a few spread out).
-    if (pinned.length > 1) {
+    // Start framed on the places (when there are a few spread out), unless a borough was picked.
+    if (focus) { /* already there */ } else if (pinned.length > 1) {
       const b = new ml.LngLatBounds();
       pinned.forEach((p) => b.extend([p.lng, p.lat]));
       map.once('load', () => map.fitBounds(b, { padding: 80, maxZoom: 14, pitch: HOME.pitch, bearing: HOME.bearing, duration: 0 }));
@@ -143,8 +152,9 @@ const pinFace = (p) => html`
 
 // ---------- The drawn map (when the live map can't load) ----------
 // Pins are placed on it from their latitude/longitude, roughly where they'd be.
-const toXY = (p) => ({ x: Math.min(1, Math.max(0, (p.lng + 74.06) / 0.24)), y: Math.min(1, Math.max(0, (40.90 - p.lat) / 0.34)) });
-const toLatLng = (x, y) => ({ lat: 40.90 - y * 0.34, lng: -74.06 + x * 0.24 });
+// (all five boroughs, Staten Island to the airport)
+const toXY = (p) => ({ x: Math.min(1, Math.max(0, (p.lng + 74.26) / 0.56)), y: Math.min(1, Math.max(0, (40.92 - p.lat) / 0.42)) });
+const toLatLng = (x, y) => ({ lat: 40.92 - y * 0.42, lng: -74.26 + x * 0.56 });
 
 function mountDrawnMap(el, data, { onPlace, pick, onPick, pin }) {
   const pinned = (data.places || []).filter((p) => p.lat != null && p.lng != null).map((p) => ({ ...p, ...toXY(p) }));
@@ -155,6 +165,7 @@ function mountDrawnMap(el, data, { onPlace, pick, onPick, pin }) {
       <div class="cm-viewport">
         <div class="cm-stage">
           <div class="cm-art">${raw(CITY_SVG)}</div>
+          ${(data.districts || []).filter((d) => d.lat != null).map((d) => { const xy = toXY(d); return html`<span class="cm-borough" data-x="${xy.x}" data-y="${xy.y}">${d.name}</span>`; })}
           ${pick ? '' : pinned.map((p) => html`
             <button type="button" class="cm-pin ${p.here.length ? 'busy' : ''}" data-pin="${p.id}" data-x="${p.x}" data-y="${p.y}" aria-label="${p.name}">${pinFace(p)}</button>`)}
           ${pick ? html`<span class="cm-pin cm-new" id="cm-new" ${start ? html`data-x="${start.x}" data-y="${start.y}"` : 'hidden'}><span class="cm-dot"></span></span>` : ''}

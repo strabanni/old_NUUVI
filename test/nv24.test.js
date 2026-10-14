@@ -83,12 +83,13 @@ test('Locations: anyone adds places; only whoever added one (or an admin) change
   assert.equal((await b('/api/places', { method: 'POST', body: { name: 'the velvet room' } })).status, 409);
   await b('/api/places', { method: 'POST', body: { name: 'Harbor Café', borough: 'Eastside', venue: 'Café' } });
   const all = (await b('/api/places')).data;
-  assert.deepEqual(all.boroughs, ['Eastside', 'Midtown']);
-  assert.deepEqual(all.venues, ['Bar', 'Café']);
+  // Ardell City's five boroughs come first, then any others places use.
+  assert.deepEqual(all.boroughs, ['East Hollow Island', 'Montclair Harbor', 'Kingsward', 'Cresswell', 'Northridge', 'Eastside', 'Midtown']);
+  assert.ok(all.venues.includes('Bar') && all.venues.includes('Café'));
   assert.equal((await b(`/api/places/${place.id}`, { method: 'PUT', body: { name: 'Mine now' } })).status, 403);
   assert.equal((await a(`/api/places/${place.id}`, { method: 'PUT', body: { venue: 'Club' } })).data.place.venue, 'Club');
   // Listed places come first in the location suggestions.
-  assert.equal((await b('/api/locations')).data.locations[0], 'Harbor Café');
+  assert.ok((await b('/api/locations')).data.locations.includes('Harbor Café'));
   assert.equal((await b(`/api/places/${place.id}`, { method: 'DELETE' })).status, 403);
   assert.equal((await app.admin(`/api/places/${place.id}`, { method: 'DELETE' })).status, 200);
 });
@@ -136,4 +137,26 @@ test('editing a post can change its type', async () => {
   const text = (await w(`/api/social/${p.id}`, { method: 'PUT', body: { kind: 'text', media: [], body: 'never mind' } })).data.post;
   assert.equal(text.kind, 'text');
   assert.deepEqual(text.media, []);
+});
+
+test('the Ardell City guide: five boroughs and their spots, added once', async () => {
+  const { PLACES, BOROUGHS } = await import('../server/ardell.js');
+  const w = await app.signUp('guide_reader');
+  const data = (await w('/api/places')).data;
+  assert.deepEqual(data.districts.map((d) => d.name), BOROUGHS.map((b) => b.name));
+  assert.match(data.districts.find((d) => d.name === 'Northridge').blurb, /keep your head on a swivel/);
+  assert.match(data.intro.title, /where's that at/);
+  for (const p of PLACES) {
+    const got = data.places.find((x) => x.name === p.name);
+    assert.ok(got, `${p.name} is there`);
+    assert.equal(got.borough, p.borough);
+    assert.ok(got.lat && got.lng && got.hours && got.price && got.since, `${p.name} has its pin and details`);
+  }
+  const nova = data.places.find((x) => x.name === 'NOVA');
+  assert.deepEqual([nova.venue, nova.hours, nova.price, nova.since], ['nightclub', '9:00 pm – 3:00 am', '$30 – $90', 'est. 2021']);
+  // Writers can add the details to their own places too.
+  const mine = (await w('/api/places', { method: 'POST', body: { name: 'Room 404', borough: 'Northridge', venue: 'karaoke bar', hours: '8 pm – 4 am', price: '$10 – $30', since: 'opened 2020' } })).data.place;
+  assert.deepEqual([mine.hours, mine.price, mine.since], ['8 pm – 4 am', '$10 – $30', 'opened 2020']);
+  // A second look doesn't add them again.
+  assert.equal((await w('/api/places')).data.places.filter((x) => x.name === 'NOVA').length, 1);
 });

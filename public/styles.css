@@ -3033,3 +3033,21 @@ a.hashtag:hover { text-decoration: underline; }
 :root[data-theme="dark"] .city-map.live .maplibregl-ctrl-group { background: #24262d; }
 :root[data-theme="dark"] .city-map.live .maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); }
 :root[data-theme="dark"] .city-map .cm-legend, :root[data-theme="dark"] .city-map .cm-hint { background: #24262d; color: #e6e7ea; }
+
+/* NV-29: the Ardell City guide */
+.ardell-intro { padding: 22px 24px; margin: 4px 0 16px; border-radius: 22px; background: linear-gradient(135deg, rgb(238 113 158 / .12), rgb(199 154 216 / .12)); border: 1px solid var(--glass-border); }
+.ardell-intro h2 { margin: 2px 0 4px; font: 800 1.5rem var(--display); text-transform: uppercase; letter-spacing: .04em; }
+.ardell-intro .ardell-tag { margin: 0 0 10px; font-style: italic; color: var(--muted); }
+.ardell-intro .body { line-height: 1.6; }
+.borough-card { padding: 16px 20px; margin: 4px 0 14px; border-radius: 18px; background: var(--glass-2); border: 1px solid var(--glass-border); }
+.borough-card h2 { margin: 0 0 6px; font: 800 1.1rem var(--display); text-transform: uppercase; letter-spacing: .08em; color: #EE719E; }
+.borough-card p { margin: 0; line-height: 1.6; }
+#place-venue { max-width: 220px; }
+.place-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 16px; margin: 12px 0; padding: 12px 14px; border-radius: 14px; background: var(--glass-2); }
+.place-facts dt { font: 700 .66rem var(--display); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.place-facts dd { margin: 2px 0 0; font-size: .9rem; }
+/* borough names on the map */
+.ml-borough, .cm-borough { pointer-events: none; font: 800 .78rem var(--display, sans-serif); letter-spacing: .28em; text-transform: uppercase; color: #EE719E;
+  text-shadow: 0 0 6px #fff, 0 0 2px #fff, 0 0 12px #fff; white-space: nowrap; }
+:root[data-theme="dark"] .ml-borough, :root[data-theme="dark"] .cm-borough { color: #f3a6c4; text-shadow: 0 0 6px #000, 0 0 2px #000, 0 0 12px #000; }
+.cm-borough { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); transform: translate(-50%, -50%) scale(calc(1 / var(--s, 1))); z-index: 1; font-size: .62rem; }

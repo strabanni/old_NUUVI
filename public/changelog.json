@@ -1,5 +1,16 @@
 [
   {
+    "code": "NV-29",
+    "date": "2026-10-14",
+    "title": "Where's that at?¿ — the Ardell City guide",
+    "items": [
+      "Directory → Locations is now the guide to Ardell City: its five boroughs (East Hollow Island, Montclair Harbor, Kingsward, Cresswell and Northridge) and every notable spot, pinned on the map.",
+      "Borough names sit on the map. Pick a borough to see what it's like, zoom to it and see its spots.",
+      "Every spot has its lot type, hours, expense range and year. Pick a kind of place to narrow it down.",
+      "Add your own spots (with hours, prices and year too) and pin them on the map."
+    ]
+  },
+  {
     "code": "NV-28",
     "date": "2026-10-14",
     "title": "More of the lore",

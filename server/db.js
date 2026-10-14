@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 19;
+const SCHEMA_VERSION = 20;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -510,6 +510,18 @@ const MIGRATIONS = [
    ALTER TABLE locations ADD COLUMN lng REAL;
    UPDATE locations SET lng = -74.06 + map_x * 0.24, lat = 40.90 - map_y * 0.34 WHERE map_x IS NOT NULL AND map_y IS NOT NULL;
    DELETE FROM settings WHERE key = 'city_map';`,
+  // v20: places get their hours, price range and year; Ardell City's boroughs (with what each is
+  // like, and where its name sits on the map).
+  `ALTER TABLE locations ADD COLUMN hours TEXT NOT NULL DEFAULT '';
+   ALTER TABLE locations ADD COLUMN price TEXT NOT NULL DEFAULT '';
+   ALTER TABLE locations ADD COLUMN since TEXT NOT NULL DEFAULT '';
+   CREATE TABLE boroughs (
+     name     TEXT PRIMARY KEY COLLATE NOCASE,
+     blurb    TEXT NOT NULL DEFAULT '',
+     lat      REAL,
+     lng      REAL,
+     position INTEGER NOT NULL DEFAULT 0
+   );`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.
