@@ -27,7 +27,7 @@ export function toCharacter(r) {
     followersDisplay: r.followers_display ?? null, followingDisplay: r.following_display ?? null,
     handle: r.handle ?? null, npc: !!r.npc, bot: r.bot ?? null,
     gradient: r.gradient ? r.gradient.split(',') : null, npcTags: splitTags(r.npc_tags),
-    pronouns: r.pronouns ?? null,
+    pronouns: r.pronouns ?? null, threadAvatar: r.thread_avatar ?? null,
   };
 }
 
@@ -84,7 +84,7 @@ export function toPost(r) {
     character: r.character_id
       ? {
         id: r.character_id, name: r.character_name, color: r.character_color, avatar: r.character_avatar,
-        portrait: r.character_portrait ?? null, tagline: r.character_tagline ?? '',
+        portrait: r.character_portrait ?? null, threadAvatar: r.character_thread_avatar ?? null, tagline: r.character_tagline ?? '',
         details: r.character_details ? JSON.parse(r.character_details) : [],
         aka: r.character_aka ?? '', postAlign: r.character_align ?? 'right', verified: !!r.character_verified,
         gradient: r.character_gradient ? r.character_gradient.split(',') : null,
@@ -102,7 +102,7 @@ export const STORY_SELECT = `
 export const POST_SELECT = `
   SELECT p.*, u.username, u.display_name, u.avatar AS user_avatar, u.gradient AS user_gradient,
     c.name AS character_name, c.color AS character_color, c.avatar AS character_avatar,
-    c.portrait AS character_portrait, c.tagline AS character_tagline, c.details AS character_details,
+    c.portrait AS character_portrait, c.thread_avatar AS character_thread_avatar, c.tagline AS character_tagline, c.details AS character_details,
     c.aka AS character_aka, c.post_align AS character_align, c.verified AS character_verified, c.gradient AS character_gradient,
     rp.body AS reply_body, rp.user_id AS reply_user_id, rp.media AS reply_media,
     COALESCE(rc.name, ru.display_name) AS reply_name, rc.color AS reply_color

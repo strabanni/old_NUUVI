@@ -142,6 +142,7 @@ export function socialPostRoutes(r, ctx) {
       + db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
     return {
       type: 'social',
+      pinned: !!row.pinned_at,
       buzzPending: !!ctx.aiBuzz?.pending(row.id),
       id: row.id, kind: row.kind, body: row.body, title: row.title,
       media: JSON.parse(row.media), meta: JSON.parse(row.meta), location: row.location ?? null, category: row.category ?? 'post',
@@ -173,12 +174,18 @@ export function socialPostRoutes(r, ctx) {
     const args = { viewer: viewerId, limit };
     if (category) { where.push("COALESCE(p.category, 'post') = :cat"); args.cat = category; }
     if (characterId) { where.push('p.character_id = :cid'); args.cid = characterId; }
-    if (before) { where.push('p.id < :before'); args.before = before; }
+    // Older posts: everything dated before the given post (back-dated posts sit at their date).
+    if (before) {
+      const b = db.prepare('SELECT created_at FROM social_posts WHERE id = ?').get(before);
+      if (b) { where.push('(p.created_at < :bt OR (p.created_at = :bt AND p.id < :before))'); args.bt = b.created_at; args.before = before; }
+    }
     if (q) {
       where.push("(p.body LIKE :q ESCAPE '\\' OR p.title LIKE :q ESCAPE '\\' OR c.name LIKE :q ESCAPE '\\')");
       args.q = `%${q.replace(/[\\%_]/g, (m) => '\\' + m)}%`;
     }
-    return db.prepare(`${SELECT} WHERE ${where.join(' AND ')} ORDER BY p.id DESC LIMIT :limit`).all(args).map((row) => toSocial(row, viewerId));
+    // On a character's profile, pinned posts come first (newest pin first), then everything by date.
+    const order = characterId && !before ? 'p.pinned_at IS NULL, p.pinned_at DESC, p.created_at DESC, p.id DESC' : 'p.created_at DESC, p.id DESC';
+    return db.prepare(`${SELECT} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT :limit`).all(args).map((row) => toSocial(row, viewerId));
   };
 
   const load = (postId, user) => {
@@ -218,6 +225,20 @@ export function socialPostRoutes(r, ctx) {
     const d = new Date(v);
     if (Number.isNaN(d.getTime()) || d.getFullYear() < 1900 || d.getFullYear() > 2200) fail(400, 'That date doesn\'t look right');
     return d.toISOString().slice(0, 19).replace('T', ' ');
+  }
+
+  // Characters @mentioned in a post or comment: their writers hear "{a} tagged {b} in a post".
+  // Your own characters don't notify you; `skip` is writers already told about this another way.
+  function notifyTags(user, me, postId, text, where, skip = [], before = '') {
+    const handles = (t) => new Set([...String(t || '').matchAll(/@([\p{L}\p{N}_.]{2,40})/gu)].map((m) => m[1].replace(/[.]+$/, '').toLowerCase()));
+    const already = handles(before);
+    const told = new Set(skip);
+    for (const h of handles(text)) {
+      if (already.has(h)) continue;
+      const t = db.prepare('SELECT id, name, user_id FROM characters WHERE handle = ? COLLATE NOCASE').get(h);
+      if (!t || t.user_id === user.id || told.has(t.user_id) || isBlocked(db, t.user_id, user.id)) continue;
+      ctx.notify({ userId: t.user_id, type: 'socialtag', actorId: user.id, characterId: me.id, socialId: postId, text: `${me.name} tagged ${t.name} in a ${where}: ${text.slice(0, 120)}` });
+    }
   }
 
   // Gives a post a fresh set of fan comments (the old ones are deleted). With an API key set, Claude
@@ -286,7 +307,7 @@ export function socialPostRoutes(r, ctx) {
     requireUser(user);
     const characterId = Number(query.get('character')) || null;
     const before = Number(query.get('before')) || null;
-    return { data: { posts: ctx.socialFeed({ viewerId: user.id, characterId, before, limit: 30 }) } };
+    return { data: { posts: ctx.socialFeed({ viewerId: user.id, characterId, before, limit: characterId ? 300 : 30 }) } };
   });
 
   r.get('/api/social/:id', ({ user, params }) => {
@@ -314,6 +335,7 @@ export function socialPostRoutes(r, ctx) {
       .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(withTagged(metaInput(kind, body.meta), body.taggedIn), musicInput(body.music))), location,
         category, likesShown ?? null, commentsShown ?? null, postedAt);
     ctx.bots?.onSocialPost(Number(lastInsertRowid));
+    notifyTags(user, c, Number(lastInsertRowid), text, 'post');
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(lastInsertRowid);
     const fame = db.prepare(`SELECT COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = ?)) AS n FROM characters WHERE id = ?`).get(c.id, c.id).n;
     newBuzz(fresh, buzzTarget(commentsShown, fame), fame);
@@ -341,6 +363,7 @@ export function socialPostRoutes(r, ctx) {
     db.prepare(`UPDATE social_posts SET body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?, location = ?, category = ?, created_at = ?
       ${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`)
       .run(text, title, meta, likesShown, commentsShown, location, category, postedAt, row.id);
+    notifyTags(user, { id: row.character_id, name: row.c_name }, row.id, text, 'post', [], row.body);
     // Crowd comments follow the post: a changed caption (or place, song, pictures) gets fresh comments
     // that fit it, and a new comment number gets at least a quarter of it written out.
     const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
@@ -350,6 +373,29 @@ export function socialPostRoutes(r, ctx) {
     } else if (commentsShown !== row.comments_display) {
       const want = buzzTarget(commentsShown, row.c_followers);
       if (want !== have) newBuzz(fresh, want, row.c_followers);
+    }
+    return { data: { post: toSocial(load(row.id, user), user.id, { allComments: true }) } };
+  });
+
+  // Every character who liked a post (the full "Liked by" list).
+  r.get('/api/social/:id/likers', ({ user, params }) => {
+    requireUser(user);
+    const row = load(params.id, user);
+    return { data: { characters: db.prepare(`SELECT c.* FROM social_likes l JOIN characters c ON c.id = l.character_id
+      WHERE l.post_id = ? ORDER BY l.rowid DESC`).all(row.id).map(toCharacter) } };
+  });
+
+  // Pin a post to the top of its character's profile (up to 3), or unpin it.
+  r.post('/api/social/:id/pin', ({ user, body, params }) => {
+    requireUser(user);
+    const row = load(params.id, user);
+    if (row.user_id !== user.id) fail(404, 'Post not found');
+    if (body.pinned === false) {
+      db.prepare('UPDATE social_posts SET pinned_at = NULL WHERE id = ?').run(row.id);
+    } else if (!row.pinned_at) {
+      const pinned = db.prepare('SELECT COUNT(*) AS n FROM social_posts WHERE character_id = ? AND pinned_at IS NOT NULL').get(row.character_id).n;
+      if (pinned >= 3) fail(400, 'Up to 3 pinned posts. Unpin one first.');
+      db.prepare("UPDATE social_posts SET pinned_at = datetime('now') WHERE id = ?").run(row.id);
     }
     return { data: { post: toSocial(load(row.id, user), user.id, { allComments: true }) } };
   });
@@ -393,10 +439,14 @@ export function socialPostRoutes(r, ctx) {
       const parent = db.prepare('SELECT id, parent_id FROM social_comments WHERE id = ? AND post_id = ?').get(Number(body.parentId), row.id) ?? fail(400, 'That comment is gone');
       parentId = parent.parent_id ?? parent.id;
     }
-    db.prepare('INSERT INTO social_comments (post_id, character_id, user_id, body, parent_id) VALUES (?, ?, ?, ?, ?)').run(row.id, me.id, user.id, text, parentId);
+    // A comment can be dated (to sit with a back-dated post).
+    const postedAt = whenInput(body.postedAt) ?? null;
+    db.prepare(`INSERT INTO social_comments (post_id, character_id, user_id, body, parent_id, created_at)
+      VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`).run(row.id, me.id, user.id, text, parentId, postedAt);
     if (row.user_id !== user.id) {
-      ctx.notify({ userId: row.user_id, type: 'comment', actorId: user.id, characterId: me.id, socialId: row.id, text: `${me.name}: ${text.slice(0, 120)}` });
+      ctx.notify({ userId: row.user_id, type: 'comment', actorId: user.id, characterId: me.id, socialId: row.id, text: `${me.name} commented on ${row.c_name}'s post: ${text.slice(0, 120)}` });
     }
+    notifyTags(user, me, row.id, text, 'comment', [row.user_id]);
     return { status: 201, data: { post: toSocial(load(row.id, user), user.id, { allComments: true }) } };
   });
 

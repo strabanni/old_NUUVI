@@ -18,7 +18,7 @@ import { viewPhone, viewPhoneThread } from './views/phone.js';
 import { viewLore } from './views/overview.js';
 import { viewArchive } from './views/archive.js';
 import { viewProfiles, viewProfile } from './views/profiles.js';
-import { viewNpcs } from './views/npcs.js';
+import { viewNpcs, viewLocations } from './views/npcs.js';
 import { viewSocialPost } from './views/social.js';
 
 let railDrag = null; // a story being dragged in the sidebar (see "Drag stories" below)
@@ -264,6 +264,20 @@ export const channelIcon = (c) => (!c.icon ? kindIcon(c.kind)
   : /^(\/|https:)/.test(c.icon) ? html`<img class="ch-icon-img" src="${c.icon}" alt="">`
     : html`<span class="ch-emoji">${c.icon}</span>`);
 
+// How episodes are ordered in a story's sidebar (each person picks; remembered on this device).
+const EP_SORTS = [['custom', 'Story order'], ['last', 'Latest post first'], ['new', 'Newest first'], ['old', 'Oldest first'], ['name', 'Name (A–Z)']];
+const epSort = () => (EP_SORTS.some(([k]) => k === store.get('nuuvi:ep-sort')) ? store.get('nuuvi:ep-sort') : 'custom');
+function sortEpisodes(list) {
+  const by = epSort();
+  const time = (t) => (t ? new Date(`${String(t).replace(' ', 'T')}Z`).getTime() || 0 : 0);
+  const out = [...list];
+  if (by === 'last') out.sort((a, b) => time(b.lastPostAt || b.createdAt) - time(a.lastPostAt || a.createdAt));
+  else if (by === 'new') out.sort((a, b) => time(b.createdAt) - time(a.createdAt) || b.id - a.id);
+  else if (by === 'old') out.sort((a, b) => time(a.createdAt) - time(b.createdAt) || a.id - b.id);
+  else if (by === 'name') out.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  return out;
+}
+
 function renderSidebar() {
   const side = $('#sidebar');
   if (!state.user) return render(side, html``);
@@ -273,7 +287,7 @@ function renderSidebar() {
   if (state.route.storyId && s && s.story.id === state.route.storyId) {
     // Comms became the Phone (and OOC became private Messages, in the main menu). Older comms/OOC
     // channels stay readable under "Old chats".
-    const groups = ['thread', 'para', 'event'].map((k) => [k, s.channels.filter((c) => c.kind === k)]).filter(([, list]) => list.length);
+    const groups = ['thread', 'para', 'event'].map((k) => [k, sortEpisodes(s.channels.filter((c) => c.kind === k))]).filter(([, list]) => list.length);
     const archived = s.channels.filter((c) => c.kind === 'comms' || c.kind === 'ooc');
     render(side, html`
       ${mobileWelcome}
@@ -287,8 +301,8 @@ function renderSidebar() {
             ${s.story.status === 'open' ? html`<button class="primary block" id="side-join">Join this story</button>` : html`<p class="muted small">Closed to new writers.</p>`}
           </div>` : s.story.completedAt ? html`<a class="side-archived" href="#/archive">${icons.archive}<span>Complete · in the Archive</span></a>`
           : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New episode</button>`}
-        ${groups.map(([kind, list]) => html`
-          <div class="side-section"><span>${KIND_LABELS[kind]}</span></div>
+        ${groups.map(([kind, list], gi) => html`
+          <div class="side-section"><span>${KIND_LABELS[kind]}</span>${gi === 0 ? html`<button type="button" class="icon-btn xs ep-sort-btn" id="ep-sort" title="Order: ${EP_SORTS.find(([k]) => k === epSort())[1]}" aria-label="Change the order of episodes">${icons.sliders}</button>` : ''}</div>
           ${list.map((c) => {
             const myTurn = c.turns.enabled && c.turns.current === state.user.id;
             return html`
@@ -305,6 +319,10 @@ function renderSidebar() {
           <a href="#/s/${s.story.id}/${c.id}" class="chan ${state.route.channelId === c.id ? 'active' : ''} ${c.unread ? 'unread' : ''}"><span class="hash">${channelIcon(c)}</span><span class="name">${c.name}</span></a>`)}</details>` : ''}
       </div>`);
     $('#story-menu').addEventListener('click', (e) => storyMenu(e.currentTarget));
+    $('#ep-sort')?.addEventListener('click', (e) => menu(e.currentTarget, EP_SORTS.map(([k, label]) => ({
+      label: `${k === epSort() ? '✓ ' : ''}${label}`,
+      action: () => { store.set('nuuvi:ep-sort', k === 'custom' ? null : k); renderSidebar(); },
+    }))));
     $('#side-join')?.addEventListener('click', joinCurrentStory);
     $('#new-thread')?.addEventListener('click', async () => {
       openThreadForm({ storyId: s.story.id });
@@ -324,6 +342,7 @@ function renderSidebar() {
         <span class="desk-only-block">${link('#/messages', 'Messages', icons.chat, state.home.messagesUnread)}</span>
         ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
+        ${link('#/locations', 'Locations', icons.pin)}
         ${link('#/archive', 'Archive', icons.archive)}
         ${link('#/lore', 'Lore', icons.book)}
         ${link('#/discover', 'Discover', icons.compass)}
@@ -811,6 +830,10 @@ function connectLive() {
   source = new EventSource(`/api/events?${params}`);
   let opened = false;
   source.addEventListener('open', () => { if (opened) emit('reconnect'); opened = true; });
+  // If the browser gives up on the connection (phones do, after sleeping), start a new one.
+  source.addEventListener('error', () => {
+    if (source?.readyState === EventSource.CLOSED) setTimeout(() => { sourceKey = null; connectLive(); }, 3000);
+  });
   for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence', 'dm', 'dm-delete', 'message', 'message-delete', 'buzz']) {
     source.addEventListener(type, (e) => handleLive(type, JSON.parse(e.data)));
   }
@@ -877,6 +900,7 @@ const routes = [
   [/^#\/characters$/, viewCharacters, true],
   [/^#\/directory$/, viewDirectory, true],
   [/^#\/npcs$/, viewNpcs, true],
+  [/^#\/locations$/, viewLocations, true],
   [/^#\/lore$/, viewLore, true],
   [/^#\/archive$/, viewArchive, true],
   [/^#\/profiles$/, viewProfiles, true],
@@ -960,7 +984,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-23';
+export const APP_BUILD = 'NV-24';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);
@@ -1011,6 +1035,7 @@ async function boot() {
   window.addEventListener('hashchange', router);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && state.user) {
+      if (!source || source.readyState === EventSource.CLOSED) { sourceKey = null; connectLive(); }
       refreshHome().catch(() => {});
       emit('reconnect');
     }

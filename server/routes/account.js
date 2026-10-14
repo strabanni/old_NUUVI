@@ -404,6 +404,9 @@ export function accountRoutes(r, ctx) {
     const following = countInput(body.followingDisplay, 'Following');
     const verified = body.verified === undefined ? existing.verified ?? 0 : body.verified ? 1 : 0;
     const banner = uploadRef(db, body.banner, userId);
+    // The picture on their thread posts (empty: their avatar is used).
+    const threadAvatar = uploadRef(db, body.threadAvatar, userId);
+    if (threadAvatar !== undefined) db.prepare('UPDATE characters SET thread_avatar = ? WHERE id = ?').run(threadAvatar, characterId);
     let handle;
     if (body.handle !== undefined && body.handle !== null && body.handle !== '') {
       handle = String(body.handle).trim().replace(/^@/, '');

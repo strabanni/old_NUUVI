@@ -139,6 +139,22 @@ export async function viewMessages(userIdStr) {
     reloadList().catch(() => {});
   });
   live('message-delete', ({ id }) => { if (msgs.delete(id)) draw(false); });
+  // Phones drop the live connection when locked or switched away from. When it comes back (and
+  // every 15 seconds as a safety net), fetch anything that arrived meanwhile.
+  const catchUp = async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const latest = await api(`/api/messages/${otherId}`);
+      const fresh = latest.messages.filter((m) => !msgs.has(m.id));
+      if (!fresh.length) return;
+      fresh.forEach((m) => msgs.set(m.id, m));
+      draw();
+      if (fresh.some((m) => m.userId !== state.user.id)) markRead();
+    } catch { /* offline: try again later */ }
+  };
+  live('reconnect', catchUp);
+  const poll = setInterval(catchUp, 15000);
+  onLeave(() => clearInterval(poll));
 
   const form = $('#dm-form', body);
   if (!form) return;

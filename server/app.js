@@ -22,6 +22,7 @@ import { connectionRoutes } from './routes/connections.js';
 import { profileRoutes } from './routes/profiles.js';
 import { messageRoutes } from './routes/messages.js';
 import { aiRoutes } from './routes/ai.js';
+import { placeRoutes } from './routes/places.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
 import { createBots } from './bots.js';
@@ -207,6 +208,7 @@ export function createApp({
       follow: () => ({ title: 'New follower', body: text }),
       like: () => ({ title: 'New like', body: text }),
       comment: () => ({ title: 'New comment', body: text }),
+      socialtag: () => ({ title: 'Tagged on THE : NU', body: text }),
       tag: () => ({ title: `${n.actor?.displayName} tagged you in a thread`, body: `${where} · ${n.story?.title}` }),
       dm: () => ({ title: n.count > 1 ? `${n.count} new texts` : 'New text', body: text }),
       reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),
@@ -297,6 +299,7 @@ export function createApp({
   profileRoutes(router, ctx);
   messageRoutes(router, ctx);
   aiRoutes(router, ctx);
+  placeRoutes(router, ctx);
 
   // ---------- Live updates ----------
   function handleEvents(req, res, user, query) {

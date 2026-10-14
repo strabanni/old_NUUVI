@@ -363,4 +363,20 @@ export async function viewPhoneThread(cidStr, tidStr) {
     if (document.visibilityState === 'visible') markRead();
   });
   live('dm-delete', ({ id, threadId }) => { if (threadId === thread.id && byId.delete(id)) draw(false); });
+  // Phones drop the live connection when locked or switched away from. When it comes back (and
+  // every 15 seconds as a safety net), fetch any texts that arrived meanwhile.
+  const catchUp = async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const latest = await api(`/api/phone/threads/${thread.id}?as=${me.id}`);
+      const fresh = latest.messages.filter((m) => !byId.has(m.id));
+      if (!fresh.length) return;
+      fresh.forEach((m) => byId.set(m.id, m));
+      draw(true);
+      markRead();
+    } catch { /* offline: try again later */ }
+  };
+  live('reconnect', catchUp);
+  const poll = setInterval(catchUp, 15000);
+  onLeave(() => clearInterval(poll));
 }

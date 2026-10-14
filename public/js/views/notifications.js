@@ -21,9 +21,9 @@ function describe(n) {
 // your posts and characters, and system notices.
 const GROUPS = {
   all: () => true,
-  mentions: (n) => ['mention', 'reply', 'tag', 'dm', 'turn'].includes(n.type),
+  mentions: (n) => ['mention', 'reply', 'tag', 'socialtag', 'dm', 'turn'].includes(n.type),
   activity: (n) => ['post', 'like', 'comment', 'follow'].includes(n.type),
-  system: (n) => ['report'].includes(n.type) || !['mention', 'reply', 'tag', 'dm', 'turn', 'post', 'like', 'comment', 'follow'].includes(n.type),
+  system: (n) => ['report'].includes(n.type) || !['mention', 'reply', 'tag', 'socialtag', 'dm', 'turn', 'post', 'like', 'comment', 'follow'].includes(n.type),
 };
 const TAB_LABELS = [['all', 'All'], ['mentions', 'For you'], ['activity', 'Activity'], ['system', 'System']];
 const iconFor = (n) => (n.type === 'turn' ? icons.hourglass : n.type === 'report' ? icons.shield : n.type === 'dm' ? icons.chat

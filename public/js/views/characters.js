@@ -1,7 +1,7 @@
 import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, BRAND_GRADIENT, GRADIENT_PRESETS } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { openThreadForm } from './threads.js';
-import { compact, openSocialComposer, handleOf, npcBadges } from './social.js';
+import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
 import { dossierAbout, editDossier } from './profiles.js';
 
 const DETAIL_SUGGESTIONS = ['Age', 'Pronouns', 'Face claim', 'Occupation', 'Species', 'Height', 'Birthday', 'Alignment'];
@@ -30,6 +30,11 @@ function characterForm(c = {}) {
           <span class="hint" id="portrait-state">${c.portrait ? 'Portrait set ✓' : 'Shown large on their character card'}</span>
           <span class="hint size-hint">Best sizes: avatar 800 × 800 (square) · portrait 1200 × 1500 (4:5, tall) · banner 1800 × 600 (3:1)</span>
           <span class="row-inline">
+            <label class="btn sm file-btn">Thread picture<input type="file" accept="image/*" id="thread-file" hidden></label><button type="button" class="sm link-btn" data-link="threadAvatar">Link</button>
+            <button type="button" class="sm" id="thread-clear" ${c.threadAvatar ? '' : 'hidden'}>Use avatar</button>
+          </span>
+          <span class="hint" id="thread-state">${c.threadAvatar ? 'Thread picture set ✓' : 'Optional — shown on their thread posts instead of their social media avatar'}</span>
+          <span class="row-inline">
             <label class="btn sm file-btn">Profile banner<input type="file" accept="image/*" id="banner-file" hidden></label><button type="button" class="sm link-btn" data-link="banner">Link</button>
             <button type="button" class="sm" id="banner-clear" ${c.banner ? '' : 'hidden'}>Remove banner</button>
           </span>
@@ -37,6 +42,7 @@ function characterForm(c = {}) {
           <input type="hidden" name="avatar" value="${c.avatar || ''}">
           <input type="hidden" name="portrait" value="${c.portrait || ''}">
           <input type="hidden" name="banner" value="${c.banner || ''}">
+          <input type="hidden" name="threadAvatar" value="${c.threadAvatar || ''}">
         </div>
       </div>
       <div class="row">
@@ -124,6 +130,11 @@ export function editCharacter(c = {}) {
           $('#portrait-state', d).textContent = 'Portrait set ✓';
           if (!form.avatar.value) { form.avatar.value = url; showPic(); }
         },
+        threadAvatar: (url) => {
+          form.threadAvatar.value = url;
+          $('#thread-state', d).textContent = 'Thread picture set ✓';
+          $('#thread-clear', d).hidden = false;
+        },
         banner: (url) => {
           form.banner.value = url;
           $('#banner-state', d).textContent = 'Banner set ✓';
@@ -133,6 +144,12 @@ export function editCharacter(c = {}) {
       upload('#pic-file', 512, set.avatar);
       upload('#portrait-file', 1400, set.portrait);
       upload('#banner-file', 1800, set.banner);
+      upload('#thread-file', 800, set.threadAvatar);
+      $('#thread-clear', d).addEventListener('click', (e) => {
+        form.threadAvatar.value = '';
+        $('#thread-state', d).textContent = 'Their avatar is used on thread posts';
+        e.currentTarget.hidden = true;
+      });
       d.addEventListener('click', async (e) => {
         const b = e.target.closest('[data-link]');
         if (!b) return;
@@ -245,19 +262,6 @@ export async function viewCharacters() {
   }));
 }
 
-async function showPeople(title, url) {
-  const { characters } = await api(url);
-  await modal(html`
-    <div>
-      <h2>${title}</h2>
-      ${characters.length ? html`<div class="stack">${characters.map((c) => html`
-        <a class="row-item" href="#/c/${c.id}" data-close>${avatar({ name: c.name, src: c.avatar, color: c.color })}
-          <div class="grow"><strong>${c.name}</strong>${c.tagline ? html`<div class="small muted">${c.tagline}</div>` : ''}</div></a>`)}</div>`
-        : html`<p class="muted">Nobody yet.</p>`}
-      <div class="actions end"><button type="button" data-close>Close</button></div>
-    </div>`);
-}
-
 // Instagram-style profile: header (picture, counts, what the owner wrote), then Posts / Threads / About tabs.
 export async function viewCharacter(id) {
   const alive = routeAlive();
@@ -295,7 +299,8 @@ export async function viewCharacter(id) {
           ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
         </div>
         <div class="ig-actions">
-          ${own ? html`<button id="edit">Edit profile</button><button class="primary" id="new-post">${icons.plus} New post</button>`
+          ${own ? html`<button id="edit">Edit profile</button><button class="primary" id="new-post">${icons.plus} New post</button>
+              ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}`
             : html`<button class="${following ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>
               <button id="start-thread">${icons.episode} Start an episode</button>`}
         </div>
@@ -316,6 +321,7 @@ export async function viewCharacter(id) {
         : p.kind === 'stream' ? html`${p.media[0] ? html`<img src="${p.media[0]}" alt="">` : ''}<span class="ig-live">${p.meta.live === false ? 'ENDED' : 'LIVE'}</span><span class="ig-text">${p.title}</span>`
         : p.kind === 'voice' ? html`<span class="ig-text">${icons.mic} ${p.body || 'Voice note'}</span>`
         : html`<span class="ig-text">${p.body.slice(0, 140)}</span>`}
+      ${p.pinned ? html`<span class="ig-pin" title="Pinned">${icons.pushpin}</span>` : ''}
       <span class="ig-hover">${icons.heartFill} ${compact(p.likes)} &nbsp; ${icons.chat} ${compact(p.commentCount)}</span>
     </a>`;
   const draw = () => {

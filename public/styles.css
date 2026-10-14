@@ -2883,3 +2883,46 @@ a.hashtag:hover { text-decoration: underline; }
 .recap h2 { margin: 2px 0 12px; }
 .recap-text p { margin: 0 0 12px; line-height: 1.6; }
 .recap-text svg { width: 15px; height: 15px; vertical-align: -2px; color: #EE719E; }
+
+/* NV-24: carousel arrows move exactly one photo; snapping paused while they slide */
+.carousel .car-track.free { scroll-snap-type: none; }
+@media (hover: hover) { .carousel .car-track img { scroll-snap-stop: normal; } }
+
+/* NV-24: dated comments */
+.np-when { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 4px 0; font-size: 13px; }
+.np-when label { margin: 0; }
+.np-when input { flex: 1; min-width: 190px; }
+.np-when-btn.on { color: #EE719E; }
+
+/* NV-24: reorder photos in the composer */
+.media-picker .thumb[draggable="true"] { cursor: grab; }
+.media-picker .thumb .thumb-n { position: absolute; top: 4px; left: 4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; display: grid; place-items: center;
+  background: #EE719E; color: #fff; font-size: .7rem; font-weight: 700; }
+.media-picker .thumb .thumb-move { position: absolute; left: 0; right: 0; bottom: 4px; display: flex; justify-content: space-between; padding: 0 4px; pointer-events: none; }
+.media-picker .thumb .thumb-move button { position: static; pointer-events: auto; width: 24px; height: 24px; border-radius: 50%; font-size: 1rem; line-height: 1; }
+.media-picker .thumb .thumb-move button[data-mv="1"]:only-child { margin-left: auto; }
+
+/* NV-24: episode order */
+.side-section .ep-sort-btn { margin-left: auto; width: 24px; height: 24px; padding: 0; opacity: .7; }
+.side-section .ep-sort-btn svg { width: 14px; height: 14px; }
+.side-section .ep-sort-btn:hover { opacity: 1; }
+
+/* NV-24: pinned posts on profiles */
+.ig-tile .ig-pin { position: absolute; top: 8px; left: 8px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: rgb(0 0 0 / .55); color: #fff; z-index: 2; }
+.ig-tile .ig-pin svg { width: 14px; height: 14px; fill: currentColor; }
+
+/* NV-24: liked by (two names + everyone on tap) */
+.liked-by .liked-avs { display: inline-flex; }
+.liked-by .liked-avs .avatar + .avatar { margin-left: -8px; box-shadow: 0 0 0 2px var(--bg, #fff); }
+.liked-by .liked-more { padding: 0; font: inherit; color: inherit; }
+
+/* NV-24: Locations directory */
+.place-card { width: 100%; border: 0; text-align: left; cursor: pointer; font: inherit; }
+.place-card .initial svg { width: 54px; height: 54px; color: rgb(255 255 255 / .85); }
+.place-view .place-pic { width: 100%; max-height: 320px; object-fit: cover; border-radius: 16px; display: block; margin-bottom: 12px; }
+.place-view h2 { margin: 0 0 8px; }
+.place-view .body { margin: 12px 0; line-height: 1.6; }
+.place-pic-edit { display: grid; place-items: center; min-height: 120px; border-radius: 14px; background: var(--glass-2); overflow: hidden; margin-bottom: 8px; }
+.place-pic-edit img { width: 100%; max-height: 220px; object-fit: cover; display: block; }
+.npc-meta .tag svg { width: 12px; height: 12px; vertical-align: -1px; }

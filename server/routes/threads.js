@@ -238,7 +238,10 @@ export function threadRoutes(r, ctx) {
           WHERE p.location IS NOT NULL AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
         UNION ALL SELECT location FROM social_posts WHERE location IS NOT NULL)
       GROUP BY l COLLATE NOCASE ORDER BY n DESC, l LIMIT 200`).all({ u: user.id });
-    return { data: { locations: rows.map((r) => r.l) } };
+    // Places in the Locations directory come first.
+    const listed = db.prepare('SELECT name FROM locations ORDER BY name COLLATE NOCASE').all().map((p) => p.name);
+    const seen = new Set(listed.map((n) => n.toLowerCase()));
+    return { data: { locations: [...listed, ...rows.map((r) => r.l).filter((l) => !seen.has(l.toLowerCase()))] } };
   });
 
   // ---------- Feed ----------

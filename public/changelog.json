@@ -1,5 +1,23 @@
 [
   {
+    "code": "NV-24",
+    "date": "2026-10-14",
+    "title": "Locations, pinned posts and lots of fixes",
+    "items": [
+      "Locations: a new section (sidebar → Locations, or Directory → Locations) of places in Ardell City, with a picture, the borough and the kind of venue. Anyone can add one.",
+      "Pin up to 3 posts to the top of a character's profile (post menu → Pin to profile). Profiles now show posts by their date, so back-dated posts sit in the right place.",
+      "Characters can have a Thread picture, shown on their thread posts instead of their social media avatar.",
+      "Self paras now read like regular threads.",
+      "Change the order of photos while making a post: drag them, or use ‹ ›.",
+      "Order the episodes in a story's sidebar by story order, latest post, newest, oldest or name (the slider button next to Episodes).",
+      "Liked by shows two names; tap it to see every character who liked the post.",
+      "Comments can be dated (the calendar button next to Post) to match older posts.",
+      "Notifications now say who did what: \"Mina tagged Yoonoh in a post\" and \"Mina commented on Yoonoh's post: …\".",
+      "Your own characters can follow each other.",
+      "Fixed: photo posts on computers getting stuck after 2–3 photos, and new messages not showing on phones until you tapped Messages again."
+    ]
+  },
+  {
     "code": "NV-23",
     "date": "2026-10-14",
     "title": "Writing tools by Claude",

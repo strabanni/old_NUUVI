@@ -98,8 +98,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     return participants.filter((x) => (sid != null ? x.id !== sid : x.userId !== state.user?.id))
       .map((x) => (detail.contacts || {})[x.id] || x.name).join(', ');
   };
-  // Threads and events read like a forum; comms and OOC read like a chat.
-  const storyStyle = () => ['thread', 'event'].includes(channel().kind);
+  // Threads, events and self paras read like a forum; comms and OOC read like a chat.
+  const storyStyle = () => ['thread', 'event', 'para'].includes(channel().kind);
   const posts = new Map(initial.map((p) => [p.id, p]));
   let hasMore = initialMore;
 
@@ -163,7 +163,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   function threadPost(p, side = 'left') {
     const ch = p.kind === 'ic' ? p.character : null;
     const others = participants.filter((x) => x.id !== ch?.id);
-    const pic = ch?.avatar || ch?.portrait;
+    const pic = ch?.threadAvatar || ch?.avatar || ch?.portrait;
     return html`
       <article class="tpost align-${side} ${p.userId === state.user?.id ? 'mine' : ''} ${starred.has(p.id) ? 'is-starred' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"${gradAttr(ch)}` : ''}>
         <header class="tp-head">

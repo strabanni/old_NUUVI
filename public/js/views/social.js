@@ -90,12 +90,29 @@ function tagged(text) {
 }
 
 // "Liked by @handle and 2,301 others", like Instagram, when characters have liked the post.
+// "Liked by @a, @b and 2,301 others" — tap it to see every character who liked the post.
 function likedLine(p) {
-  const who = (p.likers || [])[0];
-  if (!who) return html`<div class="np-likes"><b>${p.likes.toLocaleString()} ${p.likes === 1 ? 'like' : 'likes'}</b></div>`;
-  const others = Math.max(0, p.likes - 1);
-  return html`<div class="np-likes liked-by">${avatar({ name: who.name, src: who.avatar, color: who.color, size: 'xs' })}
-    <span>Liked by <a class="np-handle c-name" href="#/c/${who.id}" data-color="${who.color}">${who.handle || who.name}</a>${others ? html` and <b>${others.toLocaleString()} ${others === 1 ? 'other' : 'others'}</b>` : ''}</span></div>`;
+  const who = (p.likers || []).slice(0, 2);
+  if (!who.length) return html`<div class="np-likes"><b>${p.likes.toLocaleString()} ${p.likes === 1 ? 'like' : 'likes'}</b></div>`;
+  const others = Math.max(0, p.likes - who.length);
+  const name = (c) => html`<a class="np-handle c-name" href="#/c/${c.id}" data-color="${c.color}">${c.handle || c.name}</a>`;
+  return html`<div class="np-likes liked-by"><span class="liked-avs">${who.map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}</span>
+    <span><button type="button" class="link liked-more" data-likers="${p.id}">Liked by</button> ${name(who[0])}${who[1] ? html`${others ? ', ' : ' and '}${name(who[1])}` : ''}${others ? html` and <button type="button" class="link liked-more" data-likers="${p.id}"><b>${others.toLocaleString()} ${others === 1 ? 'other' : 'others'}</b></button>` : ''}</span></div>`;
+}
+
+// A list of characters (followers, following, who liked a post).
+export async function showPeople(title, url, { note = '' } = {}) {
+  const { characters } = await api(url);
+  await modal(html`
+    <div>
+      <h2>${title}</h2>
+      ${characters.length ? html`<div class="stack">${characters.map((c) => html`
+        <a class="row-item" href="#/c/${c.id}" data-close>${avatar({ name: c.name, src: c.avatar, color: c.color })}
+          <div class="grow"><strong>${c.name}</strong>${c.handle ? html`<div class="small muted">@${c.handle}</div>` : c.tagline ? html`<div class="small muted">${c.tagline}</div>` : ''}</div></a>`)}</div>`
+        : html`<p class="muted">Nobody yet.</p>`}
+      ${note ? html`<p class="hint">${note}</p>` : ''}
+      <div class="actions end"><button type="button" data-close>Close</button></div>
+    </div>`);
 }
 
 // A post as shown on THE : NU and on profiles — laid out like an Instagram post.
@@ -132,10 +149,13 @@ export function socialCard(p, { full = false } = {}) {
 }
 
 // Carousel: keep the "1/3" counter, dots and arrows in step with the photo showing.
-function syncCarousel(car) {
+function syncCarousel(car, at = null) {
   const track = car.querySelector('.car-track');
   const n = Number(car.dataset.n);
-  const i = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+  // While an arrow is moving it, the photo it's heading to counts (not wherever the slide is now).
+  if (at === null && car.dataset.going) return;
+  const i = at ?? Math.min(n - 1, Math.max(0, Math.round(track.scrollLeft / Math.max(1, track.clientWidth))));
+  car.dataset.i = String(i);
   const count = car.querySelector('.car-count');
   if (count) count.textContent = `${i + 1}/${n}`;
   car.querySelectorAll('.car-dots i').forEach((d, k) => d.classList.toggle('on', k === i));
@@ -143,6 +163,27 @@ function syncCarousel(car) {
   const next = car.querySelector('.car-btn.next');
   if (prev) prev.hidden = i <= 0;
   if (next) next.hidden = i >= n - 1;
+}
+
+// The arrows: go to the next / previous photo exactly. Snapping is paused while it slides, since some
+// browsers (Safari especially) otherwise snap it back and it gets stuck after a photo or two.
+function moveCarousel(car, step) {
+  const track = car.querySelector('.car-track');
+  const n = Number(car.dataset.n);
+  const from = car.dataset.i !== undefined ? Number(car.dataset.i) : Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+  const to = Math.min(n - 1, Math.max(0, from + step));
+  if (to === from) return;
+  car.dataset.going = '1';
+  track.classList.add('free');
+  syncCarousel(car, to);
+  track.scrollTo({ left: to * track.clientWidth, behavior: 'smooth' });
+  clearTimeout(car._settle);
+  car._settle = setTimeout(() => {
+    track.scrollLeft = to * track.clientWidth;
+    track.classList.remove('free');
+    delete car.dataset.going;
+    syncCarousel(car);
+  }, 450);
 }
 
 export function styleBars(root) {
@@ -196,10 +237,15 @@ export function bindSocial(root, posts, redraw) {
   root.addEventListener('click', async (e) => {
     const vn = e.target.closest('.vn-play');
     if (vn) return playVoice(vn.closest('.voice-note'));
+    const likers = e.target.closest('[data-likers]');
+    if (likers) {
+      const p = posts.get(Number(likers.dataset.likers));
+      const fans = Math.max(0, p.likes - (p.likers || []).length);
+      return showPeople('Liked by', `/api/social/${p.id}/likers`, { note: fans ? 'Everyone else who liked it is a fan.' : '' });
+    }
     const arrow = e.target.closest('[data-car]');
     if (arrow) {
-      const track = arrow.closest('.carousel').querySelector('.car-track');
-      track.scrollBy({ left: Number(arrow.dataset.car) * track.clientWidth, behavior: 'smooth' });
+      moveCarousel(arrow.closest('.carousel'), Number(arrow.dataset.car));
       return;
     }
     const b = e.target.closest('[data-sm]');
@@ -228,6 +274,13 @@ export function bindSocial(root, posts, redraw) {
       menu(b, [
         { label: 'Open post', action: () => { location.hash = `#/p/${p.id}`; } },
         mine && { label: 'Edit post (caption, song, numbers, date)', action: () => editCaption(p, redraw) },
+        mine && { label: p.pinned ? 'Unpin from profile' : 'Pin to profile', action: async () => {
+          try {
+            const { post } = await api(`/api/social/${p.id}/pin`, { method: 'POST', body: { pinned: !p.pinned } });
+            toast(post.pinned ? 'Pinned to the top of the profile' : 'Unpinned');
+            redraw(post);
+          } catch (err) { toast(err.message); }
+        } },
         p.kind === 'stream' && mine && { label: p.meta.live === false ? 'Mark as live again' : 'End stream', action: () => updatePost(p, { meta: { ...p.meta, live: p.meta.live === false } }, redraw) },
         (mine || state.user.isAdmin) && { label: 'Delete post', danger: true, action: () => deletePost(p, card) },
       ]);
@@ -456,12 +509,15 @@ export async function openSocialComposer({ characterId = null, category = 'post'
         const accept = kind === 'video' ? 'video/mp4,video/quicktime,video/webm' : 'image/*';
         render(box, html`
           <div class="media-picker">
-            ${media.map((u, i) => (kind === 'video' ? html`<video src="${u}" muted playsinline></video>` : html`<span class="thumb"><img src="${u}" alt=""><button type="button" data-rm="${i}" aria-label="Remove">✕</button></span>`))}
+            ${media.map((u, i) => (kind === 'video' ? html`<video src="${u}" muted playsinline></video>` : html`<span class="thumb" draggable="${media.length > 1}" data-i="${i}"><img src="${u}" alt="" draggable="false"><button type="button" data-rm="${i}" aria-label="Remove">✕</button>
+              ${media.length > 1 ? html`<b class="thumb-n">${i + 1}</b>
+                <span class="thumb-move">${i > 0 ? html`<button type="button" data-mv="-1" data-i="${i}" aria-label="Move earlier">‹</button>` : ''}${i < media.length - 1 ? html`<button type="button" data-mv="1" data-i="${i}" aria-label="Move later">›</button>` : ''}</span>` : ''}</span>`))}
             ${(kind === 'photo' && media.length < 10) || (!media.length) ? html`<label class="add-media">${kind === 'video' ? icons.video : icons.image}
               <span>${kind === 'photo' ? 'Add photos' : kind === 'video' ? 'Add a video' : 'Add a thumbnail'}</span>
               <input type="file" accept="${accept}" id="s-file" ${kind === 'photo' ? 'multiple' : ''} hidden></label>` : ''}
           </div>
           ${kind !== 'video' && ((kind === 'photo' && media.length < 10) || !media.length) ? html`<button type="button" class="sm link-btn" id="s-link-pic">${icons.image} Use a picture link instead</button>` : ''}
+          ${kind === 'photo' && media.length > 1 ? html`<p class="hint">Drag the photos, or use ‹ ›, to change their order. Photo 1 shows first.</p>` : ''}
           ${kind === 'photo' ? html`<p class="hint size-hint">Best size: 1080 × 1350 (4:5, tall) or 1080 × 1080 (square). Every photo in a post shows at the first photo's shape.</p>` : ''}`);
       };
       const setKind = (k) => {
@@ -485,9 +541,31 @@ export async function openSocialComposer({ characterId = null, category = 'post'
         } catch (err) { toast(err.message); }
         drawMedia();
       });
+      // …or drag a photo onto another one's spot.
+      let dragFrom = null;
+      box.addEventListener('dragstart', (e) => { const t = e.target.closest('.thumb[data-i]'); if (t) { dragFrom = Number(t.dataset.i); e.dataTransfer.effectAllowed = 'move'; } });
+      box.addEventListener('dragover', (e) => { if (dragFrom !== null && e.target.closest('.thumb[data-i]')) e.preventDefault(); });
+      box.addEventListener('drop', (e) => {
+        const t = e.target.closest('.thumb[data-i]');
+        if (dragFrom === null || !t) return;
+        e.preventDefault();
+        const [moved] = media.splice(dragFrom, 1);
+        media.splice(Number(t.dataset.i), 0, moved);
+        dragFrom = null;
+        drawMedia();
+      });
+      box.addEventListener('dragend', () => { dragFrom = null; });
       d.addEventListener('click', async (e) => {
         const rm = e.target.closest('[data-rm]');
         if (rm) { media.splice(Number(rm.dataset.rm), 1); drawMedia(); }
+        // Change the order of the photos (‹ › on each one).
+        const mv = e.target.closest('[data-mv]');
+        if (mv) {
+          const i = Number(mv.dataset.i);
+          const j = i + Number(mv.dataset.mv);
+          [media[i], media[j]] = [media[j], media[i]];
+          drawMedia();
+        }
         if (e.target.closest('#rec-clear')) { media = []; drawMedia(); }
         if (e.target.closest('#s-link-pic')) {
           const url = await askImageLink();
@@ -587,7 +665,13 @@ export async function viewSocialPost(id) {
             <div class="np-cform-row">
               <select name="characterId" aria-label="Comment as">${mine.map((c) => html`<option value="${c.id}">${c.name}</option>`)}</select>
               <input name="body" maxlength="2000" placeholder="Add a comment…" required autocomplete="off">
+              <button type="button" class="icon-btn sm np-when-btn" id="np-when-btn" title="Set the date (for older posts)" aria-label="Set the comment's date">${icons.calendar}</button>
               <button class="link np-post-btn" type="submit">Post</button>
+            </div>
+            <div class="np-when" id="np-when" hidden>
+              <label for="np-when-input">Comment date</label>
+              <input id="np-when-input" name="postedAt" type="datetime-local" value="${localInput(post.createdAt)}">
+              <button type="button" class="link" id="np-when-clear">Now</button>
             </div>
           </form>` : html`<p class="muted small">Create a character to comment.</p>`}
         </section>
@@ -667,12 +751,18 @@ export async function viewSocialPost(id) {
     await api(`/api/social/comments/${del.dataset.del}`, { method: 'DELETE' });
     draw((await api(`/api/social/${id}`)).post);
   });
-  form?.addEventListener('click', (e) => { if (e.target.closest('#np-cancel-reply')) { setReply(null); form.body.value = ''; } });
+  form?.addEventListener('click', (e) => {
+    if (e.target.closest('#np-cancel-reply')) { setReply(null); form.body.value = ''; }
+    if (e.target.closest('#np-when-btn')) { const w = $('#np-when', body); w.hidden = !w.hidden; e.target.closest('#np-when-btn').classList.toggle('on', !w.hidden); }
+    if (e.target.closest('#np-when-clear')) { $('#np-when', body).hidden = true; $('#np-when-btn', body).classList.remove('on'); }
+  });
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
       const payload = { characterId: Number(form.characterId.value), body: form.body.value };
       if (replyTo?.id) payload.parentId = replyTo.id;
+      // A date for the comment, so it sits with an older (back-dated) post.
+      if (!$('#np-when', body).hidden && form.postedAt.value) payload.postedAt = new Date(form.postedAt.value).toISOString();
       const { post: updated } = await api(`/api/social/${id}/comments`, { method: 'POST', body: payload });
       form.body.value = '';
       setReply(null);

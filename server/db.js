@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 16;
+const SCHEMA_VERSION = 17;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -486,6 +486,21 @@ const MIGRATIONS = [
      body         TEXT NOT NULL,
      created_at   TEXT NOT NULL DEFAULT (datetime('now'))
    );`,
+  // v17: a separate picture for a character's thread posts; pinned posts on profiles; the
+  // Locations directory (places in Ardell City anyone can add).
+  `ALTER TABLE characters ADD COLUMN thread_avatar TEXT;
+   ALTER TABLE social_posts ADD COLUMN pinned_at TEXT;
+   CREATE TABLE locations (
+     id          INTEGER PRIMARY KEY,
+     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     name        TEXT NOT NULL,
+     picture     TEXT,
+     borough     TEXT NOT NULL DEFAULT '',
+     venue       TEXT NOT NULL DEFAULT '',
+     description TEXT NOT NULL DEFAULT '',
+     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE UNIQUE INDEX locations_name_idx ON locations(name COLLATE NOCASE);`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.
