@@ -566,12 +566,12 @@ export function goBack(fallback = '#/home') {
 // in-app viewer instead of a new tab.
 document.addEventListener('click', (e) => {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
-  const link = e.target.closest('.b-pics a');
+  const link = e.target.closest('.b-pics a, .ds-flow-card');
   const inline = !link && e.target.closest('img.fx-img');
   if (!link && !inline) return;
   e.preventDefault();
   if (link) {
-    const all = [...link.closest('.b-pics').querySelectorAll('a')];
+    const all = [...link.closest('.b-pics, .ds-flow-track').querySelectorAll('a')];
     openLightbox(all.map((a) => a.getAttribute('href')), all.indexOf(link));
   } else {
     openLightbox([inline.getAttribute('src')]);
@@ -986,7 +986,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-42';
+export const APP_BUILD = 'NV-43';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

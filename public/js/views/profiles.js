@@ -27,7 +27,7 @@ export function viewProfile(idStr) {
 export function dossierAbout(c, d, { canEdit = false } = {}) {
   const facts = FACT_LABELS.filter(([k]) => d.facts?.[k]);
   const sections = SECTION_LABELS.filter(([k]) => d.sections?.[k]);
-  const empty = !facts.length && !sections.length && !d.quote && !d.gallery?.length && !d.traits?.length && !d.likes && !d.dislikes && !d.playlist?.length && !d.playlistLink;
+  const empty = !facts.length && !sections.length && !d.quote && !d.gallery?.length && !d.traits?.length && !d.likes && !d.dislikes && !d.playlist?.length;
   return html`<div class="dossier about-dossier" data-color="${c.color}"${gradAttr(c)}>
     ${canEdit ? html`<div class="about-edit"><button type="button" class="sm" id="about-edit">${icons.quill} ${empty ? 'Fill in the profile' : 'Edit profile details'}</button></div>` : ''}
     ${d.quote || d.traits?.length || d.tagline ? html`<section class="ds-card ds-intro">
@@ -45,14 +45,21 @@ export function dossierAbout(c, d, { canEdit = false } = {}) {
 
     ${sections.map(([k, l]) => html`<section class="ds-card ds-section"><h3 class="ds-title">${l}</h3><div class="body">${formatPost(d.sections[k])}</div></section>`)}
 
-    ${d.gallery?.length ? html`<section class="ds-card"><h3 class="ds-title">Gallery</h3>
-      <div class="ds-gallery b-pics">${d.gallery.map((u) => html`<a href="${u}"><img src="${u}" alt="" loading="lazy"></a>`)}</div></section>` : ''}
+    ${d.gallery?.length ? html`<section class="ds-card ds-gallery-card"><h3 class="ds-title">Gallery</h3>
+      <div class="ds-flow" data-flow>
+        <div class="ds-flow-track" tabindex="0" aria-label="Gallery: swipe or use the arrows">${d.gallery.map((u, i) => html`
+          <a class="ds-flow-card" href="${u}" data-i="${i}"><img src="${u}" alt="" loading="lazy" draggable="false"><span class="ds-flow-expand">${icons.expand || '⤢'} Expand</span></a>`)}</div>
+        ${d.gallery.length > 1 ? html`<button type="button" class="ds-flow-nav prev" data-flow-go="-1" aria-label="Previous picture">‹</button>
+          <button type="button" class="ds-flow-nav next" data-flow-go="1" aria-label="Next picture">›</button>` : ''}
+      </div>
+      ${d.gallery.length > 1 ? html`<div class="ds-flow-dots" aria-hidden="true">${d.gallery.map((_, i) => html`<i data-dot="${i}"></i>`)}</div>` : ''}
+    </section>` : ''}
 
-    ${d.playlist?.length || d.playlistLink?.embed ? html`<section class="ds-card"><h3 class="ds-title">Playlist</h3>
-      ${d.playlistLink?.embed ? html`<iframe class="ds-player ${d.playlistLink.size || 'tall'} ${d.playlistLink.service}" src="${d.playlistLink.embed}" title="${c.name}'s playlist"
-        loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
-        <a class="ds-player-link small" href="${d.playlistLink.url}" target="_blank" rel="noopener">Open in ${({ spotify: 'Spotify', apple: 'Apple Music', youtube: 'YouTube', soundcloud: 'SoundCloud' })[d.playlistLink.service] || 'the app'} ↗</a>` : ''}
-      ${d.playlist?.length ? html`<ol class="ds-playlist">${d.playlist.map((t, i) => html`<li><span class="ds-n">${String(i + 1).padStart(2, '0')}</span><b>${t.title}</b><small>${t.artist}</small></li>`)}</ol>` : ''}</section>` : ''}
+    ${d.playlist?.length ? html`<section class="ds-card"><h3 class="ds-title">Playlist</h3>
+      <ol class="ds-playlist">${d.playlist.map((t, i) => (t.link?.embed ? html`<li class="ds-song-embed"><span class="ds-n">${String(i + 1).padStart(2, '0')}</span>
+          <iframe class="ds-player song ${t.link.service} ${t.link.size === 'video' ? 'video' : ''}" src="${t.link.embed}" title="${t.title || 'Song'}${t.artist ? ` by ${t.artist}` : ''}"
+            loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe></li>`
+        : html`<li><span class="ds-n">${String(i + 1).padStart(2, '0')}</span><b>${t.title}</b><small>${t.artist}</small></li>`))}</ol></section>` : ''}
   </div>`;
 }
 
@@ -60,7 +67,7 @@ export function dossierAbout(c, d, { canEdit = false } = {}) {
 export async function editDossier(c, d) {
   const gallery = [...(d.gallery || [])];
   let cover = d.cover || null;
-  const playlist = d.playlist?.length ? d.playlist.map((t) => ({ ...t })) : [];
+  const playlist = d.playlist?.length ? d.playlist.map((t) => ({ title: t.title || '', artist: t.artist || '', url: t.link?.url || '' })) : [];
   return modal(html`<form class="ds-editor">
     <h2>${c.name}: profile details</h2>
     <nav class="ds-tabs" role="tablist">${[['id', 'Identity'], ['facts', 'Facts'], ['story', 'Story'], ['extras', 'Gallery & music']].map(([k, l], i) => html`
@@ -77,13 +84,11 @@ export async function editDossier(c, d) {
     <div data-pane="story" hidden><p class="hint">HTML, Discord and forum codes all work here. <button type="button" class="link" id="ds-fmt">Formatting codes to copy</button></p>${SECTION_LABELS.map(([k, l]) => html`
       <label>${l}</label><textarea name="s_${k}" rows="5" maxlength="20000" placeholder="Formatting works here (bold, colors, centering…)">${d.sections?.[k] || ''}</textarea>`)}</div>
     <div data-pane="extras" hidden>
-      <label>Gallery <small class="muted">(up to 12 pictures)</small></label>
+      <label>Gallery <small class="muted">(up to 20 pictures)</small></label>
       <div class="ds-gal-edit" id="ds-gal"></div>
       <div class="actions"><button type="button" class="sm" id="ds-gal-add">Add pictures</button></div>
-      <label for="ds-pl-link">Playlist link</label>
-      <input id="ds-pl-link" name="playlistLink" type="url" maxlength="500" value="${d.playlistLink?.url || ''}" placeholder="https://open.spotify.com/playlist/…">
-      <p class="hint">Paste a playlist (or album or song) link from Spotify, Apple Music, YouTube or SoundCloud. It plays right on the profile.</p>
-      <label>Songs <small class="muted">(optional, up to 12, shown under the player)</small></label>
+      <label>Playlist <small class="muted">(up to 12 songs)</small></label>
+      <p class="hint">Paste a song's link from Spotify, Apple Music, YouTube or SoundCloud and it shows as a little player you can press play on. No link? The song shows as a line of text.</p>
       <div id="ds-songs"></div>
       <div class="actions"><button type="button" class="sm" id="ds-song-add">Add a song</button></div>
     </div>
@@ -93,7 +98,8 @@ export async function editDossier(c, d) {
       const drawGal = () => render($('#ds-gal', dlg), html`${gallery.map((u, i) => html`<span class="thumb"><img src="${u}" alt=""><button type="button" data-rm-pic="${i}" aria-label="Remove">✕</button></span>`)}`);
       const drawSongs = () => render($('#ds-songs', dlg), html`${playlist.map((t, i) => html`<div class="ds-song">
         <input data-song="${i}" data-k="title" placeholder="Song" value="${t.title}"><input data-song="${i}" data-k="artist" placeholder="Artist" value="${t.artist}">
-        <button type="button" class="icon-btn sm" data-rm-song="${i}" aria-label="Remove">✕</button></div>`)}`);
+        <button type="button" class="icon-btn sm" data-rm-song="${i}" aria-label="Remove">✕</button>
+        <input class="ds-song-link" data-song="${i}" data-k="url" type="url" maxlength="500" placeholder="Song link (optional): https://open.spotify.com/track/…" value="${t.url || ''}"></div>`)}`);
       drawGal(); drawSongs();
       dlg.addEventListener('click', (e) => {
         const tab = e.target.closest('[data-tab]');
@@ -102,10 +108,10 @@ export async function editDossier(c, d) {
           $$('[data-pane]', dlg).forEach((p) => { p.hidden = p.dataset.pane !== tab.dataset.tab; });
         }
         if (e.target.closest('#ds-fmt')) formattingGuide();
-        if (e.target.closest('#ds-gal-add')) attachSheet({ max: 12 - gallery.length, onPictures: (urls) => { gallery.push(...urls.slice(0, 12 - gallery.length)); drawGal(); } });
+        if (e.target.closest('#ds-gal-add')) attachSheet({ max: 20 - gallery.length, onPictures: (urls) => { gallery.push(...urls.slice(0, 20 - gallery.length)); drawGal(); } });
         const rp = e.target.closest('[data-rm-pic]');
         if (rp) { gallery.splice(Number(rp.dataset.rmPic), 1); drawGal(); }
-        if (e.target.closest('#ds-song-add') && playlist.length < 12) { playlist.push({ title: '', artist: '' }); drawSongs(); }
+        if (e.target.closest('#ds-song-add') && playlist.length < 12) { playlist.push({ title: '', artist: '', url: '' }); drawSongs(); }
         const rs = e.target.closest('[data-rm-song]');
         if (rs) { playlist.splice(Number(rs.dataset.rmSong), 1); drawSongs(); }
       });
@@ -120,7 +126,7 @@ export async function editDossier(c, d) {
           traits: f.traits.value.split(',').map((t) => t.trim()).filter(Boolean),
           facts: Object.fromEntries(FACT_LABELS.map(([k]) => [k, f[`f_${k}`].value])),
           sections: Object.fromEntries(SECTION_LABELS.map(([k]) => [k, f[`s_${k}`].value])),
-          gallery, playlist: playlist.filter((t) => t.title.trim()), playlistLink: f.playlistLink.value.trim(),
+          gallery, playlist: playlist.filter((t) => t.title.trim() || t.url.trim()).map((t) => ({ title: t.title, artist: t.artist, link: t.url.trim() })),
         };
         try {
           await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier } });
@@ -130,4 +136,66 @@ export async function editDossier(c, d) {
       }, true);
     },
   });
+}
+
+// The gallery carousel: swipe (phones), scroll or drag (computers), or the ‹ › arrows. The picture in
+// the middle is big and flat; the ones beside it turn away and tuck behind, like cards in a museum.
+export function wireGallery(root) {
+  for (const flow of $$('[data-flow]', root)) {
+    const track = $('.ds-flow-track', flow);
+    const cards = $$('.ds-flow-card', track);
+    const dots = $$('[data-dot]', flow.parentElement);
+    let active = 0;
+    const centerOf = (card) => card.offsetLeft + card.offsetWidth / 2 - track.clientWidth / 2;
+    const update = () => {
+      const mid = track.scrollLeft + track.clientWidth / 2;
+      let best = 0;
+      cards.forEach((card, i) => {
+        const d = Math.max(-3, Math.min(3, (card.offsetLeft + card.offsetWidth / 2 - mid) / (card.offsetWidth || 1)));
+        card.style.setProperty('--d', d.toFixed(3));
+        card.style.setProperty('--ad', Math.abs(d).toFixed(3));
+        card.style.zIndex = String(100 - Math.round(Math.abs(d) * 10));
+        if (Math.abs(d) < Math.abs((cards[best].offsetLeft + cards[best].offsetWidth / 2 - mid) / (cards[best].offsetWidth || 1))) best = i;
+      });
+      active = best;
+      cards.forEach((card, i) => card.classList.toggle('on', i === active));
+      dots.forEach((dot, i) => dot.classList.toggle('on', i === active));
+    };
+    const go = (i) => {
+      const n = Math.max(0, Math.min(cards.length - 1, i));
+      track.scrollTo({ left: centerOf(cards[n]), behavior: 'smooth' });
+    };
+    let frame = 0;
+    track.addEventListener('scroll', () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; update(); }); }, { passive: true });
+    flow.addEventListener('click', (e) => {
+      const nav = e.target.closest('[data-flow-go]');
+      if (nav) { go(active + Number(nav.dataset.flowGo)); return; }
+      // Tapping a picture at the side brings it to the middle; the middle one opens big.
+      const card = e.target.closest('.ds-flow-card');
+      if (card && (dragged || Number(card.dataset.i) !== active)) { e.preventDefault(); if (!dragged) go(Number(card.dataset.i)); }
+    });
+    track.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); go(active + (e.key === 'ArrowRight' ? 1 : -1)); }
+    });
+    // Drag with the mouse on computers.
+    let dragged = false;
+    track.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      const x0 = e.clientX; const s0 = track.scrollLeft;
+      dragged = false;
+      track.classList.add('dragging');
+      const move = (ev) => { if (Math.abs(ev.clientX - x0) > 5) dragged = true; track.scrollLeft = s0 - (ev.clientX - x0); };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        track.classList.remove('dragging');
+        update(); go(active);
+        setTimeout(() => { dragged = false; }, 0);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+    requestAnimationFrame(() => { track.scrollLeft = centerOf(cards[0]); update(); });
+    window.addEventListener('resize', update, { passive: true });
+  }
 }

@@ -3151,3 +3151,41 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
    (--vv-top, see theme.js), so the text box sits right above the keyboard instead of jumping. */
 :root.kb-up, :root.kb-up body { overflow: hidden; overscroll-behavior: none; }
 :root.kb-up body:not(.guest) { transform: translateY(var(--vv-top, 0px)); }
+
+/* NV-43: profile gallery as a museum-style carousel. The middle picture is big and flat; the ones
+   beside it turn away and tuck behind (--d = how far from the middle, set in profiles.js). */
+.ds-gallery-card { overflow: hidden; }
+.ds-flow { --cw: min(62vw, 340px); --persp: 900px; position: relative; margin: 4px -14px 0; }
+@media (max-width: 899px) { .ds-flow { --cw: 50vw; --persp: 600px; } }
+.ds-flow-track { display: flex; align-items: center; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none;
+  padding: 18px calc(50% - var(--cw) / 2) 22px; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; outline: none; cursor: grab; }
+.ds-flow-track::-webkit-scrollbar { display: none; }
+.ds-flow-track.dragging { cursor: grabbing; scroll-snap-type: none; }
+.ds-flow-card { --d: 0; --ad: 0; position: relative; flex: none; width: var(--cw); aspect-ratio: 4 / 5; margin: 0 calc(var(--cw) * -0.16);
+  scroll-snap-align: center; border-radius: 26px; overflow: hidden; background: var(--glass-2);
+  border: 1px solid rgb(255 255 255 / .35); box-shadow: 0 18px 50px rgb(0 0 0 / .28);
+  transform: perspective(var(--persp)) rotateY(calc(var(--d) * -34deg)) scale(calc(1 - min(var(--ad), 2) * .14)) translateZ(calc(var(--ad) * -40px));
+  opacity: calc(1 - min(var(--ad), 3) * .22); transition: transform .12s linear, opacity .12s linear; user-select: none; -webkit-user-drag: none; }
+.ds-flow-card img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.ds-flow-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(255 255 255 / .12), transparent 30%, transparent 70%, rgb(0 0 0 / .25)); pointer-events: none; }
+.ds-flow-expand { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1; display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 999px; background: rgb(30 30 34 / .45); color: #fff; font: 600 .75rem var(--sans);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); opacity: 0; transition: opacity .2s; pointer-events: none; }
+.ds-flow-card.on .ds-flow-expand { opacity: 1; }
+.ds-flow-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 200; width: 38px; height: 38px; border-radius: 50%; padding: 0;
+  display: grid; place-items: center; font-size: 1.4rem; line-height: 1; color: var(--text); background: color-mix(in srgb, var(--base) 55%, transparent);
+  border: 1px solid var(--glass-border); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.ds-flow-nav.prev { left: 10px; } .ds-flow-nav.next { right: 10px; }
+.ds-flow-dots { display: flex; justify-content: center; gap: 6px; margin-top: 2px; }
+.ds-flow-dots i { width: 6px; height: 6px; border-radius: 999px; background: var(--glass-border); transition: width .2s, background .2s; }
+.ds-flow-dots i.on { width: 22px; background: var(--muted); }
+@media (hover: none) { .ds-flow-nav { opacity: .85; } }
+
+/* Songs with a link: a small player of their own. */
+.ds-playlist li.ds-song-embed { grid-template-rows: auto; align-items: center; }
+.ds-player.song { height: 80px; margin: 0; border-radius: 12px; background: transparent; color-scheme: normal; }
+.ds-player.song.apple { height: 175px; }
+.ds-player.song.soundcloud { height: 120px; }
+.ds-player.song.video { height: auto; aspect-ratio: 16 / 9; }
+
+.ds-song .ds-song-link { grid-column: 1 / -1; margin-bottom: 6px; }

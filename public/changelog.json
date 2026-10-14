@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-43",
+    "date": "2026-10-14",
+    "title": "Museum gallery & song players",
+    "items": [
+      "Character galleries are now a 3D carousel: the picture in the middle is big, the ones beside it turn away. Swipe on phones; drag, scroll or use the ‹ › arrows on computers. Tap the middle picture to see it full size.",
+      "Galleries hold up to 20 pictures (was 12).",
+      "Playlist: each song can have its own link (Spotify, Apple Music, YouTube or SoundCloud) and shows as a small player. Songs without a link stay as text. The big playlist player is gone."
+    ]
+  },
+  {
     "code": "NV-42",
     "date": "2026-10-14",
     "title": "Removing characters from an episode works",

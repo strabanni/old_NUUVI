@@ -121,11 +121,14 @@ export function profileRoutes(r, ctx) {
       traits: (Array.isArray(d.traits) ? d.traits : []).map((t) => String(t).trim().slice(0, 30)).filter(Boolean).slice(0, 12),
       likes: text(d.likes, 'Likes', 1000),
       dislikes: text(d.dislikes, 'Dislikes', 1000),
-      gallery: (Array.isArray(d.gallery) ? d.gallery : []).slice(0, 12).map((v) => pic(v) ?? fail(400, 'Picture missing')),
-      playlist: (Array.isArray(d.playlist) ? d.playlist : []).slice(0, 12)
-        .map((t) => ({ title: String(t?.title ?? '').trim().slice(0, 80), artist: String(t?.artist ?? '').trim().slice(0, 80) })).filter((t) => t.title),
-      // A linked playlist, shown as its own player (Spotify, Apple Music, YouTube, SoundCloud).
-      playlistLink: d.playlistLink && String(d.playlistLink).trim() ? playlistEmbed(String(d.playlistLink).slice(0, 500)) : null,
+      gallery: (Array.isArray(d.gallery) ? d.gallery : []).slice(0, 20).map((v) => pic(v) ?? fail(400, 'Picture missing')),
+      // Songs, each with an optional link (Spotify, Apple Music, YouTube, SoundCloud) shown as its own little player.
+      playlist: (Array.isArray(d.playlist) ? d.playlist : []).slice(0, 12).map((t) => {
+        const song = { title: String(t?.title ?? '').trim().slice(0, 80), artist: String(t?.artist ?? '').trim().slice(0, 80) };
+        const link = typeof t?.link === 'string' ? t.link.trim() : t?.link?.url;
+        if (link) song.link = playlistEmbed(String(link).slice(0, 500));
+        return song;
+      }).filter((t) => t.title || t.link),
     };
     const json = JSON.stringify(dossier);
     if (json.length > 120000) fail(413, 'That profile is too long');

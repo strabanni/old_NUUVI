@@ -2,7 +2,7 @@ import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, 
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHash } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
-import { dossierAbout, editDossier } from './profiles.js';
+import { dossierAbout, editDossier, wireGallery } from './profiles.js';
 
 const DETAIL_SUGGESTIONS = ['Age', 'Pronouns', 'Face claim', 'Occupation', 'Species', 'Height', 'Birthday', 'Alignment'];
 
@@ -344,6 +344,7 @@ export async function viewCharacter(id) {
           <div class="small-stats"><span><b>${compact(stats.posts)}</b> episode posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
           ${prof ? dossierAbout(c, prof.dossier, { canEdit: prof.canEdit }) : html`<p class="muted small">Loading profile…</p>`}`);
         applyColors(pane);
+        wireGallery(pane);
         $('#about-edit', pane)?.addEventListener('click', async () => {
           if (await editDossier(c, prof.dossier)) { profile = null; draw(); }
         });

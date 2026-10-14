@@ -123,7 +123,7 @@ test('your character\'s comment can be edited (words and date); nobody else\'s',
   assert.equal((await a(`/api/social/comments/${cid}`, { method: 'PUT', body: { body: '' } })).status, 400);
 });
 
-test('a playlist link becomes a player on the profile', async () => {
+test('song links become players on the profile; up to 20 gallery pictures', async () => {
   const { playlistEmbed } = await import('../server/routes/profiles.js');
   assert.deepEqual(playlistEmbed('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc'),
     { url: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc', service: 'spotify', size: 'tall', embed: 'https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGoYBM5M' });
@@ -139,12 +139,25 @@ test('a playlist link becomes a player on the profile', async () => {
 
   const w = await app.signUp('playlist_owner');
   const c = await mk(w, 'Nova');
-  const saved = await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { playlistLink: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M' } } });
+  // Each song can have its own link, shown as a little player; a song without one stays text.
+  const songs = [
+    { title: 'MR RECOUP', artist: '21 Savage, Drake', link: 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC?si=x' },
+    { title: 'Clarity', artist: 'Zedd, Foxes' },
+    { title: '', artist: '', link: 'https://youtu.be/dQw4w9WgXcQ' },
+    { title: '', artist: '' },
+  ];
+  const saved = await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { playlist: songs } } });
   assert.equal(saved.status, 200, JSON.stringify(saved.data));
-  assert.equal(saved.data.dossier.playlistLink.embed, 'https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGoYBM5M');
-  assert.equal((await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { playlistLink: 'https://example.com/x' } } })).status, 400);
-  const cleared = await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { playlistLink: '' } } });
-  assert.equal(cleared.data.dossier.playlistLink, null);
+  const pl = saved.data.dossier.playlist;
+  assert.equal(pl.length, 3, 'the empty song is dropped');
+  assert.equal(pl[0].link.embed, 'https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC');
+  assert.equal(pl[1].link, undefined);
+  assert.equal(pl[2].link.service, 'youtube');
+  assert.equal((await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { playlist: [{ title: 'x', link: 'https://example.com/x' }] } } })).status, 400);
+  // Up to 20 gallery pictures.
+  const pic = (await w('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex') })).data.url;
+  const g = await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { gallery: Array(25).fill(pic) } } });
+  assert.equal(g.data.dossier.gallery.length, 20);
   const csp = (await w('/')).headers.get('content-security-policy');
   assert.match(csp, /frame-src [^;]*https:\/\/open\.spotify\.com/);
 });
