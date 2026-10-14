@@ -122,3 +122,29 @@ test('your character\'s comment can be edited (words and date); nobody else\'s',
   assert.equal((await b(`/api/social/comments/${cid}`, { method: 'PUT', body: { body: 'hacked' } })).status, 404);
   assert.equal((await a(`/api/social/comments/${cid}`, { method: 'PUT', body: { body: '' } })).status, 400);
 });
+
+test('a playlist link becomes a player on the profile', async () => {
+  const { playlistEmbed } = await import('../server/routes/profiles.js');
+  assert.deepEqual(playlistEmbed('https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc'),
+    { url: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=abc', service: 'spotify', size: 'tall', embed: 'https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGoYBM5M' });
+  assert.equal(playlistEmbed('https://open.spotify.com/intl-fr/track/4uLU6hMCjMI75M1A2tKUQC').embed, 'https://open.spotify.com/embed/track/4uLU6hMCjMI75M1A2tKUQC');
+  assert.equal(playlistEmbed('https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb').embed,
+    'https://embed.music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb');
+  assert.equal(playlistEmbed('https://www.youtube.com/playlist?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG').embed,
+    'https://www.youtube-nocookie.com/embed/videoseries?list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG');
+  assert.equal(playlistEmbed('https://youtu.be/dQw4w9WgXcQ').embed, 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+  assert.match(playlistEmbed('https://soundcloud.com/artist/sets/late-nights').embed, /^https:\/\/w\.soundcloud\.com\/player\/\?url=https%3A%2F%2Fsoundcloud\.com%2Fartist%2Fsets%2Flate-nights/);
+  assert.throws(() => playlistEmbed('https://evil.example/playlist'));
+  assert.throws(() => playlistEmbed('javascript:alert(1)'));
+
+  const w = await app.signUp('playlist_owner');
+  const c = await mk(w, 'Nova');
+  const saved = await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { playlistLink: 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M' } } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.data));
+  assert.equal(saved.data.dossier.playlistLink.embed, 'https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGoYBM5M');
+  assert.equal((await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { playlistLink: 'https://example.com/x' } } })).status, 400);
+  const cleared = await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { playlistLink: '' } } });
+  assert.equal(cleared.data.dossier.playlistLink, null);
+  const csp = (await w('/')).headers.get('content-security-policy');
+  assert.match(csp, /frame-src [^;]*https:\/\/open\.spotify\.com/);
+});

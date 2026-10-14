@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-36",
+    "date": "2026-10-14",
+    "title": "Playlists that play",
+    "items": [
+      "Character profiles: paste a playlist link from Spotify, Apple Music, YouTube or SoundCloud (Edit profile details → Gallery & music) and it plays right in the About tab.",
+      "Albums, songs and artist pages work too. The typed song list is still there if you want it, shown under the player."
+    ]
+  },
+  {
     "code": "NV-35",
     "date": "2026-10-14",
     "title": "Edit comments",

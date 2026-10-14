@@ -9,6 +9,40 @@ export const FACTS = ['fullName', 'nicknames', 'age', 'birthday', 'zodiac', 'pro
 // Long sections, in the order they're shown.
 export const SECTIONS = ['personality', 'appearance', 'history', 'relationships', 'goals', 'trivia'];
 
+// A playlist link from Spotify, Apple Music, YouTube (or YouTube Music) or SoundCloud → the player
+// that can be shown on the profile. { url, embed, service, size } — size picks the player's height.
+export function playlistEmbed(link) {
+  let u;
+  try { u = new URL(String(link).trim()); } catch { fail(400, 'That playlist link doesn’t look right'); }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') fail(400, 'That playlist link doesn’t look right');
+  const host = u.hostname.replace(/^www\./, '').toLowerCase();
+  const url = u.href;
+  if (host === 'open.spotify.com') {
+    const m = u.pathname.match(/^\/(?:intl-[a-z-]+\/)?(?:embed\/)?(playlist|album|track|artist|show|episode)\/([A-Za-z0-9]+)/);
+    if (!m) fail(400, 'Use a Spotify playlist, album, song or artist link');
+    return { url, service: 'spotify', size: m[1] === 'track' || m[1] === 'episode' ? 'short' : 'tall', embed: `https://open.spotify.com/embed/${m[1]}/${m[2]}` };
+  }
+  if (host === 'music.apple.com' || host === 'embed.music.apple.com') {
+    if (!/^\/[a-z]{2}\/(playlist|album|song|artist|station)\//.test(u.pathname)) fail(400, 'Use an Apple Music playlist, album or song link');
+    const short = /\/song\//.test(u.pathname) || u.searchParams.has('i');
+    return { url, service: 'apple', size: short ? 'short' : 'tall', embed: `https://embed.music.apple.com${u.pathname}${u.search}` };
+  }
+  if (['youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be'].includes(host)) {
+    const list = u.searchParams.get('list');
+    const video = host === 'youtu.be' ? u.pathname.slice(1) : u.searchParams.get('v');
+    if (list && /^[\w-]+$/.test(list)) return { url, service: 'youtube', size: 'video', embed: `https://www.youtube-nocookie.com/embed/videoseries?list=${list}` };
+    if (video && /^[\w-]{6,20}$/.test(video)) return { url, service: 'youtube', size: 'video', embed: `https://www.youtube-nocookie.com/embed/${video}` };
+    fail(400, 'Use a YouTube playlist or video link');
+  }
+  if (host === 'soundcloud.com' || host === 'm.soundcloud.com') {
+    if (u.pathname.split('/').filter(Boolean).length < 2) fail(400, 'Use a SoundCloud playlist or track link');
+    const clean = `https://soundcloud.com${u.pathname}`;
+    return { url, service: 'soundcloud', size: /\/sets\//.test(u.pathname) ? 'tall' : 'short',
+      embed: `https://w.soundcloud.com/player/?url=${encodeURIComponent(clean)}&color=%23ee719e&visual=false&show_comments=false` };
+  }
+  fail(400, 'Playlist links can be from Spotify, Apple Music, YouTube or SoundCloud');
+}
+
 const parse = (json) => { try { return JSON.parse(json || '{}') || {}; } catch { return {}; } };
 
 // A birthday as people write it ("March 3", "3rd of March", "03/03", "1999-03-03") → { month, day }.
@@ -90,6 +124,8 @@ export function profileRoutes(r, ctx) {
       gallery: (Array.isArray(d.gallery) ? d.gallery : []).slice(0, 12).map((v) => pic(v) ?? fail(400, 'Picture missing')),
       playlist: (Array.isArray(d.playlist) ? d.playlist : []).slice(0, 12)
         .map((t) => ({ title: String(t?.title ?? '').trim().slice(0, 80), artist: String(t?.artist ?? '').trim().slice(0, 80) })).filter((t) => t.title),
+      // A linked playlist, shown as its own player (Spotify, Apple Music, YouTube, SoundCloud).
+      playlistLink: d.playlistLink && String(d.playlistLink).trim() ? playlistEmbed(String(d.playlistLink).slice(0, 500)) : null,
     };
     const json = JSON.stringify(dossier);
     if (json.length > 120000) fail(413, 'That profile is too long');

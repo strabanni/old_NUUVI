@@ -3088,3 +3088,12 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
 .person-row select { flex: 0 1 170px; width: auto; margin: 0; }
 .person-in { display: flex; align-items: center; gap: 6px; font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; margin: 0; cursor: pointer; white-space: nowrap; }
 .person-in input { width: 18px; height: 18px; margin: 0; accent-color: #EE719E; }
+
+/* NV-36: a linked playlist plays right on the profile */
+.ds-player { display: block; width: 100%; border: 0; border-radius: 14px; background: rgba(127,127,127,.08); margin: 0 0 6px; }
+.ds-player.tall { height: 380px; }
+.ds-player.short { height: 152px; }
+.ds-player.video { height: auto; aspect-ratio: 16 / 9; }
+.ds-player.apple.tall { height: 450px; }
+.ds-player.soundcloud.short { height: 166px; }
+.ds-player-link { display: inline-block; margin: 0 0 12px; color: var(--muted); }

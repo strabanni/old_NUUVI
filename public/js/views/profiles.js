@@ -27,7 +27,7 @@ export function viewProfile(idStr) {
 export function dossierAbout(c, d, { canEdit = false } = {}) {
   const facts = FACT_LABELS.filter(([k]) => d.facts?.[k]);
   const sections = SECTION_LABELS.filter(([k]) => d.sections?.[k]);
-  const empty = !facts.length && !sections.length && !d.quote && !d.gallery?.length && !d.traits?.length && !d.likes && !d.dislikes;
+  const empty = !facts.length && !sections.length && !d.quote && !d.gallery?.length && !d.traits?.length && !d.likes && !d.dislikes && !d.playlist?.length && !d.playlistLink;
   return html`<div class="dossier about-dossier" data-color="${c.color}"${gradAttr(c)}>
     ${canEdit ? html`<div class="about-edit"><button type="button" class="sm" id="about-edit">${icons.quill} ${empty ? 'Fill in the profile' : 'Edit profile details'}</button></div>` : ''}
     ${d.quote || d.traits?.length || d.tagline ? html`<section class="ds-card ds-intro">
@@ -48,8 +48,11 @@ export function dossierAbout(c, d, { canEdit = false } = {}) {
     ${d.gallery?.length ? html`<section class="ds-card"><h3 class="ds-title">Gallery</h3>
       <div class="ds-gallery b-pics">${d.gallery.map((u) => html`<a href="${u}"><img src="${u}" alt="" loading="lazy"></a>`)}</div></section>` : ''}
 
-    ${d.playlist?.length ? html`<section class="ds-card"><h3 class="ds-title">Playlist</h3>
-      <ol class="ds-playlist">${d.playlist.map((t, i) => html`<li><span class="ds-n">${String(i + 1).padStart(2, '0')}</span><b>${t.title}</b><small>${t.artist}</small></li>`)}</ol></section>` : ''}
+    ${d.playlist?.length || d.playlistLink?.embed ? html`<section class="ds-card"><h3 class="ds-title">Playlist</h3>
+      ${d.playlistLink?.embed ? html`<iframe class="ds-player ${d.playlistLink.size || 'tall'} ${d.playlistLink.service}" src="${d.playlistLink.embed}" title="${c.name}'s playlist"
+        loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        <a class="ds-player-link small" href="${d.playlistLink.url}" target="_blank" rel="noopener">Open in ${({ spotify: 'Spotify', apple: 'Apple Music', youtube: 'YouTube', soundcloud: 'SoundCloud' })[d.playlistLink.service] || 'the app'} ↗</a>` : ''}
+      ${d.playlist?.length ? html`<ol class="ds-playlist">${d.playlist.map((t, i) => html`<li><span class="ds-n">${String(i + 1).padStart(2, '0')}</span><b>${t.title}</b><small>${t.artist}</small></li>`)}</ol>` : ''}</section>` : ''}
   </div>`;
 }
 
@@ -77,7 +80,10 @@ export async function editDossier(c, d) {
       <label>Gallery <small class="muted">(up to 12 pictures)</small></label>
       <div class="ds-gal-edit" id="ds-gal"></div>
       <div class="actions"><button type="button" class="sm" id="ds-gal-add">Add pictures</button></div>
-      <label>Playlist <small class="muted">(up to 12 songs)</small></label>
+      <label for="ds-pl-link">Playlist link</label>
+      <input id="ds-pl-link" name="playlistLink" type="url" maxlength="500" value="${d.playlistLink?.url || ''}" placeholder="https://open.spotify.com/playlist/…">
+      <p class="hint">Paste a playlist (or album or song) link from Spotify, Apple Music, YouTube or SoundCloud. It plays right on the profile.</p>
+      <label>Songs <small class="muted">(optional, up to 12, shown under the player)</small></label>
       <div id="ds-songs"></div>
       <div class="actions"><button type="button" class="sm" id="ds-song-add">Add a song</button></div>
     </div>
@@ -114,7 +120,7 @@ export async function editDossier(c, d) {
           traits: f.traits.value.split(',').map((t) => t.trim()).filter(Boolean),
           facts: Object.fromEntries(FACT_LABELS.map(([k]) => [k, f[`f_${k}`].value])),
           sections: Object.fromEntries(SECTION_LABELS.map(([k]) => [k, f[`s_${k}`].value])),
-          gallery, playlist: playlist.filter((t) => t.title.trim()),
+          gallery, playlist: playlist.filter((t) => t.title.trim()), playlistLink: f.playlistLink.value.trim(),
         };
         try {
           await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier } });

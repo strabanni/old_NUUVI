@@ -63,7 +63,7 @@ const SECURITY_HEADERS = {
   'X-Robots-Tag': 'noindex, nofollow',
   'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
   'Content-Security-Policy':
-    "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob:; style-src 'self'; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob:; style-src 'self'; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self'; frame-src https://open.spotify.com https://embed.music.apple.com https://www.youtube-nocookie.com https://w.soundcloud.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 
 // Live connections (Server-Sent Events). Each stream belongs to a user (or an anonymous
