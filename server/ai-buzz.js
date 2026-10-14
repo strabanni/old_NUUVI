@@ -19,7 +19,8 @@ Write comments the way real people comment on Instagram:
 - Mostly lowercase, short (often 2-12 words), slang, emojis now and then, the odd typo. Some longer ones.
 - A natural mix: mostly fans and hype, plus jokes, questions, people tagging friends, lukewarm takes and a few mild critics or haters. Never cruel, hateful or sexual.
 - React to what is actually in the pictures: the outfit, the place, the light, the food, the people, the mood, small details. When there are pictures, most comments should be about them.
-- Only say a tagged (@) person is in the picture if the post says they are.
+- Only say a tagged (@) person is in the picture if the post says they are. When it says what a tagged person is to the poster (partner, ex, rival…), comments should fit that.
+- If there's a private note on what's really going on, use it to understand the post, but don't repeat it.
 - Mention the location or the song only occasionally.
 - Every comment must be different. Don't repeat the same idea in different words.
 - Use the character's pronouns correctly.
@@ -59,6 +60,14 @@ const ANGLES = [
   'mostly short reactions and emoji-heavy comments',
 ];
 
+// One line per tagged person: what they are to the poster and whether they're in the picture.
+function taggedLines(tagged, people) {
+  return `Tagged:\n${tagged.map((h) => {
+    const p = people[h.slice(1).toLowerCase()] || {};
+    return `- ${h}${p.rel ? `, the poster's ${p.rel === 'bestie' ? 'best friend' : p.rel === 'groupmate' ? 'group/band mate' : p.rel}` : ''}. ${p.in ? 'IS in the picture.' : 'is NOT in the picture (only mentioned).'}`;
+  }).join('\n')}`;
+}
+
 export function createAiBuzz({ db, hub, uploadDir, ai }) {
   const enabled = !!ai?.enabled;
   const runs = new Map(); // post id → the latest run (an edit while one is running replaces it)
@@ -95,7 +104,8 @@ export function createAiBuzz({ db, hub, uploadDir, ai }) {
       post.title ? `Stream title: "${post.title}"` : '',
       post.location ? `Location tag: ${post.location}` : '',
       meta.music?.title ? `Song on the post: "${meta.music.title}"${meta.music.artist ? ` by ${meta.music.artist}` : ''}` : '',
-      tagged.length ? `Tagged: ${tagged.join(', ')}. ${meta.tagged ? 'They ARE in the picture.' : 'They are NOT in the picture (only mentioned).'}` : '',
+      tagged.length ? (meta.people ? taggedLines(tagged, meta.people) : `Tagged: ${tagged.join(', ')}. ${meta.tagged ? 'They ARE in the picture.' : 'They are NOT in the picture (only mentioned).'}`) : '',
+      meta.context ? `What's really going on (a private note from the writer, so the comments make sense — never quote it or reveal it word for word): ${meta.context}` : '',
     ];
     return lines.filter(Boolean).join('\n');
   }

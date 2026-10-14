@@ -1,6 +1,6 @@
 // Characters as social profiles: following other characters, followers, and the threads they're in.
 import { fail, id, str, oneOf } from '../http.js';
-import { setBuzz, buzzTarget, autoLikes, autoCommentLikes } from '../buzz.js';
+import { setBuzz, buzzTarget, autoLikes, autoCommentLikes, RELATIONSHIPS } from '../buzz.js';
 import { toCharacter, requireUser, isBlocked, imageLink, adminCanSee } from '../model.js';
 
 export function socialRoutes(r, ctx) {
@@ -132,6 +132,12 @@ export function socialPostRoutes(r, ctx) {
     handle: row.c_handle, npc: !!row.c_npc, bot: row.c_bot ?? null, gradient: row.c_gradient ? row.c_gradient.split(',') : null,
   });
 
+  // The "what's happening" note is the writer's own; nobody else gets it.
+  const ownMeta = (row, viewerId) => {
+    const meta = JSON.parse(row.meta);
+    if (row.user_id !== viewerId) delete meta.context;
+    return meta;
+  };
   function toSocial(row, viewerId, { allComments = false } = {}) {
     const comments = db.prepare(`SELECT sc.*, ${charCols} FROM social_comments sc JOIN characters c ON c.id = sc.character_id
       WHERE sc.post_id = ? ORDER BY sc.id ${allComments ? '' : 'DESC LIMIT 2'}`).all(row.id);
@@ -145,7 +151,7 @@ export function socialPostRoutes(r, ctx) {
       pinned: !!row.pinned_at,
       buzzPending: !!ctx.aiBuzz?.pending(row.id),
       id: row.id, kind: row.kind, body: row.body, title: row.title,
-      media: JSON.parse(row.media), meta: JSON.parse(row.meta), location: row.location ?? null, category: row.category ?? 'post',
+      media: JSON.parse(row.media), meta: ownMeta(row, viewerId), location: row.location ?? null, category: row.category ?? 'post',
       createdAt: row.created_at, editedAt: row.edited_at, userId: row.user_id,
       character: charOf(row),
       // Likes start from the character's fame (a share of their followers, or the number the writer set)
@@ -278,6 +284,30 @@ export function socialPostRoutes(r, ctx) {
     return out;
   }
 
+  // Each @mentioned person's relationship to the poster and whether they're in the picture, plus a
+  // private note on what's happening: both only steer the fan comments. undefined = leave as is.
+  function withPeople(meta, people, context) {
+    const out = { ...meta };
+    if (people !== undefined) {
+      if (people !== null && !Array.isArray(people)) fail(400, 'Tagged people must be a list');
+      const list = {};
+      for (const p of (people || []).slice(0, 20)) {
+        const handle = String(p?.handle || '').replace(/^@/, '').trim();
+        if (!/^[\p{L}\p{N}_.]{2,40}$/u.test(handle)) continue;
+        const rel = RELATIONSHIPS.includes(p.rel) ? p.rel : '';
+        list[handle.toLowerCase()] = { handle, rel, in: !!p.inPicture };
+      }
+      if (Object.keys(list).length) out.people = list; else delete out.people;
+      // The older "everyone tagged is in the picture" switch follows the per-person ones.
+      if (Object.values(list).some((p) => p.in)) out.tagged = true; else delete out.tagged;
+    }
+    if (context !== undefined) {
+      const note = (str(context, 'What\'s happening', { max: 600 }) ?? '').trim();
+      if (note) out.context = note; else delete out.context;
+    }
+    return out;
+  }
+
   // A song attached to any post, Instagram-style: title and artist, plus an optional link.
   // undefined = leave as is, null = remove.
   function musicInput(music) {
@@ -332,7 +362,7 @@ export function socialPostRoutes(r, ctx) {
     const postedAt = whenInput(body.postedAt) ?? null;
     const { lastInsertRowid } = db.prepare(`INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta, location, category, likes_display, comments_display, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`)
-      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(withTagged(metaInput(kind, body.meta), body.taggedIn), musicInput(body.music))), location,
+      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(withPeople(withTagged(metaInput(kind, body.meta), body.taggedIn), body.people, body.context), musicInput(body.music))), location,
         category, likesShown ?? null, commentsShown ?? null, postedAt);
     ctx.bots?.onSocialPost(Number(lastInsertRowid));
     notifyTags(user, c, Number(lastInsertRowid), text, 'post');
@@ -357,9 +387,9 @@ export function socialPostRoutes(r, ctx) {
     const mediaChanged = kind !== row.kind || JSON.stringify(media) !== row.media;
     // Meta that belongs to the post rather than its type (song, tags, what the pictures look like) carries over.
     const prev = JSON.parse(row.meta);
-    const keep = Object.fromEntries(['music', 'tagged', ...(mediaChanged ? [] : ['seen', 'look'])].filter((k) => prev[k] !== undefined).map((k) => [k, prev[k]]));
+    const keep = Object.fromEntries(['music', 'tagged', 'people', 'context', ...(mediaChanged ? [] : ['seen', 'look'])].filter((k) => prev[k] !== undefined).map((k) => [k, prev[k]]));
     const base = body.meta === undefined ? (mediaChanged ? keep : prev) : { ...keep, ...metaInput(kind, body.meta) };
-    const meta = JSON.stringify(withMusic(withTagged(base, body.taggedIn), musicInput(body.music)));
+    const meta = JSON.stringify(withMusic(withPeople(withTagged(base, body.taggedIn), body.people, body.context), musicInput(body.music)));
     const count = (v, field, old) => (v === undefined ? old ?? null : countInput(v, field));
     const likesShown = count(body.likesDisplay, 'Likes', row.likes_display);
     const commentsShown = count(body.commentsDisplay, 'Comments', row.comments_display);

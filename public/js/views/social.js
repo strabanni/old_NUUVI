@@ -358,8 +358,7 @@ const localInput = (d) => {
   const pad = (n) => String(n).padStart(2, '0');
   return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
 };
-const extraFields = ({ category = 'post', likes = null, comments = null, postedAt = null, tagged = false } = {}) => html`
-  <label class="check-row"><input type="checkbox" name="taggedIn" ${tagged ? 'checked' : ''}><span>The people I @mention are in the picture <small class="muted">(fan comments only say they're in it when this is on)</small></span></label>
+const extraFields = ({ category = 'post', likes = null, comments = null, postedAt = null } = {}) => html`
   <div class="seg post-cat" role="radiogroup" aria-label="Post or musing">
     <label><input type="radio" name="category" value="post" ${category !== 'musing' ? 'checked' : ''}><span>${icons.image} Post</span></label>
     <label><input type="radio" name="category" value="musing" ${category === 'musing' ? 'checked' : ''}><span>${icons.quill} Musing</span></label>
@@ -377,10 +376,53 @@ const extraFields = ({ category = 'post', likes = null, comments = null, postedA
   </details>`;
 const num = (v) => (String(v ?? '').trim() === '' ? null : Number(String(v).replace(/[,\s]/g, '')));
 const extrasFrom = (data, originalWhen = null) => {
-  const out = { category: data.category || 'post', likesDisplay: num(data.likes), commentsDisplay: num(data.comments), taggedIn: data.taggedIn === 'on' };
+  const out = { category: data.category || 'post', likesDisplay: num(data.likes), commentsDisplay: num(data.comments) };
   if (data.postedAt && data.postedAt !== localInput(originalWhen)) out.postedAt = new Date(data.postedAt).toISOString();
   return out;
 };
+
+// What each @mentioned person is to the poster, and whether they're in the picture: one row per
+// person in the caption. Only the fan comments use this.
+const RELATIONSHIPS = [['', 'Relationship…'], ['friend', 'Friend'], ['bestie', 'Best friend'], ['partner', 'Partner'], ['crush', 'Crush'],
+  ['situationship', 'Situationship'], ['ex', 'Ex'], ['family', 'Family'], ['sibling', 'Sibling'], ['coworker', 'Coworker'],
+  ['groupmate', 'Group / band mate'], ['rival', 'Rival'], ['enemy', 'Enemy']];
+const captionHandles = (text) => [...new Set([...String(text || '').matchAll(/@([\p{L}\p{N}_.]{2,40})/gu)].map((m) => m[1].replace(/[.]+$/, '')))];
+function wirePeople(box, field, edit) {
+  const people = new Map();
+  const saved = edit?.meta?.people || {};
+  for (const p of Object.values(saved)) people.set(p.handle.toLowerCase(), { handle: p.handle, rel: p.rel || '', in: !!p.in });
+  const oldTagged = edit?.meta?.tagged === true && !edit?.meta?.people; // posts from before: everyone tagged was "in the picture"
+  let known = null;
+  api('/api/profiles').then((r) => { known = new Map(r.profiles.filter((c) => c.handle).map((c) => [c.handle.toLowerCase(), c])); draw(); }).catch(() => { known = new Map(); draw(); });
+  const current = () => captionHandles(field.value).filter((h) => !known || !known.size || known.has(h.toLowerCase()))
+    .map((h) => {
+      const k = h.toLowerCase();
+      if (!people.has(k)) people.set(k, { handle: known?.get(k)?.handle || h, rel: '', in: oldTagged });
+      return people.get(k);
+    });
+  function draw() {
+    const list = current();
+    box.hidden = !list.length;
+    render(box, list.length ? html`
+      <span class="people-title">Tagged people <small class="muted">(helps the fan comments make sense)</small></span>
+      ${list.map((p) => html`<div class="person-row" data-h="${p.handle.toLowerCase()}">
+        <span class="person-name"><span class="mention">@${p.handle}</span>${known?.get(p.handle.toLowerCase())?.name ? html`<small class="muted">${known.get(p.handle.toLowerCase()).name}</small>` : ''}</span>
+        <select data-rel aria-label="What @${p.handle} is to this character">${RELATIONSHIPS.map(([v, label]) => html`<option value="${v}" ${p.rel === v ? 'selected' : ''}>${label}</option>`)}</select>
+        <label class="person-in"><input type="checkbox" data-in ${p.in ? 'checked' : ''}><span>In the picture</span></label>
+      </div>`)}` : html``);
+  }
+  box.addEventListener('change', (e) => {
+    const row = e.target.closest('[data-h]');
+    const p = row && people.get(row.dataset.h);
+    if (!p) return;
+    if (e.target.matches('[data-rel]')) p.rel = e.target.value;
+    if (e.target.matches('[data-in]')) p.in = e.target.checked;
+  });
+  let timer = null;
+  field.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 250); });
+  draw();
+  return () => current().map((p) => ({ handle: p.handle, rel: p.rel, inPicture: p.in }));
+}
 
 // What a photo looks like (colour, light, black-and-white), worked out right here in the browser so
 // the fan comments can react to the picture itself.
@@ -460,6 +502,7 @@ export async function openSocialComposer({ characterId = null, category = 'post'
   let media = edit ? [...edit.media] : [];
   let duration = edit?.meta?.duration || 0;
   let recorder = null;
+  let peopleOf = () => [];
 
   const result = await modal(html`
     <form class="social-form">
@@ -478,9 +521,13 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       </div>
       <label for="s-body" id="s-body-label">What's happening?</label>
       <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work">${edit?.body || ''}</textarea>${checkBtn('s-body')}
+      <div class="people-box" id="s-people" hidden></div>
+      <label for="s-ctx">Behind the post <span class="muted small">(only you see this)</span></label>
+      <textarea id="s-ctx" name="context" rows="2" maxlength="600" placeholder="What's going on? e.g. first date at the pier, she's nervous but happy">${edit?.meta?.context || ''}</textarea>
+      <p class="hint">Fan comments read this so they fit the moment. It's never shown on the post.</p>
       ${locationField(edit?.location || '')}
       ${songFields(edit?.meta?.music || {})}
-      ${edit ? extraFields({ category, likes: edit.likesDisplay, comments: edit.commentsDisplay, postedAt: edit.createdAt, tagged: edit.meta?.tagged === true }) : extraFields({ category })}
+      ${edit ? extraFields({ category, likes: edit.likesDisplay, comments: edit.commentsDisplay, postedAt: edit.createdAt }) : extraFields({ category })}
       <div class="error"></div>
       <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">${edit ? 'Save' : 'Post'}</button></div>
     </form>`, {
@@ -585,11 +632,12 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       drawMedia();
       fillLocations($('#s-loc-list', d));
       mentionPicker(form.body);
+      peopleOf = wirePeople($('#s-people', d), form.body, edit);
       wireCheck(d);
       form.body.focus();
     },
     submit: async (data) => {
-      const payload = { characterId: Number(edit ? edit.character.id : data.characterId), kind, body: data.body, media, location: data.location || '', ...extrasFrom(data, edit?.createdAt ?? null) };
+      const payload = { characterId: Number(edit ? edit.character.id : data.characterId), kind, body: data.body, media, location: data.location || '', people: peopleOf(), context: data.context || '', ...extrasFrom(data, edit?.createdAt ?? null) };
       if (kind === 'photo' && media[0]) { const look = await analyzeLook(media[0]); if (look) payload.meta = { look }; }
       const music = songFrom(data);
       if (music || edit) payload.music = music;

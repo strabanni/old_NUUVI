@@ -184,6 +184,37 @@ const MENTION_IN = {
   shade: [(x, m) => `${m} in the background like that 😐`],
 };
 
+// What a tagged person is to the poster (picked per person in the post window).
+export const RELATIONSHIPS = ['friend', 'bestie', 'partner', 'crush', 'situationship', 'ex', 'family', 'sibling', 'coworker', 'groupmate', 'rival', 'enemy'];
+// Lines for a tagged person, by what they are to the poster. "in" lines say they're in the picture,
+// so they're only used when the writer says that person is.
+const REL = {
+  friend: { out: [(x, m) => `${m} is such a good friend for this`, (x, m) => `the ${x.first} and ${m} friendship >>>`, (x, m) => `${m} come see this`],
+    in: [(x, m) => `you and ${m} together is always a good time`, (x, m) => `${m} looking good too!!`] },
+  bestie: { out: [(x, m) => `${m} better be commenting first`, (x, m) => `best friend tag, ${m} you're on`, (x, m) => `${m} is the bestie of all time`],
+    in: [(x, m) => `the besties in one frame 🥹`, (x, m) => `${x.first} and ${m} never miss`, (x, m) => `${m} matching your energy as always`] },
+  partner: { out: [(x, m) => `${m} is a lucky one`, (x, m) => `the way you tagged ${m} 🥹`, (x, m) => `${m} you better be hyping this up`],
+    in: [(x, m) => `you and ${m} are so cute it's unfair`, (x, m) => `${m} looking at you like that 😭`, (x, m) => `couple goals, ${m} included`, (x, m) => `the ${m} soft launch is over, this is a hard launch`] },
+  crush: { out: [(x, m) => `the ${m} tag is doing a LOT 👀`, (x, m) => `${m} please notice`, (x, m) => `we all see the ${m} tag`],
+    in: [(x, m) => `the way you're standing next to ${m} 👀`, (x, m) => `${m} in the pic?? i see what's happening`] },
+  situationship: { out: [(x, m) => `so what are you and ${m}?`, (x, m) => `${m} tag with no label?? ok`],
+    in: [(x, m) => `you and ${m} again… just date already`, (x, m) => `${m} in the pics but "just friends" sure`] },
+  ex: { out: [(x, m) => `tagging ${m} after everything??`, (x, m) => `${m}?? i thought that was over`, (x, m) => `not ${m} being tagged 😭`],
+    in: [(x, m) => `you and ${m} in the same pic again?? explain`, (x, m) => `${m} is back?? what did i miss`] },
+  family: { out: [(x, m) => `the ${m} family love`, (x, m) => `${m} raised you right`],
+    in: [(x, m) => `family pics with ${m} are the best`, (x, m) => `you and ${m} look so alike here`] },
+  sibling: { out: [(x, m) => `${m} is going to roast you for this`, (x, m) => `the sibling tag lol ${m}`],
+    in: [(x, m) => `sibling pics with ${m} 🥹`, (x, m) => `you and ${m} have the same face, it's crazy`] },
+  coworker: { out: [(x, m) => `${m} the work friend we all need`, (x, m) => `${m} better be on this project too`],
+    in: [(x, m) => `you and ${m} at work like this lol`, (x, m) => `the ${m} work duo`] },
+  groupmate: { out: [(x, m) => `${m} come see your member`, (x, m) => `the members tagging each other 🥹`],
+    in: [(x, m) => `you and ${m} together, the duo we needed`, (x, m) => `${m} and ${x.first} unit when`] },
+  rival: { out: [(x, m) => `tagging ${m}?? the rivalry continues`, (x, m) => `${m} is not going to like this lol`],
+    in: [(x, m) => `you and ${m} in one pic?? peace treaty?`, (x, m) => `the tension between you and ${m} here 😭`] },
+  enemy: { out: [(x, m) => `why would you tag ${m} 💀`, (x, m) => `${m}?? after everything?`],
+    in: [(x, m) => `you and ${m} in one frame is not something i expected`, (x, m) => `${m} standing there like nothing happened`] },
+};
+
 // The place and the song (only now and then).
 const PLACE = [(x) => `${x.loc} looks so good on you`, (x) => `wait i'm literally near ${x.loc} rn`, (x) => `is ${x.loc} worth going to?`, (x) => `${x.loc} again? you live there now lol`];
 const SONG = [(x) => `putting "${x.song}" on this was a choice and i respect it`, (x) => `"${x.song}"?? you have taste`, (x) => `"${x.song}" fits this way too well`];
@@ -205,9 +236,11 @@ const CLOSERS = ['', '', '', '', '', ' fr', ' lol', ' istg', ' ngl', ' 😭', ' 
 
 // The things a comment can react to, for this post.
 function postContext(post, character, mentions = []) {
-  const text = `${post.body || ''} ${post.title || ''}`;
   let meta = {};
   try { meta = JSON.parse(post.meta || '{}'); } catch { /* none */ }
+  const text = `${post.body || ''} ${post.title || ''}`;
+  // The writer's "what's happening" note helps pick topics (it's never quoted).
+  const about = `${text} ${meta.context || ''}`;
   let media = [];
   try { media = JSON.parse(post.media || '[]'); } catch { /* none */ }
   const name = String(character?.name || '').trim();
@@ -221,7 +254,8 @@ function postContext(post, character, mentions = []) {
     words: keywords(text),
     mentions,
     together: meta.tagged === true,
-    topics: TOPICS.filter(([, re]) => re.test(text)).map(([t]) => t),
+    people: meta.people && typeof meta.people === 'object' ? meta.people : null,
+    topics: TOPICS.filter(([, re]) => re.test(about)).map(([t]) => t),
     kind: post.kind,
     multi: media.length > 1,
   };
@@ -234,8 +268,23 @@ function core(x, mood, rand) {
   if (x.song && r >= 0.06 && r < 0.12) { const i = Math.floor(rand() * SONG.length); return [`song${i}`, SONG[i](x)]; }
   const r2 = rand();
   if (x.mentions.length && r2 < 0.18 && MENTION[mood]) {
+    const m = pick(x.mentions, rand);
+    // Tagged people with their own settings: lines that fit what they are to the poster.
+    if (x.people) {
+      const who = x.people[m.slice(1).toLowerCase()];
+      const inPic = !!who?.in;
+      const rel = who?.rel && REL[who.rel];
+      if (rel && rand() < 0.75) {
+        const side = inPic && rand() < 0.6 ? 'in' : 'out';
+        const j = Math.floor(rand() * rel[side].length);
+        return [`r${who.rel}${side}${j}${m}`, rel[side][j](x, m)];
+      }
+      const lines = inPic && MENTION_IN[mood] && rand() < 0.5 ? MENTION_IN[mood] : MENTION[mood];
+      const i = Math.floor(rand() * lines.length);
+      return [`m${lines === MENTION_IN[mood] ? 'in' : ''}${mood}${i}${m}`, lines[i](x, m)];
+    }
     const lines = x.together && MENTION_IN[mood] && rand() < 0.5 ? MENTION_IN[mood] : MENTION[mood];
-    const m = pick(x.mentions, rand); const i = Math.floor(rand() * lines.length);
+    const i = Math.floor(rand() * lines.length);
     return [`m${lines === MENTION_IN[mood] ? 'in' : ''}${mood}${i}${m}`, lines[i](x, m)];
   }
   const lk = x.look && LOOK[mood];

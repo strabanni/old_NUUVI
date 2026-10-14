@@ -3076,3 +3076,15 @@ button.ig-banner.own.empty { height: 120px; background: linear-gradient(135deg, 
 button.ig-banner.own .ig-cam { right: 16px; bottom: 14px; }
 button.ig-avatar.own .ig-cam { right: 6px; bottom: 6px; padding: 7px; }
 button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity: 1; transform: scale(1.05); }
+
+/* NV-32: tagged people in the post window (relationship + in the picture, per person) */
+.people-box { margin: 12px 0 4px; padding: 10px 12px; border-radius: 14px; background: var(--surface-2, rgba(127,127,127,.08)); display: grid; gap: 8px; }
+.people-box[hidden] { display: none; }
+.people-title { font-size: 13px; font-weight: 600; }
+.people-title small { font-weight: 400; }
+.person-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.person-name { flex: 1 1 120px; min-width: 0; display: flex; flex-direction: column; font-size: 14px; }
+.person-name small { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-row select { flex: 0 1 170px; width: auto; margin: 0; }
+.person-in { display: flex; align-items: center; gap: 6px; font-size: 13px; text-transform: none; letter-spacing: 0; font-weight: 500; margin: 0; cursor: pointer; white-space: nowrap; }
+.person-in input { width: 18px; height: 18px; margin: 0; accent-color: #EE719E; }
