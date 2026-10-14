@@ -427,12 +427,13 @@ test('threads: members start typed threads, tag characters, and statuses control
   assert.equal(comms.kind, 'comms');
 
   // Feed lists them, filterable.
-  // The feed shows open threads, self paras, events and social posts — not comms or complete threads.
+  // The feed shows open and finished episodes (finished ones with a full progress bar), self paras,
+  // events and social posts — not comms.
   const para = (await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'alone at last', kind: 'para', characterId: yoonoh.id } })).data.channel;
   const feed = (await b('/api/feed')).data.items;
   assert.ok(feed.some((i) => i.type === 'thread' && i.id === para.id));
   assert.ok(!feed.some((i) => i.type === 'thread' && i.id === comms.id));
-  assert.ok(!feed.some((i) => i.type === 'thread' && i.id === thread.id)); // complete
+  assert.equal(feed.find((i) => i.type === 'thread' && i.id === thread.id)?.status, 'complete');
   assert.equal((await b('/api/feed?filter=comms')).status, 400);
   assert.ok((await b('/api/feed?filter=para')).data.items.every((i) => i.kind === 'para'));
   assert.ok((await b('/api/feed?filter=mine')).data.items.some((i) => i.id === thread.id));

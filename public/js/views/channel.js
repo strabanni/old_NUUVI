@@ -122,6 +122,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     actions: html`
       <button class="btn sm starred-btn" id="starred-btn" title="Starred moments" hidden>${icons.star}<b>0</b></button>
       ${c.kind !== 'ooc' ? html`<button class="btn sm recap-btn" id="recap-btn" title="Previously on… (a recap to catch up)" hidden>${icons.sparkles}<span class="lbl">Catch up</span></button>` : ''}
+      ${detail.canManage && ['thread', 'para', 'event'].includes(c.kind) && c.status !== 'complete' ? html`<button class="btn sm end-ep-btn" id="end-episode" title="End this episode: it's locked and marked complete">${icons.check}<span class="lbl">End episode</span></button>` : ''}
       ${detail.canManage && c.kind !== 'ooc' ? html`<button class="icon-btn" id="edit-thread" title="Episode details" aria-label="Episode details">${icons.gear}</button>` : ''}`,
     className: 'channel-body',
     body: html`
@@ -447,7 +448,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   let mention = () => {};
   let startReply = () => {};
   if (role && !detail.canPost) {
-    render(wrap, html`<div class="composer-locked">${story.completedAt ? html`${icons.archive} This story is complete and kept in the Archive. It's read-only.` : channel().status === 'complete' ? 'This episode is complete — it\'s read-only now.' : 'This is a private episode for the characters in it.'}</div>`);
+    render(wrap, html`<div class="composer-locked">${story.completedAt ? html`${icons.archive} This story is complete and kept in the Archive. It's read-only.` : channel().status === 'complete' ? `This episode is complete — it's locked now.${detail.canManage ? ' To write in it again, open Episode details (⚙) and set it back to Open.' : ''}` : 'This is a private episode for the characters in it.'}</div>`);
   } else if (!role) {
     render(wrap, state.user
       ? html`<div class="composer-locked">${story.status === 'open' ? html`You're reading as a guest. <button class="primary sm" id="join-here">Join to write</button>` : 'This story is closed to new writers.'}</div>`
@@ -704,6 +705,16 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     if (updated) viewChannel(storyIdStr, channelIdStr);
   }
   $('#main #edit-thread')?.addEventListener('click', editThread);
+  // End the episode: it's locked (read-only) and marked complete. It can be opened again from Episode details.
+  $('#main #end-episode')?.addEventListener('click', async () => {
+    if (!(await confirmModal(`End “${channel().name}”? It will be locked and marked complete. You can open it again later from Episode details.`, { ok: 'End episode' }))) return;
+    try {
+      await api(`/api/channels/${channelId}`, { method: 'PUT', body: { status: 'complete' } });
+      toast('Episode complete 🎬');
+      await loadStory(storyId);
+      viewChannel(storyIdStr, channelIdStr);
+    } catch (err) { toast(err.message); }
+  });
 
   // "Previously on…": a recap of the episode by Claude, to catch up before writing.
   const recapBtn = $('#main #recap-btn');

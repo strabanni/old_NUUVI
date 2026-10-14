@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 17;
+const SCHEMA_VERSION = 18;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -501,6 +501,9 @@ const MIGRATIONS = [
      created_at  TEXT NOT NULL DEFAULT (datetime('now'))
    );
    CREATE UNIQUE INDEX locations_name_idx ON locations(name COLLATE NOCASE);`,
+  // v18: where each place sits on the Ardell City map (0–1 across and down; empty = not pinned yet).
+  `ALTER TABLE locations ADD COLUMN map_x REAL;
+   ALTER TABLE locations ADD COLUMN map_y REAL;`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

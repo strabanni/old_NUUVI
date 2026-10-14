@@ -92,3 +92,26 @@ test('Locations: anyone adds places; only whoever added one (or an admin) change
   assert.equal((await b(`/api/places/${place.id}`, { method: 'DELETE' })).status, 403);
   assert.equal((await app.admin(`/api/places/${place.id}`, { method: 'DELETE' })).status, 200);
 });
+
+test('the city map: pins, and characters show where their open episode is set', async () => {
+  const w = await app.signUp('map_writer');
+  const c = await mk(w, 'Mina Park');
+  const place = (await w('/api/places', { method: 'POST', body: { name: 'Lumen Rooftop', borough: 'Midtown', venue: 'Bar', x: 0.4, y: 0.55 } })).data.place;
+  assert.deepEqual([place.x, place.y], [0.4, 0.55]);
+  const story = (await w('/api/stories', { method: 'POST', body: { title: 'Map story', visibility: 'public' } })).data.story;
+  const ep = (await w(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'drinks', kind: 'thread', characterId: c.id, location: 'lumen rooftop' } })).data.channel;
+  let p = (await w('/api/places')).data.places.find((x) => x.id === place.id);
+  assert.deepEqual(p.here.map((x) => [x.name, x.episode.id]), [['Mina Park', ep.id]]);
+  // Moving the scene somewhere else moves her; ending the episode takes her off the map.
+  await w(`/api/channels/${ep.id}/posts`, { method: 'POST', body: { body: 'leaving', characterId: c.id, location: 'Somewhere else' } });
+  assert.equal((await w('/api/places')).data.places.find((x) => x.id === place.id).here.length, 0);
+  await w(`/api/channels/${ep.id}/posts`, { method: 'POST', body: { body: 'back', characterId: c.id, location: 'Lumen Rooftop' } });
+  assert.equal((await w('/api/places')).data.places.find((x) => x.id === place.id).here.length, 1);
+  await w(`/api/channels/${ep.id}`, { method: 'PUT', body: { status: 'complete' } });
+  p = (await w('/api/places')).data.places.find((x) => x.id === place.id);
+  assert.equal(p.here.length, 0);
+  // Only admins change the map picture.
+  assert.equal((await w('/api/places/map', { method: 'PUT', body: { picture: null } })).status, 403);
+  assert.equal((await app.admin('/api/places/map', { method: 'PUT', body: { picture: 'https://example.com/map.png' } })).data.map, 'https://example.com/map.png');
+  assert.equal((await w('/api/places')).data.map, 'https://example.com/map.png');
+});

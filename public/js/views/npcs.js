@@ -9,6 +9,6 @@ export function viewNpcs() {
 
 // The Locations directory is a view in the Directory too.
 export function viewLocations() {
-  try { sessionStorage.setItem('nuuvi:dir-view', 'places'); } catch { /* ignore */ }
+  try { sessionStorage.setItem('nuuvi:dir-once', 'places'); } catch { /* ignore */ }
   replaceHash('#/directory');
 }

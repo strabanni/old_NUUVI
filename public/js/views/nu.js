@@ -18,6 +18,10 @@ const writerHead = (u, sub) => html`
   </div>`;
 
 // An episode or self para, as a post: the story as the poster, the cover as the picture.
+// How far along an episode is, like Netflix's red bar: it creeps forward with every post (fast at
+// first, then slower) and only fills up when the episode is ended.
+const progressOf = (it) => (it.status === 'complete' ? 1 : Math.min(0.92, 0.04 + 0.9 * (1 - Math.exp(-(it.postCount || 0) / 30))));
+
 function threadPost(it) {
   // The episode's own picture first; the story's header only when the episode has none.
   const pic = it.banner || it.story.banner || it.starter?.portrait || it.starter?.avatar;
@@ -36,11 +40,13 @@ function threadPost(it) {
         <span class="np-cover-title"><small>${it.season ? `Season ${it.season} · ` : ''}${ONE[it.kind] || 'Episode'}</small>${it.name}</span>
         ${it.location ? html`<span class="np-loc">${icons.pin} ${it.location}</span>` : ''}
         ${it.unread ? html`<span class="car-count">${it.unread} new</span>` : ''}
+        ${it.status === 'complete' ? html`<span class="np-finished">${icons.check} Finished</span>` : ''}
+        <span class="np-progress ${it.status === 'complete' ? 'done' : ''}" data-p="${progressOf(it).toFixed(3)}" role="progressbar" aria-label="Episode progress" aria-valuenow="${Math.round(progressOf(it) * 100)}" aria-valuemin="0" aria-valuemax="100"><i></i></span>
       </a>
       <div class="np-actions">
         <a class="np-act" href="#/s/${it.storyId}/${it.id}" aria-label="Read">${icons.episode}</a>
         ${it.participants.length ? html`<span class="np-with">${it.participants.slice(0, 3).map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}<span>with ${it.participants.slice(0, 2).map((c) => c.name).join(', ')}${it.participants.length > 2 ? ` +${it.participants.length - 2}` : ''}</span></span>` : ''}
-        <a class="btn sm np-cta" href="#/s/${it.storyId}/${it.id}">${it.status === 'open' ? 'Join in' : 'Read'}</a>
+        <a class="btn sm np-cta" href="#/s/${it.storyId}/${it.id}">${it.status === 'open' ? 'Join in' : it.status === 'complete' ? 'Rewatch' : 'Read'}</a>
       </div>
       <div class="np-caption"><b>${it.name}</b> ${it.summary || (it.lastPost ? html`<span class="muted">${it.lastPost.by}: ${it.lastPost.text}</span>` : '')}</div>
       ${it.tags.length ? html`<div class="np-tags">${it.tags.map((t) => html`<span>#${t}</span>`)}</div>` : ''}
@@ -249,6 +255,8 @@ export async function viewNu(tagStr = null) {
       : html`<div class="empty"><p>Nothing on THE : NU yet.</p><p class="small">Make a post, put out a connection, or start an episode.</p></div>`);
     styleBars(list);
     applyColors(list);
+    // Progress bars: their width comes from the episode (set here, since inline styles aren't allowed).
+    for (const bar of list.querySelectorAll('.np-progress[data-p]')) bar.style.setProperty('--p', bar.dataset.p);
   };
   bindSocial(list, social, (p) => {
     social.set(p.id, p);

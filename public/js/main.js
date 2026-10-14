@@ -342,7 +342,6 @@ function renderSidebar() {
         <span class="desk-only-block">${link('#/messages', 'Messages', icons.chat, state.home.messagesUnread)}</span>
         ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
-        ${link('#/locations', 'Locations', icons.pin)}
         ${link('#/archive', 'Archive', icons.archive)}
         ${link('#/lore', 'Lore', icons.book)}
         ${link('#/discover', 'Discover', icons.compass)}
@@ -984,7 +983,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-24';
+export const APP_BUILD = 'NV-25';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

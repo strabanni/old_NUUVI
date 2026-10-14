@@ -1,5 +1,18 @@
 [
   {
+    "code": "NV-25",
+    "date": "2026-10-14",
+    "title": "The Ardell City map, ending episodes and progress bars",
+    "items": [
+      "Directory → Locations now has a map of Ardell City. Places are pinned on it, and little glowing dots show which characters are where right now, from the open episodes set there.",
+      "Tap a pin to see the place and who's there. Zoom with + and −, a pinch, or Ctrl + scroll; drag to look around.",
+      "When you add a location, tap the map to pin it. Admins can swap the drawn map for their own map picture.",
+      "The Directory opens on the characters again (Locations is its own tab inside it).",
+      "End episode: a button at the top of an episode locks it and marks it complete.",
+      "On THE : NU, episode banners have a progress bar like Netflix. It creeps forward with every post and fills up when the episode ends."
+    ]
+  },
+  {
     "code": "NV-24",
     "date": "2026-10-14",
     "title": "Locations, pinned posts and lots of fixes",

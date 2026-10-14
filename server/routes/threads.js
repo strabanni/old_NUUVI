@@ -256,8 +256,9 @@ export function threadRoutes(r, ctx) {
     if (['all', 'open', 'para', 'mine'].includes(filter)) {
       const where = [];
       const args = {};
-      if (filter === 'all') where.push("(c.kind = 'thread' AND c.status = 'open') OR c.kind = 'para'");
-      else if (filter === 'open') where.push("c.kind = 'thread' AND c.status = 'open'");
+      // Open episodes, and finished ones (shown with a full progress bar); private ones stay private.
+      if (filter === 'all') where.push("(c.kind = 'thread' AND c.status IN ('open', 'complete')) OR c.kind = 'para'");
+      else if (filter === 'open') where.push("c.kind = 'thread' AND c.status IN ('open', 'complete')");
       else if (filter === 'para') where.push("c.kind = 'para'");
       else if (filter === 'mine') where.push("c.kind != 'ooc' AND c.id IN (SELECT cc.channel_id FROM channel_characters cc JOIN characters ch ON ch.id = cc.character_id WHERE ch.user_id = :u)");
       if (q) {
@@ -317,14 +318,14 @@ export function threadRoutes(r, ctx) {
     });
   };
 
-  // Who may write in a channel. Completed threads are read-only (except for their managers);
-  // closed threads are for the people already in them.
+  // Who may write in a channel. Completed (ended) episodes are locked for everyone; their managers
+  // can open them again from Episode details. Closed threads are for the people already in them.
   ctx.canPost = (channel, role, user) => {
     if (!role) return false;
     // A story marked complete is in the Archive: everything in it is read-only.
     if (db.prepare('SELECT completed_at FROM stories WHERE id = ?').get(channel.story_id)?.completed_at) return false;
+    if (channel.kind !== 'ooc' && channel.status === 'complete') return false;
     if (channel.kind === 'ooc' || canManage(channel, role, user)) return true;
-    if (channel.status === 'complete') return false;
     if (channel.status === 'closed') {
       return !!db.prepare(`SELECT 1 FROM channel_characters cc JOIN characters c ON c.id = cc.character_id
         WHERE cc.channel_id = ? AND c.user_id = ?`).get(channel.id, user.id);
