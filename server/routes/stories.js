@@ -77,6 +77,8 @@ export function storyRoutes(r, ctx) {
         notificationsUnread,
         reportsOpen,
         messagesUnread: ctx.messageUnread?.(user.id) ?? 0,
+        // The site's owner (the first admin): the only one who gets the "What's new" update notices.
+        isOwner: user.id === db.prepare('SELECT MIN(id) AS id FROM users WHERE is_admin = 1').get().id,
         stats: ctx.userStats(user.id),
       },
     };

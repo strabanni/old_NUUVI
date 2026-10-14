@@ -11,6 +11,24 @@ export const SECTIONS = ['personality', 'appearance', 'history', 'relationships'
 
 const parse = (json) => { try { return JSON.parse(json || '{}') || {}; } catch { return {}; } };
 
+// A birthday as people write it ("March 3", "3rd of March", "03/03", "1999-03-03") → { month, day }.
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+export function parseBirthday(text) {
+  const t = String(text || '').toLowerCase().trim();
+  if (!t) return null;
+  let m = t.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return valid(Number(m[2]), Number(m[3]));
+  const name = MONTHS.findIndex((mo) => new RegExp(`\\b${mo}`).test(t));
+  const num = t.match(/\b(\d{1,2})(?:st|nd|rd|th)?\b/);
+  if (name >= 0 && num) return valid(name + 1, Number(num[1]));
+  m = t.match(/\b(\d{1,2})[/.](\d{1,2})\b/);
+  if (m) return valid(Number(m[1]), Number(m[2])); // month/day, the way it's written in the US
+  return null;
+}
+function valid(month, day) {
+  return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? { month, day } : null;
+}
+
 export function profileRoutes(r, ctx) {
   const { db } = ctx;
   const canEdit = (row, user) => !!user && (row.user_id === user.id || user.isAdmin);
@@ -29,6 +47,15 @@ export function profileRoutes(r, ctx) {
       };
     }).filter((c) => !q || `${c.name} ${c.handle} ${c.aka} ${c.occupation} ${c.ownerName}`.toLowerCase().includes(q));
     return { data: { profiles } };
+  });
+
+  // Every character's birthday (from their profile), for the calendar and the birthday posts.
+  r.get('/api/birthdays', ({ user }) => {
+    requireUser(user);
+    const rows = db.prepare("SELECT * FROM characters WHERE dossier LIKE '%birthday%' AND (bot IS NULL OR bot != 'gossip')").all();
+    const birthdays = rows.map((c) => ({ c, b: parseBirthday(parse(c.dossier).facts?.birthday) })).filter((x) => x.b)
+      .map(({ c, b }) => ({ id: c.id, name: c.name, handle: c.handle, avatar: c.avatar, color: c.color, gradient: c.gradient ? c.gradient.split(',') : null, ...b }));
+    return { data: { birthdays } };
   });
 
   r.get('/api/profiles/:id', ({ user, params }) => {

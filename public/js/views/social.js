@@ -2,6 +2,7 @@
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink, gradAttr, looksForeign, translateText } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive } from '../main.js';
 import { fillLocations } from './threads.js';
+import { mentionPicker } from '../lib.js';
 
 const KINDS = [['text', 'Text', 'text'], ['photo', 'Photo', 'image'], ['video', 'Video', 'video'], ['voice', 'Voice note', 'mic'], ['stream', 'Stream', 'live']];
 export const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : n >= 1e3 ? `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}K` : String(n));
@@ -77,20 +78,38 @@ export const commenterName = (cm) => (cm.character
   ? html`<a class="np-handle c-name" href="#/c/${cm.character.id}" data-color="${cm.character.color}"${gradAttr(cm.character)}>${handleOf(cm.character)}</a>${cm.character.verified ? html`<span class="verified sm" title="Verified">${icons.verified}</span>` : ''}`
   : html`<span class="np-handle fan">${cm.handle}</span>`);
 
-// Comments and crowd comments together, oldest first.
-export const allComments = (p) => [...p.comments, ...(p.buzz || [])].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+// Comments: characters' own comments always come first, then the crowd's (each oldest first).
+const byTime = (a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0);
+export const allComments = (p) => [...[...p.comments].sort(byTime), ...[...(p.buzz || [])].sort(byTime)];
+
+// Comment text with @mentions and #hashtags picked out (in NUUVI pink; hashtags open their page).
+function tagged(text) {
+  const parts = String(text).split(/((?:^|(?<=\s))[@#][\p{L}\p{N}_.]{2,40})/u);
+  return html`${parts.map((t) => (/^@[\p{L}\p{N}_.]{2,}$/u.test(t) ? html`<span class="mention">${t}</span>`
+    : /^#(?=[\p{L}\p{N}_]*\p{L})[\p{L}\p{N}_]{2,}$/u.test(t) ? html`<a class="hashtag" href="#/nu/tag/${encodeURIComponent(t.slice(1))}">${t}</a>` : t))}`;
+}
+
+// "Liked by @handle and 2,301 others", like Instagram, when characters have liked the post.
+function likedLine(p) {
+  const who = (p.likers || [])[0];
+  if (!who) return html`<div class="np-likes"><b>${p.likes.toLocaleString()} ${p.likes === 1 ? 'like' : 'likes'}</b></div>`;
+  const others = Math.max(0, p.likes - 1);
+  return html`<div class="np-likes liked-by">${avatar({ name: who.name, src: who.avatar, color: who.color, size: 'xs' })}
+    <span>Liked by <a class="np-handle c-name" href="#/c/${who.id}" data-color="${who.color}">${who.handle || who.name}</a>${others ? html` and <b>${others.toLocaleString()} ${others === 1 ? 'other' : 'others'}</b>` : ''}</span></div>`;
+}
 
 // A post as shown on THE : NU and on profiles — laid out like an Instagram post.
 export function socialCard(p, { full = false } = {}) {
   const ch = p.character;
   const liked = p.likedBy.length > 0;
-  const preview = allComments(p).filter((c) => !c.parentId).slice(-2);
+  const preview = allComments(p).filter((c) => !c.parentId).slice(0, 2);
   return html`
     <article class="np sm-card kind-${p.kind}" data-social="${p.id}" data-color="${ch.color}"${gradAttr(ch)}>
       <header class="np-head">
         <a class="np-av" href="#/c/${ch.id}">${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })}</a>
         <div class="np-id">
           <div class="np-line"><a href="#/c/${ch.id}" class="np-who">${nameBadge(ch)}</a><span class="np-dot">•</span><a class="np-ago" href="#/p/${p.id}">${agoShort(p.createdAt)}</a></div>
+          ${p.category === 'musing' ? html`<span class="np-sub musing-tag">${icons.quill} musing</span>` : ''}
           ${p.location ? html`<span class="np-sub loc-tag">${icons.pin} ${p.location}</span>` : ''}
           ${songLine(p.meta.music)}
         </div>
@@ -102,11 +121,11 @@ export function socialCard(p, { full = false } = {}) {
         <a class="np-act" href="#/p/${p.id}" aria-label="Comments">${icons.chat}</a>
         <button type="button" class="np-act" data-sm="share" aria-label="Copy link">${icons.send}</button>
       </div>
-      <div class="np-likes"><b>${p.likes.toLocaleString()} ${p.likes === 1 ? 'like' : 'likes'}</b></div>
+      ${likedLine(p)}
       ${p.kind !== 'text' && p.body ? html`<div class="np-caption"><a class="np-handle" href="#/c/${ch.id}">${handleOf(ch)}</a> <span class="body">${formatPost(p.body)}</span></div>` : ''}
       ${!full ? html`
         ${p.commentCount > preview.length ? html`<a class="np-viewall" href="#/p/${p.id}">View all ${p.commentCount.toLocaleString()} comments</a>` : ''}
-        ${preview.map((c) => html`<p class="np-comment">${commenterName(c)} <span>${c.body}</span></p>`)}
+        ${preview.map((c) => html`<p class="np-comment">${commenterName(c)} <span>${tagged(c.body)}</span></p>`)}
         <a class="np-addc" href="#/p/${p.id}">Add a comment…</a>` : ''}
       <a class="np-time" href="#/p/${p.id}">${timeAgo(p.createdAt)}</a>
     </article>`;
@@ -208,8 +227,7 @@ export function bindSocial(root, posts, redraw) {
       const mine = p.userId === state.user.id;
       menu(b, [
         { label: 'Open post', action: () => { location.hash = `#/p/${p.id}`; } },
-        mine && { label: p.meta.music ? 'Edit post or song' : 'Edit post / add a song', action: () => editCaption(p, redraw) },
-        mine && { label: 'Set like & comment numbers', action: () => editCounts(p, redraw) },
+        mine && { label: 'Edit post (caption, song, numbers, date)', action: () => editCaption(p, redraw) },
         p.kind === 'stream' && mine && { label: p.meta.live === false ? 'Mark as live again' : 'End stream', action: () => updatePost(p, { meta: { ...p.meta, live: p.meta.live === false } }, redraw) },
         (mine || state.user.isAdmin) && { label: 'Delete post', danger: true, action: () => deletePost(p, card) },
       ]);
@@ -280,40 +298,92 @@ const locationField = (v = '') => html`
   <label for="s-loc">${icons.pin} Location <span class="muted small">(optional)</span></label>
   <input id="s-loc" name="location" maxlength="100" list="s-loc-list" value="${v}" placeholder="Add a location" autocomplete="off">
   <datalist id="s-loc-list"></datalist>`;
+// Post or musing, the like and comment numbers, and the post's date and time: all in the composer
+// and the editor (no separate step).
+const localInput = (d) => {
+  const t = d ? new Date(String(d).includes('T') ? d : `${String(d).replace(' ', 'T')}Z`) : new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
+};
+const extraFields = ({ category = 'post', likes = null, comments = null, postedAt = null } = {}) => html`
+  <div class="seg post-cat" role="radiogroup" aria-label="Post or musing">
+    <label><input type="radio" name="category" value="post" ${category !== 'musing' ? 'checked' : ''}><span>${icons.image} Post</span></label>
+    <label><input type="radio" name="category" value="musing" ${category === 'musing' ? 'checked' : ''}><span>${icons.quill} Musing</span></label>
+  </div>
+  <details class="song-fields" ${likes != null || comments != null ? 'open' : ''}>
+    <summary>${icons.heart} Likes, comments & date</summary>
+    <div class="row">
+      <div><label for="e-likes">Likes</label><input id="e-likes" name="likes" inputmode="numeric" placeholder="automatic" value="${likes ?? ''}"></div>
+      <div><label for="e-comments">Comments</label><input id="e-comments" name="comments" inputmode="numeric" placeholder="automatic" value="${comments ?? ''}"></div>
+    </div>
+    <p class="hint">Leave empty for automatic numbers. Setting comments writes out at least a quarter of them as fan comments.</p>
+    <label for="e-when">Posted on</label>
+    <input id="e-when" name="postedAt" type="datetime-local" value="${localInput(postedAt)}">
+    <p class="hint">Back-date posts to build up a character's history.</p>
+  </details>`;
+const num = (v) => (String(v ?? '').trim() === '' ? null : Number(String(v).replace(/[,\s]/g, '')));
+const extrasFrom = (data, originalWhen = null) => {
+  const out = { category: data.category || 'post', likesDisplay: num(data.likes), commentsDisplay: num(data.comments) };
+  if (data.postedAt && data.postedAt !== localInput(originalWhen)) out.postedAt = new Date(data.postedAt).toISOString();
+  return out;
+};
+
+// What a photo looks like (colour, light, black-and-white), worked out right here in the browser so
+// the fan comments can react to the picture itself.
+export async function analyzeLook(url) {
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = url;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = 48; c.height = 48;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, 48, 48);
+    const px = g.getImageData(0, 0, 48, 48).data;
+    let light = 0; let sat = 0; const hues = new Array(12).fill(0);
+    for (let i = 0; i < px.length; i += 4) {
+      const r = px[i] / 255, gg = px[i + 1] / 255, b = px[i + 2] / 255;
+      const max = Math.max(r, gg, b), min = Math.min(r, gg, b), l = (max + min) / 2, d = max - min;
+      light += l;
+      const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+      sat += s;
+      if (s > 0.25 && l > 0.15 && l < 0.9) {
+        let h = max === r ? ((gg - b) / d) % 6 : max === gg ? (b - r) / d + 2 : (r - gg) / d + 4;
+        h = (h * 60 + 360) % 360;
+        hues[Math.floor(h / 30)] += s;
+      }
+    }
+    const n = px.length / 4;
+    light /= n; sat /= n;
+    const top = hues.indexOf(Math.max(...hues));
+    const names = ['red', 'orange', 'gold', 'yellow', 'green', 'green', 'blue', 'blue', 'blue', 'purple', 'pink', 'pink'];
+    return {
+      tone: light < 0.3 ? 'dark' : light > 0.68 ? 'bright' : sat < 0.25 ? 'soft' : null,
+      bw: sat < 0.06,
+      color: sat >= 0.06 && Math.max(...hues) > n * 0.04 ? names[top] : light < 0.15 ? 'black' : null,
+    };
+  } catch { return null; }
+}
+
 const songFrom = (data) => {
   const music = { title: (data.songTitle || '').trim(), artist: (data.songArtist || '').trim(), url: (data.songUrl || '').trim() };
   return music.title || music.artist || music.url ? music : null;
 };
 
 async function editCaption(p, redraw) {
-  const res = await modal(html`<form><h2>Edit post</h2><label for="e-body">Caption</label><textarea id="e-body" name="body" rows="5" maxlength="5000">${p.body}</textarea>
+  const res = await modal(html`<form class="social-form"><h2>Edit post</h2><label for="e-body">Caption</label><textarea id="e-body" name="body" rows="5" maxlength="5000">${p.body}</textarea>
     ${p.kind === 'stream' ? html`<label>Stream title</label><input name="title" maxlength="120" value="${p.title}">` : ''}
     ${locationField(p.location || '')}
     ${songFields(p.meta.music)}
+    ${extraFields({ category: p.category, likes: p.likesDisplay, comments: p.commentsDisplay, postedAt: p.createdAt })}
+    <p class="hint">Changing the caption, place or song gives the post fresh fan comments that fit.</p>
     <div class="error"></div><div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, {
-    init: (d) => fillLocations($('#s-loc-list', d)),
+    init: (d) => { fillLocations($('#s-loc-list', d)); mentionPicker($('#e-body', d)); },
     submit: async (data) => {
-      const body = { body: data.body, music: songFrom(data), location: data.location || '' };
+      const body = { body: data.body, music: songFrom(data), location: data.location || '', ...extrasFrom(data, p.createdAt) };
       if (p.kind === 'stream') body.title = data.title;
       return (await api(`/api/social/${p.id}`, { method: 'PUT', body })).post;
-    },
-  });
-  if (res) redraw(res);
-}
-
-// Famous characters can show bigger numbers: the writer sets the likes and comments shown on a post.
-// Leave a box empty to show the real count.
-async function editCounts(p, redraw) {
-  const res = await modal(html`<form><h2>Like & comment numbers</h2>
-    <p class="muted small">Shown on this post instead of the real counts. Leave a box empty to show the real number.</p>
-    <div class="row">
-      <div><label for="e-likes">Likes</label><input id="e-likes" name="likes" inputmode="numeric" pattern="[0-9,.]*" placeholder="real count" value="${p.likesDisplay ?? ''}"></div>
-      <div><label for="e-comments">Comments</label><input id="e-comments" name="comments" inputmode="numeric" pattern="[0-9,.]*" placeholder="real count" value="${p.commentsDisplay ?? ''}"></div>
-    </div>
-    <div class="error"></div><div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, {
-    submit: async (data) => {
-      const num = (v) => (String(v).trim() === '' ? null : Number(String(v).replace(/[,\s]/g, '')));
-      return (await api(`/api/social/${p.id}`, { method: 'PUT', body: { likesDisplay: num(data.likes), commentsDisplay: num(data.comments) } })).post;
     },
   });
   if (res) redraw(res);
@@ -327,7 +397,7 @@ async function deletePost(p, card) {
 }
 
 // ---------- New post ----------
-export async function openSocialComposer({ characterId = null } = {}) {
+export async function openSocialComposer({ characterId = null, category = 'post' } = {}) {
   const mine = await myCharacters(true);
   if (!mine.length) { toast('Create a character first — posts are made by characters'); location.hash = '#/characters'; return null; }
   let kind = 'text';
@@ -337,7 +407,7 @@ export async function openSocialComposer({ characterId = null } = {}) {
 
   const result = await modal(html`
     <form class="social-form">
-      <span class="eyebrow">New post</span>
+      <span class="eyebrow">${category === 'musing' ? 'New musing' : 'New post'}</span>
       <label for="s-char">Post as</label>
       <select id="s-char" name="characterId">${mine.map((c) => html`<option value="${c.id}" ${c.id === characterId ? 'selected' : ''}>${c.name}</option>`)}</select>
       <div class="kind-picker" role="group" aria-label="Post type">${KINDS.map(([k, label, icon]) => html`
@@ -353,6 +423,7 @@ export async function openSocialComposer({ characterId = null } = {}) {
       <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work"></textarea>
       ${locationField()}
       ${songFields()}
+      ${extraFields({ category })}
       <div class="error"></div>
       <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Post</button></div>
     </form>`, {
@@ -429,10 +500,12 @@ export async function openSocialComposer({ characterId = null } = {}) {
       });
       drawMedia();
       fillLocations($('#s-loc-list', d));
+      mentionPicker(form.body);
       form.body.focus();
     },
     submit: async (data) => {
-      const payload = { characterId: Number(data.characterId), kind, body: data.body, media, location: data.location || '' };
+      const payload = { characterId: Number(data.characterId), kind, body: data.body, media, location: data.location || '', ...extrasFrom(data) };
+      if (kind === 'photo' && media[0]) { const look = await analyzeLook(media[0]); if (look) payload.meta = { look }; }
       const music = songFrom(data);
       if (music) payload.music = music;
       if (kind === 'stream') {
@@ -440,6 +513,7 @@ export async function openSocialComposer({ characterId = null } = {}) {
         payload.meta = { viewers: Number(String(data.viewers || '0').replace(/[,\s]/g, '')) || 0, live: true };
       }
       if (kind === 'voice') payload.meta = { duration };
+      if (!payload.postedAt) delete payload.postedAt;
       return (await api('/api/social', { method: 'POST', body: payload })).post;
     },
   });
@@ -508,6 +582,7 @@ export async function viewSocialPost(id) {
       </div>`,
   });
   const form = $('#sm-comment', body);
+  if (form) mentionPicker(form.body);
   const commentRow = (c, p, reply = false) => {
     const ch = c.character;
     const canDelete = ch && (c.userId === state.user.id || p.userId === state.user.id || state.user.isAdmin);
@@ -516,7 +591,7 @@ export async function viewSocialPost(id) {
         ${ch ? html`<a href="#/c/${ch.id}" class="cm-av">${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })}</a>`
           : html`<span class="cm-av">${avatar({ name: c.handle, color: '#8F8D8E', size: 'sm' })}</span>`}
         <div class="cm-main">
-          <p class="cm-text">${commenterName(c)} <span class="cm-body">${c.body}</span></p>
+          <p class="cm-text">${commenterName(c)} <span class="cm-body">${tagged(c.body)}</span></p>
           <div class="cm-tr" hidden></div>
           <div class="cm-meta">
             <span>${agoShort(c.createdAt)}</span>

@@ -231,7 +231,7 @@ function renderRail() {
   const archivedCount = state.home.stories.filter((s) => s.completedAt).length;
   const activeStory = state.home.stories.find((s) => s.id === state.route.storyId);
   const inArchive = /^#\/archive/.test(location.hash) || !!activeStory?.completedAt;
-  const inProfiles = /^#\/profiles/.test(location.hash);
+  const inMessages = /^#\/messages/.test(location.hash);
   const active = inArchive ? null : state.route.storyId;
   render(rail, html`
     <button type="button" class="rail-item rail-logo ${state.online.length > 1 ? 'others' : ''}" id="online-btn"
@@ -239,9 +239,9 @@ function renderRail() {
       ${logoMark}<span class="online-badge"><span class="pulse"></span>${state.online.length || ''}</span>
     </button>
     <div class="rail-sep rail-sep-top"></div>
-    <a href="#/home" class="rail-item home-link ${!active && !inArchive && !inProfiles ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
+    <a href="#/home" class="rail-item home-link ${!active && !inArchive && !inMessages ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
     <a href="#/archive" class="rail-item archive-link ${inArchive ? 'active' : ''}" title="Archive: completed stories" aria-label="Archive">${icons.archive}${archivedCount ? html`<i class="rail-count">${archivedCount}</i>` : ''}</a>
-    <a href="#/profiles" class="rail-item profiles-link ${inProfiles ? 'active' : ''}" title="Profiles: every character in detail" aria-label="Profiles">${icons.card}</a>
+    <a href="#/messages" class="rail-item messages-link phone-only-flex ${inMessages ? 'active' : ''}" title="Messages" aria-label="Messages">${icons.chat}${state.home.messagesUnread ? html`<span class="badge">${state.home.messagesUnread}</span>` : ''}</a>
     <div class="rail-sep rail-sep-stories"></div>
     ${state.home.stories.filter((s) => !s.completedAt).map((s) => html`
       <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" data-story-id="${s.id}" draggable="false" title="${s.title}" aria-label="${s.title}">
@@ -321,11 +321,9 @@ function renderSidebar() {
         ${link('#/nu', 'THE : NU', icons.apps)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
         ${link('#/phone', 'Phone', icons.smartphone)}
-        ${link('#/messages', 'Messages', icons.chat, state.home.messagesUnread)}
+        <span class="desk-only-block">${link('#/messages', 'Messages', icons.chat, state.home.messagesUnread)}</span>
         ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
-        ${link('#/npcs', 'NPCs', icons.sparkles)}
-        ${link('#/profiles', 'Profiles', icons.card)}
         ${link('#/archive', 'Archive', icons.archive)}
         ${link('#/lore', 'Lore', icons.book)}
         ${link('#/discover', 'Discover', icons.compass)}
@@ -483,7 +481,7 @@ function startBanner(main) {
       i = (i + 1) % pics.length;
       next.classList.add('on');
       get((i + 1) % pics.length);
-    }, 8000);
+    }, 4 * 60 * 1000); // a new header picture every 4 minutes
     onLeave(() => clearInterval(timer));
   };
   loadHeaders().then(show);
@@ -717,6 +715,7 @@ function setupDrawer() {
     const ub = e.target.closest('[data-ub]');
     if (ub?.dataset.ub === 'theme') {
       applyTheme(nextTheme());
+      router(); // redraw the page so every part picks up the new colours
       return;
     }
     if (ub?.dataset.ub === 'logout') {
@@ -867,7 +866,8 @@ const routes = [
   [/^#\/discover$/, viewDiscover],
   [/^#\/messages$/, () => viewMessages(), true],
   [/^#\/messages\/(\d+)$/, viewMessages, true],
-  [/^#\/nu$/, viewNu, true],
+  [/^#\/nu$/, () => viewNu(), true],
+  [/^#\/nu\/tag\/([^/]+)$/, viewNu, true],
   [/^#\/feed$/, () => replaceHash('#/nu'), true],
   [/^#\/events$/, viewEvents, true],
   [/^#\/e\/(\d+)$/, viewEvent, true],
@@ -960,7 +960,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-19';
+export const APP_BUILD = 'NV-20';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);
@@ -980,6 +980,8 @@ export async function showWhatsNew(entry) {
     </div>`).then(() => store.set('nuuvi:seen-update', e.code));
 }
 async function checkForUpdate() {
+  // Only the site's owner gets told about updates (everyone else just gets the new version).
+  if (!state.home.isOwner) return;
   changelog = null;
   const latest = (await loadChangelog())[0];
   if (!latest) return;

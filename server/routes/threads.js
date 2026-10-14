@@ -248,7 +248,7 @@ export function threadRoutes(r, ctx) {
     // all = open threads + self paras + events + social posts. "mine" (used on Home) = every thread my characters are in.
     const filter = query.get('filter') || 'all';
     const q = (query.get('q') || '').trim().slice(0, 100);
-    if (!['all', 'open', 'para', 'event', 'social', 'connection', 'mine'].includes(filter)) fail(400, 'Unknown filter');
+    if (!['all', 'open', 'para', 'event', 'social', 'musing', 'connection', 'mine'].includes(filter)) fail(400, 'Unknown filter');
     let items = [];
     if (['all', 'open', 'para', 'mine'].includes(filter)) {
       const where = [];
@@ -265,8 +265,10 @@ export function threadRoutes(r, ctx) {
     }
     // Events (from the calendar) show in the feed as their own cards.
     if (filter === 'all' || filter === 'event') items = items.concat(ctx.eventItems({ userId: user.id, q }));
-    if (filter === 'all' || filter === 'social') {
-      items = items.concat(ctx.socialFeed({ viewerId: user.id, q, limit: 60 }).map((p) => ({ ...p, sortAt: p.createdAt })));
+    // Posts and musings (musings are posts filed under their own category).
+    if (['all', 'social', 'musing'].includes(filter)) {
+      const category = filter === 'social' ? 'post' : filter === 'musing' ? 'musing' : null;
+      items = items.concat(ctx.socialFeed({ viewerId: user.id, q, limit: 60, category }).map((p) => ({ ...p, sortAt: p.createdAt })));
     }
     if (filter === 'all' || filter === 'connection') items = items.concat(ctx.connectionItems({ userId: user.id, q }));
     // THE : NU is chronological: everything stays in the order it was made (Home's "mine" list goes by activity).

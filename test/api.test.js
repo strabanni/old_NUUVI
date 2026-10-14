@@ -1017,3 +1017,75 @@ test('crowd comments use the poster\'s pronouns and react to the post', async ()
   assert.ok(lines.some((l) => /fit|jacket|shoes|stylist/i.test(l)), 'reacts to the outfit');
   assert.ok(lines.some((l) => /overrated|trying|unfollow|stylist|crime|didn't need|desperation|pr team|filter/i.test(l)), 'some critics too');
 });
+
+test('THE : NU posts: musings, back-dating, numbers set when posting, liked-by, fresh comments after edits', async () => {
+  const w = await app.signUp('nu_poster');
+  const c = (await w('/api/characters', { method: 'POST', body: { name: 'Cha Yoonoh', color: '#8fa3c9' } })).data.character;
+  const liker = (await w('/api/characters', { method: 'POST', body: { name: 'Mina Park', color: '#c97a96' } })).data.character;
+  const made = await w('/api/social', { method: 'POST', body: { characterId: c.id, kind: 'text', body: 'studio all night #TrinityTour', category: 'musing',
+    likesDisplay: '12,000', commentsDisplay: 400, postedAt: '2025-03-01T20:30:00.000Z' } });
+  assert.equal(made.status, 201, JSON.stringify(made.data));
+  const p = made.data.post;
+  assert.equal(p.category, 'musing');
+  assert.equal(p.createdAt, '2025-03-01 20:30:00');
+  assert.equal(p.likes, 12000);
+  const full = (await w(`/api/social/${p.id}`)).data.post;
+  assert.ok(full.buzz.length >= 100, `a quarter of 400 comments written out (got ${full.buzz.length})`);
+  assert.equal(new Set(full.buzz.map((b) => b.body.toLowerCase())).size, full.buzz.length, 'no repeated comments');
+  // Musings have their own filter.
+  const musings = (await w('/api/feed?filter=musing')).data.items;
+  assert.ok(musings.some((i) => i.id === p.id));
+  assert.ok(!(await w('/api/feed?filter=social')).data.items.some((i) => i.type === 'social' && i.id === p.id));
+  // Liked by a character.
+  await w(`/api/social/${p.id}/like`, { method: 'POST', body: { asCharacterId: liker.id } });
+  assert.equal((await w(`/api/social/${p.id}`)).data.post.likers[0].id, liker.id);
+  // Editing the caption brings new comments that fit it.
+  const before = full.buzz.map((b) => b.body).join('|');
+  const edited = await w(`/api/social/${p.id}`, { method: 'PUT', body: { body: 'beach day with the band 🌊' } });
+  assert.equal(edited.status, 200, JSON.stringify(edited.data));
+  const after = (await w(`/api/social/${p.id}`)).data.post.buzz;
+  assert.ok(after.length >= 100);
+  assert.notEqual(after.map((b) => b.body).join('|'), before);
+});
+
+test('group connections: several people can join, the writer edits it, and it locks when full', async () => {
+  const a = await app.signUp('conn_writer');
+  const b = await app.signUp('conn_one');
+  const c = await app.signUp('conn_two');
+  const d = await app.signUp('conn_three');
+  const mk = async (who, name) => (await who('/api/characters', { method: 'POST', body: { name, color: '#8fa3c9' } })).data.character;
+  const [ca, cb, cc, cd] = [await mk(a, 'Lead'), await mk(b, 'One'), await mk(c, 'Two'), await mk(d, 'Three')];
+  const k = (await a('/api/connections', { method: 'POST', body: { characterId: ca.id, title: 'the band', slots: 2 } })).data.connection;
+  assert.equal(k.slots, 2);
+  assert.equal((await b(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: cb.id } })).data.connection.full, false);
+  const full = (await c(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: cc.id } })).data.connection;
+  assert.equal(full.full, true);
+  assert.equal(full.takers.length, 2);
+  assert.equal((await d(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: cd.id } })).status, 409);
+  // The writer makes room for one more and renames it.
+  assert.equal((await a(`/api/connections/${k.id}`, { method: 'PUT', body: { slots: 1 } })).status, 400);
+  const edited = (await a(`/api/connections/${k.id}`, { method: 'PUT', body: { slots: 3, title: 'the whole band' } })).data.connection;
+  assert.equal(edited.title, 'the whole band');
+  assert.equal(edited.full, false);
+  assert.equal((await b(`/api/connections/${k.id}`, { method: 'PUT', body: { title: 'mine now' } })).status, 403);
+  assert.equal((await d(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: cd.id } })).status, 200);
+  // Someone leaves.
+  const left = (await b(`/api/connections/${k.id}/release`, { method: 'POST', body: {} })).data.connection;
+  assert.equal(left.takers.length, 2);
+});
+
+test('birthdays come from character profiles; only the site owner gets update notices', async () => {
+  const { parseBirthday } = await import('../server/routes/profiles.js');
+  assert.deepEqual(parseBirthday('March 3'), { month: 3, day: 3 });
+  assert.deepEqual(parseBirthday('3rd of March'), { month: 3, day: 3 });
+  assert.deepEqual(parseBirthday('1999-12-25'), { month: 12, day: 25 });
+  assert.deepEqual(parseBirthday('10/31'), { month: 10, day: 31 });
+  assert.equal(parseBirthday('someday'), null);
+  const w = await app.signUp('bday_writer');
+  const c = (await w('/api/characters', { method: 'POST', body: { name: 'Birthday Kid', color: '#8fa3c9' } })).data.character;
+  await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { facts: { birthday: 'October 14' } } } });
+  const b = (await w('/api/birthdays')).data.birthdays.find((x) => x.id === c.id);
+  assert.deepEqual([b.month, b.day], [10, 14]);
+  assert.equal((await app.admin('/api/home')).data.isOwner, true);
+  assert.equal((await w('/api/home')).data.isOwner, false);
+});

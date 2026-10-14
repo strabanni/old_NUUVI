@@ -2,6 +2,7 @@ import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, 
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges } from './social.js';
+import { dossierAbout, editDossier } from './profiles.js';
 
 const DETAIL_SUGGESTIONS = ['Age', 'Pronouns', 'Face claim', 'Occupation', 'Species', 'Height', 'Birthday', 'Alignment'];
 
@@ -297,7 +298,6 @@ export async function viewCharacter(id) {
           ${own ? html`<button id="edit">Edit profile</button><button class="primary" id="new-post">${icons.plus} New post</button>`
             : html`<button class="${following ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>
               <button id="start-thread">${icons.episode} Start an episode</button>`}
-          <a class="btn" href="#/profiles/${c.id}">${icons.card} Full profile</a>
         </div>
         <nav class="ig-tabs" role="tablist">
           <button role="tab" data-tab="posts">${icons.grid}<span>Posts</span></button>
@@ -308,6 +308,7 @@ export async function viewCharacter(id) {
       </article>`,
   });
   const pane = $('#ig-pane', body);
+  let profile = null;
   const thumb = (p) => html`
     <a class="ig-tile kind-${p.kind}" href="#/p/${p.id}">
       ${p.kind === 'photo' ? html`<img src="${p.media[0]}" alt="" loading="lazy">${p.media.length > 1 ? html`<span class="ig-badge">${icons.grid}</span>` : ''}`
@@ -331,11 +332,23 @@ export async function viewCharacter(id) {
           <span class="pill-tag status-${t.status}">${({ open: 'Open', closed: 'Private', complete: 'Complete' })[t.status]}</span>
         </a>`)}</div>` : html`<div class="empty"><p>Not in any episodes yet.</p></div>`);
     } else {
-      render(pane, html`
-        ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div class="aka-text">${raw(esc(c.aka).replace(/\*\*(.+?)\*\*/g, '<b class="accent">$1</b>'))}</div></div>` : ''}
-        ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
-        <div class="small-stats"><span><b>${compact(stats.posts)}</b> episode posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
-        ${!c.aka && !c.details.length ? html`<div class="empty"><p>Nothing here yet.</p></div>` : ''}`);
+      // About: the character's details, then their full profile (facts, personality, history…).
+      const drawAbout = (prof) => {
+        render(pane, html`
+          ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div class="aka-text">${raw(esc(c.aka).replace(/\*\*(.+?)\*\*/g, '<b class="accent">$1</b>'))}</div></div>` : ''}
+          ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
+          <div class="small-stats"><span><b>${compact(stats.posts)}</b> episode posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
+          ${prof ? dossierAbout(c, prof.dossier, { canEdit: prof.canEdit }) : html`<p class="muted small">Loading profile…</p>`}`);
+        applyColors(pane);
+        $('#about-edit', pane)?.addEventListener('click', async () => {
+          if (await editDossier(c, prof.dossier)) { profile = null; draw(); }
+        });
+      };
+      if (profile) drawAbout(profile);
+      else {
+        drawAbout(null);
+        api(`/api/profiles/${c.id}`).then((r) => { profile = r; if (tab === 'about') drawAbout(r); }).catch(() => {});
+      }
     }
   };
   draw();

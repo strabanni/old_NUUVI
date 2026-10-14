@@ -28,7 +28,7 @@ export async function viewUser(id) {
     actions: !me && state.user ? html`
       <a class="btn sm primary" href="#/messages/${u.id}">${icons.chat}<span class="lbl">Message</span></a>
       <button class="sm" id="block">${blocked ? 'Unblock' : 'Block'}</button>
-      <button class="sm" id="report">Report</button>` : me ? html`<a class="btn sm" href="#/settings">Edit profile</a>` : '',
+      <button class="sm" id="report">Report</button>` : me ? html`<a class="btn sm desk-only" href="#/settings">Edit profile</a>` : '',
     body: html`
       <section class="profile-hero ${u.banner ? '' : 'no-img'}">
         ${u.banner ? html`<img class="hero-img" src="${u.banner}" alt="">` : ''}

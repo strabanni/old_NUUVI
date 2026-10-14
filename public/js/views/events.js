@@ -104,7 +104,7 @@ export async function openEventForm({ event = null, storyId = null } = {}) {
 // Events page: cards or a month calendar. Tapping an event opens its page.
 export async function viewEvents() {
   const alive = routeAlive();
-  const { events } = await api('/api/calendar');
+  const [{ events }, { birthdays }] = await Promise.all([api('/api/calendar'), api('/api/birthdays').catch(() => ({ birthdays: [] }))]);
   ensureAlive(alive);
   let layout = sessionStorage.getItem('nuuvi:events-layout') || 'cards';
   let month = (() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); })();
@@ -171,6 +171,7 @@ export async function viewEvents() {
         ${cells.map((d) => (d === null ? html`<span class="cal-cell empty"></span>` : html`
           <div class="cal-cell ${today.getFullYear() === first.getFullYear() && today.getMonth() === first.getMonth() && today.getDate() === d ? 'today' : ''}" data-day="${d}">
             <span class="cal-num">${d}</span>
+            ${birthdays.filter((b) => b.month === first.getMonth() + 1 && b.day === d).map((b) => html`<a class="cal-ev cal-bday" href="#/c/${b.id}" title="${b.name}'s birthday">🎂 ${b.name}</a>`)}
             ${onDay(d).map((e) => html`<a class="cal-ev" href="#/e/${e.id}" title="${e.title}">${fmtTime(new Date(e.startsAt))} ${e.title}</a>`)}
           </div>`))}
       </div>

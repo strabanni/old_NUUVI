@@ -251,6 +251,8 @@ function inlineFormat(s) {
     .replace(/\|\|(.+?)\|\|/g, '<span class="spoiler" tabindex="0">$1</span>')
     .replace(/(&quot;|“)(.+?)(&quot;|”)/g, '<span class="dialogue">$1$2$3</span>')
     .replace(/(^|[\s(>])@([^\s@<&]+?)(?=[.,!?;:)\]]*(?:\s|$|<|&))/gu, '$1<span class="mention">@$2</span>')
+    // #hashtags open THE : NU filtered to that tag.
+    .replace(/(^|[\s(>])#((?=[\p{L}\p{N}_]*\p{L})[\p{L}\p{N}_]{2,40})/gu, (m, pre, tag) => `${pre}<a class="hashtag" href="#/nu/tag/${encodeURIComponent(tag)}">#${tag}</a>`)
     .replace(/\u0000(\d+)\u0000/g, (_, i) => kept[i]);
 }
 
@@ -736,6 +738,61 @@ export function formattingGuide({ insert = null } = {}) {
       if (ins) { insert(FORMAT_GUIDE[Number(ins.dataset.insert)][0]); close(null); }
     }),
   });
+}
+
+// Typing "@" in a caption or comment suggests characters (by @handle or name); pick one, or keep
+// typing the handle in full. Mentions show in NUUVI pink.
+let mentionCache = null;
+export function mentionPicker(field) {
+  if (!field || field.dataset.mentions) return;
+  field.dataset.mentions = '1';
+  const list = document.createElement('div');
+  list.className = 'mention-list';
+  list.hidden = true;
+  field.insertAdjacentElement('afterend', list);
+  let items = [];
+  let active = 0;
+  const query = () => {
+    const before = field.value.slice(0, field.selectionStart ?? field.value.length);
+    const m = before.match(/(^|\s)@([\p{L}\p{N}_.]{0,30})$/u);
+    return m ? { q: m[2].toLowerCase(), start: before.length - m[2].length - 1 } : null;
+  };
+  const close = () => { list.hidden = true; items = []; };
+  const choose = (c) => {
+    const q = query();
+    if (!q) return close();
+    const end = field.selectionStart ?? field.value.length;
+    const insert = `@${c.handle} `;
+    field.value = field.value.slice(0, q.start) + insert + field.value.slice(end);
+    const at = q.start + insert.length;
+    field.focus();
+    field.setSelectionRange(at, at);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    close();
+  };
+  const draw = () => {
+    render(list, html`${items.map((c, i) => html`<button type="button" class="mention-opt ${i === active ? 'on' : ''}" data-i="${i}">
+      ${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}<b>@${c.handle}</b><small>${c.name}${c.npc ? ' · NPC' : ''}</small></button>`)}`);
+    list.hidden = !items.length;
+  };
+  field.addEventListener('input', async () => {
+    const q = query();
+    if (!q) return close();
+    mentionCache ??= api('/api/profiles').then((r) => r.profiles.filter((c) => c.handle)).catch(() => []);
+    const all = await mentionCache;
+    items = all.filter((c) => c.handle.toLowerCase().startsWith(q.q) || c.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(q.q))).slice(0, 6);
+    active = 0;
+    draw();
+  });
+  field.addEventListener('keydown', (e) => {
+    if (list.hidden) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); active = (active + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length; draw(); }
+    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); e.stopPropagation(); choose(items[active]); }
+    if (e.key === 'Escape') { e.stopPropagation(); close(); }
+  });
+  field.addEventListener('blur', () => setTimeout(close, 180));
+  list.addEventListener('mousedown', (e) => e.preventDefault());
+  list.addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (b) choose(items[Number(b.dataset.i)]); });
 }
 
 // Instead of uploading, use a picture that's already online (Pinterest, Tumblr, Imgur…).

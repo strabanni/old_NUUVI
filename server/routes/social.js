@@ -1,6 +1,6 @@
 // Characters as social profiles: following other characters, followers, and the threads they're in.
 import { fail, id, str, oneOf } from '../http.js';
-import { addBuzz, buzzForFollowers, autoLikes, autoCommentLikes } from '../buzz.js';
+import { addBuzz, setBuzz, buzzTarget, autoLikes, autoCommentLikes } from '../buzz.js';
 import { toCharacter, requireUser, isBlocked, imageLink, adminCanSee } from '../model.js';
 
 export function socialRoutes(r, ctx) {
@@ -143,7 +143,7 @@ export function socialPostRoutes(r, ctx) {
     return {
       type: 'social',
       id: row.id, kind: row.kind, body: row.body, title: row.title,
-      media: JSON.parse(row.media), meta: JSON.parse(row.meta), location: row.location ?? null,
+      media: JSON.parse(row.media), meta: JSON.parse(row.meta), location: row.location ?? null, category: row.category ?? 'post',
       createdAt: row.created_at, editedAt: row.edited_at, userId: row.user_id,
       character: charOf(row),
       // Likes start from the character's fame (a share of their followers, or the number the writer set)
@@ -151,6 +151,9 @@ export function socialPostRoutes(r, ctx) {
       likes: (row.likes_display ?? autoLikes(row.c_followers, row.id)) + realLikes,
       commentCount: row.comments_display ?? realComments,
       likesDisplay: row.likes_display ?? null, commentsDisplay: row.comments_display ?? null,
+      // Characters who liked it (shown as "Liked by @handle and 2,301 others", like Instagram).
+      likers: db.prepare(`SELECT c.id, c.name, c.handle, c.color, c.avatar FROM social_likes l JOIN characters c ON c.id = l.character_id
+        WHERE l.post_id = ? ORDER BY l.rowid DESC LIMIT 3`).all(row.id),
       likedBy: viewerId ? db.prepare(`SELECT l.character_id FROM social_likes l JOIN characters c ON c.id = l.character_id
         WHERE l.post_id = ? AND c.user_id = ?`).all(row.id, viewerId).map((x) => x.character_id) : [],
       comments: comments.map((cm) => ({ id: cm.id, body: cm.body, createdAt: cm.created_at, userId: cm.user_id, parentId: cm.parent_id ?? null,
@@ -164,9 +167,10 @@ export function socialPostRoutes(r, ctx) {
   const NOT_BLOCKED = `p.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = :viewer)
     AND p.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = :viewer)`;
 
-  ctx.socialFeed = ({ viewerId, q = '', limit = 60, characterId = null, before = null }) => {
+  ctx.socialFeed = ({ viewerId, q = '', limit = 60, characterId = null, before = null, category = null }) => {
     const where = [NOT_BLOCKED];
     const args = { viewer: viewerId, limit };
+    if (category) { where.push("COALESCE(p.category, 'post') = :cat"); args.cat = category; }
     if (characterId) { where.push('p.character_id = :cid'); args.cid = characterId; }
     if (before) { where.push('p.id < :before'); args.before = before; }
     if (q) {
@@ -200,6 +204,21 @@ export function socialPostRoutes(r, ctx) {
     });
   }
 
+  // A likes / comments number someone sets on a post (empty = work it out).
+  function countInput(v, field) {
+    if (v === undefined || v === null || v === '') return null;
+    const n = Number(String(v).replace(/[,\s]/g, ''));
+    if (!Number.isInteger(n) || n < 0 || n > 9_999_999_999) fail(400, `${field} must be a whole number`);
+    return n;
+  }
+  // A date and time for a post (ISO text from the browser), stored as UTC.
+  function whenInput(v) {
+    if (v === undefined || v === null || v === '') return undefined;
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime()) || d.getFullYear() < 1900 || d.getFullYear() > 2200) fail(400, 'That date doesn\'t look right');
+    return d.toISOString().slice(0, 19).replace('T', ' ');
+  }
+
   function metaInput(kind, meta) {
     if (!meta || typeof meta !== 'object') return {};
     const out = {};
@@ -209,6 +228,15 @@ export function socialPostRoutes(r, ctx) {
       out.live = meta.live !== false;
     }
     if (kind === 'voice' && Number.isFinite(Number(meta.duration))) out.duration = Math.min(3600, Math.max(0, Math.round(Number(meta.duration))));
+    // What the pictures look like (worked out in the browser), so crowd comments can react to them.
+    if (meta.look && typeof meta.look === 'object') {
+      const l = meta.look;
+      out.look = {
+        tone: ['dark', 'bright', 'soft'].includes(l.tone) ? l.tone : null,
+        color: ['pink', 'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'gold', 'black', 'white'].includes(l.color) ? l.color : null,
+        bw: !!l.bw,
+      };
+    }
     return out;
   }
 
@@ -260,12 +288,18 @@ export function socialPostRoutes(r, ctx) {
     if (['photo', 'video', 'voice'].includes(kind) && !media.length) fail(400, `Add a ${kind === 'photo' ? 'photo' : kind === 'video' ? 'video' : 'voice note'} first`);
     if (kind === 'stream' && !title) fail(400, 'Give the stream a title');
     const location = str(body.location, 'Location', { max: 100 }) || null;
-    const { lastInsertRowid } = db.prepare('INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(metaInput(kind, body.meta), musicInput(body.music))), location);
+    const category = oneOf(body.category, 'Category', ['post', 'musing']) ?? 'post';
+    const likesShown = countInput(body.likesDisplay, 'Likes');
+    const commentsShown = countInput(body.commentsDisplay, 'Comments');
+    const postedAt = whenInput(body.postedAt) ?? null;
+    const { lastInsertRowid } = db.prepare(`INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta, location, category, likes_display, comments_display, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`)
+      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(metaInput(kind, body.meta), musicInput(body.music))), location,
+        category, likesShown ?? null, commentsShown ?? null, postedAt);
     ctx.bots?.onSocialPost(Number(lastInsertRowid));
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(lastInsertRowid);
     const fame = db.prepare(`SELECT COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = ?)) AS n FROM characters WHERE id = ?`).get(c.id, c.id).n;
-    addBuzz(db, fresh, buzzForFollowers(fame), { followers: fame });
+    addBuzz(db, fresh, buzzTarget(commentsShown, fame), { followers: fame });
     return { status: 201, data: { post: toSocial(load(lastInsertRowid, user), user.id) } };
   });
 
@@ -277,24 +311,28 @@ export function socialPostRoutes(r, ctx) {
     const title = str(body.title, 'Title', { max: 120 }) ?? row.title;
     const base = body.meta === undefined ? JSON.parse(row.meta) : { ...metaInput(row.kind, body.meta), ...(JSON.parse(row.meta).music ? { music: JSON.parse(row.meta).music } : {}) };
     const meta = JSON.stringify(withMusic(base, musicInput(body.music)));
-    const count = (v, field, old) => {
-      if (v === undefined) return old ?? null;
-      if (v === null || v === '') return null;
-      const n = Number(v);
-      if (!Number.isInteger(n) || n < 0 || n > 9_999_999_999) fail(400, `${field} must be a whole number`);
-      return n;
-    };
+    const count = (v, field, old) => (v === undefined ? old ?? null : countInput(v, field));
     const likesShown = count(body.likesDisplay, 'Likes', row.likes_display);
     const commentsShown = count(body.commentsDisplay, 'Comments', row.comments_display);
     const location = body.location === undefined ? row.location : (str(body.location, 'Location', { max: 100 }) || null);
-    const onlyCounts = body.body === undefined && body.title === undefined && body.meta === undefined && body.music === undefined && body.location === undefined;
-    db.prepare(`UPDATE social_posts SET body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?, location = ?${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`)
-      .run(text, title, meta, likesShown, commentsShown, location, row.id);
-    // A bigger comment number brings in some crowd comments to go with it (a handful, not thousands).
-    if (commentsShown && commentsShown !== row.comments_display) {
-      const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
-      const want = Math.min(commentsShown, 6 + Math.floor(Math.random() * 7));
-      addBuzz(db, db.prepare('SELECT * FROM social_posts WHERE id = ?').get(row.id), want - have, { followers: row.c_followers });
+    const category = oneOf(body.category, 'Category', ['post', 'musing']) ?? row.category ?? 'post';
+    // The post's date and time can be set (to build up a character's history).
+    const postedAt = body.postedAt === undefined ? row.created_at : whenInput(body.postedAt) ?? row.created_at;
+    const contentChanged = (body.body !== undefined && text !== row.body) || (body.title !== undefined && title !== row.title)
+      || location !== row.location || meta !== row.meta;
+    const onlyCounts = !contentChanged && category === (row.category ?? 'post');
+    db.prepare(`UPDATE social_posts SET body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?, location = ?, category = ?, created_at = ?
+      ${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`)
+      .run(text, title, meta, likesShown, commentsShown, location, category, postedAt, row.id);
+    // Crowd comments follow the post: a changed caption (or place, song, pictures) gets fresh comments
+    // that fit it, and a new comment number gets at least a quarter of it written out.
+    const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
+    const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(row.id);
+    if (contentChanged || postedAt !== row.created_at) {
+      setBuzz(db, fresh, Math.max(have, commentsShown ? buzzTarget(commentsShown, row.c_followers) : 0), { followers: row.c_followers });
+    } else if (commentsShown !== row.comments_display) {
+      const want = buzzTarget(commentsShown, row.c_followers);
+      if (want !== have) setBuzz(db, fresh, want, { followers: row.c_followers });
     }
     return { data: { post: toSocial(load(row.id, user), user.id) } };
   });

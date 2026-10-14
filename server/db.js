@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 14;
+const SCHEMA_VERSION = 15;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -466,6 +466,19 @@ const MIGRATIONS = [
    ALTER TABLE social_posts ADD COLUMN location TEXT;
    ALTER TABLE users ADD COLUMN show_about INTEGER NOT NULL DEFAULT 1;
    ALTER TABLE users ADD COLUMN username_changed_at TEXT;`,
+  // v15: musings (a kind of social post); group connections (how many people a connection needs,
+  // and everyone who picked it up).
+  `ALTER TABLE social_posts ADD COLUMN category TEXT NOT NULL DEFAULT 'post';
+   ALTER TABLE connections ADD COLUMN slots INTEGER NOT NULL DEFAULT 1;
+   CREATE TABLE connection_takers (
+     connection_id INTEGER NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
+     user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     character_id  INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     taken_at      TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (connection_id, character_id)
+   );
+   INSERT INTO connection_takers (connection_id, user_id, character_id, taken_at)
+     SELECT id, taken_user_id, taken_character_id, COALESCE(taken_at, datetime('now')) FROM connections WHERE taken_character_id IS NOT NULL AND taken_user_id IS NOT NULL;`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.
