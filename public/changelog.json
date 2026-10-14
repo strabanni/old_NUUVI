@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-40",
+    "date": "2026-10-14",
+    "title": "Open a finished episode in one tap",
+    "items": [
+      "A completed episode's text box now says Episode complete with an Open button right inside it. Tap Open to unlock the episode and write again (for whoever runs the episode)."
+    ]
+  },
+  {
     "code": "NV-39",
     "date": "2026-10-14",
     "title": "Names in your theme, spaces kept",

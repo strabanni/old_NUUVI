@@ -3141,3 +3141,8 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
 :root[data-names="theme"] [data-grad] .tp-name {
   color: var(--text) !important; background: none !important; -webkit-text-fill-color: currentColor !important;
 }
+
+/* NV-40: a finished episode's text box: "Episode complete" with an Open button inside. */
+.composer-locked.ep-done { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 20px; text-align: left; }
+.composer-locked.ep-done > span { display: inline-flex; align-items: center; gap: 6px; }
+.composer-locked.ep-done .primary { flex: none; border-radius: 999px; padding: 8px 20px; }

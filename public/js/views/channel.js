@@ -447,8 +447,21 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const wrap = $('#composer-wrap', body);
   let mention = () => {};
   let startReply = () => {};
-  if (role && !detail.canPost) {
-    render(wrap, html`<div class="composer-locked">${story.completedAt ? html`${icons.archive} This story is complete and kept in the Archive. It's read-only.` : channel().status === 'complete' ? `This episode is complete — it's locked now.${detail.canManage ? ' To write in it again, open Episode details (⚙) and set it back to Open.' : ''}` : 'This is a private episode for the characters in it.'}</div>`);
+  if (role && !detail.canPost && !story.completedAt && channel().status === 'complete' && detail.canManage) {
+    // A finished episode: the text box shows it's complete, with a button to open it again.
+    render(wrap, html`<div class="composer-locked ep-done"><span>${icons.check} Episode complete</span>
+      <button type="button" class="primary sm" id="reopen-episode">Open</button></div>`);
+    $('#reopen-episode', wrap).addEventListener('click', async (e) => {
+      e.currentTarget.disabled = true;
+      try {
+        await api(`/api/channels/${channelId}`, { method: 'PUT', body: { status: 'open' } });
+        toast('Episode open again');
+        await loadStory(storyId);
+        viewChannel(storyIdStr, channelIdStr);
+      } catch (err) { toast(err.message); e.currentTarget.disabled = false; }
+    });
+  } else if (role && !detail.canPost) {
+    render(wrap, html`<div class="composer-locked">${story.completedAt ? html`${icons.archive} This story is complete and kept in the Archive. It's read-only.` : channel().status === 'complete' ? 'This episode is complete.' : 'This is a private episode for the characters in it.'}</div>`);
   } else if (!role) {
     render(wrap, state.user
       ? html`<div class="composer-locked">${story.status === 'open' ? html`You're reading as a guest. <button class="primary sm" id="join-here">Join to write</button>` : 'This story is closed to new writers.'}</div>`
