@@ -13,6 +13,8 @@ createApp({
   trustProxy: flag(env.TRUST_PROXY),
   // Push services (notably Apple's) want a real contact URL or mailto: here.
   vapidSubject: env.VAPID_SUBJECT || env.PUBLIC_URL || 'mailto:admin@example.com',
+  // With an Anthropic API key, fan comments are written by Claude looking at the pictures.
+  ai: { apiKey: env.ANTHROPIC_API_KEY || null },
 }).listen(port, () => {
   console.log(`NUUVI is running at http://localhost:${port}`);
 });

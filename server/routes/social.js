@@ -1,6 +1,6 @@
 // Characters as social profiles: following other characters, followers, and the threads they're in.
 import { fail, id, str, oneOf } from '../http.js';
-import { addBuzz, setBuzz, buzzTarget, autoLikes, autoCommentLikes } from '../buzz.js';
+import { setBuzz, buzzTarget, autoLikes, autoCommentLikes } from '../buzz.js';
 import { toCharacter, requireUser, isBlocked, imageLink, adminCanSee } from '../model.js';
 
 export function socialRoutes(r, ctx) {
@@ -142,6 +142,7 @@ export function socialPostRoutes(r, ctx) {
       + db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
     return {
       type: 'social',
+      buzzPending: !!ctx.aiBuzz?.pending(row.id),
       id: row.id, kind: row.kind, body: row.body, title: row.title,
       media: JSON.parse(row.media), meta: JSON.parse(row.meta), location: row.location ?? null, category: row.category ?? 'post',
       createdAt: row.created_at, editedAt: row.edited_at, userId: row.user_id,
@@ -217,6 +218,13 @@ export function socialPostRoutes(r, ctx) {
     const d = new Date(v);
     if (Number.isNaN(d.getTime()) || d.getFullYear() < 1900 || d.getFullYear() > 2200) fail(400, 'That date doesn\'t look right');
     return d.toISOString().slice(0, 19).replace('T', ' ');
+  }
+
+  // Gives a post a fresh set of fan comments (the old ones are deleted). With an API key set, Claude
+  // writes them after looking at the pictures; otherwise the built-in writer does it right away.
+  function newBuzz(post, count, followers) {
+    if (ctx.aiBuzz?.enabled) ctx.aiBuzz.queue(post, count, { followers });
+    else setBuzz(db, post, count, { followers });
   }
 
   function metaInput(kind, meta) {
@@ -308,7 +316,7 @@ export function socialPostRoutes(r, ctx) {
     ctx.bots?.onSocialPost(Number(lastInsertRowid));
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(lastInsertRowid);
     const fame = db.prepare(`SELECT COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = ?)) AS n FROM characters WHERE id = ?`).get(c.id, c.id).n;
-    addBuzz(db, fresh, buzzTarget(commentsShown, fame), { followers: fame });
+    newBuzz(fresh, buzzTarget(commentsShown, fame), fame);
     return { status: 201, data: { post: toSocial(load(lastInsertRowid, user), user.id) } };
   });
 
@@ -338,10 +346,10 @@ export function socialPostRoutes(r, ctx) {
     const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(row.id);
     if (body.freshComments === true || contentChanged || postedAt !== row.created_at) {
-      setBuzz(db, fresh, commentsShown ? buzzTarget(commentsShown, row.c_followers) : have, { followers: row.c_followers });
+      newBuzz(fresh, commentsShown ? buzzTarget(commentsShown, row.c_followers) : have, row.c_followers);
     } else if (commentsShown !== row.comments_display) {
       const want = buzzTarget(commentsShown, row.c_followers);
-      if (want !== have) setBuzz(db, fresh, want, { followers: row.c_followers });
+      if (want !== have) newBuzz(fresh, want, row.c_followers);
     }
     return { data: { post: toSocial(load(row.id, user), user.id, { allComments: true }) } };
   });

@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-22",
+    "date": "2026-10-14",
+    "title": "Fan comments that look at your pictures",
+    "items": [
+      "When the site has an Anthropic API key, fan comments are written by Claude, who looks at the actual photos as well as the caption, place, song and tags.",
+      "Comments arrive a few seconds after you post or edit; the post page shows them as soon as they're ready.",
+      "Without a key, NUUVI keeps using its built-in comment writer."
+    ]
+  },
+  {
     "code": "NV-21",
     "date": "2026-10-14",
     "title": "Feed refresh and smarter tags",

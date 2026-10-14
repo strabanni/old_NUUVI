@@ -314,7 +314,7 @@ export function makeComments(post, character, count, { mentions = [], seed = pos
 }
 
 // Characters @mentioned in a caption, by their handles (shown as @handle in comments).
-function mentionedHandles(db, post) {
+export function mentionedHandles(db, post) {
   const handles = [...String(post.body || '').matchAll(/@([\p{L}\p{N}_.]{2,40})/gu)].map((m) => m[1].replace(/[.]+$/, ''));
   if (!handles.length) return [];
   const known = db.prepare('SELECT handle FROM characters WHERE handle = ? COLLATE NOCASE');
@@ -334,6 +334,11 @@ export function addBuzz(db, post, count, { random = Math.random, followers = 0 }
   const have = db.prepare('SELECT body FROM social_buzz WHERE post_id = ?').all(post.id).map((r) => r.body);
   const seed = post.id + have.length * 101 + Math.floor(random() * 1000);
   const comments = makeComments(post, character, count, { mentions: mentionedHandles(db, post), seed, avoid: have });
+  insertBuzz(db, post, comments, { random, followers });
+}
+
+// Saves crowd comments ({ handle, body, mood }) under a post, spread out over the hours after it went up.
+export function insertBuzz(db, post, comments, { random = Math.random, followers = 0 } = {}) {
   const ins = db.prepare(`INSERT INTO social_buzz (post_id, handle, body, likes, created_at)
     VALUES (?, ?, ?, ?, datetime(?, '+' || ? || ' seconds'))`);
   const base = followers > 0 ? followers * 0.0008 : 3;

@@ -13,5 +13,8 @@
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
     "admin": "node --disable-warning=ExperimentalWarning server/admin-cli.js"
   },
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0"
+  }
 }

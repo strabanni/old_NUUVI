@@ -811,7 +811,7 @@ function connectLive() {
   source = new EventSource(`/api/events?${params}`);
   let opened = false;
   source.addEventListener('open', () => { if (opened) emit('reconnect'); opened = true; });
-  for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence', 'dm', 'dm-delete', 'message', 'message-delete']) {
+  for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence', 'dm', 'dm-delete', 'message', 'message-delete', 'buzz']) {
     source.addEventListener(type, (e) => handleLive(type, JSON.parse(e.data)));
   }
 }
@@ -960,7 +960,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-21';
+export const APP_BUILD = 'NV-22';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

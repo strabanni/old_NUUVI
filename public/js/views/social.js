@@ -1,6 +1,6 @@
 // Character social media: posts (text, photo, video, voice note, stream), likes, comments.
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink, gradAttr, looksForeign, translateText } from '../lib.js';
-import { state, page, myCharacters, routeAlive, ensureAlive } from '../main.js';
+import { state, page, myCharacters, routeAlive, ensureAlive, bus, onLeave } from '../main.js';
 import { fillLocations } from './threads.js';
 import { mentionPicker } from '../lib.js';
 
@@ -611,11 +611,19 @@ export async function viewSocialPost(id) {
     const all = allComments(p);
     const top = all.filter((c) => !c.parentId);
     const repliesOf = (c) => (c.character ? p.comments.filter((r) => r.parentId === c.id) : []);
-    render($('#sm-comments', body), top.length ? html`${top.map((c) => html`${commentRow(c, p)}${repliesOf(c).length ? html`<div class="cm-replies">${repliesOf(c).map((r) => commentRow(r, p, true))}</div>` : ''}`)}`
+    const waiting = p.buzzPending ? html`<p class="muted small np-buzz-wait">${icons.sparkles || ''} Fans are looking at the post… their comments will show up here in a moment.</p>` : '';
+    render($('#sm-comments', body), top.length || waiting ? html`${waiting}${top.map((c) => html`${commentRow(c, p)}${repliesOf(c).length ? html`<div class="cm-replies">${repliesOf(c).map((r) => commentRow(r, p, true))}</div>` : ''}`)}`
       : html`<p class="muted small np-empty">No comments yet. Start the conversation.</p>`);
   };
   draw(post);
   bindSocial($('#sm-post', body), posts, draw);
+  // When the fan comments for this post are ready (written in the background), show them.
+  const onBuzz = async (e) => {
+    if (e.detail?.postId !== post.id || !alive()) return;
+    try { draw((await api(`/api/social/${post.id}`)).post); } catch { /* gone */ }
+  };
+  bus.addEventListener('buzz', onBuzz);
+  onLeave(() => bus.removeEventListener('buzz', onBuzz));
   const setReply = (r) => {
     replyTo = r;
     const chip = $('#np-replying', body);

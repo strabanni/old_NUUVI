@@ -24,6 +24,7 @@ import { messageRoutes } from './routes/messages.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
 import { createBots } from './bots.js';
+import { createAiBuzz } from './ai-buzz.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 // Big enough for a novel-length thread post.
@@ -124,6 +125,7 @@ export function createApp({
   vapidSubject = 'mailto:admin@localhost',
   pushFetch,
   bots: botOptions = {},
+  ai: aiOptions = {},
 } = {}) {
   const db = openDb(dbPath);
   uploadDir ??= dbPath === ':memory:' ? mkdtempSync(join(tmpdir(), 'nuuvi-uploads-')) : join(dirname(dbPath), 'uploads');
@@ -278,6 +280,8 @@ export function createApp({
   postRoutes(router, ctx);
   adminRoutes(router, ctx);
   ctx.bots = createBots(ctx, botOptions);
+  // Fan comments by Claude, looking at the pictures (only when an API key is set).
+  ctx.aiBuzz = createAiBuzz({ db, hub, uploadDir, ...aiOptions });
   const botTimer = setInterval(() => { try { ctx.bots.tick(); } catch (err) { console.error('bots', err); } }, 15 * 60 * 1000);
   botTimer.unref?.();
   threadRoutes(router, ctx);
