@@ -115,6 +115,7 @@ export const PLACES = [
 // Pictures for the spots, sent in one location at a time (stored in public/places).
 export const PLACE_PHOTOS = {
   'HARLSTON SQUARE PARK': [1, 2, 3, 4].map((n) => `/places/harlston-square-park-${n}.webp`),
+  'THE ATLAS': [1, 2, 3].map((n) => `/places/the-atlas-${n}.webp`),
 };
 
 // Gives each spot its pictures, once per spot (added after any pictures it already has).

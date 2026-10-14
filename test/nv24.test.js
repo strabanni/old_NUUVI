@@ -166,6 +166,7 @@ test('places have galleries; Harlston Square Park comes with its photos', async 
   const harlston = (await w('/api/places')).data.places.find((p) => p.name === 'HARLSTON SQUARE PARK');
   assert.equal(harlston.pictures.length, 4);
   assert.equal(harlston.picture, '/places/harlston-square-park-1.webp');
+  assert.equal((await w('/api/places')).data.places.find((p) => p.name === 'THE ATLAS').pictures.length, 3);
   // Several pictures on a new place; reorder and remove; the ones it came with can stay.
   const up = async () => (await w('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png })).data.url;
   const [a, b] = [await up(), await up()];
