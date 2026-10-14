@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-30",
+    "date": "2026-10-14",
+    "title": "Location photos",
+    "items": [
+      "Places can have up to 12 pictures. Open a place and tap the small pictures to flip through them.",
+      "When adding or editing a place: add several pictures at once, move them with ‹ ›, and the first one is the cover.",
+      "HARLSTON SQUARE PARK has its photos."
+    ]
+  },
+  {
     "code": "NV-29",
     "date": "2026-10-14",
     "title": "Where's that at?¿ — the Ardell City guide",

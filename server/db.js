@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 20;
+const SCHEMA_VERSION = 21;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -522,6 +522,9 @@ const MIGRATIONS = [
      lng      REAL,
      position INTEGER NOT NULL DEFAULT 0
    );`,
+  // v21: a place can have several pictures (a gallery); the first is its cover.
+  `ALTER TABLE locations ADD COLUMN gallery TEXT NOT NULL DEFAULT '[]';
+   UPDATE locations SET gallery = json_array(picture) WHERE picture IS NOT NULL AND picture != '';`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

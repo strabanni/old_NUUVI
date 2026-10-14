@@ -198,7 +198,10 @@ const VENUES = ['Apartment', 'Bar', 'Beach', 'Café', 'Club', 'Gallery', 'Gym', 
 async function showPlace(p, data) {
   const canEdit = p.owner.id === state.user.id || state.user.isAdmin;
   const res = await modal(html`<div class="place-view">
-    ${p.picture ? html`<img class="place-pic" src="${p.picture}" alt="">` : ''}
+    ${(p.pictures || []).length ? html`<div class="place-gallery">
+      <img class="place-pic" id="pl-main" src="${p.pictures[0]}" alt="">
+      ${p.pictures.length > 1 ? html`<div class="place-thumbs">${p.pictures.map((u, i) => html`<button type="button" class="${i ? '' : 'on'}" data-show="${u}" aria-label="Picture ${i + 1}"><img src="${u}" alt="" loading="lazy"></button>`)}</div>` : ''}
+    </div>` : ''}
     <h2>${p.name}</h2>
     <div class="npc-meta">${p.borough ? html`<span class="tag">${icons.pin} ${p.borough}</span>` : ''}${p.venue ? html`<span class="tag">#${p.venue}</span>` : ''}</div>
     ${p.description ? html`<div class="body prose">${formatPost(p.description)}</div>` : ''}
@@ -216,6 +219,13 @@ async function showPlace(p, data) {
       <button type="button" class="primary" data-close>Close</button>
     </div></div>`, {
     init: (d, close) => {
+      // Tap a small picture to see it big.
+      d.addEventListener('click', (e) => {
+        const t = e.target.closest('[data-show]');
+        if (!t) return;
+        $('#pl-main', d).src = t.dataset.show;
+        $$('[data-show]', d).forEach((b) => b.classList.toggle('on', b === t));
+      });
       $('#pl-edit', d)?.addEventListener('click', () => close('edit'));
       $('#pl-del', d)?.addEventListener('click', async () => {
         if (!(await confirmModal(`Remove ${p.name} from Locations?`, { ok: 'Remove', danger: true }))) return;
@@ -229,13 +239,14 @@ async function showPlace(p, data) {
 
 // Add or change a place. Resolves true when saved.
 async function editPlace(p, data) {
-  let picture = p.picture || '';
+  const pictures = [...(p.pictures || (p.picture ? [p.picture] : []))];
   let spot = p.lat != null ? { lat: p.lat, lng: p.lng } : null;
   let pickBox = null;
   const res = await modal(html`<form class="place-form">
     <h2>${p.id ? `Edit ${p.name}` : 'Add a location'}</h2>
-    <div class="place-pic-edit" id="pl-pic"></div>
-    <div class="row-inline"><label class="btn sm file-btn">${icons.image} Picture<input type="file" accept="image/*" id="pl-file" hidden></label>
+    <label>Pictures <small class="muted">(up to 12 · the first one is the cover)</small></label>
+    <div class="ds-gal-edit pl-gal" id="pl-pic"></div>
+    <div class="row-inline"><label class="btn sm file-btn">${icons.image} Add pictures<input type="file" accept="image/*" id="pl-file" multiple hidden></label>
       <button type="button" class="sm" id="pl-link">Link</button></div>
     <label for="pl-name">Name</label><input id="pl-name" name="name" required maxlength="80" value="${p.name || ''}" placeholder="The Velvet Room">
     <div class="row">
@@ -257,19 +268,30 @@ async function editPlace(p, data) {
     <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">${p.id ? 'Save' : 'Add location'}</button></div>
   </form>`, {
     init: (d) => {
-      const drawPic = () => render($('#pl-pic', d), picture ? html`<img src="${picture}" alt="">` : html`<span class="muted small">No picture yet</span>`);
+      const drawPic = () => render($('#pl-pic', d), pictures.length ? html`${pictures.map((u, i) => html`<span class="thumb"><img src="${u}" alt="">
+          <button type="button" data-rm-pic="${i}" aria-label="Remove">✕</button>
+          ${i === 0 ? html`<b class="pl-cover">cover</b>` : ''}
+          <span class="pl-move">${i > 0 ? html`<button type="button" data-mv-pic="${i}" data-to="${i - 1}" aria-label="Move earlier">‹</button>` : ''}${i < pictures.length - 1 ? html`<button type="button" data-mv-pic="${i}" data-to="${i + 1}" aria-label="Move later">›</button>` : ''}</span></span>`)}`
+        : html`<span class="muted small">No pictures yet</span>`);
       drawPic();
       $('#pl-file', d).addEventListener('change', async (e) => {
-        const f = e.target.files[0];
-        if (!f) return;
-        try { picture = await uploadImage(f, 1400); drawPic(); } catch (err) { toast(err.message); }
+        for (const f of [...e.target.files].slice(0, 12 - pictures.length)) {
+          try { toast('Uploading…'); pictures.push(await uploadImage(f, 1600)); drawPic(); } catch (err) { toast(err.message); }
+        }
+        e.target.value = '';
       });
-      $('#pl-link', d).addEventListener('click', async () => { const url = await askImageLink(); if (url) { picture = url; drawPic(); } });
+      $('#pl-link', d).addEventListener('click', async () => { const url = await askImageLink(); if (url && pictures.length < 12) { pictures.push(url); drawPic(); } });
+      $('#pl-pic', d).addEventListener('click', (e) => {
+        const rm = e.target.closest('[data-rm-pic]');
+        if (rm) { pictures.splice(Number(rm.dataset.rmPic), 1); drawPic(); return; }
+        const mv = e.target.closest('[data-mv-pic]');
+        if (mv) { const i = Number(mv.dataset.mvPic); const j = Number(mv.dataset.to); [pictures[i], pictures[j]] = [pictures[j], pictures[i]]; drawPic(); }
+      });
       pickBox = $('#pl-map', d);
       mountCityMap(pickBox, { places: [] }, { pick: true, pin: spot, onPick: (lat, lng) => { spot = { lat, lng }; } });
     },
     submit: async (form) => {
-      const body = { ...form, picture: picture || null, lat: spot ? spot.lat : null, lng: spot ? spot.lng : null };
+      const body = { ...form, pictures, lat: spot ? spot.lat : null, lng: spot ? spot.lng : null };
       dropMapOf(pickBox);
       await api(p.id ? `/api/places/${p.id}` : '/api/places', { method: p.id ? 'PUT' : 'POST', body });
       toast(p.id ? 'Saved' : `${form.name} added to Locations`);

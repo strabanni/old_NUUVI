@@ -160,3 +160,20 @@ test('the Ardell City guide: five boroughs and their spots, added once', async (
   // A second look doesn't add them again.
   assert.equal((await w('/api/places')).data.places.filter((x) => x.name === 'NOVA').length, 1);
 });
+
+test('places have galleries; Harlston Square Park comes with its photos', async () => {
+  const w = await app.signUp('gallery_maker');
+  const harlston = (await w('/api/places')).data.places.find((p) => p.name === 'HARLSTON SQUARE PARK');
+  assert.equal(harlston.pictures.length, 4);
+  assert.equal(harlston.picture, '/places/harlston-square-park-1.webp');
+  // Several pictures on a new place; reorder and remove; the ones it came with can stay.
+  const up = async () => (await w('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png })).data.url;
+  const [a, b] = [await up(), await up()];
+  const made = (await w('/api/places', { method: 'POST', body: { name: 'Gallery Spot', pictures: [a, b] } })).data.place;
+  assert.deepEqual(made.pictures, [a, b]);
+  assert.equal((await w(`/api/places/${made.id}`, { method: 'PUT', body: { pictures: [b, a] } })).data.place.picture, b);
+  assert.equal((await w(`/api/places/${made.id}`, { method: 'PUT', body: { pictures: ['/places/harlston-square-park-1.webp'] } })).status, 400, 'can\'t borrow another place\'s pictures');
+  const admin = app.admin;
+  const kept = (await admin(`/api/places/${harlston.id}`, { method: 'PUT', body: { pictures: harlston.pictures.slice(1) } })).data.place;
+  assert.equal(kept.pictures.length, 3);
+});

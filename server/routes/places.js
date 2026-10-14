@@ -5,10 +5,11 @@
 // characters in open episodes set at a place (the latest scene move in the episode counts).
 import { fail, str } from '../http.js';
 import { requireUser, uploadRef } from '../model.js';
-import { ARDELL_INTRO, seedArdell } from '../ardell.js';
+import { ARDELL_INTRO, seedArdell, seedPlacePhotos } from '../ardell.js';
 
+const picturesOf = (r) => { try { const g = JSON.parse(r.gallery || '[]'); return g.length ? g : r.picture ? [r.picture] : []; } catch { return r.picture ? [r.picture] : []; } };
 const toPlace = (r) => ({
-  id: r.id, name: r.name, picture: r.picture ?? null, borough: r.borough, venue: r.venue, description: r.description,
+  id: r.id, name: r.name, picture: picturesOf(r)[0] ?? null, pictures: picturesOf(r), borough: r.borough, venue: r.venue, description: r.description,
   createdAt: r.created_at, owner: { id: r.user_id, username: r.username, displayName: r.display_name },
   lat: r.lat ?? null, lng: r.lng ?? null, hours: r.hours ?? '', price: r.price ?? '', since: r.since ?? '',
 });
@@ -37,6 +38,17 @@ export function placeRoutes(r, ctx) {
       price: (str(body.price, 'Price range', { max: 80 }) ?? existing.price ?? '').trim(),
       since: (str(body.since, 'Year', { max: 60 }) ?? existing.since ?? '').trim(),
     };
+  };
+  // A place's pictures (up to 12; the first is the cover). Pictures it already has stay as they are
+  // (including ones that came with NUUVI); new ones must be uploads or picture links.
+  const picturesInput = (body, user, row = null) => {
+    let list = body.pictures;
+    if (list === undefined && body.picture !== undefined) list = body.picture ? [body.picture] : [];
+    if (list === undefined) return undefined;
+    if (!Array.isArray(list)) fail(400, 'Pictures must be a list');
+    if (list.length > 12) fail(400, 'Up to 12 pictures');
+    const had = row ? picturesOf(row) : [];
+    return list.filter(Boolean).map((v) => (had.includes(v) ? v : uploadRef(db, v, user.id)));
   };
   const taken = (name, id = 0) => db.prepare('SELECT 1 FROM locations WHERE name = ? COLLATE NOCASE AND id != ?').get(name, id);
 
@@ -71,10 +83,12 @@ export function placeRoutes(r, ctx) {
 
   // Ardell City's guide (boroughs and spots) is added once there's an admin.
   seedArdell(db);
+  seedPlacePhotos(db);
 
   r.get('/api/places', ({ user }) => {
     requireUser(user);
     seedArdell(db);
+    seedPlacePhotos(db);
     const here = whoIsWhere(user.id);
     const places = db.prepare(`${SELECT} ORDER BY l.name COLLATE NOCASE`).all().map((row) => ({ ...toPlace(row), here: here.get(row.name.trim().toLowerCase()) || [] }));
     const distinct = (k) => [...new Set(places.map((p) => p[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -89,10 +103,10 @@ export function placeRoutes(r, ctx) {
     requireUser(user);
     const f = fields(body);
     if (taken(f.name)) fail(409, `${f.name} is already in the directory`);
-    const picture = uploadRef(db, body.picture, user.id) ?? null;
+    const pictures = picturesInput(body, user) ?? [];
     const pin = pinInput(body.lat, body.lng) ?? [null, null];
-    const { lastInsertRowid } = db.prepare(`INSERT INTO locations (user_id, name, picture, borough, venue, description, hours, price, since, lat, lng)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(user.id, f.name, picture, f.borough, f.venue, f.description, f.hours, f.price, f.since, pin[0], pin[1]);
+    const { lastInsertRowid } = db.prepare(`INSERT INTO locations (user_id, name, picture, gallery, borough, venue, description, hours, price, since, lat, lng)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(user.id, f.name, pictures[0] ?? null, JSON.stringify(pictures), f.borough, f.venue, f.description, f.hours, f.price, f.since, pin[0], pin[1]);
     return { status: 201, data: { place: toPlace(load(lastInsertRowid)) } };
   });
 
@@ -102,12 +116,11 @@ export function placeRoutes(r, ctx) {
     if (row.user_id !== user.id && !user.isAdmin) fail(403, 'Only whoever added this place (or an admin) can change it');
     const f = fields(body, row);
     if (taken(f.name, row.id)) fail(409, `${f.name} is already in the directory`);
-    // Someone else's picture stays as it was unless a new one is chosen.
-    const picture = body.picture === row.picture ? row.picture : uploadRef(db, body.picture, user.id);
+    const pictures = picturesInput(body, user, row) ?? picturesOf(row);
     const pin = pinInput(body.lat, body.lng);
     const [lat, lng] = pin === undefined ? [row.lat, row.lng] : pin ?? [null, null];
-    db.prepare('UPDATE locations SET name = ?, picture = ?, borough = ?, venue = ?, description = ?, hours = ?, price = ?, since = ?, lat = ?, lng = ? WHERE id = ?')
-      .run(f.name, picture === undefined ? row.picture : picture, f.borough, f.venue, f.description, f.hours, f.price, f.since, lat, lng, row.id);
+    db.prepare('UPDATE locations SET name = ?, picture = ?, gallery = ?, borough = ?, venue = ?, description = ?, hours = ?, price = ?, since = ?, lat = ?, lng = ? WHERE id = ?')
+      .run(f.name, pictures[0] ?? null, JSON.stringify(pictures), f.borough, f.venue, f.description, f.hours, f.price, f.since, lat, lng, row.id);
     return { data: { place: toPlace(load(row.id)) } };
   });
 

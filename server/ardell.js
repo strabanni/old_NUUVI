@@ -112,6 +112,27 @@ export const PLACES = [
     'home to many, prison to all. an underground floor for betting on fights, a club floor where more happens under the table than fair, and a decent rooftop lounge for the ones trying to escape the chaos.', 40.8020, -73.9120),
 ];
 
+// Pictures for the spots, sent in one location at a time (stored in public/places).
+export const PLACE_PHOTOS = {
+  'HARLSTON SQUARE PARK': [1, 2, 3, 4].map((n) => `/places/harlston-square-park-${n}.webp`),
+};
+
+// Gives each spot its pictures, once per spot (added after any pictures it already has).
+export function seedPlacePhotos(db) {
+  for (const [name, photos] of Object.entries(PLACE_PHOTOS)) {
+    const key = `ardell_photos:${name}`;
+    if (db.prepare('SELECT 1 FROM settings WHERE key = ?').get(key)) continue;
+    const place = db.prepare('SELECT * FROM locations WHERE name = ? COLLATE NOCASE').get(name);
+    if (!place) continue; // not added yet: try again later
+    let had = [];
+    try { had = JSON.parse(place.gallery || '[]'); } catch { /* none */ }
+    if (!had.length && place.picture) had = [place.picture];
+    const gallery = [...had, ...photos.filter((p) => !had.includes(p))].slice(0, 12);
+    db.prepare('UPDATE locations SET gallery = ?, picture = ? WHERE id = ?').run(JSON.stringify(gallery), gallery[0] ?? null, place.id);
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run(key, '1');
+  }
+}
+
 // Adds the boroughs and spots to a site, once, as the site owner's (the first admin's). A place that's
 // already there by name is left as it is (and given its details and pin if it has none). Waits until
 // the site has an admin.
