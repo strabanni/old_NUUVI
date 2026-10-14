@@ -52,6 +52,21 @@ at *first glance*, FOYAEN represents the new and the fresh, appealing to the ~~u
       body: "a music label responsible for producing performers rather than simply artists. AUURA develops idols, soloists, and influencer personalities, overseeing training, branding, promotions, and public image. its talent roster regularly crosses into acting, modeling, and commercial advertising, making it the primary entry point into FOYAEN's ecosystem.",
     },
     {
+      name: 'MOSSETA', kind: 'subsidiary', parent: 'FOYAEN INC.', motto: 'film & television studio',
+      whisper: "MOSSETA calls it a \"comeback documentary\". we call it a two-hour apology with better lighting. 🎬",
+      body: 'a film and television production studio creating streaming series, dramas, variety programming, and commercial visual media. MOSSETA frequently casts AUURA performers, shaping public perception and reintroducing talent through controlled roles, documentaries, and special appearances. within the industry, MOSSETA is known less for artistic risk and more for **reputation management**.',
+    },
+    {
+      name: 'NOER', kind: 'subsidiary', parent: 'FOYAEN INC.', motto: 'cosmetics',
+      whisper: "trending on monday, a lipstick by friday. sold out by sunday. and if the face stops trending? so does the shade. 💄",
+      body: "a cosmetics company built on personality marketing. NOER collaborates directly with entertainers and influencers, releasing limited collections and campaign-based products tied to specific public figures. popularity determines production — when a face trends, a product follows. the brand functions as FOYAEN's primary consumer revenue stream.",
+    },
+    {
+      name: 'OKINE', kind: 'subsidiary', parent: 'FOYAEN INC.', motto: 'talent agency',
+      whisper: "OKINE models walk every runway in the city. funny how none of them ever get to walk *out* of their contracts.",
+      body: 'a talent agency specializing in actors and fashion models. OKINE manages casting placements, brand endorsements, runway contracts, and editorial work, often supplying faces for MOSSETA productions and CATCHYE campaigns. while AUURA develops **personalities**, OKINE refines **professional careers**.',
+    },
+    {
       name: 'ENTITY DYNAMICS', kind: 'conglomerate', founded: '1964', credit: '© doki',
       motto: 'the act of consumption? a bottomless pit, starving to be.',
       whisper: "three recessions, two scandals, zero apologies. ENTITY doesn't chase what's trending. it buys it, brands it, and buries the receipts.",
@@ -72,7 +87,12 @@ despite bringing fruition to its name over many *centuries* and its enemies beli
     {
       name: 'INTRÉPIDE (ent.)', kind: 'subsidiary', parent: 'ENTITY DYNAMICS', motto: 'entertainment',
       whisper: "total creative freedom, minimal interference. that's the press release. the voice memos we got tell a different story. 🎧",
-      body: 'an entertainment company focusing primarily on managing musical acts and production. they commonly house independent artists who have more freedom to pursue their artistry with minimal interference.',
+      body: 'an entertainment company focusing primarily on managing musical acts and production. they commonly house independent artists who have more freedom to pursue their artistry with minimal authority intervention.',
+    },
+    {
+      name: 'MONO', kind: 'subsidiary', parent: 'ENTITY DYNAMICS', motto: 'fashion & lifestyle magazine',
+      whisper: "a MONO cover changes your life. a MONO *blind item* ends it. guess which one the intern is writing tonight. 📰",
+      body: 'a premier international fashion and lifestyle magazine, renowned as the **"fashion bible"** as it sets industry standards by covering haute couture, fashion, beauty, and more. it has become the leading publication many aspire to contribute to, and others envy when reading.',
     },
     {
       name: 'CATCHYE', kind: 'independent', motto: 'luxury fashion house',

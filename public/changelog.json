@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-28",
+    "date": "2026-10-14",
+    "title": "More of the lore",
+    "items": [
+      "The Lore page has FOYAEN's MOSSETA (film & television), NOER (cosmetics) and OKINE (talent agency), and ENTITY's MONO (the \"fashion bible\" magazine).",
+      "INTRÉPIDE's description is updated."
+    ]
+  },
+  {
     "code": "NV-27",
     "date": "2026-10-14",
     "title": "Change a post's type when editing",

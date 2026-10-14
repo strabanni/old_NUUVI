@@ -45,6 +45,27 @@ export function overviewInput(body) {
 export function overviewRoutes(r, ctx) {
   const { db, hub } = ctx;
 
+  // Lore that was already saved (edited by an admin) gets the companies added since, once: MOSSETA,
+  // NOER and OKINE under FOYAEN, MONO under ENTITY, and INTRÉPIDE's updated wording. Each new company
+  // goes after the last one under the same parent. Nothing an admin wrote is changed.
+  if (!db.prepare("SELECT 1 FROM settings WHERE key = 'lore_v2'").get()) {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'lore'").get();
+    if (row) {
+      const lore = JSON.parse(row.value);
+      lore.orgs ??= [];
+      const has = (name) => lore.orgs.some((o) => o.name?.toUpperCase() === name.toUpperCase());
+      for (const org of LORE_PRESET.orgs.filter((o) => ['MOSSETA', 'NOER', 'OKINE', 'MONO'].includes(o.name) && !has(o.name))) {
+        let at = -1;
+        lore.orgs.forEach((o, n) => { if (o.name === org.parent || o.parent === org.parent) at = n; });
+        lore.orgs.splice(at < 0 ? lore.orgs.length : at + 1, 0, { ...org });
+      }
+      const intrepide = lore.orgs.find((o) => /^INTR[ÉE]PIDE/i.test(o.name || ''));
+      if (intrepide?.body?.endsWith('with minimal interference.')) intrepide.body = intrepide.body.replace(/minimal interference\.$/, 'minimal authority intervention.');
+      db.prepare("UPDATE settings SET value = ? WHERE key = 'lore'").run(JSON.stringify(lore));
+    }
+    db.prepare("INSERT INTO settings (key, value) VALUES ('lore_v2', '1')").run();
+  }
+
   r.get('/api/stories/:id/overview', ({ user, params }) => {
     requireUser(user);
     const { row, role } = storyAccess(db, params.id, user);
