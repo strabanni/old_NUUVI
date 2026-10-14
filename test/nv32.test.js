@@ -18,7 +18,7 @@ test('tagged people and the behind-the-post note are saved; only the writer sees
   const cb = await mk(b, 'Cha Yoonoh');
   await b(`/api/characters/${cb.id}`, { method: 'PUT', body: { handle: 'chayoonoh' } });
   const body = { characterId: ca.id, body: 'dinner with @chayoonoh', context: 'first date, she is nervous',
-    people: [{ handle: '@chayoonoh', rel: 'partner', inPicture: true }, { handle: 'x', rel: 'nonsense' }] };
+    people: [{ handle: '@chayoonoh', rel: 'partner', inPicture: true }, { handle: 'bad name', rel: 'nonsense' }] };
   const p = (await a('/api/social', { method: 'POST', body })).data.post;
   assert.deepEqual(p.meta.people, { chayoonoh: { handle: 'chayoonoh', rel: 'partner', in: true } });
   assert.equal(p.meta.tagged, true);
@@ -79,4 +79,28 @@ test('a quick second edit wins: the first edit\'s comments never land', async ()
     assert.ok(post.buzz.every((b) => b.body.startsWith('third ')), JSON.stringify(post.buzz.map((b) => b.body)));
     assert.equal(new Set(post.buzz.map((b) => b.body)).size, post.buzz.length);
   } finally { ai.close(); }
+});
+
+test('character usernames can have special characters, and @mentions of them work', async () => {
+  const a = await app.signUp('special_handles');
+  const b = await app.signUp('special_tagged');
+  const ca = await mk(a, 'Rose');
+  const cb = await mk(b, 'Mina');
+  const ok = await b(`/api/characters/${cb.id}`, { method: 'PUT', body: { handle: 'mina♡˚-ø' } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
+  assert.equal(ok.data.character.handle, 'mina♡˚-ø');
+  for (const bad of ['mi na', 'mi@na', 'a#b', '<b>', 'x'.repeat(31)]) {
+    assert.equal((await b(`/api/characters/${cb.id}`, { method: 'PUT', body: { handle: bad } })).status, 400, bad);
+  }
+  // Mentioned with punctuation after it: still the right person, and they hear about it.
+  await a('/api/social', { method: 'POST', body: { characterId: ca.id, body: 'brunch with @mina♡˚-ø!!' } });
+  const notes = (await b('/api/notifications')).data.notifications;
+  assert.ok(notes.some((n) => n.type === 'socialtag' && n.text.startsWith('Rose tagged Mina')), JSON.stringify(notes));
+});
+
+test('fan usernames are a mix, not mostly Korean names', () => {
+  const post = { id: 3, kind: 'text', body: 'good morning', media: '[]', meta: '{}' };
+  const names = makeComments(post, { name: 'Jun' }, 200, { seed: 5 }).map((c) => c.handle);
+  const korean = names.filter((h) => /^(yuna|jae|dae|hyun|mina|yuri|roro|jiwoo|seo|minji|haru)/.test(h));
+  assert.equal(korean.length, 0, korean.join(', '));
 });

@@ -24,7 +24,7 @@ Write comments the way real people comment on Instagram:
 - Mention the location or the song only occasionally.
 - Every comment must be different. Don't repeat the same idea in different words.
 - Use the character's pronouns correctly.
-- Each commenter gets a believable made-up username (letters, numbers, dots, underscores; no @).`;
+- Each commenter gets a believable made-up username (letters, numbers, dots, underscores; no @). Ardell City is a melting pot like New York, so the commenters come from every background: Black, Latino, white, South Asian, Middle Eastern, African, East and Southeast Asian, European and more, mixed naturally. Don't lean on Korean or any one group's names.`;
 
 const SCHEMA = {
   type: 'object',

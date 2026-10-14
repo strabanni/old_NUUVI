@@ -9,6 +9,8 @@
 //   little things people add (a "wait", an emoji, a tag), so a big comment section doesn't repeat.
 // Counts that grow with fame (likes on posts and comments) are worked out here too.
 
+import { mentionTokens, resolveMention } from './names.js';
+
 // A repeatable 0–1 number from a seed, so a post's numbers don't jump around between page loads.
 export function seeded(seed) {
   let x = (Number(seed) * 2654435761) >>> 0;
@@ -323,8 +325,15 @@ function dress(line, mood, rand, x) {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-const NAME_A = ['luv', 'soft', 'mini', 'yuna', 'jae', 'lily', 'cherry', 'moon', 'dae', 'hyun', 'mina', 'koko', 'yuri', 'roro', 'jiwoo', 'cassie', 'nana', 'ari', 'evie', 'lulu', 'seo', 'minji', 'haru', 'kai', 'ziggy', 'pixie', 'rue', 'jules', 'nova', 'maddy',
-  'marcus', 'devon', 'tasha', 'kenji', 'leila', 'omar', 'priya', 'sofia', 'dani', 'theo', 'brianna', 'isaac', 'zara', 'mateo', 'chloe', 'yusuf', 'ardell', 'nyc', 'bella', 'quinn', 'remy', 'sasha', 'tomas', 'imani', 'jun', 'aya'];
+// Ardell City is a melting pot, so its fans come from everywhere.
+const NAME_A = [
+  'marcus', 'devon', 'tasha', 'keisha', 'jamal', 'malik', 'aaliyah', 'imani', 'nia', 'xavier', 'jaylen', 'destiny', 'tre', 'kiara',
+  'sofia', 'mateo', 'diego', 'valentina', 'carlos', 'lucia', 'santiago', 'marisol', 'gabi', 'rosa', 'javi', 'yesenia', 'luis', 'camila',
+  'priya', 'ravi', 'anjali', 'arjun', 'omar', 'yusuf', 'leila', 'fatima', 'amir', 'layla', 'nadia', 'yara', 'zain', 'hassan',
+  'kofi', 'ade', 'chidi', 'ngozi', 'kwame', 'amara', 'tunde', 'zola', 'liam', 'connor', 'siobhan', 'aoife', 'olivia', 'ethan',
+  'maddie', 'tyler', 'jordan', 'brianna', 'chloe', 'isaac', 'theo', 'quinn', 'remy', 'jules', 'ivan', 'katya', 'sasha', 'tomas',
+  'luca', 'giulia', 'enzo', 'mei', 'kenji', 'aya', 'minh', 'thu', 'paolo', 'rina', 'dani', 'zara', 'bella', 'nova', 'rue',
+  'luv', 'soft', 'mini', 'cherry', 'moon', 'koko', 'pixie', 'ziggy', 'lulu', 'evie', 'ardell', 'harbor', 'kingsward', 'northridge', 'nyc'];
 const NAME_B = ['archive', 'xo', 'files', 'stan', 'lover', 'diaries', 'core', 'world', 'era', 'club', 'mood', 'daily', 'vault', 'tv', 'pics', 'notes', 'sz', '', '', '', '', 'official', 'irl', 'og', 'fan', 'updates'];
 function fanHandle(rand) {
   const a = pick(NAME_A, rand);
@@ -364,10 +373,10 @@ export function makeComments(post, character, count, { mentions = [], seed = pos
 
 // Characters @mentioned in a caption, by their handles (shown as @handle in comments).
 export function mentionedHandles(db, post) {
-  const handles = [...String(post.body || '').matchAll(/@([\p{L}\p{N}_.]{2,40})/gu)].map((m) => m[1].replace(/[.]+$/, ''));
-  if (!handles.length) return [];
+  const tokens = mentionTokens(post.body);
+  if (!tokens.length) return [];
   const known = db.prepare('SELECT handle FROM characters WHERE handle = ? COLLATE NOCASE');
-  return [...new Set(handles)].map((h) => known.get(h)?.handle).filter(Boolean).map((h) => `@${h}`);
+  return [...new Set(tokens.map((t) => resolveMention(t, (h) => known.get(h)?.handle)).filter(Boolean))].map((h) => `@${h}`);
 }
 
 // Replaces a post's crowd comments with `count` fresh ones that fit what the post says now.

@@ -47,7 +47,7 @@ function characterForm(c = {}) {
       </div>
       <div class="row">
         <div><label for="c-name">Name</label><input id="c-name" name="name" required maxlength="60" value="${c.name || ''}"></div>
-        <div><label for="c-handle">Username</label><span class="at-input"><span>@</span><input id="c-handle" name="handle" maxlength="30" pattern="[A-Za-z0-9._]+" value="${c.handle || ''}" placeholder="made from their name"></span></div>
+        <div><label for="c-handle">Username</label><span class="at-input"><span>@</span><input id="c-handle" name="handle" maxlength="30" value="${c.handle || ''}" placeholder="made from their name"></span></div>
         <div class="fixed"><label for="c-color">Color</label><input id="c-color" type="color" name="color" value="${c.color || '#EE719E'}"></div>
       </div>
       <div class="grad-box" data-grad="${(c.gradient || BRAND_GRADIENT).join(',')}">

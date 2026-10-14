@@ -1,5 +1,6 @@
 // Characters as social profiles: following other characters, followers, and the threads they're in.
 import { fail, id, str, oneOf } from '../http.js';
+import { mentionTokens, resolveMention, HANDLE_CHAR } from '../names.js';
 import { setBuzz, buzzTarget, autoLikes, autoCommentLikes, RELATIONSHIPS } from '../buzz.js';
 import { toCharacter, requireUser, isBlocked, imageLink, adminCanSee } from '../model.js';
 
@@ -236,13 +237,13 @@ export function socialPostRoutes(r, ctx) {
   // Characters @mentioned in a post or comment: their writers hear "{a} tagged {b} in a post".
   // Your own characters don't notify you; `skip` is writers already told about this another way.
   function notifyTags(user, me, postId, text, where, skip = [], before = '') {
-    const handles = (t) => new Set([...String(t || '').matchAll(/@([\p{L}\p{N}_.]{2,40})/gu)].map((m) => m[1].replace(/[.]+$/, '').toLowerCase()));
-    const already = handles(before);
+    const find = db.prepare('SELECT id, name, user_id FROM characters WHERE handle = ? COLLATE NOCASE');
+    const tagged = (t) => new Map(mentionTokens(t).map((w) => resolveMention(w, (h) => find.get(h))).filter(Boolean).map((c) => [c.id, c]));
+    const already = tagged(before);
     const told = new Set(skip);
-    for (const h of handles(text)) {
-      if (already.has(h)) continue;
-      const t = db.prepare('SELECT id, name, user_id FROM characters WHERE handle = ? COLLATE NOCASE').get(h);
-      if (!t || t.user_id === user.id || told.has(t.user_id) || isBlocked(db, t.user_id, user.id)) continue;
+    for (const t of tagged(text).values()) {
+      if (already.has(t.id)) continue;
+      if (t.user_id === user.id || told.has(t.user_id) || isBlocked(db, t.user_id, user.id)) continue;
       ctx.notify({ userId: t.user_id, type: 'socialtag', actorId: user.id, characterId: me.id, socialId: postId, text: `${me.name} tagged ${t.name} in a ${where}: ${text.slice(0, 120)}` });
     }
   }
@@ -293,7 +294,7 @@ export function socialPostRoutes(r, ctx) {
       const list = {};
       for (const p of (people || []).slice(0, 20)) {
         const handle = String(p?.handle || '').replace(/^@/, '').trim();
-        if (!/^[\p{L}\p{N}_.]{2,40}$/u.test(handle)) continue;
+        if (!handle || [...handle].length > 40 || !new RegExp(`^${HANDLE_CHAR}+$`, 'u').test(handle)) continue;
         const rel = RELATIONSHIPS.includes(p.rel) ? p.rel : '';
         list[handle.toLowerCase()] = { handle, rel, in: !!p.inPicture };
       }

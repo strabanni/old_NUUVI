@@ -44,3 +44,34 @@ export function validDisplayName(name) {
   if (name && isInappropriate(name)) fail(400, 'Please pick a different display name');
   return name;
 }
+
+// Character @handles: letters, numbers and special characters (♡ ˚ ★ ~ - ø é 💋 …) are all fine.
+// Only what would break things is left out: spaces, @ and # (mentions and hashtags), and < > & " ' ` / \.
+export const HANDLE_CHAR = '[^\\s\\p{C}@#<>&"\'`/\\\\]';
+const HANDLE_RE = new RegExp(`^${HANDLE_CHAR}{1,30}$`, 'u');
+export const MAX_HANDLE = 30;
+
+export function validHandle(value) {
+  const handle = String(value ?? '').normalize('NFC').trim().replace(/^@/, '');
+  if (!handle) fail(400, 'Add a username');
+  if ([...handle].length > MAX_HANDLE) fail(400, `Usernames can be up to ${MAX_HANDLE} characters`);
+  if (!HANDLE_RE.test(handle) && !new RegExp(`^${HANDLE_CHAR}+$`, 'u').test(handle)) fail(400, 'Usernames can’t have spaces, @, # or < > & " \' ` / \\');
+  if (isInappropriate(handle)) fail(400, 'Please pick a different username');
+  return handle;
+}
+
+// The @words in some text, as typed (may carry punctuation after them: "@mina♡!!").
+export const mentionTokens = (text) => [...String(text || '').matchAll(new RegExp(`@(${HANDLE_CHAR}{1,60})`, 'gu'))].map((m) => m[1]);
+
+// Which handle an @word means: the whole thing if it's a handle, else with the punctuation or emoji
+// on the end dropped one at a time ("@mina!!" → mina, "@mina♡" stays mina♡ when that's the handle).
+export function resolveMention(token, find) {
+  let t = [...token];
+  while (t.length) {
+    const hit = find(t.join(''));
+    if (hit) return hit;
+    if (/[\p{L}\p{N}]/u.test(t.at(-1))) return null;
+    t = t.slice(0, -1);
+  }
+  return null;
+}

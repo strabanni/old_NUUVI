@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-34",
+    "date": "2026-10-14",
+    "title": "Special characters in usernames",
+    "items": [
+      "Character usernames can now use special characters and emoji, like @mina♡˚ or @ø.rose~ (up to 30). Only spaces, @, # and < > & \" ' ` / \\ aren't allowed.",
+      "Tagging them works too, even with punctuation right after (\"@mina♡!!\").",
+      "Fan comment usernames now reflect Ardell City's melting pot: names from every background instead of mostly Korean ones."
+    ]
+  },
+  {
     "code": "NV-33",
     "date": "2026-10-14",
     "title": "No more doubled fan comments",

@@ -744,6 +744,22 @@ export function formattingGuide({ insert = null } = {}) {
 
 // Typing "@" in a caption or comment suggests characters (by @handle or name); pick one, or keep
 // typing the handle in full. Mentions show in NUUVI pink.
+// What a character @handle can contain (same rule as the server): anything but spaces, @, # and < > & " ' ` / \.
+export const HANDLE_CHAR = '[^\\s\\p{C}@#<>&"\'`/\\\\]';
+// The @words in some text, as typed (may carry punctuation after them: "@mina♡!!").
+export const mentionTokens = (text) => [...String(text || '').matchAll(new RegExp(`@(${HANDLE_CHAR}{1,60})`, 'gu'))].map((m) => m[1]);
+// Which handle an @word means: the whole word, else with punctuation/emoji on the end dropped one by one.
+export function resolveMention(token, find) {
+  let t = [...token];
+  while (t.length) {
+    const hit = find(t.join(''));
+    if (hit) return hit;
+    if (/[\p{L}\p{N}]/u.test(t.at(-1))) return null;
+    t = t.slice(0, -1);
+  }
+  return null;
+}
+
 let mentionCache = null;
 export function mentionPicker(field) {
   if (!field || field.dataset.mentions) return;
@@ -756,7 +772,7 @@ export function mentionPicker(field) {
   let active = 0;
   const query = () => {
     const before = field.value.slice(0, field.selectionStart ?? field.value.length);
-    const m = before.match(/(^|\s)@([\p{L}\p{N}_.]{0,30})$/u);
+    const m = before.match(new RegExp(`(^|\\s)@(${HANDLE_CHAR}{0,30})$`, 'u'));
     return m ? { q: m[2].toLowerCase(), start: before.length - m[2].length - 1 } : null;
   };
   const close = () => { list.hidden = true; items = []; };

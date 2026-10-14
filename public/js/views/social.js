@@ -2,7 +2,7 @@
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink, gradAttr, looksForeign, translateText } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, bus, onLeave } from '../main.js';
 import { fillLocations } from './threads.js';
-import { mentionPicker, aiEnabled, checkWriting } from '../lib.js';
+import { mentionPicker, aiEnabled, checkWriting, HANDLE_CHAR, mentionTokens, resolveMention } from '../lib.js';
 
 const KINDS = [['text', 'Text', 'text'], ['photo', 'Photo', 'image'], ['video', 'Video', 'video'], ['voice', 'Voice note', 'mic'], ['stream', 'Stream', 'live']];
 export const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : n >= 1e3 ? `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}K` : String(n));
@@ -82,10 +82,12 @@ export const commenterName = (cm) => (cm.character
 const byTime = (a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0);
 export const allComments = (p) => [...[...p.comments].sort(byTime), ...[...(p.buzz || [])].sort(byTime)];
 
+// An @mention (with any special characters, but not punctuation right at the end) or a #hashtag.
+const MENTION_SPLIT = new RegExp(`((?:^|(?<=\\s))(?:@${HANDLE_CHAR}+?(?=[.,!?;:)\\]]*(?:\\s|$))|#[\\p{L}\\p{N}_.]{2,40}))`, 'u');
 // Comment text with @mentions and #hashtags picked out (in NUUVI pink; hashtags open their page).
 function tagged(text) {
-  const parts = String(text).split(/((?:^|(?<=\s))[@#][\p{L}\p{N}_.]{2,40})/u);
-  return html`${parts.map((t) => (/^@[\p{L}\p{N}_.]{2,}$/u.test(t) ? html`<span class="mention">${t}</span>`
+  const parts = String(text).split(MENTION_SPLIT);
+  return html`${parts.map((t) => (/^@/.test(t) && t.length > 1 ? html`<span class="mention">${t}</span>`
     : /^#(?=[\p{L}\p{N}_]*\p{L})[\p{L}\p{N}_]{2,}$/u.test(t) ? html`<a class="hashtag" href="#/nu/tag/${encodeURIComponent(t.slice(1))}">${t}</a>` : t))}`;
 }
 
@@ -386,7 +388,10 @@ const extrasFrom = (data, originalWhen = null) => {
 const RELATIONSHIPS = [['', 'Relationship…'], ['friend', 'Friend'], ['bestie', 'Best friend'], ['partner', 'Partner'], ['crush', 'Crush'],
   ['situationship', 'Situationship'], ['ex', 'Ex'], ['family', 'Family'], ['sibling', 'Sibling'], ['coworker', 'Coworker'],
   ['groupmate', 'Group / band mate'], ['rival', 'Rival'], ['enemy', 'Enemy']];
-const captionHandles = (text) => [...new Set([...String(text || '').matchAll(/@([\p{L}\p{N}_.]{2,40})/gu)].map((m) => m[1].replace(/[.]+$/, '')))];
+// The handles @mentioned in a caption (only real characters' once the list of them has loaded).
+const captionHandles = (text, known) => [...new Set(mentionTokens(text)
+  .map((w) => (known?.size ? resolveMention(w, (h) => known.get(h.toLowerCase())?.handle) : w.replace(/[.,!?;:)\]]+$/, '')))
+  .filter(Boolean))];
 function wirePeople(box, field, edit) {
   const people = new Map();
   const saved = edit?.meta?.people || {};
@@ -394,7 +399,7 @@ function wirePeople(box, field, edit) {
   const oldTagged = edit?.meta?.tagged === true && !edit?.meta?.people; // posts from before: everyone tagged was "in the picture"
   let known = null;
   api('/api/profiles').then((r) => { known = new Map(r.profiles.filter((c) => c.handle).map((c) => [c.handle.toLowerCase(), c])); draw(); }).catch(() => { known = new Map(); draw(); });
-  const current = () => captionHandles(field.value).filter((h) => !known || !known.size || known.has(h.toLowerCase()))
+  const current = () => captionHandles(field.value, known)
     .map((h) => {
       const k = h.toLowerCase();
       if (!people.has(k)) people.set(k, { handle: known?.get(k)?.handle || h, rel: '', in: oldTagged });

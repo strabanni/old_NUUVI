@@ -8,7 +8,7 @@ import { toUser, toCharacter, requireUser, uploadRef, gradientInput } from '../m
 import { validateSubscription } from '../push.js';
 import { profileInput, detailsInput, parseProfile } from '../profile.js';
 import { transaction, makeHandle } from '../db.js';
-import { validUsername, validDisplayName, nameKey } from '../names.js';
+import { validUsername, validDisplayName, nameKey, validHandle } from '../names.js';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -409,8 +409,7 @@ export function accountRoutes(r, ctx) {
     if (threadAvatar !== undefined) db.prepare('UPDATE characters SET thread_avatar = ? WHERE id = ?').run(threadAvatar, characterId);
     let handle;
     if (body.handle !== undefined && body.handle !== null && body.handle !== '') {
-      handle = String(body.handle).trim().replace(/^@/, '');
-      if (!/^[A-Za-z0-9._]{1,30}$/.test(handle)) fail(400, 'Usernames can use letters, numbers, dots and underscores (up to 30)');
+      handle = validHandle(body.handle);
       if (db.prepare('SELECT 1 FROM characters WHERE handle = ? COLLATE NOCASE AND id != ?').get(handle, characterId)) fail(409, `@${handle} is taken`);
     } else if (!existing.handle) {
       handle = makeHandle(db, body.name ?? existing.name ?? 'character', characterId);
