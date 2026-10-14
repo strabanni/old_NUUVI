@@ -1,5 +1,16 @@
 [
   {
+    "code": "NV-26",
+    "date": "2026-10-14",
+    "title": "A live map of Ardell City",
+    "items": [
+      "Directory → Locations is now a live street map, like Apple Maps: Ardell City is NUUVI's New York, so it's New York's real streets, parks, rivers and buildings, with the real borough and neighbourhood names hidden.",
+      "Zoom, drag, rotate, and tap 3D to tilt over the buildings. It turns dark at night with dark mode.",
+      "Character dots and place pins work like before: tap a pin to see who's there. Tap the map to pin a new place exactly where it is.",
+      "If the map can't load (say, a bad connection), the drawn map shows instead."
+    ]
+  },
+  {
     "code": "NV-25",
     "date": "2026-10-14",
     "title": "The Ardell City map, ending episodes and progress bars",

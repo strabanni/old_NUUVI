@@ -2,8 +2,8 @@
 // and the Locations of Ardell City (places anyone can add).
 import { html, render, api, $, $$, avatar, applyColors, icons, modal, confirmModal, toast, uploadImage, askImageLink, formatPost } from '../lib.js';
 import { forgetLocations } from './threads.js';
-import { mountCityMap, placeCard } from './map.js';
-import { state, page, routeAlive, ensureAlive } from '../main.js';
+import { mountCityMap, placeCard, dropMap as dropMapOf } from './map.js';
+import { state, page, routeAlive, ensureAlive, onLeave } from '../main.js';
 import { characterCard, editCharacter } from './characters.js';
 
 export async function viewDirectory() {
@@ -42,7 +42,12 @@ export async function viewDirectory() {
   const list = $('#dir-list', body);
   const match = (...fields) => !q || fields.some((f) => (f || '').toLowerCase().includes(q));
 
+  // The live map uses the graphics card: let go of it when the list redraws or the page closes.
+  const dropMap = () => dropMapOf($('#city-map-box', list));
+  onLeave(dropMap);
+
   function draw() {
+    dropMap();
     $$('[data-view]', body).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
     if (view === 'writers') {
       const shown = writers
@@ -97,8 +102,7 @@ export async function viewDirectory() {
         <div class="npc-head"><div class="chips no-swipe"><button type="button" class="chip-btn" data-ptag="" aria-pressed="${!placeTag}">All places</button>
           ${boroughs.map((b) => html`<button type="button" class="chip-btn" data-ptag="b:${b}" aria-pressed="${placeTag === `b:${b}`}">${icons.pin} ${b}</button>`)}
           ${venues.map((v) => html`<button type="button" class="chip-btn" data-ptag="v:${v}" aria-pressed="${placeTag === `v:${v}`}">#${v}</button>`)}</div>
-          <span class="row-inline">${state.user.isAdmin ? html`<button type="button" class="sm" id="map-picture">${icons.image} Map picture</button>` : ''}
-          <button type="button" class="primary sm" id="new-place">${icons.plus} Add a location</button></span></div>
+          <button type="button" class="primary sm" id="new-place">${icons.plus} Add a location</button></div>
         <p class="hint">Places in Ardell City for everyone's stories. Anyone can add one and pin it on the map. Characters show up on the map where their open episode is set (tag the episode's location, or move the scene with the Location button).</p>
         ${placeTag ? html`<h2 class="cat-title"><span>${value}</span><small>${shown.length} ${shown.length === 1 ? 'place' : 'places'}</small></h2>` : ''}
         ${shown.length ? html`<div class="char-grid npc-grid">${shown.map((p) => html`
@@ -110,7 +114,7 @@ export async function viewDirectory() {
             </button>
             <div class="npc-meta">${p.borough ? html`<button type="button" class="tag" data-ptag="b:${p.borough}">${icons.pin} ${p.borough}</button>` : ''}
               ${p.venue ? html`<button type="button" class="tag" data-ptag="v:${p.venue}">#${p.venue}</button>` : ''}
-              ${p.x == null ? html`<span class="cm-unpinned">· not on the map yet</span>` : ''}</div>
+              ${p.lat == null ? html`<span class="cm-unpinned">· not on the map yet</span>` : ''}</div>
           </div>`)}</div>` : html`<div class="empty"><p>${places.length ? 'No places match.' : 'No locations yet. Add the first one!'}</p></div>`}`);
       // The map, with the places shown by the filter.
       mountCityMap($('#city-map-box', list), { ...placeData, places: shown }, {
@@ -143,7 +147,6 @@ export async function viewDirectory() {
     if (e.target.closest('[data-close-card]')) { $('#cm-card', list).hidden = true; return; }
     const ep = e.target.closest('[data-edit-place]');
     if (ep) { if (await editPlace(placeData.places.find((x) => x.id === Number(ep.dataset.editPlace)), placeData)) { placeData = null; forgetLocations(); draw(); } return; }
-    if (e.target.closest('#map-picture')) { if (await editMapPicture(placeData)) { placeData = null; draw(); } return; }
     const pc = e.target.closest('[data-place], [data-open-place]');
     if (pc) {
       const p = placeData.places.find((x) => x.id === Number(pc.dataset.place || pc.dataset.openPlace));
@@ -182,7 +185,7 @@ async function showPlace(p, data) {
     ${p.description ? html`<div class="body prose">${formatPost(p.description)}</div>` : ''}
     ${p.here?.length ? html`<div class="cm-here"><span class="cm-live"></span><span>Here now</span></div>
       <div class="cm-here-list">${p.here.map((c) => html`<a href="#/s/${c.episode.storyId}/${c.episode.id}" data-close>${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}<span><b>${c.name}</b><small>${c.episode.name}</small></span></a>`)}</div>` : ''}
-    <p class="muted small">Added by @${p.owner.username}${p.x == null ? ' · not on the map yet' : ''}</p>
+    <p class="muted small">Added by @${p.owner.username}${p.lat == null ? ' · not on the map yet' : ''}</p>
     <div class="actions end">
       ${canEdit ? html`<button type="button" class="danger" id="pl-del">Remove</button><button type="button" id="pl-edit">Edit</button>` : ''}
       <button type="button" class="primary" data-close>Close</button>
@@ -202,7 +205,8 @@ async function showPlace(p, data) {
 // Add or change a place. Resolves true when saved.
 async function editPlace(p, data) {
   let picture = p.picture || '';
-  let spot = p.x != null ? { x: p.x, y: p.y } : null;
+  let spot = p.lat != null ? { lat: p.lat, lng: p.lng } : null;
+  let pickBox = null;
   const res = await modal(html`<form class="place-form">
     <h2>${p.id ? `Edit ${p.name}` : 'Add a location'}</h2>
     <div class="place-pic-edit" id="pl-pic"></div>
@@ -231,46 +235,17 @@ async function editPlace(p, data) {
         try { picture = await uploadImage(f, 1400); drawPic(); } catch (err) { toast(err.message); }
       });
       $('#pl-link', d).addEventListener('click', async () => { const url = await askImageLink(); if (url) { picture = url; drawPic(); } });
-      mountCityMap($('#pl-map', d), { map: data?.map, places: [] }, { pick: true, pin: spot, onPick: (x, y) => { spot = { x, y }; } });
+      pickBox = $('#pl-map', d);
+      mountCityMap(pickBox, { places: [] }, { pick: true, pin: spot, onPick: (lat, lng) => { spot = { lat, lng }; } });
     },
     submit: async (form) => {
-      const body = { ...form, picture: picture || null, x: spot ? spot.x : null, y: spot ? spot.y : null };
+      const body = { ...form, picture: picture || null, lat: spot ? spot.lat : null, lng: spot ? spot.lng : null };
+      dropMapOf(pickBox);
       await api(p.id ? `/api/places/${p.id}` : '/api/places', { method: p.id ? 'PUT' : 'POST', body });
       toast(p.id ? 'Saved' : `${form.name} added to Locations`);
       return true;
     },
   });
-  return !!res;
-}
-
-// Admins: use their own picture of Ardell City instead of the drawn map (pins keep their spots
-// as a share of the picture's width and height).
-async function editMapPicture(data) {
-  let picture = data.map || '';
-  const res = await modal(html`<form>
-    <h2>The city map</h2>
-    <p class="hint">Use your own map of Ardell City (a picture). Leave it empty to use the drawn map. Pins stay where they are across and down, so place them again if the new map is laid out differently.</p>
-    <div class="place-pic-edit" id="mp-pic"></div>
-    <div class="row-inline"><label class="btn sm file-btn">${icons.image} Choose a picture<input type="file" accept="image/*" id="mp-file" hidden></label>
-      <button type="button" class="sm" id="mp-clear">Use the drawn map</button></div>
-    <div class="error"></div>
-    <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Save</button></div>
-  </form>`, {
-    init: (d) => {
-      const drawPic = () => render($('#mp-pic', d), picture ? html`<img src="${picture}" alt="">` : html`<span class="muted small">The drawn map</span>`);
-      drawPic();
-      $('#mp-file', d).addEventListener('change', async (e) => {
-        const f = e.target.files[0];
-        if (!f) return;
-        try { picture = await uploadImage(f, 2400); drawPic(); } catch (err) { toast(err.message); }
-      });
-      $('#mp-clear', d).addEventListener('click', () => { picture = ''; drawPic(); });
-    },
-    submit: async () => {
-      await api('/api/places/map', { method: 'PUT', body: { picture: picture || null } });
-      toast('Map saved');
-      return true;
-    },
-  });
+  dropMapOf(pickBox);
   return !!res;
 }

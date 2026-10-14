@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 18;
+const SCHEMA_VERSION = 19;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -504,6 +504,12 @@ const MIGRATIONS = [
   // v18: where each place sits on the Ardell City map (0–1 across and down; empty = not pinned yet).
   `ALTER TABLE locations ADD COLUMN map_x REAL;
    ALTER TABLE locations ADD COLUMN map_y REAL;`,
+  // v19: the map is a live street map of the city Ardell City is based on (New York), so places
+  // are pinned by latitude/longitude. Pins from the drawn map move to the matching spot.
+  `ALTER TABLE locations ADD COLUMN lat REAL;
+   ALTER TABLE locations ADD COLUMN lng REAL;
+   UPDATE locations SET lng = -74.06 + map_x * 0.24, lat = 40.90 - map_y * 0.34 WHERE map_x IS NOT NULL AND map_y IS NOT NULL;
+   DELETE FROM settings WHERE key = 'city_map';`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

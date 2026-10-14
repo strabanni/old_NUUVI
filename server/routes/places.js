@@ -1,5 +1,6 @@
 // The Locations directory: places in Ardell City (restaurants, clubs, apartments, parks…) that
-// anyone can add, with a picture, the borough it's in, the kind of venue and a pin on the city map.
+// anyone can add, with a picture, the borough it's in, the kind of venue and a pin on the city map
+// (a live street map of New York, which Ardell City is based on; pins are latitude/longitude).
 // Whoever added a place (or an admin) can change or remove it. The map shows who's where right now:
 // characters in open episodes set at a place (the latest scene move in the episode counts).
 import { fail, str } from '../http.js';
@@ -8,9 +9,17 @@ import { requireUser, uploadRef } from '../model.js';
 const toPlace = (r) => ({
   id: r.id, name: r.name, picture: r.picture ?? null, borough: r.borough, venue: r.venue, description: r.description,
   createdAt: r.created_at, owner: { id: r.user_id, username: r.username, displayName: r.display_name },
-  x: r.map_x ?? null, y: r.map_y ?? null,
+  lat: r.lat ?? null, lng: r.lng ?? null,
 });
-const coord = (v) => (v === null || v === '' ? null : Number.isFinite(Number(v)) ? Math.min(1, Math.max(0, Number(v))) : fail(400, 'Map position must be a number'));
+// A pin on the map: somewhere around the city (the map doesn't go further than this).
+const BOUNDS = { lat: [40.3, 41.2], lng: [-74.6, -73.4] };
+function pinInput(lat, lng) {
+  if (lat === undefined && lng === undefined) return undefined;
+  if (lat === null || lng === null || lat === '' || lng === '') return null;
+  const a = Number(lat); const o = Number(lng);
+  if (!Number.isFinite(a) || !Number.isFinite(o) || a < BOUNDS.lat[0] || a > BOUNDS.lat[1] || o < BOUNDS.lng[0] || o > BOUNDS.lng[1]) fail(400, 'Pin the place somewhere in the city');
+  return [Math.round(a * 1e6) / 1e6, Math.round(o * 1e6) / 1e6];
+}
 
 export function placeRoutes(r, ctx) {
   const { db } = ctx;
@@ -61,18 +70,7 @@ export function placeRoutes(r, ctx) {
     const here = whoIsWhere(user.id);
     const places = db.prepare(`${SELECT} ORDER BY l.name COLLATE NOCASE`).all().map((row) => ({ ...toPlace(row), here: here.get(row.name.trim().toLowerCase()) || [] }));
     const distinct = (k) => [...new Set(places.map((p) => p[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const map = db.prepare("SELECT value FROM settings WHERE key = 'city_map'").get()?.value || null;
-    return { data: { places, boroughs: distinct('borough'), venues: distinct('venue'), map } };
-  });
-
-  // Admins can swap the drawn map for their own picture of Ardell City (empty: back to the drawn one).
-  r.put('/api/places/map', ({ user, body }) => {
-    requireUser(user);
-    if (!user.isAdmin) fail(403, 'Only admins can change the city map');
-    const picture = uploadRef(db, body.picture, user.id);
-    if (picture) db.prepare("INSERT INTO settings (key, value) VALUES ('city_map', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(picture);
-    else db.prepare("DELETE FROM settings WHERE key = 'city_map'").run();
-    return { data: { map: picture || null } };
+    return { data: { places, boroughs: distinct('borough'), venues: distinct('venue') } };
   });
 
   r.post('/api/places', ({ user, body }) => {
@@ -80,8 +78,9 @@ export function placeRoutes(r, ctx) {
     const f = fields(body);
     if (taken(f.name)) fail(409, `${f.name} is already in the directory`);
     const picture = uploadRef(db, body.picture, user.id) ?? null;
-    const { lastInsertRowid } = db.prepare('INSERT INTO locations (user_id, name, picture, borough, venue, description, map_x, map_y) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(user.id, f.name, picture, f.borough, f.venue, f.description, coord(body.x ?? null), coord(body.y ?? null));
+    const pin = pinInput(body.lat, body.lng) ?? [null, null];
+    const { lastInsertRowid } = db.prepare('INSERT INTO locations (user_id, name, picture, borough, venue, description, lat, lng) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(user.id, f.name, picture, f.borough, f.venue, f.description, pin[0], pin[1]);
     return { status: 201, data: { place: toPlace(load(lastInsertRowid)) } };
   });
 
@@ -93,9 +92,10 @@ export function placeRoutes(r, ctx) {
     if (taken(f.name, row.id)) fail(409, `${f.name} is already in the directory`);
     // Someone else's picture stays as it was unless a new one is chosen.
     const picture = body.picture === row.picture ? row.picture : uploadRef(db, body.picture, user.id);
-    db.prepare('UPDATE locations SET name = ?, picture = ?, borough = ?, venue = ?, description = ?, map_x = ?, map_y = ? WHERE id = ?')
-      .run(f.name, picture === undefined ? row.picture : picture, f.borough, f.venue, f.description,
-        body.x === undefined ? row.map_x : coord(body.x), body.y === undefined ? row.map_y : coord(body.y), row.id);
+    const pin = pinInput(body.lat, body.lng);
+    const [lat, lng] = pin === undefined ? [row.lat, row.lng] : pin ?? [null, null];
+    db.prepare('UPDATE locations SET name = ?, picture = ?, borough = ?, venue = ?, description = ?, lat = ?, lng = ? WHERE id = ?')
+      .run(f.name, picture === undefined ? row.picture : picture, f.borough, f.venue, f.description, lat, lng, row.id);
     return { data: { place: toPlace(load(row.id)) } };
   });
 

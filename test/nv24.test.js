@@ -96,8 +96,10 @@ test('Locations: anyone adds places; only whoever added one (or an admin) change
 test('the city map: pins, and characters show where their open episode is set', async () => {
   const w = await app.signUp('map_writer');
   const c = await mk(w, 'Mina Park');
-  const place = (await w('/api/places', { method: 'POST', body: { name: 'Lumen Rooftop', borough: 'Midtown', venue: 'Bar', x: 0.4, y: 0.55 } })).data.place;
-  assert.deepEqual([place.x, place.y], [0.4, 0.55]);
+  const place = (await w('/api/places', { method: 'POST', body: { name: 'Lumen Rooftop', borough: 'Midtown', venue: 'Bar', lat: 40.7549, lng: -73.9840 } })).data.place;
+  assert.deepEqual([place.lat, place.lng], [40.7549, -73.984]);
+  // Pins stay in the city.
+  assert.equal((await w('/api/places', { method: 'POST', body: { name: 'Paris', lat: 48.85, lng: 2.35 } })).status, 400);
   const story = (await w('/api/stories', { method: 'POST', body: { title: 'Map story', visibility: 'public' } })).data.story;
   const ep = (await w(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'drinks', kind: 'thread', characterId: c.id, location: 'lumen rooftop' } })).data.channel;
   let p = (await w('/api/places')).data.places.find((x) => x.id === place.id);
@@ -110,8 +112,7 @@ test('the city map: pins, and characters show where their open episode is set', 
   await w(`/api/channels/${ep.id}`, { method: 'PUT', body: { status: 'complete' } });
   p = (await w('/api/places')).data.places.find((x) => x.id === place.id);
   assert.equal(p.here.length, 0);
-  // Only admins change the map picture.
-  assert.equal((await w('/api/places/map', { method: 'PUT', body: { picture: null } })).status, 403);
-  assert.equal((await app.admin('/api/places/map', { method: 'PUT', body: { picture: 'https://example.com/map.png' } })).data.map, 'https://example.com/map.png');
-  assert.equal((await w('/api/places')).data.map, 'https://example.com/map.png');
+  // Moving the pin; taking it off the map.
+  assert.equal((await w(`/api/places/${place.id}`, { method: 'PUT', body: { lat: 40.76, lng: -73.98 } })).data.place.lat, 40.76);
+  assert.equal((await w(`/api/places/${place.id}`, { method: 'PUT', body: { lat: null, lng: null } })).data.place.lat, null);
 });
