@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-42",
+    "date": "2026-10-14",
+    "title": "Removing characters from an episode works",
+    "items": [
+      "Untick a character in Episode details and save: they're now really taken out of the episode's cast. Their posts stay where they are."
+    ]
+  },
+  {
     "code": "NV-41",
     "date": "2026-10-14",
     "title": "Steadier typing on iPhone",

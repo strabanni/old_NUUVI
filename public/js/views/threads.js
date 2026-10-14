@@ -235,9 +235,12 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
     submit: async (data) => {
       const form = document.querySelector('dialog .thread-form');
       const tagged = $$('#t-tagged input:checked', form).map((i) => Number(i.value));
+      // Characters who were in the cast and got unticked: they're taken out of the episode.
+      const untagged = editing ? $$('#t-tagged input:not(:checked)', form).map((i) => Number(i.value))
+        .filter((cid) => (channel?.participantIds || []).includes(cid)) : [];
       const target = Number(data.storyId || sid);
       const payload = {
-        name: data.name, kind: data.kind, status: data.status, summary: data.summary, tags: data.tags, tagged,
+        name: data.name, kind: data.kind, status: data.status, summary: data.summary, tags: data.tags, tagged, untagged,
         eventId: ['event', 'comms'].includes(data.kind) && data.eventId ? Number(data.eventId) : null,
         banner: data.banner || null, season: data.season ? Number(data.season) : null, location: data.location || '',
       };

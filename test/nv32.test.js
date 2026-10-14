@@ -171,3 +171,20 @@ test('deceased / missing in action characters keep their profile but can\'t be p
   await w(`/api/characters/${c.id}`, { method: 'PUT', body: { status: '' } });
   assert.equal((await w('/api/social', { method: 'POST', body: { characterId: c.id, body: 'i\'m back' } })).status, 201);
 });
+
+test('unticking characters in an episode\'s cast removes them; others stay', async () => {
+  const w = await app.signUp('cast_editor');
+  const a = await mk(w, 'Aedan');
+  const b = await mk(w, 'Charlotte');
+  const c = await mk(w, 'Camille');
+  const story = (await w('/api/stories', { method: 'POST', body: { title: 'Cast test', visibility: 'private' } })).data.story;
+  const ch = (await w(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'ep', kind: 'thread', tagged: [a.id, b.id, c.id] } })).data.channel;
+  const cast = async () => (await w(`/api/channels/${ch.id}`)).data.participants.map((p) => p.name).sort();
+  assert.deepEqual(await cast(), ['Aedan', 'Camille', 'Charlotte']);
+  const saved = await w(`/api/channels/${ch.id}`, { method: 'PUT', body: { name: 'ep', tagged: [a.id, b.id], untagged: [c.id] } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.data));
+  assert.deepEqual(await cast(), ['Aedan', 'Charlotte']);
+  // Saving without untagged (older app) still never removes anyone.
+  await w(`/api/channels/${ch.id}`, { method: 'PUT', body: { name: 'ep', tagged: [a.id] } });
+  assert.deepEqual(await cast(), ['Aedan', 'Charlotte']);
+});

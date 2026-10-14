@@ -213,6 +213,12 @@ export function threadRoutes(r, ctx) {
       banner = ?, season = ?, location = ? WHERE id = ?`).run(f.name, f.topic, f.summary, f.tags, f.status, f.eventAt, kind, position, f.icon, f.eventId,
       f.banner ?? null, f.season ?? null, f.location ?? null, channel.id);
     if (body.tagged !== undefined) tagCharacters(channel, validTagged(channel.story_id, body.tagged), user);
+    // Characters unticked in the episode's cast are taken out of it (their posts stay).
+    if (Array.isArray(body.untagged)) {
+      const keep = new Set((Array.isArray(body.tagged) ? body.tagged : []).map(Number));
+      const del = db.prepare('DELETE FROM channel_characters WHERE channel_id = ? AND character_id = ?');
+      for (const cid of body.untagged.slice(0, 100).map(Number)) if (Number.isInteger(cid) && !keep.has(cid)) del.run(channel.id, cid);
+    }
     if (f.status === 'complete' && channel.status !== 'complete') ctx.bots?.onThread(channel.id, 'finished');
     storyChanged(channel.story_id);
     return { data: { channel: toChannel(db.prepare('SELECT * FROM channels WHERE id = ?').get(channel.id)) } };
