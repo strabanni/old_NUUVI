@@ -1,5 +1,5 @@
 import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, attachSheet, BRAND_GRADIENT, GRADIENT_PRESETS } from '../lib.js';
-import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
+import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHash } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
 import { dossierAbout, editDossier } from './profiles.js';
@@ -234,7 +234,7 @@ export function editCharacter(c = {}) {
 export function characterCard(c, { editable = false } = {}) {
   const pic = c.portrait || c.avatar;
   const followers = c.followersDisplay ?? c.followers;
-  const badge = c.status === 'deceased' ? '✝ Deceased' : c.status === 'mia' ? 'Missing' : c.bot === 'gossip' ? 'Anonymous' : c.npc ? 'NPC' : c.verified ? 'Verified' : followers ? `${compact(followers)} followers` : '';
+  const badge = c.status === 'deceased' ? 'Deceased' : c.status === 'mia' ? 'Missing' : c.bot === 'gossip' ? 'Anonymous' : c.npc ? 'NPC' : c.verified ? 'Verified' : followers ? `${compact(followers)} followers` : '';
   return html`
     <a class="char-card ${c.status ? 'char-gone' : ''}" href="#/c/${c.id}" data-color="${c.color}"${gradAttr(c)} data-tilt>
       ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}
@@ -250,25 +250,10 @@ export function characterCard(c, { editable = false } = {}) {
     </a>`;
 }
 
-export async function viewCharacters() {
-  const alive = routeAlive();
-  const characters = await myCharacters(true);
-  const body = page({
-    alive,
-    title: 'Your characters',
-    banner: 'your cast',
-    subtitle: `${characters.length} in your cast`,
-    actions: html`<button class="primary" id="new-char">${icons.plus} New</button>`,
-    body: characters.length
-      ? html`<div class="char-grid">${characters.map((c) => characterCard(c, { editable: true }))}</div>`
-      : html`<div class="card empty"><p class="script">every story needs a cast</p><p>Create your first character to start writing in character.</p></div>`,
-  });
-  const done = async (changed) => { if (changed) { toast('Saved'); state.characters = null; await viewCharacters(); } };
-  $('#main #new-char').addEventListener('click', async () => done(await editCharacter()));
-  $$('[data-edit]', body).forEach((b) => b.addEventListener('click', async (e) => {
-    e.preventDefault();
-    done(await editCharacter(characters.find((c) => c.id === Number(b.dataset.edit))));
-  }));
+// Your characters live in the Directory now, under "Me".
+export function viewCharacters() {
+  sessionStorage.setItem('nuuvi:dir-once', 'me');
+  replaceHash('#/directory');
 }
 
 // Instagram-style profile: header (picture, counts, what the owner wrote), then Posts / Threads / About tabs.
@@ -305,7 +290,7 @@ export async function viewCharacter(id) {
             <button type="button" data-tab-go="threads"><b>${compact(stats.threads)}</b><span>Threads</span></button>
           </div>
         </header>
-        ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? '✝ Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
+        ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
         <div class="ig-id">
           <h1 class="ig-name">${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(c)}</h1>
           ${c.tagline ? html`<p class="ig-tagline">${c.tagline}</p>` : ''}

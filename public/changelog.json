@@ -1,5 +1,16 @@
 [
   {
+    "code": "NV-38",
+    "date": "2026-10-14",
+    "title": "Your characters live in the Directory",
+    "items": [
+      "The Characters page is now Directory → Me: all your muses in a grid, with New character and Edit right there.",
+      "On phones, once you have more than ten muses the grid switches to smaller cards (three across).",
+      "By writer now shows everyone else's characters; yours are under Me (and still in All characters).",
+      "Deceased characters' label no longer has a cross."
+    ]
+  },
+  {
     "code": "NV-37",
     "date": "2026-10-14",
     "title": "Deceased & missing in action",

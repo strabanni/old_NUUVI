@@ -3118,3 +3118,20 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
 .char-card.char-gone > img, .char-card.char-gone > .initial { filter: grayscale(1) brightness(.85); }
 .char-card.char-gone::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background: linear-gradient(180deg, rgba(110, 110, 118, .35), rgba(50, 50, 56, .55)); }
+
+/* NV-38: Directory → Me (your characters). Phones: two across, three smaller ones past ten muses. */
+.char-grid.me-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+@media (max-width: 899px) {
+  .char-grid.me-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .char-grid.me-grid.dense { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .me-grid.dense .char-card { border-radius: 16px; }
+  .me-grid.dense .cc-top { top: 8px; left: 6px; right: 6px; gap: 4px; }
+  .me-grid.dense .cc-name { font-size: .72rem; }
+  .me-grid.dense .cc-badge { font-size: .56rem; padding: 2px 6px; }
+  .me-grid.dense .cc-badge svg { display: none; }
+  .me-grid.dense .cc-glass { padding: 16px 6px 6px; gap: 4px; }
+  .me-grid.dense .cc-who small { display: none; }
+  .me-grid.dense .cc-who b { font-size: .64rem; }
+  .me-grid.dense .cc-btn { padding: 3px 7px; font-size: .6rem; box-shadow: none; }
+  .me-grid.dense .initial { font-size: 2.6rem; }
+}

@@ -3,17 +3,19 @@
 import { html, render, api, $, $$, avatar, applyColors, icons, modal, confirmModal, toast, uploadImage, askImageLink, formatPost } from '../lib.js';
 import { forgetLocations } from './threads.js';
 import { mountCityMap, placeCard, dropMap as dropMapOf } from './map.js';
-import { state, page, routeAlive, ensureAlive, onLeave } from '../main.js';
+import { state, page, routeAlive, ensureAlive, onLeave, myCharacters } from '../main.js';
 import { characterCard, editCharacter } from './characters.js';
 
 export async function viewDirectory() {
   const alive = routeAlive();
-  const { writers, anonymous = [] } = await api('/api/directory');
+  const [{ writers, anonymous = [] }, mine] = await Promise.all([api('/api/directory'), myCharacters(true)]);
   ensureAlive(alive);
+  // Other writers (you're under "Me").
+  const others = writers.filter((w) => w.id !== state.user.id);
   const all = writers.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w })))
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   // The Directory opens on the characters (By writer, unless another characters view was picked);
-  // #/locations opens it on the Locations map once.
+  // #/locations opens it on the Locations map once, and #/characters on "Me".
   let view = sessionStorage.getItem('nuuvi:dir-once') || sessionStorage.getItem('nuuvi:dir-view') || 'writers';
   sessionStorage.removeItem('nuuvi:dir-once');
   let q = '';
@@ -32,6 +34,7 @@ export async function viewDirectory() {
       <div class="dir-tools">
         <input type="search" class="search" id="dir-q" placeholder="Search names, usernames, taglines…" aria-label="Search the directory">
         <div class="seg" role="group" aria-label="Show">
+          <button type="button" data-view="me">Me</button>
           <button type="button" data-view="writers">By writer</button>
           <button type="button" data-view="characters">All characters</button>
           <button type="button" data-view="npcs">NPCs</button>
@@ -50,8 +53,17 @@ export async function viewDirectory() {
   function draw() {
     dropMap();
     $$('[data-view]', body).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
-    if (view === 'writers') {
-      const shown = writers
+    if (view === 'me') {
+      // Your own characters (your muses), to open, edit or add to. Lots of them: smaller cards on phones.
+      const shown = mine.filter((c) => match(c.name, c.handle, c.tagline));
+      render(list, html`
+        <div class="npc-head"><span class="muted small">${mine.length} ${mine.length === 1 ? 'character' : 'characters'} in your cast</span>
+          <button type="button" class="primary sm" id="new-char">${icons.plus} New character</button></div>
+        ${shown.length ? html`<div class="char-grid me-grid ${mine.length > 10 ? 'dense' : ''}">${shown.map((c) => characterCard(c, { editable: true }))}</div>`
+          : mine.length ? html`<div class="empty"><p>Nobody matches “${q}”.</p></div>`
+            : html`<div class="card empty"><p class="script">every story needs a cast</p><p>Create your first character to start writing in character.</p></div>`}`);
+    } else if (view === 'writers') {
+      const shown = others
         .map((w) => ({ ...w, shownChars: match(w.username, w.displayName) ? w.characters : w.characters.filter((c) => match(c.name, c.tagline)) }))
         .filter((w) => match(w.username, w.displayName) || w.shownChars.length);
       render(list, shown.length ? html`${shown.map((w) => html`
@@ -174,6 +186,14 @@ export async function viewDirectory() {
     }
     const t = e.target.closest('[data-tag]');
     if (t && view === 'npcs') { e.preventDefault(); npcTag = t.dataset.tag === npcTag ? '' : t.dataset.tag; draw(); return; }
+    // Me: make a character, or edit one of yours.
+    if (e.target.closest('#new-char')) { if (await editCharacter()) { toast('Saved'); state.characters = null; sessionStorage.setItem('nuuvi:dir-once', 'me'); viewDirectory(); } return; }
+    const edMine = e.target.closest('[data-edit]');
+    if (edMine && view === 'me') {
+      e.preventDefault();
+      if (await editCharacter(mine.find((c) => c.id === Number(edMine.dataset.edit)))) { toast('Saved'); state.characters = null; sessionStorage.setItem('nuuvi:dir-once', 'me'); viewDirectory(); }
+      return;
+    }
     if (e.target.closest('#new-npc')) { if (await editCharacter({ npc: true })) { npcData = null; draw(); } return; }
     const ed = e.target.closest('[data-edit]');
     if (ed && view === 'npcs') {

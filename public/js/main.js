@@ -160,7 +160,7 @@ function userTiles({ vertical = false } = {}) {
       ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon }[next])}
       ${tile({ href: '#/nu' }, 'THE : NU', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
-      ${tile({ href: '#/characters' }, 'Characters', icons.user)}
+      ${tile({ href: '#/characters' }, 'Your characters', icons.user)}
       ${tile({ href: '#/settings' }, 'You & settings', icons.crown)}
       ${tile({ act: 'logout' }, 'Sign out', icons.power)}
     </nav>`;
@@ -344,7 +344,6 @@ function renderSidebar() {
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
         ${link('#/phone', 'Phone', icons.smartphone)}
         <span class="desk-only-block">${link('#/messages', 'Messages', icons.chat, state.home.messagesUnread)}</span>
-        ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
         ${link('#/archive', 'Archive', icons.archive)}
         ${link('#/lore', 'Lore', icons.book)}
@@ -987,7 +986,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-37';
+export const APP_BUILD = 'NV-38';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);
