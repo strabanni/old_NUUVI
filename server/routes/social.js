@@ -348,7 +348,17 @@ export function socialPostRoutes(r, ctx) {
     if (row.user_id !== user.id) fail(404, 'Post not found');
     const text = str(body.body, 'Caption', { max: 5000 }) ?? row.body;
     const title = str(body.title, 'Title', { max: 120 }) ?? row.title;
-    const base = body.meta === undefined ? JSON.parse(row.meta) : { ...metaInput(row.kind, body.meta), ...(JSON.parse(row.meta).music ? { music: JSON.parse(row.meta).music } : {}) };
+    // The post type can change too (a text post becomes a photo post, and so on), with new media.
+    const kind = oneOf(body.kind, 'Post type', SOCIAL_KINDS) ?? row.kind;
+    const media = body.media === undefined && kind === row.kind ? JSON.parse(row.media) : mediaInput(kind, body.media ?? [], user.id);
+    if (kind === 'text' && !text) fail(400, 'Write something first');
+    if (['photo', 'video', 'voice'].includes(kind) && !media.length) fail(400, `Add a ${kind === 'photo' ? 'photo' : kind === 'video' ? 'video' : 'voice note'} first`);
+    if (kind === 'stream' && !title) fail(400, 'Give the stream a title');
+    const mediaChanged = kind !== row.kind || JSON.stringify(media) !== row.media;
+    // Meta that belongs to the post rather than its type (song, tags, what the pictures look like) carries over.
+    const prev = JSON.parse(row.meta);
+    const keep = Object.fromEntries(['music', 'tagged', ...(mediaChanged ? [] : ['seen', 'look'])].filter((k) => prev[k] !== undefined).map((k) => [k, prev[k]]));
+    const base = body.meta === undefined ? (mediaChanged ? keep : prev) : { ...keep, ...metaInput(kind, body.meta) };
     const meta = JSON.stringify(withMusic(withTagged(base, body.taggedIn), musicInput(body.music)));
     const count = (v, field, old) => (v === undefined ? old ?? null : countInput(v, field));
     const likesShown = count(body.likesDisplay, 'Likes', row.likes_display);
@@ -358,11 +368,11 @@ export function socialPostRoutes(r, ctx) {
     // The post's date and time can be set (to build up a character's history).
     const postedAt = body.postedAt === undefined ? row.created_at : whenInput(body.postedAt) ?? row.created_at;
     const contentChanged = (body.body !== undefined && text !== row.body) || (body.title !== undefined && title !== row.title)
-      || location !== row.location || meta !== row.meta;
+      || location !== row.location || meta !== row.meta || mediaChanged;
     const onlyCounts = !contentChanged && category === (row.category ?? 'post');
-    db.prepare(`UPDATE social_posts SET body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?, location = ?, category = ?, created_at = ?
+    db.prepare(`UPDATE social_posts SET kind = ?, media = ?, body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?, location = ?, category = ?, created_at = ?
       ${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`)
-      .run(text, title, meta, likesShown, commentsShown, location, category, postedAt, row.id);
+      .run(kind, JSON.stringify(media), text, title, meta, likesShown, commentsShown, location, category, postedAt, row.id);
     notifyTags(user, { id: row.character_id, name: row.c_name }, row.id, text, 'post', [], row.body);
     // Crowd comments follow the post: a changed caption (or place, song, pictures) gets fresh comments
     // that fit it, and a new comment number gets at least a quarter of it written out.

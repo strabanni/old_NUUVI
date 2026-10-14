@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-27",
+    "date": "2026-10-14",
+    "title": "Change a post's type when editing",
+    "items": [
+      "Edit post now opens the same window as making a post, with everything filled in.",
+      "Tap Text, Photo, Video, Voice note or Stream to change what kind of post it is (a text post can become a photo post, and so on). Add the new photos or video right there.",
+      "Switch back to the original type and its photos come back."
+    ]
+  },
+  {
     "code": "NV-26",
     "date": "2026-10-14",
     "title": "A live map of Ardell City",

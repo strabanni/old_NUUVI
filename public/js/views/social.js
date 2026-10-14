@@ -436,20 +436,10 @@ function wireCheck(root) {
   });
 }
 
+// Editing a post uses the same window as making one, filled in: the caption, place, song, numbers and
+// date, and the post type too (a text post can become a photo post, and so on).
 async function editCaption(p, redraw) {
-  const res = await modal(html`<form class="social-form"><h2>Edit post</h2><label for="e-body">Caption</label><textarea id="e-body" name="body" rows="5" maxlength="5000">${p.body}</textarea>${checkBtn('e-body')}
-    ${p.kind === 'stream' ? html`<label>Stream title</label><input name="title" maxlength="120" value="${p.title}">` : ''}
-    ${locationField(p.location || '')}
-    ${songFields(p.meta.music)}
-    ${extraFields({ category: p.category, likes: p.likesDisplay, comments: p.commentsDisplay, postedAt: p.createdAt, tagged: p.meta.tagged === true })}
-    <div class="error"></div><div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, {
-    init: (d) => { fillLocations($('#s-loc-list', d)); mentionPicker($('#e-body', d)); wireCheck(d); },
-    submit: async (data) => {
-      const body = { body: data.body, music: songFrom(data), location: data.location || '', ...extrasFrom(data, p.createdAt), freshComments: true };
-      if (p.kind === 'stream') body.title = data.title;
-      return (await api(`/api/social/${p.id}`, { method: 'PUT', body })).post;
-    },
-  });
+  const res = await openSocialComposer({ edit: p });
   if (res) redraw(res);
 }
 
@@ -461,35 +451,38 @@ async function deletePost(p, card) {
 }
 
 // ---------- New post ----------
-export async function openSocialComposer({ characterId = null, category = 'post' } = {}) {
+export async function openSocialComposer({ characterId = null, category = 'post', edit = null } = {}) {
   const mine = await myCharacters(true);
   if (!mine.length) { toast('Create a character first — posts are made by characters'); location.hash = '#/characters'; return null; }
-  let kind = 'text';
-  let media = [];
-  let duration = 0;
+  // Editing: start from the post as it is. Switching type clears the media; switching back brings it back.
+  if (edit) { characterId = edit.character.id; category = edit.category || 'post'; }
+  let kind = edit?.kind || 'text';
+  let media = edit ? [...edit.media] : [];
+  let duration = edit?.meta?.duration || 0;
   let recorder = null;
 
   const result = await modal(html`
     <form class="social-form">
-      <span class="eyebrow">${category === 'musing' ? 'New musing' : 'New post'}</span>
-      <label for="s-char">Post as</label>
-      <select id="s-char" name="characterId">${mine.map((c) => html`<option value="${c.id}" ${c.id === characterId ? 'selected' : ''}>${c.name}</option>`)}</select>
+      <span class="eyebrow">${edit ? 'Edit post' : category === 'musing' ? 'New musing' : 'New post'}</span>
+      <label for="s-char">${edit ? 'Posted by' : 'Post as'}</label>
+      <select id="s-char" name="characterId" ${edit ? 'disabled' : ''}>${mine.map((c) => html`<option value="${c.id}" ${c.id === characterId ? 'selected' : ''}>${c.name}</option>`)}</select>
+      ${edit ? html`<p class="hint">Tap a type to change what kind of post this is.</p>` : ''}
       <div class="kind-picker" role="group" aria-label="Post type">${KINDS.map(([k, label, icon]) => html`
         <button type="button" class="kind-btn" data-kind="${k}" aria-pressed="${k === kind}">${icons[icon]}<span>${label}</span></button>`)}</div>
       <div id="s-media"></div>
       <div id="s-stream" hidden>
         <label for="s-title">Stream title</label>
-        <input id="s-title" name="title" maxlength="120" placeholder="late night q&a 🌙">
+        <input id="s-title" name="title" maxlength="120" placeholder="late night q&a 🌙" value="${edit?.title || ''}">
         <label for="s-viewers">Viewers</label>
-        <input id="s-viewers" name="viewers" inputmode="numeric" placeholder="12,000">
+        <input id="s-viewers" name="viewers" inputmode="numeric" placeholder="12,000" value="${edit?.meta?.viewers ?? ''}">
       </div>
       <label for="s-body" id="s-body-label">What's happening?</label>
-      <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work"></textarea>${checkBtn('s-body')}
-      ${locationField()}
-      ${songFields()}
-      ${extraFields({ category })}
+      <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work">${edit?.body || ''}</textarea>${checkBtn('s-body')}
+      ${locationField(edit?.location || '')}
+      ${songFields(edit?.meta?.music || {})}
+      ${edit ? extraFields({ category, likes: edit.likesDisplay, comments: edit.commentsDisplay, postedAt: edit.createdAt, tagged: edit.meta?.tagged === true }) : extraFields({ category })}
       <div class="error"></div>
-      <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Post</button></div>
+      <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">${edit ? 'Save' : 'Post'}</button></div>
     </form>`, {
     init: (d) => {
       const form = d.querySelector('form');
@@ -522,7 +515,9 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       };
       const setKind = (k) => {
         if (recorder) { recorder.stop(); recorder = null; }
-        kind = k; media = []; duration = 0;
+        kind = k;
+        media = edit && k === edit.kind ? [...edit.media] : [];
+        duration = edit && k === edit.kind ? edit.meta?.duration || 0 : 0;
         $$('.kind-btn', d).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === k)));
         drawMedia();
       };
@@ -594,21 +589,27 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       form.body.focus();
     },
     submit: async (data) => {
-      const payload = { characterId: Number(data.characterId), kind, body: data.body, media, location: data.location || '', ...extrasFrom(data) };
+      const payload = { characterId: Number(edit ? edit.character.id : data.characterId), kind, body: data.body, media, location: data.location || '', ...extrasFrom(data, edit?.createdAt ?? null) };
       if (kind === 'photo' && media[0]) { const look = await analyzeLook(media[0]); if (look) payload.meta = { look }; }
       const music = songFrom(data);
-      if (music) payload.music = music;
+      if (music || edit) payload.music = music;
       if (kind === 'stream') {
         payload.title = data.title;
         payload.meta = { viewers: Number(String(data.viewers || '0').replace(/[,\s]/g, '')) || 0, live: true };
       }
       if (kind === 'voice') payload.meta = { duration };
       if (!payload.postedAt) delete payload.postedAt;
+      if (edit) {
+        // Saving an edit always writes fresh fan comments (the old ones are deleted).
+        delete payload.characterId;
+        if (kind === 'stream' && edit.kind === 'stream') payload.meta.live = edit.meta?.live !== false;
+        return (await api(`/api/social/${edit.id}`, { method: 'PUT', body: { ...payload, freshComments: true } })).post;
+      }
       return (await api('/api/social', { method: 'POST', body: payload })).post;
     },
   });
   if (recorder) recorder.stop();
-  if (result) toast('Posted');
+  if (result) toast(edit ? 'Saved' : 'Posted');
   return result;
 }
 

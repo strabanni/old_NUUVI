@@ -116,3 +116,24 @@ test('the city map: pins, and characters show where their open episode is set', 
   assert.equal((await w(`/api/places/${place.id}`, { method: 'PUT', body: { lat: 40.76, lng: -73.98 } })).data.place.lat, 40.76);
   assert.equal((await w(`/api/places/${place.id}`, { method: 'PUT', body: { lat: null, lng: null } })).data.place.lat, null);
 });
+
+test('editing a post can change its type', async () => {
+  const w = await app.signUp('kind_changer');
+  const c = await mk(w, 'Mina');
+  const pic = (await w('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png })).data.url;
+  const p = (await w('/api/social', { method: 'POST', body: { characterId: c.id, kind: 'text', body: 'thinking about it', music: { title: 'Ditto', artist: 'NewJeans' } } })).data.post;
+  // Text → photo (needs a photo), keeping the song.
+  assert.equal((await w(`/api/social/${p.id}`, { method: 'PUT', body: { kind: 'photo', media: [] } })).status, 400);
+  const photo = (await w(`/api/social/${p.id}`, { method: 'PUT', body: { kind: 'photo', media: [pic], body: 'here it is' } })).data.post;
+  assert.equal(photo.kind, 'photo');
+  assert.deepEqual(photo.media, [pic]);
+  assert.equal(photo.meta.music.title, 'Ditto');
+  // Photo → stream (needs a title); → back to text drops the media.
+  assert.equal((await w(`/api/social/${p.id}`, { method: 'PUT', body: { kind: 'stream', media: [] } })).status, 400);
+  const stream = (await w(`/api/social/${p.id}`, { method: 'PUT', body: { kind: 'stream', title: 'late night q&a', media: [], meta: { viewers: 1200, live: true } } })).data.post;
+  assert.equal(stream.kind, 'stream');
+  assert.equal(stream.meta.viewers, 1200);
+  const text = (await w(`/api/social/${p.id}`, { method: 'PUT', body: { kind: 'text', media: [], body: 'never mind' } })).data.post;
+  assert.equal(text.kind, 'text');
+  assert.deepEqual(text.media, []);
+});
