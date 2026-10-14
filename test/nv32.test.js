@@ -148,3 +148,26 @@ test('a playlist link becomes a player on the profile', async () => {
   const csp = (await w('/')).headers.get('content-security-policy');
   assert.match(csp, /frame-src [^;]*https:\/\/open\.spotify\.com/);
 });
+
+test('deceased / missing in action characters keep their profile but can\'t be played', async () => {
+  const w = await app.signUp('status_writer');
+  const c = await mk(w, 'Eli');
+  const other = await mk(w, 'Ana');
+  const post = (await w('/api/social', { method: 'POST', body: { characterId: other.id, body: 'hi' } })).data.post;
+  const set = await w(`/api/characters/${c.id}`, { method: 'PUT', body: { status: 'deceased' } });
+  assert.equal(set.status, 200, JSON.stringify(set.data));
+  assert.equal(set.data.character.status, 'deceased');
+  assert.equal(set.data.character.npc, false, 'not an NPC');
+  assert.equal((await w(`/api/characters/${c.id}`)).data.character.status, 'deceased');
+  // No new posts, comments, likes or follows as them.
+  const p = await w('/api/social', { method: 'POST', body: { characterId: c.id, body: 'from beyond' } });
+  assert.equal(p.status, 400); assert.match(p.data.error, /deceased/);
+  assert.equal((await w(`/api/social/${post.id}/comments`, { method: 'POST', body: { characterId: c.id, body: 'boo' } })).status, 400);
+  assert.equal((await w(`/api/social/${post.id}/like`, { method: 'POST', body: { asCharacterId: c.id } })).status, 400);
+  // Missing in action works the same; back to playable unlocks them.
+  await w(`/api/characters/${c.id}`, { method: 'PUT', body: { status: 'mia' } });
+  assert.match((await w('/api/social', { method: 'POST', body: { characterId: c.id, body: 'x' } })).data.error, /missing in action/);
+  assert.equal((await w(`/api/characters/${c.id}`, { method: 'PUT', body: { status: 'zombie' } })).status, 400);
+  await w(`/api/characters/${c.id}`, { method: 'PUT', body: { status: '' } });
+  assert.equal((await w('/api/social', { method: 'POST', body: { characterId: c.id, body: 'i\'m back' } })).status, 201);
+});

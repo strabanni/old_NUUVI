@@ -2,7 +2,7 @@
 import { fail, id, str, oneOf } from '../http.js';
 import { mentionTokens, resolveMention, HANDLE_CHAR } from '../names.js';
 import { setBuzz, buzzTarget, autoLikes, autoCommentLikes, RELATIONSHIPS } from '../buzz.js';
-import { toCharacter, requireUser, isBlocked, imageLink, adminCanSee } from '../model.js';
+import { toCharacter, requireUser, isBlocked, imageLink, adminCanSee, requirePlayable } from '../model.js';
 
 export function socialRoutes(r, ctx) {
   const { db } = ctx;
@@ -80,7 +80,7 @@ export function socialRoutes(r, ctx) {
     requireUser(user);
     const target = db.prepare('SELECT * FROM characters WHERE id = ?').get(params.id);
     if (!target) fail(404, 'Character not found');
-    const me = ownCharacter(body.asCharacterId, user.id);
+    const me = requirePlayable(ownCharacter(body.asCharacterId, user.id));
     if (me.id === target.id) fail(400, "A character can't follow themselves");
     if (isBlocked(db, target.user_id, user.id)) fail(403, "You can't follow this character");
     const { changes } = db.prepare('INSERT OR IGNORE INTO character_follows (follower_id, followed_id) VALUES (?, ?)').run(me.id, target.id);
@@ -348,7 +348,7 @@ export function socialPostRoutes(r, ctx) {
 
   r.post('/api/social', ({ user, body }) => {
     requireUser(user);
-    const c = ownCharacter(body.characterId, user.id);
+    const c = requirePlayable(ownCharacter(body.characterId, user.id));
     const kind = oneOf(body.kind, 'Post type', SOCIAL_KINDS) ?? 'text';
     const text = str(body.body, 'Caption', { max: 5000 }) ?? '';
     const title = str(body.title, 'Title', { max: 120 }) ?? '';
@@ -455,7 +455,7 @@ export function socialPostRoutes(r, ctx) {
   r.post('/api/social/:id/like', ({ user, body, params }) => {
     requireUser(user);
     const row = load(params.id, user);
-    const me = ownCharacter(body.asCharacterId, user.id);
+    const me = requirePlayable(ownCharacter(body.asCharacterId, user.id));
     const { changes } = db.prepare('INSERT OR IGNORE INTO social_likes (post_id, character_id) VALUES (?, ?)').run(row.id, me.id);
     if (changes && row.user_id !== user.id) {
       ctx.notify({ userId: row.user_id, type: 'like', actorId: user.id, characterId: me.id, socialId: row.id, text: `${me.name} liked ${row.c_name}'s post` });
@@ -474,7 +474,7 @@ export function socialPostRoutes(r, ctx) {
   r.post('/api/social/:id/comments', ({ user, body, params }) => {
     requireUser(user);
     const row = load(params.id, user);
-    const me = ownCharacter(body.characterId, user.id);
+    const me = requirePlayable(ownCharacter(body.characterId, user.id));
     const text = str(body.body, 'Comment', { min: 1, max: 2000, required: true });
     // A reply hangs under a comment on the same post (replies to replies go under the same comment).
     let parentId = null;

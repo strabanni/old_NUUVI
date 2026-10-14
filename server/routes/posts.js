@@ -1,6 +1,6 @@
 // Posts inside channels, plus reporting posts and users.
 import { fail, str, oneOf, countWords } from '../http.js';
-import { toPost, POST_SELECT, requireUser, channelAccess, storyAccess, membership, turnState, uploadRef, isBlocked } from '../model.js';
+import { toPost, POST_SELECT, requireUser, channelAccess, storyAccess, membership, turnState, uploadRef, isBlocked, requirePlayable } from '../model.js';
 import { plainText } from '../text.js';
 
 // No practical limit on how long a post can be (about 170,000 words); the cap only guards the server.
@@ -59,8 +59,9 @@ export function postRoutes(r, ctx) {
     let characterId = null;
     if (kind === 'ic' && body.characterId == null) fail(400, 'Pick a character to write in-character');
     if (kind === 'ic') {
-      const c = db.prepare('SELECT id FROM characters WHERE id = ? AND user_id = ?').get(Number(body.characterId), user.id);
+      const c = db.prepare('SELECT id, name, status FROM characters WHERE id = ? AND user_id = ?').get(Number(body.characterId), user.id);
       if (!c) fail(400, 'Choose one of your own characters');
+      requirePlayable(c);
       characterId = c.id;
     }
 

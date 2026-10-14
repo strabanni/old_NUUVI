@@ -3097,3 +3097,24 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
 .ds-player.apple.tall { height: 450px; }
 .ds-player.soundcloud.short { height: 166px; }
 .ds-player-link { display: inline-block; margin: 0 0 12px; color: var(--muted); }
+
+/* NV-37: deceased / missing in action characters: greyed out, no longer playable */
+.status-box { border: 1px solid var(--glass-border); border-radius: 16px; padding: 10px 14px; margin: 12px 0; }
+.status-box legend { padding: 0 6px; font: 600 .75rem var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.status-seg { margin-top: 4px; }
+.ig-banner { position: relative; }
+.ig-banner.gone img, .ig-profile.gone .ig-avatar img, .ig-profile.gone .ig-avatar .avatar { filter: grayscale(1) contrast(.92) brightness(.92); }
+.ig-banner.gone::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(120, 120, 128, .25) 0%, rgba(70, 70, 78, .55) 60%, rgba(40, 40, 46, .8) 100%); }
+.ig-profile.gone { position: relative; border-radius: 28px; padding-left: 14px; padding-right: 14px;
+  background: linear-gradient(180deg, rgba(128, 128, 136, .26) 0%, rgba(128, 128, 136, .12) 45%, transparent 85%); }
+.ig-profile.gone .ig-name, .ig-profile.gone .ig-stats b { color: var(--muted); }
+.gone-ribbon { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 14px 0 6px; padding: 10px 14px; border-radius: 14px;
+  background: linear-gradient(90deg, #5c5c66, #8e8e98); color: #fff; }
+.gone-ribbon b { font: 700 .8rem var(--sans); letter-spacing: .1em; text-transform: uppercase; }
+.gone-ribbon span { font-size: .85rem; opacity: .9; }
+.gone-chip { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: #7a7a84; color: #fff; font: 600 .65rem var(--sans); letter-spacing: .06em; text-transform: uppercase; vertical-align: middle; }
+.char-gone img, .char-gone .avatar { filter: grayscale(1); }
+.char-card.char-gone > img, .char-card.char-gone > .initial { filter: grayscale(1) brightness(.85); }
+.char-card.char-gone::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(110, 110, 118, .35), rgba(50, 50, 56, .55)); }

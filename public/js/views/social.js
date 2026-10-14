@@ -1,6 +1,6 @@
 // Character social media: posts (text, photo, video, voice note, stream), likes, comments.
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink, gradAttr, looksForeign, translateText } from '../lib.js';
-import { state, page, myCharacters, routeAlive, ensureAlive, bus, onLeave } from '../main.js';
+import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, bus, onLeave } from '../main.js';
 import { fillLocations } from './threads.js';
 import { mentionPicker, aiEnabled, checkWriting, HANDLE_CHAR, mentionTokens, resolveMention } from '../lib.js';
 
@@ -314,7 +314,7 @@ function playVoice(el) {
 // Like as one of your characters. With several, the heart asks which; a double-tap just uses the
 // one you liked as last time.
 async function toggleLike(p, anchor, redraw, { quick = false } = {}) {
-  const mine = await myCharacters();
+  const mine = await playableCharacters();
   const act = async (c) => {
     try { localStorage.setItem('nuuvi:like-as', String(c.id)); } catch { /* ignore */ }
     const on = p.likedBy.includes(c.id);
@@ -499,7 +499,7 @@ async function deletePost(p, card) {
 
 // ---------- New post ----------
 export async function openSocialComposer({ characterId = null, category = 'post', edit = null } = {}) {
-  const mine = await myCharacters(true);
+  const mine = edit ? await myCharacters(true) : await playableCharacters(true);
   if (!mine.length) { toast('Create a character first — posts are made by characters'); location.hash = '#/characters'; return null; }
   // Editing: start from the post as it is. Switching type clears the media; switching back brings it back.
   if (edit) { characterId = edit.character.id; category = edit.category || 'post'; }
@@ -701,7 +701,7 @@ async function startRecording({ tick, done }) {
 // ---------- Single post page ----------
 export async function viewSocialPost(id) {
   const alive = routeAlive();
-  const [{ post }, mine] = await Promise.all([api(`/api/social/${id}`), myCharacters()]);
+  const [{ post }, mine] = await Promise.all([api(`/api/social/${id}`), playableCharacters()]);
   ensureAlive(alive);
   const posts = new Map([[post.id, post]]);
   let replyTo = null; // { id (comment id, or null for a crowd comment), handle }

@@ -2,7 +2,7 @@
 // newest first, in the order they were made. Character posts, open episodes, self paras, events
 // and connections (muse ideas anyone can pick up) all share the same post shape.
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost, timeAgo, applyColors, gradAttr, userGrad, uploadImage, askImageLink, logoMark } from '../lib.js';
-import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
+import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
 import { socialCard, bindSocial, openSocialComposer, styleBars, handleOf, nameBadge, agoShort } from './social.js';
 
 const ONE = { thread: 'Episode', para: 'Self para', event: 'Event', comms: 'Comms', ooc: 'OOC' };
@@ -141,7 +141,7 @@ export function connectionPost(k) {
 
 // Pick up a connection: choose which of your muses it's for.
 async function takeConnection(k) {
-  const mine = await myCharacters();
+  const mine = await playableCharacters();
   if (!mine.length) return toast('Create a character first');
   const res = await modal(html`<form>
     <span class="eyebrow">Pick up a connection</span>
@@ -157,7 +157,7 @@ async function takeConnection(k) {
 
 // Put a new connection out on THE : NU, or edit one (`k`).
 export async function openConnectionComposer(k = null) {
-  const mine = await myCharacters(true);
+  const mine = await playableCharacters(true);
   if (!mine.length) { toast('Create a character first'); return null; }
   const pics = [...(k?.media || [])];
   const taken = k?.takers?.length || 0;

@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-37",
+    "date": "2026-10-14",
+    "title": "Deceased & missing in action",
+    "items": [
+      "Edit profile → Status: mark a character Deceased or Missing in action.",
+      "Their profile and Directory card turn grey with a label, so every writer knows they're no longer playable. They don't become NPCs.",
+      "They keep everything they've written, but can't post, comment, like, follow, text or write in episodes, and they're left out of the \"Post as\" lists. Switch back to Playable any time."
+    ]
+  },
+  {
     "code": "NV-36",
     "date": "2026-10-14",
     "title": "Playlists that play",

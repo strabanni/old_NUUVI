@@ -77,6 +77,15 @@ function characterForm(c = {}) {
       <p class="hint">Leave the counts empty to show real follows. Set them for celebrities, influencers and the like.</p>
       <label class="check"><input type="checkbox" name="verified" ${c.verified ? 'checked' : ''}> Verified badge (for public figures)</label>
       <p class="hint">Their username is who they post as on the feed; their name shows at the top of their profile.</p>
+      ${c.id ? html`<fieldset class="status-box">
+        <legend>Status</legend>
+        <div class="post-cat status-seg" role="radiogroup" aria-label="Status">
+          <label><input type="radio" name="status" value="" ${!c.status ? 'checked' : ''}><span>Playable</span></label>
+          <label><input type="radio" name="status" value="deceased" ${c.status === 'deceased' ? 'checked' : ''}><span>Deceased</span></label>
+          <label><input type="radio" name="status" value="mia" ${c.status === 'mia' ? 'checked' : ''}><span>Missing in action</span></label>
+        </div>
+        <p class="hint">Deceased or missing characters stay on NUUVI with everything they've written, but they're no longer playable: no new posts, comments, likes, follows or texts as them. They don't become NPCs. Switch back to Playable any time (for a flashback, or a comeback).</p>
+      </fieldset>` : ''}
       <fieldset class="npc-box">
         <label class="check"><input type="checkbox" name="npc" ${c.npc ? 'checked' : ''}> This is an NPC <span class="muted small">(gets an NPC badge)</span></label>
         <div class="npc-auto" ${c.npc ? '' : 'hidden'}>
@@ -225,12 +234,12 @@ export function editCharacter(c = {}) {
 export function characterCard(c, { editable = false } = {}) {
   const pic = c.portrait || c.avatar;
   const followers = c.followersDisplay ?? c.followers;
-  const badge = c.bot === 'gossip' ? 'Anonymous' : c.npc ? 'NPC' : c.verified ? 'Verified' : followers ? `${compact(followers)} followers` : '';
+  const badge = c.status === 'deceased' ? '✝ Deceased' : c.status === 'mia' ? 'Missing' : c.bot === 'gossip' ? 'Anonymous' : c.npc ? 'NPC' : c.verified ? 'Verified' : followers ? `${compact(followers)} followers` : '';
   return html`
-    <a class="char-card" href="#/c/${c.id}" data-color="${c.color}"${gradAttr(c)} data-tilt>
+    <a class="char-card ${c.status ? 'char-gone' : ''}" href="#/c/${c.id}" data-color="${c.color}"${gradAttr(c)} data-tilt>
       ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}
       <span class="cc-top">
-        ${badge ? html`<span class="cc-badge">${c.verified ? icons.verified : c.npc ? '' : icons.starOutline}${badge}</span>` : ''}
+        ${badge ? html`<span class="cc-badge">${c.status ? '' : c.verified ? icons.verified : c.npc ? '' : icons.starOutline}${badge}</span>` : ''}
         <span class="cc-name">${c.name}</span>
       </span>
       <span class="cc-glass">
@@ -274,7 +283,7 @@ export async function viewCharacter(id) {
   const own = c.owner?.id === state.user?.id;
   const pic = c.portrait || c.avatar;
   const following = followedBy.length > 0;
-  const followable = mine.filter((m) => m.id !== c.id);
+  const followable = mine.filter((m) => m.id !== c.id && !m.status);
   let tab = sessionStorage.getItem('nuuvi:char-tab') || 'posts';
   const body = page({
     alive,
@@ -282,10 +291,10 @@ export async function viewCharacter(id) {
     subtitle: c.tagline,
     actions: html`<button class="icon-btn" id="char-more" aria-label="More">${icons.more}</button>`,
     body: html`
-      ${own ? html`<button type="button" class="ig-banner own ${c.banner ? '' : 'empty'}" id="pic-banner" aria-label="${c.banner ? 'Change the banner' : 'Add a banner'}">
+      ${own ? html`<button type="button" class="ig-banner own ${c.banner ? '' : 'empty'} ${c.status ? 'gone' : ''}" id="pic-banner" aria-label="${c.banner ? 'Change the banner' : 'Add a banner'}">
           ${c.banner ? html`<img src="${c.banner}" alt="">` : ''}<span class="ig-cam">${icons.camera}<span>${c.banner ? 'Change banner' : 'Add a banner'}</span></span></button>`
-        : c.banner ? html`<div class="ig-banner"><img src="${c.banner}" alt=""></div>` : ''}
-      <article class="ig-profile ${c.banner ? 'has-banner' : ''}" data-color="${c.color}"${gradAttr(c)}>
+        : c.banner ? html`<div class="ig-banner ${c.status ? 'gone' : ''}"><img src="${c.banner}" alt=""></div>` : ''}
+      <article class="ig-profile ${c.banner ? 'has-banner' : ''} ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
         <header class="ig-head">
           ${own ? html`<button type="button" class="ig-avatar own" id="pic-avatar" aria-label="Change the profile picture">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}<span class="ig-cam">${icons.camera}</span></button>`
             : html`<span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>`}
@@ -296,13 +305,14 @@ export async function viewCharacter(id) {
             <button type="button" data-tab-go="threads"><b>${compact(stats.threads)}</b><span>Threads</span></button>
           </div>
         </header>
+        ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? '✝ Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
         <div class="ig-id">
           <h1 class="ig-name">${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(c)}</h1>
           ${c.tagline ? html`<p class="ig-tagline">${c.tagline}</p>` : ''}
           ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
         </div>
         <div class="ig-actions">
-          ${own ? html`<button id="edit">Edit profile</button><button class="primary" id="new-post">${icons.plus} New post</button>
+          ${own ? html`<button id="edit">Edit profile</button>${c.status ? '' : html`<button class="primary" id="new-post">${icons.plus} New post</button>`}
               ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}`
             : html`<button class="${following ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>
               <button id="start-thread">${icons.episode} Start an episode</button>`}
@@ -331,7 +341,7 @@ export async function viewCharacter(id) {
     $$('[data-tab]', body).forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     if (tab === 'posts') {
       render(pane, posts.length ? html`<div class="ig-grid">${posts.map(thumb)}</div>`
-        : html`<div class="empty"><p>No posts yet.</p>${own ? html`<p><button class="primary" id="first-post">Make ${c.name}'s first post</button></p>` : ''}</div>`);
+        : html`<div class="empty"><p>No posts yet.</p>${own && !c.status ? html`<p><button class="primary" id="first-post">Make ${c.name}'s first post</button></p>` : ''}</div>`);
       $('#first-post', pane)?.addEventListener('click', newPost);
     } else if (tab === 'threads') {
       render(pane, threads.length ? html`<div class="sp-threads">${threads.map((t) => html`

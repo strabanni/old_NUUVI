@@ -24,7 +24,7 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
   const saveSettings = (s) => db.prepare(`INSERT INTO settings (key, value) VALUES ('bots', ?)
     ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(JSON.stringify(s));
 
-  const automatic = (kind) => db.prepare('SELECT * FROM characters WHERE bot = ?').all(kind);
+  const automatic = (kind) => db.prepare('SELECT * FROM characters WHERE bot = ? AND status IS NULL').all(kind);
 
   // Gets a line for an NPC and hands it to `use`: written by Claude when it's on (a moment later),
   // otherwise the picked line, straight away.

@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fail, str, id, color, oneOf } from '../http.js';
 import { hashPassword, verifyPassword, createSession, destroySession, toSelf } from '../auth.js';
-import { toUser, toCharacter, requireUser, uploadRef, gradientInput } from '../model.js';
+import { toUser, toCharacter, requireUser, uploadRef, gradientInput, CHARACTER_STATUSES } from '../model.js';
 import { validateSubscription } from '../push.js';
 import { profileInput, detailsInput, parseProfile } from '../profile.js';
 import { transaction, makeHandle } from '../db.js';
@@ -407,6 +407,11 @@ export function accountRoutes(r, ctx) {
     // The picture on their thread posts (empty: their avatar is used).
     const threadAvatar = uploadRef(db, body.threadAvatar, userId);
     if (threadAvatar !== undefined) db.prepare('UPDATE characters SET thread_avatar = ? WHERE id = ?').run(threadAvatar, characterId);
+    // Deceased / missing in action (empty: playable again).
+    if (body.status !== undefined) {
+      const status = body.status ? oneOf(body.status, 'Status', CHARACTER_STATUSES) : null;
+      db.prepare('UPDATE characters SET status = ? WHERE id = ?').run(status, characterId);
+    }
     let handle;
     if (body.handle !== undefined && body.handle !== null && body.handle !== '') {
       handle = validHandle(body.handle);

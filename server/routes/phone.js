@@ -2,7 +2,7 @@
 // one-to-one texts between two characters. Only the writers of those two characters can read a
 // conversation, and live updates go to just them.
 import { fail, str, id } from '../http.js';
-import { toCharacter, requireUser, isBlocked, uploadRef } from '../model.js';
+import { toCharacter, requireUser, isBlocked, uploadRef, requirePlayable } from '../model.js';
 import { plainText } from '../text.js';
 
 const MAX_TEXT = 20000;
@@ -127,6 +127,7 @@ export function phoneRoutes(r, ctx) {
   r.post('/api/phone/threads/:id/messages', ({ user, params, body }) => {
     requireUser(user);
     const { t, me, other } = threadFor(params.id, user, body.as);
+    requirePlayable(me);
     if (blockedEitherWay(user.id, other.user_id)) fail(403, "You can't text this character");
     const text = str(body.body, 'Message', { max: MAX_TEXT }) ?? '';
     const media = Array.isArray(body.media) ? body.media.slice(0, 10).map((v) => uploadRef(db, v, user.id) ?? fail(400, 'Picture missing')) : [];

@@ -80,6 +80,10 @@ export async function myCharacters(force = false) {
   return state.characters;
 }
 
+// Your characters who can be played (not deceased or missing in action): the ones offered when you
+// post, comment, like, follow or write in an episode.
+export const playableCharacters = async (force = false) => (await myCharacters(force)).filter((c) => !c.status);
+
 export async function loadOnline() {
   if (!state.user) return;
   state.online = (await api('/api/online')).users.map((u) => u.id);
@@ -983,7 +987,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-36';
+export const APP_BUILD = 'NV-37';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

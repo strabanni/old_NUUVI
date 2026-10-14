@@ -4,7 +4,7 @@ import {
   formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr, attachSheet, jumpToLatest, formattingGuide, aiEnabled, checkWriting,
 } from '../lib.js';
 import {
-  state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon, replaceHash } from '../main.js';
+  state, page, loadStory, myCharacters, playableCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon, replaceHash } from '../main.js';
 import { statusPill, openThreadForm, askLocation } from './threads.js';
 
 const nameOf = (u) => u?.displayName ?? 'someone';
@@ -74,7 +74,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   }
 
   const role = s.role;
-  const characters = role ? await myCharacters(true) : []; // always fresh (characters may be made on another device)
+  const characters = role ? await playableCharacters(true) : []; // always fresh (characters may be made on another device)
   const unreadAtOpen = channel().unread;
   const [{ posts: initial, hasMore: initialMore }, detail] = await Promise.all([
     api(`/api/channels/${channelId}/posts`),

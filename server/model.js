@@ -28,7 +28,17 @@ export function toCharacter(r) {
     handle: r.handle ?? null, npc: !!r.npc, bot: r.bot ?? null,
     gradient: r.gradient ? r.gradient.split(',') : null, npcTags: splitTags(r.npc_tags),
     pronouns: r.pronouns ?? null, threadAvatar: r.thread_avatar ?? null,
+    status: r.status ?? null,
   };
+}
+
+// Deceased and missing-in-action characters stay on NUUVI (profile, posts, history) but can't be
+// played: no new posts, comments, likes, follows or texts as them until the writer switches it off.
+export const CHARACTER_STATUSES = ['deceased', 'mia'];
+export function requirePlayable(c) {
+  if (c?.status === 'deceased') fail(400, `${c.name} is deceased, so they can't be played. Their writer can change that in Edit profile.`);
+  if (c?.status === 'mia') fail(400, `${c.name} is missing in action, so they can't be played. Their writer can change that in Edit profile.`);
+  return c;
 }
 
 const splitTags = (s) => (s ? s.split(',').filter(Boolean) : []);
