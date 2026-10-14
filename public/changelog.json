@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-41",
+    "date": "2026-10-14",
+    "title": "Steadier typing on iPhone",
+    "items": [
+      "While the keyboard is open, the app now stays lined up right above it instead of jumping around (or leaving a big empty gap) as you type."
+    ]
+  },
+  {
     "code": "NV-40",
     "date": "2026-10-14",
     "title": "Open a finished episode in one tap",

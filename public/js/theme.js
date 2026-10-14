@@ -52,21 +52,38 @@
       var el = document.activeElement;
       return !!el && (el.tagName === 'TEXTAREA' || el.isContentEditable || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file|color|range)$/.test(el.type)));
     };
-    // Only reacts when the keyboard opens or closes (a resize), never to iOS scrolling the page to
-    // keep your cursor in view — fighting that scrolling is what made the screen jump while typing.
+    // The app's height changes only when the keyboard opens or closes (a resize). iOS scrolling to
+    // keep your cursor in view is never fought (that made the screen jump); the app follows it instead.
     var lastH = 0;
+    var zoom = function () { return Number(root.style.getPropertyValue('--ui-zoom')) || 1; };
+    // iPhone also slides the visible area down while you type (to show the cursor). Instead of
+    // fighting that, the app moves with it, so it always sits exactly above the keyboard.
+    var raf = 0;
+    var follow = function () {
+      raf = 0;
+      if (!lastH) { root.style.removeProperty('--vv-top'); return; }
+      var top = Math.max(0, vv.offsetTop + (window.scrollY || 0));
+      root.style.setProperty('--vv-top', (top / zoom()) + 'px');
+    };
+    var schedule = function () { if (!raf) raf = requestAnimationFrame(follow); };
+    vv.addEventListener('scroll', schedule);
+    window.addEventListener('scroll', schedule, { passive: true });
     var fit = function (e) {
       var keyboardUp = typing() && vv.height < window.innerHeight - 80;
       if (keyboardUp) {
         var h = Math.round(vv.height);
         if (Math.abs(h - lastH) > 1) {
           lastH = h;
-          root.style.setProperty('--app-h', (h / (Number(root.style.getPropertyValue('--ui-zoom')) || 1)) + 'px');
-          if (window.scrollY) window.scrollTo(0, 0);
+          root.style.setProperty('--app-h', (h / zoom()) + 'px');
+          root.classList.add('kb-up');
         }
+        schedule();
       } else if (lastH && (!e || e.type !== 'focusin')) {
         lastH = 0;
         root.style.removeProperty('--app-h');
+        root.style.removeProperty('--vv-top');
+        root.classList.remove('kb-up');
+        if (window.scrollY) window.scrollTo(0, 0);
       }
     };
     vv.addEventListener('resize', fit);

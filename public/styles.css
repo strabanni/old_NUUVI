@@ -3146,3 +3146,8 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
 .composer-locked.ep-done { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 20px; text-align: left; }
 .composer-locked.ep-done > span { display: inline-flex; align-items: center; gap: 6px; }
 .composer-locked.ep-done .primary { flex: none; border-radius: 999px; padding: 8px 20px; }
+
+/* NV-41: phone keyboard up: the page itself can't scroll, and the app follows iPhone's visible area
+   (--vv-top, see theme.js), so the text box sits right above the keyboard instead of jumping. */
+:root.kb-up, :root.kb-up body { overflow: hidden; overscroll-behavior: none; }
+:root.kb-up body:not(.guest) { transform: translateY(var(--vv-top, 0px)); }
