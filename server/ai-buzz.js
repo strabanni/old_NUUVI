@@ -4,12 +4,10 @@
 //
 // It runs in the background: the post saves straight away, and the comments arrive a little later
 // (the writer's open page refreshes by itself when they do).
-import Anthropic from '@anthropic-ai/sdk';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setBuzz, insertBuzz, mentionedHandles, pronounSet } from './buzz.js';
 
-const MODEL = 'claude-opus-5-5';
 const PER_CALL = 50; // comments per request
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // the API's limit for one picture
@@ -61,9 +59,8 @@ const ANGLES = [
   'mostly short reactions and emoji-heavy comments',
 ];
 
-export function createAiBuzz({ db, hub, uploadDir, client = null, apiKey = null } = {}) {
-  const enabled = !!(client || apiKey);
-  let api = client;
+export function createAiBuzz({ db, hub, uploadDir, ai }) {
+  const enabled = !!ai?.enabled;
   const runs = new Map(); // post id → the latest run (an edit while one is running replaces it)
 
   async function pictureBlocks(post) {
@@ -103,28 +100,11 @@ export function createAiBuzz({ db, hub, uploadDir, client = null, apiKey = null 
     return lines.filter(Boolean).join('\n');
   }
 
-  async function ask(content, count, angle) {
-    api ??= new Anthropic({ apiKey });
-    const request = {
-      model: MODEL,
-      max_tokens: 16000,
-      output_config: { effort: 'medium', format: { type: 'json_schema', schema: SCHEMA } },
-      system: SYSTEM,
-      messages: [{ role: 'user', content: [...content, { type: 'text', text: `Write exactly ${count} comments. This batch: ${angle}.` }] }],
-    };
-    let res;
-    try {
-      // If Claude declines (its safety checks can be over-careful), another model takes over.
-      res = await api.beta.messages.create({ ...request, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
-    } catch (err) {
-      if (!(err instanceof Anthropic.BadRequestError)) throw err;
-      res = await api.beta.messages.create(request); // the account doesn't have fallbacks: plain request
-    }
-    if (res.stop_reason === 'refusal') throw new Error('declined');
-    const text = res.content.find((b) => b.type === 'text')?.text;
-    if (!text) throw new Error('no answer');
-    return JSON.parse(text);
-  }
+  const ask = (content, count, angle) => ai.ask({
+    system: SYSTEM,
+    schema: SCHEMA,
+    content: [...content, { type: 'text', text: `Write exactly ${count} comments. This batch: ${angle}.` }],
+  });
 
   // Writes `count` comments for a post and swaps them in for whatever it has.
   async function write(post, count) {

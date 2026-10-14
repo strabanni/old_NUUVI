@@ -2,7 +2,7 @@
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink, gradAttr, looksForeign, translateText } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, bus, onLeave } from '../main.js';
 import { fillLocations } from './threads.js';
-import { mentionPicker } from '../lib.js';
+import { mentionPicker, aiEnabled, checkWriting } from '../lib.js';
 
 const KINDS = [['text', 'Text', 'text'], ['photo', 'Photo', 'image'], ['video', 'Video', 'video'], ['voice', 'Voice note', 'mic'], ['stream', 'Stream', 'live']];
 export const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : n >= 1e3 ? `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}K` : String(n));
@@ -372,14 +372,25 @@ const songFrom = (data) => {
   return music.title || music.artist || music.url ? music : null;
 };
 
+// "Check my writing" under a caption (only when the site has Claude switched on).
+const checkBtn = (id) => html`<button type="button" class="link ai-check-btn" data-ai-check="${id}" hidden>${icons.sparkles} Check my writing</button>`;
+function wireCheck(root) {
+  aiEnabled().then((on) => {
+    for (const b of $$('[data-ai-check]', root)) {
+      b.hidden = !on;
+      b.addEventListener('click', () => checkWriting($(`#${b.dataset.aiCheck}`, root)));
+    }
+  });
+}
+
 async function editCaption(p, redraw) {
-  const res = await modal(html`<form class="social-form"><h2>Edit post</h2><label for="e-body">Caption</label><textarea id="e-body" name="body" rows="5" maxlength="5000">${p.body}</textarea>
+  const res = await modal(html`<form class="social-form"><h2>Edit post</h2><label for="e-body">Caption</label><textarea id="e-body" name="body" rows="5" maxlength="5000">${p.body}</textarea>${checkBtn('e-body')}
     ${p.kind === 'stream' ? html`<label>Stream title</label><input name="title" maxlength="120" value="${p.title}">` : ''}
     ${locationField(p.location || '')}
     ${songFields(p.meta.music)}
     ${extraFields({ category: p.category, likes: p.likesDisplay, comments: p.commentsDisplay, postedAt: p.createdAt, tagged: p.meta.tagged === true })}
     <div class="error"></div><div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, {
-    init: (d) => { fillLocations($('#s-loc-list', d)); mentionPicker($('#e-body', d)); },
+    init: (d) => { fillLocations($('#s-loc-list', d)); mentionPicker($('#e-body', d)); wireCheck(d); },
     submit: async (data) => {
       const body = { body: data.body, music: songFrom(data), location: data.location || '', ...extrasFrom(data, p.createdAt), freshComments: true };
       if (p.kind === 'stream') body.title = data.title;
@@ -420,7 +431,7 @@ export async function openSocialComposer({ characterId = null, category = 'post'
         <input id="s-viewers" name="viewers" inputmode="numeric" placeholder="12,000">
       </div>
       <label for="s-body" id="s-body-label">What's happening?</label>
-      <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work"></textarea>
+      <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work"></textarea>${checkBtn('s-body')}
       ${locationField()}
       ${songFields()}
       ${extraFields({ category })}
@@ -501,6 +512,7 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       drawMedia();
       fillLocations($('#s-loc-list', d));
       mentionPicker(form.body);
+      wireCheck(d);
       form.body.focus();
     },
     submit: async (data) => {

@@ -1,5 +1,17 @@
 [
   {
+    "code": "NV-23",
+    "date": "2026-10-14",
+    "title": "Writing tools by Claude",
+    "items": [
+      "Check my writing: fixes spelling and grammar but keeps your voice and formatting. In stories it's in the + panel; on THE : NU it's under the caption. You see the fixes before anything changes.",
+      "Catch up: a \"Previously on…\" recap at the top of episodes, to get back into the story before you post.",
+      "See translation now uses Claude, so slang and emojis come through.",
+      "Automatic NPCs and the gossip account write fresh lines in their own voice, reacting to what's happening.",
+      "These only appear when the site has an Anthropic API key."
+    ]
+  },
+  {
     "code": "NV-22",
     "date": "2026-10-14",
     "title": "Fan comments that look at your pictures",

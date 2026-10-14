@@ -836,7 +836,40 @@ export function looksForeign(text = '') {
   const english = words.filter((w) => ENGLISH_WORDS.has(w)).length;
   return foreign >= 2 && foreign > english;
 }
+// ---------- Writing tools (Claude) ----------
+// Whether the site has Claude switched on (an Anthropic API key). Asked once per visit.
+let aiOn = null;
+export function aiEnabled() {
+  aiOn ??= api('/api/ai/status').then((r) => r.enabled).catch(() => false);
+  return aiOn;
+}
+
+// "Check my writing": Claude fixes spelling and grammar in a text box (keeping the writer's voice and
+// any formatting codes), then shows the result to look over before it replaces what was written.
+export async function checkWriting(field) {
+  const original = field.value;
+  if (!original.trim()) { toast('Write something first'); return; }
+  toast('Checking your writing…');
+  let out;
+  try { out = await api('/api/ai/check', { method: 'POST', body: { text: original } }); } catch (err) { toast(err.message); return; }
+  if (!out.changed) { toast('Looks good! Nothing to fix.'); return; }
+  const res = await modal(html`<form class="ai-check">
+    <h2>${icons.sparkles} Checked</h2>
+    ${out.changes.length ? html`<ul class="ai-changes">${out.changes.map((c) => html`<li>${c}</li>`)}</ul>` : ''}
+    <label for="ai-text">Your writing, fixed <small class="muted">(you can still change it)</small></label>
+    <textarea id="ai-text" name="text" rows="8">${out.text}</textarea>
+    <div class="actions end"><button type="button" data-close>Keep mine</button><button type="submit" class="primary">Use this</button></div>
+  </form>`);
+  if (!res) return;
+  field.value = res.text;
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  field.focus();
+}
+
 export async function translateText(text) {
+  if (await aiEnabled()) {
+    try { return (await api('/api/ai/translate', { method: 'POST', body: { text } })).text; } catch (err) { toast(err.message); return null; }
+  }
   try {
     if ('LanguageDetector' in self && 'Translator' in self) {
       const detector = await self.LanguageDetector.create();

@@ -21,10 +21,12 @@ import { socialRoutes, socialPostRoutes } from './routes/social.js';
 import { connectionRoutes } from './routes/connections.js';
 import { profileRoutes } from './routes/profiles.js';
 import { messageRoutes } from './routes/messages.js';
+import { aiRoutes } from './routes/ai.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
 import { createBots } from './bots.js';
 import { createAiBuzz } from './ai-buzz.js';
+import { createAi } from './ai.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 // Big enough for a novel-length thread post.
@@ -281,7 +283,8 @@ export function createApp({
   adminRoutes(router, ctx);
   ctx.bots = createBots(ctx, botOptions);
   // Fan comments by Claude, looking at the pictures (only when an API key is set).
-  ctx.aiBuzz = createAiBuzz({ db, hub, uploadDir, ...aiOptions });
+  ctx.ai = createAi(aiOptions);
+  ctx.aiBuzz = createAiBuzz({ db, hub, uploadDir, ai: ctx.ai });
   const botTimer = setInterval(() => { try { ctx.bots.tick(); } catch (err) { console.error('bots', err); } }, 15 * 60 * 1000);
   botTimer.unref?.();
   threadRoutes(router, ctx);
@@ -293,6 +296,7 @@ export function createApp({
   connectionRoutes(router, ctx);
   profileRoutes(router, ctx);
   messageRoutes(router, ctx);
+  aiRoutes(router, ctx);
 
   // ---------- Live updates ----------
   function handleEvents(req, res, user, query) {

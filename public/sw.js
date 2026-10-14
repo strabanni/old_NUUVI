@@ -1,6 +1,6 @@
 // Service worker: caches the app shell so NUUVI opens instantly as an installed app,
 // and shows push notifications (new posts, @mentions, your turn) when the app is closed.
-const CACHE = 'nuuvi-shell-v24';
+const CACHE = 'nuuvi-shell-v25';
 const SHELL = [
   '/', '/index.html', '/styles.css', '/icon.svg', '/manifest.webmanifest',
   '/js/main.js', '/js/lib.js', '/js/theme.js',

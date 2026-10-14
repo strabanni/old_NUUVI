@@ -3,6 +3,11 @@
 // anonymous) also posts tips when public threads start or finish. Lines can use placeholders:
 //   comments: {name} {handle} (whose post it is)    posts: {someone} (a random character)
 //   gossip tips: {a} {b} (characters in the thread), {thread}, {story}
+// When the site has Claude switched on (an Anthropic API key), NPCs write fresh lines in their own
+// voice instead, using their writer's lines as examples; if Claude can't be reached, a line is picked.
+
+const NPC_SYSTEM = `You write social media posts and comments for an NPC (a non-player character) on THE : NU, the Instagram-style feed inside NUUVI, a private roleplay writing community set in Ardell City (its version of New York). Write in the NPC's own voice, matching their writer's example lines: their tone, slang, length and habits. Write something new rather than copying an example. Keep it short like a real post or comment, react to what you're given, and never be cruel, hateful or sexual. Plain text; emojis are fine.`;
+const NPC_SCHEMA = { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false };
 
 export const DEFAULT_SETTINGS = { enabled: true, commentChance: 0.35, maxCommentsPerPost: 2, postEveryHours: 12, gossipAboutThreads: true };
 
@@ -20,6 +25,28 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
     ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(JSON.stringify(s));
 
   const automatic = (kind) => db.prepare('SELECT * FROM characters WHERE bot = ?').all(kind);
+
+  // Gets a line for an NPC and hands it to `use`: written by Claude when it's on (a moment later),
+  // otherwise the picked line, straight away.
+  function withLine(b, task, picked, use) {
+    if (!ctx.ai?.enabled) { use(picked); return; }
+    const lines = linesOf(b);
+    const examples = [...(lines.posts || []), ...(lines.comments || []), ...(lines.tips || []), ...(lines.finished || [])].slice(0, 12);
+    const about = [
+      `NPC: ${b.name}${b.handle ? ` (@${b.handle})` : ''}${b.bot === 'gossip' ? ', an anonymous gossip account' : ''}.`,
+      b.tagline ? `About them: ${b.tagline}` : '',
+      b.pronouns ? `Pronouns: ${b.pronouns}` : '',
+      examples.length ? `Their writer's example lines:\n${examples.map((l) => `- ${l}`).join('\n')}` : '',
+      `Task: ${task}`,
+    ].filter(Boolean).join('\n\n');
+    ctx.ai.ask({ system: NPC_SYSTEM, schema: NPC_SCHEMA, effort: 'low', content: about })
+      .then((r) => String(r.text || '').trim() || picked)
+      .catch(() => picked)
+      .then(use);
+  }
+  const writing = new Set(); // NPCs whose next post Claude is still writing
+  const recentFeed = () => db.prepare(`SELECT c.name, p.body FROM social_posts p JOIN characters c ON c.id = p.character_id
+    WHERE c.bot IS NULL AND p.body != '' ORDER BY p.id DESC LIMIT 8`).all().map((r) => `${r.name}: ${r.body.slice(0, 200)}`).join('\n');
 
   function post(c, body) {
     if (!body) return null;
@@ -53,7 +80,8 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
         if (random() >= s.commentChance) continue;
         made += 1;
         const line = fill(pick(linesOf(b).comments), { name: p.name, handle: `@${p.handle}` });
-        delay(() => comment(b, p, line));
+        const task = `Write one comment on this post by ${p.name} (@${p.handle}).${p.location ? ` Location: ${p.location}.` : ''}\nCaption: ${p.body || '(no caption, a ' + p.kind + ' post)'}`;
+        delay(() => withLine(b, task, line, (text) => comment(b, p, text)));
       }
     },
 
@@ -70,7 +98,8 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
         if (!tips.length) continue;
         const [a, b] = cast.sort(() => random() - 0.5);
         const line = fill(pick(tips), { a, b: b ?? 'someone', thread: ch.name, story: ch.story_title });
-        delay(() => post(g, line));
+        const task = `Write one gossip post. ${what === 'finished' ? 'A storyline just wrapped up' : 'A new storyline just started'}: "${ch.name}" in "${ch.story_title}", with ${cast.join(', ')}. Hint at it like a tabloid tip, without spoilers.`;
+        delay(() => withLine(g, task, line, (text) => post(g, text)));
       }
     },
 
@@ -81,11 +110,13 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
       const someone = () => db.prepare('SELECT name FROM characters WHERE bot IS NULL ORDER BY RANDOM() LIMIT 1').get()?.name ?? 'someone';
       for (const b of [...automatic('bot'), ...automatic('gossip')]) {
         const lines = linesOf(b).posts || [];
-        if (!lines.length) continue;
+        if (!lines.length || writing.has(b.id)) continue;
         const last = db.prepare('SELECT MAX(created_at) AS at FROM social_posts WHERE character_id = ?').get(b.id).at;
         const due = s.postEveryHours * 3600e3 * (0.6 + random() * 0.8);
         if (last && now - new Date(`${last.replace(' ', 'T')}Z`).getTime() < due) continue;
-        post(b, fill(pick(lines), { someone: someone() }));
+        const feed = ctx.ai?.enabled ? recentFeed() : '';
+        writing.add(b.id);
+        withLine(b, `Write one new post of your own.${feed ? ` What people have been posting lately (you can react to it, or not):\n${feed}` : ''}`, fill(pick(lines), { someone: someone() }), (text) => { writing.delete(b.id); post(b, text); });
       }
     },
 

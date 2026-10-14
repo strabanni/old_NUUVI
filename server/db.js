@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 15;
+const SCHEMA_VERSION = 16;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -479,6 +479,13 @@ const MIGRATIONS = [
    );
    INSERT INTO connection_takers (connection_id, user_id, character_id, taken_at)
      SELECT id, taken_user_id, taken_character_id, COALESCE(taken_at, datetime('now')) FROM connections WHERE taken_character_id IS NOT NULL AND taken_user_id IS NOT NULL;`,
+  // v16: "Previously on…" recaps written by Claude, kept until the episode gets new posts.
+  `CREATE TABLE channel_recaps (
+     channel_id   INTEGER PRIMARY KEY REFERENCES channels(id) ON DELETE CASCADE,
+     last_post_id INTEGER NOT NULL,
+     body         TEXT NOT NULL,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+   );`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

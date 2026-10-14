@@ -90,6 +90,12 @@ On phones the story rail stays on screen at all times, like Discord, with your s
 - **Posts & musings:** posts can be a normal **Post** or a **Musing** (a thought, shown with a feather tag). In the composer and in **Edit post** you can set the likes, the number of comments and the date and time it was posted. Type `@` to pick someone (mentions show in NUUVI pink) and `#` for hashtags (tap one to see every post with it). Under each post, "Liked by" names characters who liked it, like Instagram.
 - **Fan comments** look at the caption, the people mentioned, the picture's colours and light, the location and the song (places and songs come up only now and then). Every comment on a post is different, characters' own comments always show first, and setting the comment count writes out at least a quarter of that number. Saving an edit to a post deletes its old fan comments and writes a fresh set that fits. Fan comments only say an @mentioned person is in the photo when **The people I @mention are in the picture** is ticked.
 - **Fan comments that look at the pictures (optional):** set an Anthropic API key (see *Settings* below) and Claude writes the fan comments: it looks at the photos themselves (up to 4 per post), plus the caption, place, song and who's tagged. They arrive a few seconds after you post or save an edit. If Claude can't be reached, the built-in writer fills in. Each post or edit costs a little on your Anthropic account (roughly 10 to 20 cents for a post with about 60 comments; more for posts set to thousands of comments).
+- **Writing tools (optional, with the same Anthropic API key):**
+  - **Check my writing** fixes spelling and grammar but keeps your voice, slang and formatting codes. It's in the **+** panel in stories and under the caption on THE : NU. You see the fixes first and choose **Use this** or **Keep mine**.
+  - **Catch up** (top of an episode) shows a "Previously on…" recap once an episode has a few posts. It's saved until someone posts again, so reopening it is free.
+  - **See translation** uses Claude, so slang and emojis come through.
+  - **Automatic NPCs and the gossip account** write fresh lines in their own voice (their writer's lines are used as examples) instead of repeating them. Admin → **NPCs & bots** → "post now" still uses the lines as written, to try them out.
+  - Everyone gets a fair hourly share (60 uses an hour), since each use costs a little.
 - **Refresh on phones:** THE : NU has a refresh button at the top to pull in the newest posts.
 - **Likes and comments:** a post's likes start from a share of the character's followers (or the number the writer set), and every real like adds one. Fans comment on their own, with lines that fit the post, and more of them when the writer raises the comment number. Characters' names show in their own colors among the fans. Comments can be replied to, show like counts (bigger for famous characters), and have **See translation** when they aren't in English (on-device in recent Chrome, otherwise Google Translate).
 - **Picture panel:** the + in story chats, Messages and the Phone opens a panel from the bottom, like Discord: **Camera** and **Photos** tiles (your phone's own camera and photo library; iPhones may ask for permission the first time), your recent NUUVI pictures (tap to pick several, then Add), and a bar with Photos, Link / GIF and, in stories, Warning and Formatting. Websites can't show the whole camera roll inside the page, so the grid shows pictures you've already put on NUUVI.
@@ -151,7 +157,18 @@ For your friends to use it from their own phones, NUUVI has to run on a server w
    ```
 4. Open `https://ourstories.fly.dev`. **Create your account first**: the first account becomes the admin.
 
-To update the site later, run `fly deploy` again. Fly takes daily snapshots of the volume. For an extra manual backup, run `fly ssh sftp get /data/nuuvi.db`.
+To update the site later, run `fly deploy` again, or set up automatic updates (below).
+
+### Automatic updates
+
+Once this is set up, every change pushed to GitHub is tested and, if the tests pass, put online by itself (no ZIPs, no swapping `fly.toml`). It uses the settings your app already has on Fly.
+
+1. In your terminal, in your NUUVI folder, run `fly tokens create deploy`. Copy the long token it prints.
+2. On GitHub, open the NUUVI repository → **Settings** → **Secrets and variables** → **Actions**.
+3. On the **Secrets** tab, press **New repository secret**. Name: `FLY_API_TOKEN`. Value: paste the token. Save.
+4. On the **Variables** tab, press **New repository variable**. Name: `FLY_APP`. Value: your Fly app's name (shown by `fly apps list`). Save.
+5. To check it works: on GitHub, open **Actions** → **Deploy to Fly** → **Run workflow**. A green tick means it's live.
+ Fly takes daily snapshots of the volume. For an extra manual backup, run `fly ssh sftp get /data/nuuvi.db`.
 
 **Any other server:** this works anywhere that runs Docker or Node 22. Run it behind an HTTPS proxy such as [Caddy](https://caddyserver.com), store `DATABASE_PATH` on persistent disk, and set `PUBLIC_URL` and `TRUST_PROXY=1`.
 

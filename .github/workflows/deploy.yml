@@ -1,0 +1,59 @@
+# Puts NUUVI online automatically: every push to the NUUVI branch runs the tests, and if they pass,
+# deploys to Fly.io. It uses the settings your live app already has on Fly (app name, region, the
+# data volume, PUBLIC_URL), so the placeholder fly.toml in this repo never overwrites them.
+#
+# One-time setup (see README → "Automatic updates"):
+#   - Secret   FLY_API_TOKEN : a deploy token from `fly tokens create deploy`
+#   - Variable FLY_APP       : your Fly app's name
+# Until both are set, the deploy step is skipped (the tests still run).
+name: Deploy to Fly
+
+on:
+  push:
+    branches: [claude/roleplay-writing-platform-w2p8pl]
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits for the one before it.
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_APP: ${{ vars.FLY_APP }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the setup
+        id: setup
+        run: |
+          if [ -z "$FLY_API_TOKEN" ] || [ -z "$FLY_APP" ]; then
+            echo "::notice::Automatic deploys aren't set up yet (add the FLY_API_TOKEN secret and FLY_APP variable). Skipping."
+            echo "ready=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: steps.setup.outputs.ready == 'yes'
+      - name: Use the live app's settings
+        if: steps.setup.outputs.ready == 'yes'
+        run: |
+          rm -f fly.toml
+          flyctl config save --app "$FLY_APP"
+          cat fly.toml
+      - name: Deploy
+        if: steps.setup.outputs.ready == 'yes'
+        run: flyctl deploy --remote-only --ha=false --app "$FLY_APP"

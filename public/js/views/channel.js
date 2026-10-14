@@ -1,7 +1,7 @@
 // A channel inside a story: the post feed, turn order bar and composer.
 import {
   html, raw, esc, render, applyColors, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
-  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr, attachSheet, jumpToLatest, formattingGuide,
+  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr, attachSheet, jumpToLatest, formattingGuide, aiEnabled, checkWriting,
 } from '../lib.js';
 import {
   state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon, replaceHash } from '../main.js';
@@ -121,6 +121,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     subtitle: c.topic || (c.kind === 'ooc' ? 'Out of character' : `${KIND_LABELS[c.kind]} · ${({ open: 'open', closed: 'private', complete: 'complete' })[c.status]}`),
     actions: html`
       <button class="btn sm starred-btn" id="starred-btn" title="Starred moments" hidden>${icons.star}<b>0</b></button>
+      ${c.kind !== 'ooc' ? html`<button class="btn sm recap-btn" id="recap-btn" title="Previously on… (a recap to catch up)" hidden>${icons.sparkles}<span class="lbl">Catch up</span></button>` : ''}
       ${detail.canManage && c.kind !== 'ooc' ? html`<button class="icon-btn" id="edit-thread" title="Episode details" aria-label="Episode details">${icons.gear}</button>` : ''}`,
     className: 'channel-body',
     body: html`
@@ -577,8 +578,9 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       ta.dispatchEvent(new Event('input', { bubbles: true }));
     };
     const moreBtn = $('#more-btn', form);
-    moreBtn.addEventListener('click', () => {
+    moreBtn.addEventListener('click', async () => {
       if (attached.length >= 10) toast('Up to 10 pictures per post');
+      const ai = await aiEnabled();
       attachSheet({
         max: Math.max(0, 10 - attached.length),
         onPictures: (urls) => { attached.push(...urls.slice(0, 10 - attached.length)); drawExtra(); ta.focus(); },
@@ -588,6 +590,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
           detail.canManage && channel().kind !== 'ooc' && { label: 'Episode', icon: icons.episode, action: editThread },
           channel().kind === 'comms' && { label: 'Contacts', icon: icons.users, action: editContacts },
           { label: 'Formatting', icon: icons.text, action: () => formattingGuide({ insert: insertText }) },
+          ai && { label: 'Check writing', icon: icons.sparkles, action: () => checkWriting(ta) },
         ],
       });
     });
@@ -701,6 +704,24 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     if (updated) viewChannel(storyIdStr, channelIdStr);
   }
   $('#main #edit-thread')?.addEventListener('click', editThread);
+
+  // "Previously on…": a recap of the episode by Claude, to catch up before writing.
+  const recapBtn = $('#main #recap-btn');
+  if (recapBtn) aiEnabled().then((on) => { recapBtn.hidden = !on; });
+  recapBtn?.addEventListener('click', async () => {
+    const box = modal(html`<div class="recap"><span class="eyebrow">Previously on…</span><h2>${channel().name}</h2>
+      <div id="recap-text" class="recap-text"><p class="muted">${icons.sparkles} Reading the episode…</p></div>
+      <div class="actions end"><button type="button" data-close>Close</button></div></div>`);
+    try {
+      const { recap } = await api(`/api/channels/${channelId}/recap`, { method: 'POST', body: {} });
+      const el = document.querySelector('#recap-text');
+      if (el) render(el, html`${recap.split(/\n+/).filter(Boolean).map((para) => html`<p>${para}</p>`)}`);
+    } catch (err) {
+      const el = document.querySelector('#recap-text');
+      if (el) render(el, html`<p class="muted">${err.message}</p>`);
+    }
+    await box;
+  });
   feed.addEventListener('click', (e) => { if (e.target.closest('#contacts-btn')) editContacts(); });
 
   // ---------- Live updates ----------

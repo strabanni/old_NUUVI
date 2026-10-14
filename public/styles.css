@@ -2870,3 +2870,16 @@ a.hashtag:hover { text-decoration: underline; }
 .check-row small { display: block; font-weight: 400; }
 #nu-refresh.spin svg { animation: nu-spin .8s linear infinite; }
 @keyframes nu-spin { to { transform: rotate(360deg); } }
+
+/* NV-23: writing tools by Claude (check writing, recaps) */
+.ai-check-btn { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 13px; }
+.ai-check-btn svg { width: 15px; height: 15px; color: #EE719E; }
+.ai-check h2 { display: flex; align-items: center; gap: 8px; }
+.ai-check h2 svg { color: #EE719E; }
+.ai-changes { margin: 4px 0 12px; padding-left: 20px; font-size: 14px; line-height: 1.5; }
+.recap-btn[hidden] { display: none !important; }
+.recap-btn svg { color: #EE719E; }
+.recap { max-width: 560px; }
+.recap h2 { margin: 2px 0 12px; }
+.recap-text p { margin: 0 0 12px; line-height: 1.6; }
+.recap-text svg { width: 15px; height: 15px; vertical-align: -2px; color: #EE719E; }
