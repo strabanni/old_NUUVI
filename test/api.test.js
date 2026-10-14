@@ -1018,6 +1018,19 @@ test('crowd comments use the poster\'s pronouns and react to the post', async ()
   assert.ok(lines.some((l) => /overrated|trying|unfollow|stylist|crime|didn't need|desperation|pr team|filter/i.test(l)), 'some critics too');
 });
 
+test('fan comments only say a tagged person is in the picture when the writer says so', async () => {
+  const { sampleBuzz } = await import('../server/buzz.js');
+  let seed = 7;
+  const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const inPic = /@yoon (looks so good here|in the pics|photobombing|in the background|is in it)|why is @yoon in this|is @yoon there too|and @yoon in one frame/;
+  const post = { body: 'night out with @yoon', kind: 'photo' };
+  const apart = sampleBuzz(post, { name: 'Mina Park' }, 400, rand, ['@yoon']);
+  assert.ok(apart.some((l) => l.includes('@yoon')), 'still mentions them');
+  assert.ok(!apart.some((l) => inPic.test(l)), 'never says they are in it');
+  const together = sampleBuzz({ ...post, meta: JSON.stringify({ tagged: true }) }, { name: 'Mina Park' }, 400, rand, ['@yoon']);
+  assert.ok(together.some((l) => inPic.test(l)), 'says so when they are');
+});
+
 test('THE : NU posts: musings, back-dating, numbers set when posting, liked-by, fresh comments after edits', async () => {
   const w = await app.signUp('nu_poster');
   const c = (await w('/api/characters', { method: 'POST', body: { name: 'Cha Yoonoh', color: '#8fa3c9' } })).data.character;
@@ -1046,6 +1059,12 @@ test('THE : NU posts: musings, back-dating, numbers set when posting, liked-by, 
   const after = (await w(`/api/social/${p.id}`)).data.post.buzz;
   assert.ok(after.length >= 100);
   assert.notEqual(after.map((b) => b.body).join('|'), before);
+  // "Write fresh fan comments" replaces every old one, even when nothing else changed.
+  const again = await w(`/api/social/${p.id}`, { method: 'PUT', body: { freshComments: true, taggedIn: true } });
+  assert.equal(again.data.post.meta.tagged, true);
+  const old = new Set(after.map((b) => `${b.handle}|${b.body}`));
+  const kept = again.data.post.buzz.filter((b) => old.has(`${b.handle}|${b.body}`)).length;
+  assert.ok(again.data.post.buzz.length >= 100 && kept < 5, `old fan comments are gone (${kept} look the same)`);
 });
 
 test('group connections: several people can join, the writer edits it, and it locks when full', async () => {

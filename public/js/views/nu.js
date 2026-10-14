@@ -205,7 +205,7 @@ export async function viewNu(tagStr = null) {
     title: tag ? `#${tag}` : 'THE : NU',
     subtitle: tag ? 'Posts with this hashtag' : '',
     className: 'nu-body',
-    actions: html`<button class="primary sm" id="nu-new">${icons.plus}<span class="lbl">New</span></button>`,
+    actions: html`<button class="icon-btn sm only-mobile" id="nu-refresh" aria-label="Refresh">${icons.refresh}</button><button class="primary sm" id="nu-new">${icons.plus}<span class="lbl">New</span></button>`,
     body: html`
       <div class="nu-layout">
         <div class="nu-col">
@@ -286,6 +286,13 @@ export async function viewNu(tagStr = null) {
     const made = what === 'connection' ? await openConnectionComposer() : await openSocialComposer({ category: what === 'musing' ? 'musing' : 'post' });
     if (made) load();
   };
+  // Phones: a refresh button to pull in the newest posts.
+  $('#main #nu-refresh')?.addEventListener('click', async (e) => {
+    const b = e.currentTarget;
+    if (b.classList.contains('spin')) return;
+    b.classList.add('spin');
+    try { await load(); window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (err) { toast(err.message); } finally { b.classList.remove('spin'); }
+  });
   $('#main #nu-new').addEventListener('click', (e) => menu(e.currentTarget, [
     { label: 'New post', action: () => create('post') },
     { label: 'New musing', action: () => create('musing') },

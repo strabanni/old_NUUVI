@@ -2863,3 +2863,10 @@ a.hashtag:hover { text-decoration: underline; }
 .bday-title { font: 700 1.1rem/1.25 var(--display); }
 .bday-title b { font-size: 1.6rem; font-weight: 900; }
 .cal-ev.cal-bday { background: color-mix(in srgb, #EE719E 16%, transparent); }
+
+/* NV-21: "tagged people are in the picture" / fresh comments toggles, feed refresh */
+.check-row { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0 4px; font-size: 14px; cursor: pointer; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.check-row input { width: 18px; height: 18px; margin: 2px 0 0; flex: none; accent-color: #EE719E; }
+.check-row small { display: block; font-weight: 400; }
+#nu-refresh.spin svg { animation: nu-spin .8s linear infinite; }
+@keyframes nu-spin { to { transform: rotate(360deg); } }

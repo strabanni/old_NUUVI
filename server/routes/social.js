@@ -240,6 +240,15 @@ export function socialPostRoutes(r, ctx) {
     return out;
   }
 
+  // Whether the people @mentioned are actually in the picture (fan comments only say so when they are).
+  // undefined = leave as is.
+  function withTagged(meta, taggedIn) {
+    if (taggedIn === undefined) return meta;
+    const out = { ...meta };
+    if (taggedIn) out.tagged = true; else delete out.tagged;
+    return out;
+  }
+
   // A song attached to any post, Instagram-style: title and artist, plus an optional link.
   // undefined = leave as is, null = remove.
   function musicInput(music) {
@@ -294,7 +303,7 @@ export function socialPostRoutes(r, ctx) {
     const postedAt = whenInput(body.postedAt) ?? null;
     const { lastInsertRowid } = db.prepare(`INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta, location, category, likes_display, comments_display, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`)
-      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(metaInput(kind, body.meta), musicInput(body.music))), location,
+      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(withTagged(metaInput(kind, body.meta), body.taggedIn), musicInput(body.music))), location,
         category, likesShown ?? null, commentsShown ?? null, postedAt);
     ctx.bots?.onSocialPost(Number(lastInsertRowid));
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(lastInsertRowid);
@@ -310,7 +319,7 @@ export function socialPostRoutes(r, ctx) {
     const text = str(body.body, 'Caption', { max: 5000 }) ?? row.body;
     const title = str(body.title, 'Title', { max: 120 }) ?? row.title;
     const base = body.meta === undefined ? JSON.parse(row.meta) : { ...metaInput(row.kind, body.meta), ...(JSON.parse(row.meta).music ? { music: JSON.parse(row.meta).music } : {}) };
-    const meta = JSON.stringify(withMusic(base, musicInput(body.music)));
+    const meta = JSON.stringify(withMusic(withTagged(base, body.taggedIn), musicInput(body.music)));
     const count = (v, field, old) => (v === undefined ? old ?? null : countInput(v, field));
     const likesShown = count(body.likesDisplay, 'Likes', row.likes_display);
     const commentsShown = count(body.commentsDisplay, 'Comments', row.comments_display);
@@ -328,13 +337,13 @@ export function socialPostRoutes(r, ctx) {
     // that fit it, and a new comment number gets at least a quarter of it written out.
     const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(row.id);
-    if (contentChanged || postedAt !== row.created_at) {
+    if (body.freshComments === true || contentChanged || postedAt !== row.created_at) {
       setBuzz(db, fresh, Math.max(have, commentsShown ? buzzTarget(commentsShown, row.c_followers) : 0), { followers: row.c_followers });
     } else if (commentsShown !== row.comments_display) {
       const want = buzzTarget(commentsShown, row.c_followers);
       if (want !== have) setBuzz(db, fresh, want, { followers: row.c_followers });
     }
-    return { data: { post: toSocial(load(row.id, user), user.id) } };
+    return { data: { post: toSocial(load(row.id, user), user.id, { allComments: true }) } };
   });
 
   r.delete('/api/social/:id', ({ user, params }) => {

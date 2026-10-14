@@ -169,12 +169,19 @@ const LOOK = {
   shade: { color: [(x) => `the ${x.look.color} filter isn't it`] },
 };
 
-// When other characters are @mentioned in the caption.
+// When other characters are @mentioned in the caption. These never say the person is in the picture…
 const MENTION = {
-  love: [(x, m) => `you and ${m}?? i need the story`, (x, m) => `${m} looks so good here too`, (x, m) => `the ${x.first} and ${m} friendship >>>`, (x, m) => `${m} in the pics is a bonus`],
-  fun: [(x, m) => `${m} got tagged and we all saw it 👀`, (x, m) => `why is ${m} in this… explain`, (x, m) => `${m} and ${x.first} in one post, i'm unwell`],
-  ask: [(x, m) => `since when are you and ${m} close??`, (x, m) => `wait is ${m} there too?`],
+  love: [(x, m) => `you and ${m}?? i need the story`, (x, m) => `the ${x.first} and ${m} friendship >>>`, (x, m) => `${m} come see this`],
+  fun: [(x, m) => `${m} got tagged and we all saw it 👀`, (x, m) => `the ${m} shoutout 👀`, (x, m) => `${m} come get your friend`],
+  ask: [(x, m) => `since when are you and ${m} close??`, (x, m) => `why is ${m} tagged, what did i miss`],
   shade: [(x, m) => `${m} again? ok`, (x, m) => `the tag on ${m} is doing a lot`],
+};
+// …and these do, so they're only used when the writer says the tagged people are in the picture.
+const MENTION_IN = {
+  love: [(x, m) => `${m} looks so good here too`, (x, m) => `${m} in the pics is a bonus`, (x, m) => `${x.first} and ${m} in one frame, i'm unwell`],
+  fun: [(x, m) => `why is ${m} in this… explain`, (x, m) => `${m} photobombing as usual`],
+  ask: [(x, m) => `wait is ${m} there too?`, (x, m) => `who took the pic if ${m} is in it??`],
+  shade: [(x, m) => `${m} in the background like that 😐`],
 };
 
 // The place and the song (only now and then).
@@ -213,6 +220,7 @@ function postContext(post, character, mentions = []) {
     look: meta.look || null,
     words: keywords(text),
     mentions,
+    together: meta.tagged === true,
     topics: TOPICS.filter(([, re]) => re.test(text)).map(([t]) => t),
     kind: post.kind,
     multi: media.length > 1,
@@ -226,8 +234,9 @@ function core(x, mood, rand) {
   if (x.song && r >= 0.06 && r < 0.12) { const i = Math.floor(rand() * SONG.length); return [`song${i}`, SONG[i](x)]; }
   const r2 = rand();
   if (x.mentions.length && r2 < 0.18 && MENTION[mood]) {
-    const m = pick(x.mentions, rand); const i = Math.floor(rand() * MENTION[mood].length);
-    return [`m${mood}${i}${m}`, MENTION[mood][i](x, m)];
+    const lines = x.together && MENTION_IN[mood] && rand() < 0.5 ? MENTION_IN[mood] : MENTION[mood];
+    const m = pick(x.mentions, rand); const i = Math.floor(rand() * lines.length);
+    return [`m${lines === MENTION_IN[mood] ? 'in' : ''}${mood}${i}${m}`, lines[i](x, m)];
   }
   const lk = x.look && LOOK[mood];
   if (lk && r2 < 0.32) {

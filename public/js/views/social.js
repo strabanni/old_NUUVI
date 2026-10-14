@@ -305,7 +305,8 @@ const localInput = (d) => {
   const pad = (n) => String(n).padStart(2, '0');
   return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
 };
-const extraFields = ({ category = 'post', likes = null, comments = null, postedAt = null } = {}) => html`
+const extraFields = ({ category = 'post', likes = null, comments = null, postedAt = null, tagged = false, editing = false } = {}) => html`
+  <label class="check-row"><input type="checkbox" name="taggedIn" ${tagged ? 'checked' : ''}><span>The people I @mention are in the picture <small class="muted">(fan comments only say they're in it when this is on)</small></span></label>
   <div class="seg post-cat" role="radiogroup" aria-label="Post or musing">
     <label><input type="radio" name="category" value="post" ${category !== 'musing' ? 'checked' : ''}><span>${icons.image} Post</span></label>
     <label><input type="radio" name="category" value="musing" ${category === 'musing' ? 'checked' : ''}><span>${icons.quill} Musing</span></label>
@@ -320,10 +321,12 @@ const extraFields = ({ category = 'post', likes = null, comments = null, postedA
     <label for="e-when">Posted on</label>
     <input id="e-when" name="postedAt" type="datetime-local" value="${localInput(postedAt)}">
     <p class="hint">Back-date posts to build up a character's history.</p>
-  </details>`;
+  </details>
+  ${editing ? html`<label class="check-row"><input type="checkbox" name="freshComments" checked><span>Write fresh fan comments <small class="muted">(the old fan comments are deleted)</small></span></label>` : ''}`;
 const num = (v) => (String(v ?? '').trim() === '' ? null : Number(String(v).replace(/[,\s]/g, '')));
 const extrasFrom = (data, originalWhen = null) => {
-  const out = { category: data.category || 'post', likesDisplay: num(data.likes), commentsDisplay: num(data.comments) };
+  const out = { category: data.category || 'post', likesDisplay: num(data.likes), commentsDisplay: num(data.comments), taggedIn: data.taggedIn === 'on' };
+  if (data.freshComments === 'on') out.freshComments = true;
   if (data.postedAt && data.postedAt !== localInput(originalWhen)) out.postedAt = new Date(data.postedAt).toISOString();
   return out;
 };
@@ -376,8 +379,7 @@ async function editCaption(p, redraw) {
     ${p.kind === 'stream' ? html`<label>Stream title</label><input name="title" maxlength="120" value="${p.title}">` : ''}
     ${locationField(p.location || '')}
     ${songFields(p.meta.music)}
-    ${extraFields({ category: p.category, likes: p.likesDisplay, comments: p.commentsDisplay, postedAt: p.createdAt })}
-    <p class="hint">Changing the caption, place or song gives the post fresh fan comments that fit.</p>
+    ${extraFields({ category: p.category, likes: p.likesDisplay, comments: p.commentsDisplay, postedAt: p.createdAt, tagged: p.meta.tagged === true, editing: true })}
     <div class="error"></div><div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, {
     init: (d) => { fillLocations($('#s-loc-list', d)); mentionPicker($('#e-body', d)); },
     submit: async (data) => {
