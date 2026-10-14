@@ -1,7 +1,7 @@
 // A channel inside a story: the post feed, turn order bar and composer.
 import {
   html, raw, esc, render, applyColors, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
-  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr, attachSheet, jumpToLatest, formattingGuide, aiEnabled, checkWriting,
+  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr, attachSheet, jumpToLatest, formattingGuide, aiEnabled, checkWriting, akaHtml,
 } from '../lib.js';
 import {
   state, page, loadStory, myCharacters, playableCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon, replaceHash } from '../main.js';
@@ -145,7 +145,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   // The "aka" line is written by the character's owner; **text** shows in pink.
   function akaLine(ch) {
     if (!ch.aka) return '';
-    return html`<div class="tp-aka">${raw(esc(ch.aka).replace(/\*\*(.+?)\*\*/g, '<b class="accent">$1</b>'))}</div>`;
+    return html`<div class="tp-aka">${raw(akaHtml(ch.aka))}</div>`;
   }
 
   // Comms show your own contact names for other people's characters.

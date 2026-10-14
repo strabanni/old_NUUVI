@@ -60,3 +60,14 @@ test('formatting: Discord and forum codes, and nothing unsafe gets through', asy
   const evil = f('<img src=x onerror=1> [url=javascript:alert(1)]x[/url] [link](javascript:alert(1)) https://x.com/a"onmouseover=1 [font=x" onclick="1]t[/font] [color=red;x]c[/color]');
   assert.doesNotMatch(evil, /<img|href="javascript|onmouseover="|onclick=/);
 });
+
+test('extra spaces are kept as typed, in posts and AKA lines', async () => {
+  const { formatPost, akaHtml } = await import('../public/js/lib.js');
+  const f = (s) => String(formatPost(s).v ?? formatPost(s));
+  assert.match(f('word    word'), /word    word/);
+  assert.match(f('**bold  words**'), /<strong>bold  words<\/strong>/);
+  assert.match(f('one\n  indented'), /<br>  indented/);
+  assert.doesNotMatch(f('one two'), / /);
+  assert.match(f('a [url=https://example.com]link  text[/url]'), /href="https:\/\/example\.com"/);
+  assert.equal(akaHtml('genius  ..  **oh little miss**'), 'genius  ..  <b class="accent">oh little miss</b>');
+});

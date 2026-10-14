@@ -253,8 +253,20 @@ function inlineFormat(s) {
     .replace(/(^|[\s(>])@([^\s@<&]+?)(?=[.,!?;:)\]]*(?:\s|$|<|&))/gu, '$1<span class="mention">@$2</span>')
     // #hashtags open THE : NU filtered to that tag.
     .replace(/(^|[\s(>])#((?=[\p{L}\p{N}_]*\p{L})[\p{L}\p{N}_]{2,40})/gu, (m, pre, tag) => `${pre}<a class="hashtag" href="#/nu/tag/${encodeURIComponent(tag)}">#${tag}</a>`)
-    .replace(/\u0000(\d+)\u0000/g, (_, i) => kept[i]);
+    .replace(/\u0000(\d+)\u0000/g, (_, i) => kept[i])
+    .replace(/[ \t]{2,}|^ |\n /g, keepSpaces);
 }
+
+// Extra spaces stay as typed (browsers squeeze them into one): every space after the first in a run,
+// and a space at the start of a line, becomes a non-breaking space. Tabs count as four spaces.
+function keepSpaces(run) {
+  const nl = run.startsWith('\n') ? '\n' : '';
+  const spaces = run.replace(/\n/, '').replace(/\t/g, '    ');
+  if (nl || run === ' ') return `${nl}\u00a0${'\u00a0'.repeat(spaces.length - 1)}`;
+  return ` ${'\u00a0'.repeat(spaces.length - 1)}`;
+}
+// An AKA line: **double stars** in the character's color, and spaces kept as typed.
+export const akaHtml = (aka) => esc(aka).replace(/\*\*(.+?)\*\*/g, '<b class="accent">$1</b>').replace(/[ \t]{2,}|^ /g, keepSpaces);
 
 // Discord-style line codes inside a paragraph: headings, small print, quotes and lists.
 function lineBlocks(para) {

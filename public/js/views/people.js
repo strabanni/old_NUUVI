@@ -131,6 +131,10 @@ export async function viewSettings() {
           <label>Text size</label>
           <div class="seg" role="group" aria-label="Text size">${[['', 'Default'], ['large', 'Large'], ['larger', 'Larger']].map(([k, label]) => html`
             <button type="button" data-text-size="${k}" aria-pressed="${(document.documentElement.dataset.text || '') === k}">${label}</button>`)}</div>
+          <label>Character names in episodes</label>
+          <div class="seg" role="group" aria-label="Character names in episodes">${[['', 'Character colors'], ['theme', 'Match my theme']].map(([k, label]) => html`
+            <button type="button" data-names="${k}" aria-pressed="${(document.documentElement.dataset.names || '') === k}">${label}</button>`)}</div>
+          <p class="hint">Match my theme shows every character's name in plain black (Light) or white (Dark) instead of their color or gradient.</p>
           <label>Interface size</label>
           <div class="seg scale-seg" role="group" aria-label="Interface size">${[['xsmall', 'Smallest'], ['compact', 'Small'], ['standard', 'Standard'], ['large', 'Large'], ['xlarge', 'Largest']].map(([k, label]) => html`
             <button type="button" data-ui-size="${k}" aria-pressed="${document.documentElement.dataset.ui === k}">${label}</button>`)}</div>
@@ -303,6 +307,14 @@ export async function viewSettings() {
       if (v) document.documentElement.dataset.text = v; else delete document.documentElement.dataset.text;
       try { if (v) localStorage.setItem('nuuvi:text', v); else localStorage.removeItem('nuuvi:text'); } catch { /* ignore */ }
       body.querySelectorAll('[data-text-size]').forEach((b) => b.setAttribute('aria-pressed', String(b === ts)));
+      return;
+    }
+    const nm = e.target.closest('[data-names]');
+    if (nm) {
+      const v = nm.dataset.names;
+      if (v) document.documentElement.dataset.names = v; else delete document.documentElement.dataset.names;
+      try { if (v) localStorage.setItem('nuuvi:names', v); else localStorage.removeItem('nuuvi:names'); } catch { /* ignore */ }
+      body.querySelectorAll('[data-names]').forEach((b) => b.setAttribute('aria-pressed', String(b === nm)));
       return;
     }
     const us = e.target.closest('[data-ui-size]');

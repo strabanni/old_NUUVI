@@ -1,4 +1,4 @@
-import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, attachSheet, BRAND_GRADIENT, GRADIENT_PRESETS } from '../lib.js';
+import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, attachSheet, BRAND_GRADIENT, GRADIENT_PRESETS, akaHtml } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHash } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
@@ -339,7 +339,7 @@ export async function viewCharacter(id) {
       // About: the character's details, then their full profile (facts, personality, history…).
       const drawAbout = (prof) => {
         render(pane, html`
-          ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div class="aka-text">${raw(esc(c.aka).replace(/\*\*(.+?)\*\*/g, '<b class="accent">$1</b>'))}</div></div>` : ''}
+          ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div class="aka-text">${raw(akaHtml(c.aka))}</div></div>` : ''}
           ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
           <div class="small-stats"><span><b>${compact(stats.posts)}</b> episode posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
           ${prof ? dossierAbout(c, prof.dossier, { canEdit: prof.canEdit }) : html`<p class="muted small">Loading profile…</p>`}`);

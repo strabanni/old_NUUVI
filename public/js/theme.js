@@ -15,6 +15,10 @@
   var size = null;
   try { size = localStorage.getItem('nuuvi:text'); } catch (e) { /* storage unavailable */ }
   if (size === 'large' || size === 'larger') document.documentElement.dataset.text = size;
+  // Character names in episodes: their own color/gradient (default) or plain, matching the theme.
+  var names = null;
+  try { names = localStorage.getItem('nuuvi:names'); } catch (e) { /* storage unavailable */ }
+  if (names === 'theme') root.dataset.names = 'theme';
 
   // Interface size, on every device. Phones default to Small (closer to Discord's scale), computers
   // to Standard. The whole page is zoomed (heights that use the screen size are divided back by

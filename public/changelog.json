@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-39",
+    "date": "2026-10-14",
+    "title": "Names in your theme, spaces kept",
+    "items": [
+      "Settings → Appearance → Character names in episodes: pick Match my theme to show every name in plain black (Light) or white (Dark) instead of character colors and gradients.",
+      "Extra spaces now show exactly as you type them, in episode posts, captions and AKA lines (indents at the start of a line too)."
+    ]
+  },
+  {
     "code": "NV-38",
     "date": "2026-10-14",
     "title": "Your characters live in the Directory",
