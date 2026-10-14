@@ -5,7 +5,7 @@
     "title": "Feed refresh and smarter tags",
     "items": [
       "On phones, THE : NU has a refresh button at the top to pull in the newest posts.",
-      "Editing a post has a \"Write fresh fan comments\" switch (on by default). The old fan comments are deleted and a new set is written.",
+      "Saving an edit to a post deletes its old fan comments and writes a fresh set that fits.",
       "New switch on posts: \"The people I @mention are in the picture\". Fan comments only say someone is in the photo when it's on."
     ]
   },

@@ -338,7 +338,7 @@ export function socialPostRoutes(r, ctx) {
     const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(row.id);
     if (body.freshComments === true || contentChanged || postedAt !== row.created_at) {
-      setBuzz(db, fresh, Math.max(have, commentsShown ? buzzTarget(commentsShown, row.c_followers) : 0), { followers: row.c_followers });
+      setBuzz(db, fresh, commentsShown ? buzzTarget(commentsShown, row.c_followers) : have, { followers: row.c_followers });
     } else if (commentsShown !== row.comments_display) {
       const want = buzzTarget(commentsShown, row.c_followers);
       if (want !== have) setBuzz(db, fresh, want, { followers: row.c_followers });
