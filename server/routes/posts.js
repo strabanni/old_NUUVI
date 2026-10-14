@@ -47,6 +47,8 @@ export function postRoutes(r, ctx) {
     const text = str(body.body, 'Post', { max: MAX_POST_CHARS }) ?? '';
     if (!text && !media.length) fail(400, 'Write something or add a picture');
     const cw = str(body.cw, 'Content warning', { max: 100 }) ?? '';
+    // Where this post happens, when the scene moves somewhere new.
+    const location = str(body.location, 'Location', { max: 100 }) || null;
     let replyTo = null;
     if (body.replyTo != null) {
       const target = db.prepare('SELECT id, user_id FROM posts WHERE id = ? AND channel_id = ?').get(Number(body.replyTo), channel.id);
@@ -62,8 +64,8 @@ export function postRoutes(r, ctx) {
       characterId = c.id;
     }
 
-    const { lastInsertRowid } = db.prepare(`INSERT INTO posts (story_id, channel_id, user_id, character_id, kind, body, cw, word_count, reply_to, media)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(story.id, channel.id, user.id, characterId, kind, text, cw, countWords(text), replyTo?.id ?? null, JSON.stringify(media));
+    const { lastInsertRowid } = db.prepare(`INSERT INTO posts (story_id, channel_id, user_id, character_id, kind, body, cw, word_count, reply_to, media, location)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(story.id, channel.id, user.id, characterId, kind, text, cw, countWords(text), replyTo?.id ?? null, JSON.stringify(media), location);
     const postId = Number(lastInsertRowid);
     db.prepare("UPDATE stories SET updated_at = datetime('now') WHERE id = ?").run(story.id);
     db.prepare("UPDATE channels SET last_post_at = datetime('now') WHERE id = ?").run(channel.id);

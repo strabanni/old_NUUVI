@@ -1,12 +1,11 @@
 // A channel inside a story: the post feed, turn order bar and composer.
 import {
   html, raw, esc, render, applyColors, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
-  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr, attachSheet,
+  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr, attachSheet, jumpToLatest, formattingGuide,
 } from '../lib.js';
 import {
-  state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon,
-} from '../main.js';
-import { statusPill, openThreadForm } from './threads.js';
+  state, page, loadStory, myCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon, replaceHash } from '../main.js';
+import { statusPill, openThreadForm, askLocation } from './threads.js';
 
 const nameOf = (u) => u?.displayName ?? 'someone';
 // Small post time for episodes: "7:34 PM" today, "Oct 12" before that (full time on hover).
@@ -17,36 +16,6 @@ const shortTime = (sql) => {
 };
 
 // Every formatting code, with what it does. Discord-style shortcuts first, then forum (Jcink) codes.
-const FORMATS = [
-  ['Discord style', null],
-  ['*action* or _italic_', 'italic action'], ['**bold**', 'bold'], ['***bold italic***', 'both at once'], ['__underline__', 'underline'], ['~~strike~~', 'strikethrough'],
-  ['"dialogue"', 'dialogue'], ['||spoiler||', 'hidden until tapped'], ['`code`', 'typewriter text, no formatting inside'],
-  ['```\ncode block\n```', 'a block kept exactly as typed'],
-  ['# Heading', 'big heading (## and ### for smaller ones, at the start of a line)'], ['-# small print', 'small grey text under something'],
-  ['> quote', 'a quote (each line that starts with >)'], ['>>> quote', 'quotes everything after it in the paragraph'],
-  ['- item  /  1. item', 'bullet or numbered list (one per line)'], ['[text](https://…)', 'a link with your own words'],
-  ['https://…/pic.gif', 'picture and GIF links show as the picture'], ['@username', 'mention someone'],
-  ['Forum (Jcink) style', null],
-  ['[center]…[/center]', 'centered (can hold paragraphs); also [left] [right] [align=right]'], ['[indent]…[/indent]', 'indented'],
-  ['[box]…[/box]', 'a box in your character’s color'], ['[quote=Name]…[/quote]', 'a quote block, with who said it'],
-  ['[list][*]one[*]two[/list]', 'bullet list ([list=1] for numbers)'], ['[code]…[/code]', 'a code block'],
-  ['[h]Heading[/h]', 'a big heading'], ['[hr]', 'a divider line (on its own line)'],
-  ['[color=#ff7aa2]…[/color]', 'any color, as a #hex code or a name like red'], ['[highlight=yellow]…[/highlight]', 'highlighted, like a marker'],
-  ['[size=small]…[/size]', 'small, big or huge (or 1–7)'], ['[font=Verdana]…[/font]', 'Arial, Verdana, Trebuchet, Rounded, Mono, Impact or Comic Sans'],
-  ['[caps]…[/caps]', 'ALL CAPS'], ['[b] [i] [u] [s]', 'bold, italic, underline, strike'], ['[sup]…[/sup] [sub]…[/sub]', 'raised or lowered text'],
-  ['[spoiler]…[/spoiler]', 'hidden until tapped'], ['[img]https://…[/img]', 'a picture or GIF from a link'], ['[url=https://…]text[/url]', 'a link'],
-];
-
-function formattingGuide() {
-  modal(html`
-    <div class="fmt-guide">
-      <h2>Formatting</h2>
-      <p class="muted small">Mix and match these to build your own post layouts. Formatted words take your character’s color.</p>
-      <dl>${FORMATS.map(([code, what]) => (what === null ? html`<dt class="fmt-sec">${code}</dt>` : html`<dt><code>${code}</code></dt><dd>${what}</dd>`))}</dl>
-      <div class="actions end"><button type="button" class="primary" data-close>Got it</button></div>
-    </div>`);
-}
-
 function dayLabel(sqlDate) {
   if (!sqlDate) return '';
   const d = new Date(sqlDate.replace(' ', 'T') + 'Z');
@@ -69,7 +38,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   if (!channelIdStr) {
     const last = Number(store.get(`nuuvi:last-channel:${storyId}`));
     const target = s.channels.find((c) => c.id === last) ?? s.channels[0];
-    if (target) return location.replace(`#/s/${storyId}/${target.id}`);
+    if (target) return replaceHash(`#/s/${storyId}/${target.id}`);
     // Every channel was deleted: an empty story with a way to start again.
     const body = page({ alive, title: s.story.title, subtitle: 'No channels yet', body: html`<div class="empty-story">
       ${icons.episode}<h2>Nothing here yet</h2><p class="muted">This story has no channels or episodes.</p>
@@ -79,7 +48,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   }
   const channelId = Number(channelIdStr);
   const channel = () => state.story.channels.find((c) => c.id === channelId);
-  if (!channel()) return location.replace(`#/s/${storyId}`);
+  if (!channel()) return replaceHash(`#/s/${storyId}`);
   store.set(`nuuvi:last-channel:${storyId}`, String(channelId));
 
   // Content warning gate, once per story per device.
@@ -163,6 +132,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   });
   const feed = $('#feed', body);
   const scroller = $('#feed-scroll', body);
+  jumpToLatest(scroller);
 
   // ---------- Feed rendering ----------
   const blocked = (p) => state.blocks.has(p.userId);
@@ -205,6 +175,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
         </header>
         <div class="tp-bar">
           <span class="tp-when"><time title="${timeStamp(p.createdAt)}">${shortTime(p.createdAt)}</time>${p.editedAt ? ' · edited' : ''}</span>
+          ${p.location ? html`<span class="loc-tag" title="Location">${icons.pin} ${p.location}</span>` : ''}
           ${ch ? html`<a href="#/c/${ch.id}" class="tp-act">${icons.profile}<span>Open profile</span></a>` : html`<a href="#/u/${p.userId}" class="tp-act">${icons.profile}<span>Open profile</span></a>`}
           <button class="tp-act star-btn" type="button" data-act="star" aria-pressed="${starred.has(p.id)}">${starred.has(p.id) ? icons.star : icons.starOutline}<span>${starred.has(p.id) ? 'Starred' : 'Star'}</span></button>
           ${menuBtn}
@@ -234,7 +205,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       <article class="bubble ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''} kind-${p.kind}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"${gradAttr(ch)}` : ''}>
         ${mine ? '' : html`<a class="b-av" href="${ch ? `#/c/${ch.id}` : `#/u/${p.userId}`}">${grouped ? '' : av}</a>`}
         <div class="b-col">
-          ${grouped ? '' : html`<div class="b-name">${ch ? html`<a href="#/c/${ch.id}" class="cast-name" data-color="${ch.color}">${name}</a>` : html`<a href="#/u/${p.userId}">${name}</a>`}${p.kind === 'ooc' && storyStyle() ? html` <span class="ooc-badge">OOC</span>` : ''}</div>`}
+          ${grouped ? '' : html`<div class="b-name">${ch ? html`<a href="#/c/${ch.id}" class="cast-name" data-color="${ch.color}">${name}</a>` : html`<a href="#/u/${p.userId}">${name}</a>`}${p.kind === 'ooc' && storyStyle() ? html` <span class="ooc-badge">OOC</span>` : ''}${p.location ? html` <span class="loc-tag">${icons.pin} ${p.location}</span>` : ''}</div>`}
           <div class="b-bubble ${p.body ? '' : 'pics-only'}">
             ${p.replyTo ? html`<button type="button" class="b-reply" data-act="jump" data-to="${p.replyTo.id}" data-color="${p.replyTo.color || ''}">
               ${icons.reply}<b>${p.replyTo.name}</b><span>${p.replyTo.text || (p.replyTo.hasMedia ? 'Picture' : '')}</span></button>` : ''}
@@ -271,14 +242,16 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       return html`<div class="channel-start"><div class="big-hash">${kindIcon(ch.kind)}</div><h2>Welcome to #${ch.name}</h2><p class="muted">${ch.topic || 'This is the beginning of the channel.'}</p></div>`;
     }
     return html`
+      ${ch.banner ? html`<figure class="th-banner"><img src="${ch.banner}" alt="" class="fx-img"></figure>` : ''}
       <section class="thread-head">
         ${when ? html`<div class="event-date"><span>${when.toLocaleDateString(undefined, { month: 'short' })}</span><b>${when.getDate()}</b></div>` : ''}
-        <span class="eyebrow">${KIND_LABELS[ch.kind]} · ${state.story.story.title}</span>
+        <span class="eyebrow">${ch.season ? `Season ${ch.season} · ` : ''}${KIND_LABELS[ch.kind]} · ${state.story.story.title}</span>
         ${ch.icon ? html`<span class="th-icon">${channelIcon(ch)}</span>` : ''}
         <h1 class="th-title">${ch.kind === 'comms' && commsTitle() ? commsTitle() : ch.name}</h1>
         ${ch.kind === 'comms' ? html`<p class="muted small">${commsTitle() ? `${ch.name} · ` : ''}<button class="link" id="contacts-btn" type="button">Edit contact names</button></p>` : ''}
         <div class="th-meta">
           ${statusPill(ch)}
+          ${ch.location ? html`<span class="pill-tag th-loc">${icons.pin} ${ch.location}</span>` : ''}
           ${when ? html`<span class="pill-tag">${when.toLocaleString(undefined, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>` : ''}
           ${ch.tags.map((t) => html`<span class="tag">#${t}</span>`)}
         </div>
@@ -519,11 +492,13 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const extra = $('#composer-extra', form);
     let attached = [];
     let replying = null;
+    let place = ''; // a new location for this post, when the scene moves
 
-    // Reply bar and attached pictures, above the text box.
+    // Reply bar, a new location and attached pictures, above the text box.
     function drawExtra() {
-      extra.hidden = !replying && !attached.length;
+      extra.hidden = !replying && !attached.length && !place;
       render(extra, html`
+        ${place ? html`<div class="reply-bar loc-bar">${icons.pin}<span>Moving to <b>${place}</b></span><button type="button" class="icon-btn sm" id="loc-cancel" aria-label="Remove location">✕</button></div>` : ''}
         ${replying ? html`<div class="reply-bar">${icons.reply}<span>Replying to <b>${replying.character ? shownName(replying.character) : replying.author.displayName}</b>
           <small>${plainText(replying.body) || 'Picture'}</small></span><button type="button" class="icon-btn sm" id="reply-cancel" aria-label="Cancel reply">✕</button></div>` : ''}
         ${attached.length ? html`<div class="attach-row">${attached.map((u, i) => html`
@@ -531,6 +506,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     }
     extra.addEventListener('click', (e) => {
       if (e.target.closest('#reply-cancel')) { replying = null; drawExtra(); return; }
+      if (e.target.closest('#loc-cancel')) { place = ''; drawExtra(); return; }
       const rm = e.target.closest('[data-unattach]');
       if (rm) { attached.splice(Number(rm.dataset.unattach), 1); drawExtra(); }
     });
@@ -592,6 +568,14 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     };
     cwChip.addEventListener('click', () => { cw = ''; cwChip.hidden = true; });
 
+    // Drops a formatting code in where the cursor is.
+    const insertText = (code) => {
+      const at = ta.selectionStart ?? ta.value.length;
+      ta.value = `${ta.value.slice(0, at)}${code}${ta.value.slice(ta.selectionEnd ?? at)}`;
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = at + code.length;
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    };
     const moreBtn = $('#more-btn', form);
     moreBtn.addEventListener('click', () => {
       if (attached.length >= 10) toast('Up to 10 pictures per post');
@@ -599,10 +583,11 @@ export async function viewChannel(storyIdStr, channelIdStr) {
         max: Math.max(0, 10 - attached.length),
         onPictures: (urls) => { attached.push(...urls.slice(0, 10 - attached.length)); drawExtra(); ta.focus(); },
         extras: [
+          channel().kind !== 'ooc' && { label: 'Location', icon: icons.pin, action: async () => { const l = await askLocation(place || ''); if (l !== null) { place = l; drawExtra(); } } },
           { label: cw ? 'Change warning' : 'Warning', icon: icons.warning, action: askCw },
           detail.canManage && channel().kind !== 'ooc' && { label: 'Episode', icon: icons.episode, action: editThread },
           channel().kind === 'comms' && { label: 'Contacts', icon: icons.users, action: editContacts },
-          { label: 'Formatting', icon: icons.text, action: formattingGuide },
+          { label: 'Formatting', icon: icons.text, action: () => formattingGuide({ insert: insertText }) },
         ],
       });
     });
@@ -623,9 +608,10 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     bindForm(form, async () => {
       const text = ta.value.trim();
       if (!text && !attached.length) return;
-      await sendPost({ ...payloadBase(), body: text, cw, media: attached, replyTo: replying?.id ?? null });
+      await sendPost({ ...payloadBase(), body: text, cw, media: attached, replyTo: replying?.id ?? null, location: place || undefined });
       ta.value = '';
       cw = '';
+      place = '';
       attached = [];
       replying = null;
       drawExtra();

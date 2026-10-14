@@ -941,3 +941,79 @@ test('a story marked complete goes to the Archive: read-only until reopened', as
   assert.equal((await owner('/api/home')).data.stories.find((s) => s.id === story.id).completedAt, null);
   assert.equal((await post(owner, main.id, { kind: 'ooc', body: 'we are back' })).status, 201);
 });
+
+test('character profiles: anyone reads, the writer (or an admin) edits; pronouns come from the profile', async () => {
+  const w = await app.signUp('dossier_writer');
+  const other = await app.signUp('dossier_reader');
+  const c = (await w('/api/characters', { method: 'POST', body: { name: 'Shiloh Rockwell', color: '#8fa3c9' } })).data.character;
+  const empty = await other(`/api/profiles/${c.id}`);
+  assert.equal(empty.status, 200);
+  assert.equal(empty.data.canEdit, false);
+  assert.equal((await other(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { quote: 'nope' } } })).status, 404);
+  const saved = await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: {
+    quote: 'bass first, questions later', traits: ['loyal', 'reckless'],
+    facts: { age: '25', pronouns: 'he/him', occupation: 'bassist', bogus: 'x' },
+    sections: { history: 'Born in **Portland**.' }, playlist: [{ title: 'Ditto', artist: 'NewJeans' }, { title: '' }],
+  } } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.data));
+  assert.equal(saved.data.dossier.facts.bogus, undefined);
+  assert.equal(saved.data.dossier.playlist.length, 1);
+  assert.equal(saved.data.character.pronouns, 'he/him');
+  const list = (await other('/api/profiles')).data.profiles.find((p) => p.id === c.id);
+  assert.equal(list.quote, 'bass first, questions later');
+  assert.equal(list.occupation, 'bassist');
+  assert.equal((await app.admin(`/api/profiles/${c.id}`)).data.canEdit, true);
+});
+
+test('episodes carry a picture, a season and a location; posts and social posts can tag a place', async () => {
+  const w = await app.signUp('ep_maker');
+  const { story } = await makeStory(w);
+  const ch = (await w('/api/characters', { method: 'POST', body: { name: 'Mina', color: '#c97a96' } })).data.character;
+  const made = await w(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'the rooftop', kind: 'thread', season: 2, location: 'Gangnam rooftop', banner: 'https://example.com/a.jpg' } });
+  assert.equal(made.status, 201, JSON.stringify(made.data));
+  assert.equal(made.data.channel.season, 2);
+  assert.equal(made.data.channel.location, 'Gangnam rooftop');
+  assert.equal(made.data.channel.banner, 'https://example.com/a.jpg');
+  assert.equal((await w(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'bad', season: 0 } })).status, 400);
+  const p = await post(w, made.data.channel.id, { kind: 'ic', characterId: ch.id, body: 'She followed him downstairs.', location: 'The basement bar' });
+  assert.equal(p.status, 201, JSON.stringify(p.data));
+  assert.equal(p.data.post.location, 'The basement bar');
+  const sp = await w('/api/social', { method: 'POST', body: { characterId: ch.id, kind: 'text', body: 'coffee run', location: 'Seongsu' } });
+  assert.equal(sp.data.post.location, 'Seongsu');
+  const feed = (await w('/api/feed?filter=all')).data.items.find((i) => i.type === 'thread' && i.id === made.data.channel.id);
+  assert.equal(feed.banner, 'https://example.com/a.jpg');
+  assert.equal(feed.season, 2);
+  const { locations } = (await w('/api/locations')).data;
+  for (const l of ['Gangnam rooftop', 'The basement bar', 'Seongsu']) assert.ok(locations.includes(l), l);
+});
+
+test('username changes have a 3-hour cool-off, and About can be hidden', async () => {
+  const u = await app.signUp('renamer');
+  const first = await u('/api/me', { method: 'PUT', body: { username: 'renamed_once' } });
+  assert.equal(first.status, 200, JSON.stringify(first.data));
+  assert.equal(first.data.user.username, 'renamed_once');
+  const again = await u('/api/me', { method: 'PUT', body: { username: 'renamed_twice' } });
+  assert.equal(again.status, 429);
+  assert.match(again.data.error, /again in/);
+  await app.signUp('taken_name');
+  // Saving other things with the same username is fine.
+  assert.equal((await u('/api/me', { method: 'PUT', body: { username: 'renamed_once', bio: 'hi there', showAbout: false } })).status, 200);
+  const id = first.data.user.id;
+  const seen = (await (await app.signUp('about_viewer'))(`/api/users/${id}`)).data.user;
+  assert.equal(seen.showAbout, false);
+  assert.equal(seen.bio, '');
+});
+
+test('crowd comments use the poster\'s pronouns and react to the post', async () => {
+  const { sampleBuzz, pronounSet } = await import('../server/buzz.js');
+  assert.equal(pronounSet('she/her').sub, 'she');
+  assert.equal(pronounSet('he/him').obj, 'him');
+  assert.equal(pronounSet('').sub, 'they');
+  assert.equal(pronounSet('they/them').pos, 'their');
+  let seed = 1;
+  const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const lines = sampleBuzz({ body: 'new fit tonight', kind: 'photo', location: 'Paris' }, { name: 'Mina Park', pronouns: 'she/her' }, 300, rand);
+  assert.ok(!lines.some((l) => /\b(he|him|his)\b/i.test(l)), 'no wrong pronouns');
+  assert.ok(lines.some((l) => /fit|jacket|shoes|stylist/i.test(l)), 'reacts to the outfit');
+  assert.ok(lines.some((l) => /overrated|trying|unfollow|stylist|crime|didn't need|desperation|pr team|filter/i.test(l)), 'some critics too');
+});

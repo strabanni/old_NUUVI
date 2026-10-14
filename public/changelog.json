@@ -1,5 +1,23 @@
 [
   {
+    "code": "NV-19",
+    "date": "2026-10-14",
+    "title": "Profiles, episode covers and a cleaner phone",
+    "items": [
+      "Profiles: a new place (the card icon in the left bar, or the menu) with a detailed profile for every character, NPCs included: quick facts, personality, history, relationships, loves and hates, a gallery and a playlist.",
+      "Episodes can have their own picture, a season number and a location. THE : NU shows the episode's picture instead of the story's.",
+      "Tag a location on THE : NU posts, and in episodes: the Location button in the + panel marks where the scene moves to.",
+      "Fan comments sound like real people: they react to what you posted, use your character's pronouns (set them in their profile), and not all of them are nice.",
+      "Videos on THE : NU play by themselves, muted, shaped to the video; tap the speaker for sound.",
+      "On phones the app stays between the clock and the home bar, with a soft fade at each edge. The left bar has more breathing room.",
+      "The phone's back arrow and the top back button no longer fight each other.",
+      "Messages: more space above names (they're no longer tappable by accident) and a Jump to latest button when you scroll up. Also in episodes and phone texts.",
+      "Pictures upload sharper, editors show the best sizes, and very small pictures get a heads-up.",
+      "HTML works in posts and profiles (<center>, <b>, <span style=\"color: …\">…), and the formatting guide has Copy and Insert buttons plus ready-made layouts.",
+      "Change your username in Settings (once every 3 hours), and choose whether About shows on your profile."
+    ]
+  },
+  {
     "code": "NV-18",
     "date": "2026-10-13",
     "title": "THE : NU, connections and messages",

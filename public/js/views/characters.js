@@ -27,6 +27,7 @@ function characterForm(c = {}) {
           <span class="row-inline"><label class="btn sm file-btn">Avatar picture<input type="file" accept="image/*" id="pic-file" hidden></label><button type="button" class="sm link-btn" data-link="avatar">Link</button></span>
           <span class="row-inline"><label class="btn sm file-btn">Portrait (big picture)<input type="file" accept="image/*" id="portrait-file" hidden></label><button type="button" class="sm link-btn" data-link="portrait">Link</button></span>
           <span class="hint" id="portrait-state">${c.portrait ? 'Portrait set ✓' : 'Shown large on their character card'}</span>
+          <span class="hint size-hint">Best sizes: avatar 800 × 800 (square) · portrait 1200 × 1500 (4:5, tall) · banner 1800 × 600 (3:1)</span>
           <span class="row-inline">
             <label class="btn sm file-btn">Profile banner<input type="file" accept="image/*" id="banner-file" hidden></label><button type="button" class="sm link-btn" data-link="banner">Link</button>
             <button type="button" class="sm" id="banner-clear" ${c.banner ? '' : 'hidden'}>Remove banner</button>
@@ -296,6 +297,7 @@ export async function viewCharacter(id) {
           ${own ? html`<button id="edit">Edit profile</button><button class="primary" id="new-post">${icons.plus} New post</button>`
             : html`<button class="${following ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>
               <button id="start-thread">${icons.episode} Start an episode</button>`}
+          <a class="btn" href="#/profiles/${c.id}">${icons.card} Full profile</a>
         </div>
         <nav class="ig-tabs" role="tablist">
           <button role="tab" data-tab="posts">${icons.grid}<span>Posts</span></button>

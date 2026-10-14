@@ -49,11 +49,11 @@ export async function viewUser(id) {
       </div>
       ${info.length ? html`<div class="info-grid">${info.map(([k, v]) => html`<div class="info"><span class="eyebrow">${k}</span><div>${v}</div></div>`)}</div>` : ''}
       <div class="profile-cols">
-        <section class="card">
-          <span class="eyebrow">About</span>
-          ${u.bio ? html`<div class="prose spaced">${formatPost(u.bio)}</div>` : html`<p class="muted spaced"><em>No information</em></p>`}
-          ${p.lookingFor ? html`<span class="eyebrow block-gap">Looking for</span><div class="prose">${formatPost(p.lookingFor)}</div>` : ''}
-        </section>
+        ${u.showAbout !== false || p.lookingFor ? html`<section class="card">
+          ${u.showAbout !== false ? html`<span class="eyebrow">About</span>
+          ${u.bio ? html`<div class="prose spaced">${formatPost(u.bio)}</div>` : html`<p class="muted spaced"><em>No information</em></p>`}` : ''}
+          ${p.lookingFor ? html`<span class="eyebrow ${u.showAbout !== false ? 'block-gap' : ''}">Looking for</span><div class="prose">${formatPost(p.lookingFor)}</div>` : ''}
+        </section>` : ''}
         ${styles.length ? html`<section class="card"${userGrad(u)}>
           <span class="eyebrow">Writing style</span>
           <div class="spaced">${styles.map(([k, label]) => html`
@@ -105,6 +105,13 @@ export async function enablePush() {
   await api('/api/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
 }
 
+// When the username can next be changed (once every 3 hours).
+function usernameHint(u) {
+  const at = u.usernameChangedAt ? new Date(`${u.usernameChangedAt.replace(' ', 'T')}Z`).getTime() + 3 * 3600000 : 0;
+  if (at > Date.now()) return `You changed it recently. You can change it again at ${new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+  return 'No spaces. You can change it once every 3 hours. Old @mentions keep the old name.';
+}
+
 export async function viewSettings() {
   const alive = routeAlive();
   const u = state.user;
@@ -142,12 +149,16 @@ export async function viewSettings() {
                 <span class="row-inline"><label class="btn sm file-btn">Profile picture<input type="file" accept="image/*" id="me-file" hidden></label><button type="button" class="sm link-btn" data-link="avatar">Link</button></span>
                 <span class="row-inline"><label class="btn sm file-btn">Banner<input type="file" accept="image/*" id="banner-file" hidden></label><button type="button" class="sm link-btn" data-link="banner">Link</button></span>
                 <span class="hint" id="banner-state">${u.banner ? 'Banner set ✓' : 'A wide picture for the top of your profile'}</span>
+                <span class="hint size-hint">Best sizes: picture 800 × 800 (square) · banner 1800 × 600 (3:1)</span>
                 <input type="hidden" name="avatar" value="${u.avatar || ''}">
                 <input type="hidden" name="banner" value="${u.banner || ''}">
               </div>
             </div>
             <label for="p-name">Display name</label>
             <input id="p-name" name="displayName" required maxlength="40" value="${u.displayName}">
+            <label for="p-username">Username</label>
+            <div class="username-field"><span>@</span><input id="p-username" name="username" required maxlength="100" autocomplete="off" autocapitalize="none" spellcheck="false" value="${u.username}"></div>
+            <p class="hint">${usernameHint(u)}</p>
             <label>Your colors</label>
             <div class="grad-box me-grad"${userGrad(u)}>
               <div class="grad-presets">${GRADIENT_PRESETS.map((g, i) => html`<button type="button" class="grad-preset" data-preset="${i}" data-grad="${g.join(',')}" aria-label="Gradient ${i + 1}"></button>`)}</div>
@@ -176,6 +187,7 @@ export async function viewSettings() {
             <input id="p-status" name="status" maxlength="80" value="${pr.status || ''}" placeholder="drowning in drafts">
             <label for="p-bio">About you</label>
             <textarea id="p-bio" name="bio" maxlength="2000" rows="4" placeholder="Writing style, favourite genres, reply speed…">${u.bio}</textarea>
+            <label class="check toggle-row"><input type="checkbox" name="showAbout" ${u.showAbout !== false ? 'checked' : ''}> Show “About” on my profile</label>
             <label>Writing style</label>
             ${STYLE_LABELS.map(([k, label]) => html`
               <div class="meter"><div class="meter-head"><span>${label}</span><span id="v-${k}">${pr.styles?.[k] ?? '—'}${pr.styles?.[k] !== undefined ? '%' : ''}</span></div>
@@ -312,10 +324,11 @@ export async function viewSettings() {
   bindForm(profile, async (data) => {
     const styles = {};
     for (const r of profile.querySelectorAll('input[type=range]')) if (r.dataset.set) styles[r.name.slice(6)] = Number(r.value);
-    const { displayName, bio, avatar: av, banner, ...rest } = data;
+    const { displayName, bio, avatar: av, banner, username, ...rest } = data;
     const fields = {};
     for (const k of ['pronouns', 'age', 'timezone', 'status', 'activity', 'plots', 'lookingFor', 'limits']) fields[k] = rest[k] ?? '';
-    const payload = { displayName, bio, profile: { ...fields, styles }, gradient: stops() };
+    const payload = { displayName, bio, profile: { ...fields, styles }, gradient: stops(), showAbout: !!$('[name=showAbout]', body).checked };
+    if (username && username.trim().replace(/^@/, '') !== state.user.username) payload.username = username.trim().replace(/^@/, '');
     if (av) payload.avatar = av;
     if (banner) payload.banner = banner;
     state.user = (await api('/api/me', { method: 'PUT', body: payload })).user;

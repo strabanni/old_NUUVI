@@ -1,8 +1,8 @@
 // Phones: each character has one, with contacts and private one-to-one texts.
 // Styled after a modern messaging app: a soft gradient header, a contact strip and a chat list,
 // and conversations on a gradient with small frosted bubbles.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, promptModal, formatPost, uploadImage, askImageLink, plainText, applyColors, store, attachSheet } from '../lib.js';
-import { state, page, myCharacters, routeAlive, ensureAlive, onLeave, bus, loadStory } from '../main.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, promptModal, formatPost, uploadImage, askImageLink, plainText, applyColors, store, attachSheet, jumpToLatest } from '../lib.js';
+import { state, page, myCharacters, routeAlive, ensureAlive, onLeave, bus, loadStory, replaceHash, previousHash } from '../main.js';
 
 const lastKey = 'nuuvi:phone';
 const clock = (sql) => new Date(`${sql.replace(' ', 'T')}Z`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -77,8 +77,8 @@ export async function viewPhone(cidStr) {
     return;
   }
   const cid = Number(cidStr) || Number(store.get(lastKey)) || mine[0].id;
-  if (!mine.some((c) => c.id === cid)) return location.replace(`${phoneBase()}/${mine[0].id}`);
-  if (!cidStr) return location.replace(`${phoneBase()}/${cid}`);
+  if (!mine.some((c) => c.id === cid)) return replaceHash(`${phoneBase()}/${mine[0].id}`);
+  if (!cidStr) return replaceHash(`${phoneBase()}/${cid}`);
   store.set(lastKey, String(cid));
   const data0 = await api(`/api/phone/${cid}`);
   ensureAlive(alive);
@@ -210,7 +210,7 @@ export async function viewPhoneThread(cidStr, tidStr) {
     <div class="phone chat">
       <section class="ph-chat">
         <header class="ph-chat-head">
-          <a class="ph-back" href="${phoneBase()}/${cid}" aria-label="Back">${icons.back}</a>
+          <a class="ph-back" href="${phoneBase()}/${cid}" data-ph-back aria-label="Back">${icons.back}</a>
           <a class="ph-chat-av" href="#/c/${other.id}">${avatar({ name: other.name, src: other.avatar, color: other.color, size: 'sm' })}</a>
           <h2>${thread.name}</h2>
           <span class="ph-chat-actions">
@@ -234,6 +234,7 @@ export async function viewPhoneThread(cidStr, tidStr) {
     }).catch(() => {});
   }
   const list = $('#ph-msgs', body);
+  jumpToLatest(list);
   const form = $('#ph-compose', body);
   const input = $('#ph-input', body);
   const extra = $('#ph-extra', body);
@@ -327,6 +328,13 @@ export async function viewPhoneThread(cidStr, tidStr) {
     onPictures: (urls) => { attached.push(...urls.slice(0, 10 - attached.length)); drawExtra(); },
   }));
   $('#ph-call', body).addEventListener('click', () => toast(`Calling ${thread.name}… 📞 (calls are just for the story)`));
+  // The phone's own back arrow is a real "back": if the page before was this phone's list, step back
+  // to it (so the top Back button keeps working); otherwise swap to the list without adding a step.
+  $('[data-ph-back]', body).addEventListener('click', (e) => {
+    e.preventDefault();
+    const list = e.currentTarget.getAttribute('href');
+    if (previousHash() === list) history.back(); else replaceHash(list);
+  });
 
   let sending = false;
   form.addEventListener('input', () => form.classList.toggle('has-text', !!input.value.trim()));

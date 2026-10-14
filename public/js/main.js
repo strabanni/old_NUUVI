@@ -17,6 +17,7 @@ import { viewDirectory } from './views/directory.js';
 import { viewPhone, viewPhoneThread } from './views/phone.js';
 import { viewLore } from './views/overview.js';
 import { viewArchive } from './views/archive.js';
+import { viewProfiles, viewProfile } from './views/profiles.js';
 import { viewNpcs } from './views/npcs.js';
 import { viewSocialPost } from './views/social.js';
 
@@ -230,15 +231,18 @@ function renderRail() {
   const archivedCount = state.home.stories.filter((s) => s.completedAt).length;
   const activeStory = state.home.stories.find((s) => s.id === state.route.storyId);
   const inArchive = /^#\/archive/.test(location.hash) || !!activeStory?.completedAt;
+  const inProfiles = /^#\/profiles/.test(location.hash);
   const active = inArchive ? null : state.route.storyId;
   render(rail, html`
     <button type="button" class="rail-item rail-logo ${state.online.length > 1 ? 'others' : ''}" id="online-btn"
       title="NUUVI · ${state.online.length} online" aria-label="NUUVI — ${state.online.length} people online">
       ${logoMark}<span class="online-badge"><span class="pulse"></span>${state.online.length || ''}</span>
     </button>
-    <a href="#/home" class="rail-item home-link ${!active && !inArchive ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
+    <div class="rail-sep rail-sep-top"></div>
+    <a href="#/home" class="rail-item home-link ${!active && !inArchive && !inProfiles ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
     <a href="#/archive" class="rail-item archive-link ${inArchive ? 'active' : ''}" title="Archive: completed stories" aria-label="Archive">${icons.archive}${archivedCount ? html`<i class="rail-count">${archivedCount}</i>` : ''}</a>
-    <div class="rail-sep"></div>
+    <a href="#/profiles" class="rail-item profiles-link ${inProfiles ? 'active' : ''}" title="Profiles: every character in detail" aria-label="Profiles">${icons.card}</a>
+    <div class="rail-sep rail-sep-stories"></div>
     ${state.home.stories.filter((s) => !s.completedAt).map((s) => html`
       <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" data-story-id="${s.id}" draggable="false" title="${s.title}" aria-label="${s.title}">
         <span class="pill"></span>${storyIcon(s)}
@@ -321,6 +325,8 @@ function renderSidebar() {
         ${link('#/characters', 'Characters', icons.user)}
         ${link('#/directory', 'Directory', icons.users)}
         ${link('#/npcs', 'NPCs', icons.sparkles)}
+        ${link('#/profiles', 'Profiles', icons.card)}
+        ${link('#/archive', 'Archive', icons.archive)}
         ${link('#/lore', 'Lore', icons.book)}
         ${link('#/discover', 'Discover', icons.compass)}
         ${state.user.isAdmin ? link('#/admin', 'Admin', icons.shield, state.home.reportsOpen) : ''}
@@ -508,9 +514,34 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
 }
 
 // How many pages deep we are in this visit (for the back button).
-let navDepth = 0;
-let backing = false;
-window.addEventListener('hashchange', () => { navDepth = backing ? Math.max(0, navDepth - 1) : navDepth + 1; backing = false; });
+// Each history entry is stamped with its depth (and the page before it), so Back always knows
+// where it will land: going back, going forward and replacing a page are all told apart.
+let replacing = false;
+let navDepth = Number.isInteger(history.state?.nv) ? history.state.nv : 0;
+const stamp = (nv, prev) => history.replaceState({ ...(history.state || {}), nv, prev }, '', location.href);
+if (!Number.isInteger(history.state?.nv)) stamp(0, null);
+let currentHash = location.hash || '#/';
+let currentPrev = history.state?.prev ?? null;
+window.addEventListener('hashchange', (e) => {
+  const before = currentHash;
+  currentHash = location.hash || '#/';
+  if (replacing) { replacing = false; stamp(navDepth, currentPrev); return; }
+  if (Number.isInteger(history.state?.nv)) { navDepth = history.state.nv; currentPrev = history.state.prev ?? null; return; } // back or forward
+  navDepth += 1;
+  currentPrev = new URL(e.oldURL).hash || before;
+  stamp(navDepth, currentPrev);
+});
+// Swap the current page for another without adding a step to Back.
+export function replaceHash(hash) {
+  if ((location.hash || '#/') === hash) return;
+  replacing = true;
+  location.replace(hash);
+}
+// The page Back would return to (null at the first page).
+export const previousHash = () => (navDepth > 0 ? currentPrev : null);
+export function goBack(fallback = '#/home') {
+  if (navDepth > 0) history.back(); else location.hash = fallback;
+}
 
 // Pictures people send (in messages, texts, chats, episodes and formatted posts) open in the
 // in-app viewer instead of a new tab.
@@ -680,7 +711,7 @@ function setupDrawer() {
     if (e.target.closest('#online-btn')) { showOnline(e.target.closest('#online-btn')); return; }
     if (e.target.closest('[data-back]')) {
       // Back to the previous page in NUUVI, or Home if this was the first page opened.
-      if (navDepth > 0) { backing = true; history.back(); } else location.hash = '#/home';
+      goBack();
       return;
     }
     const ub = e.target.closest('[data-ub]');
@@ -829,15 +860,15 @@ function handleLive(type, data) {
 
 // ---------- Routing ----------
 const routes = [
-  [/^#\/?$/, () => (state.user ? location.replace('#/home') : viewLanding())],
-  [/^#\/register\/([\w-]+)$/, (code) => (state.user ? location.replace('#/home') : viewLanding({ invite: code }))],
+  [/^#\/?$/, () => (state.user ? replaceHash('#/home') : viewLanding())],
+  [/^#\/register\/([\w-]+)$/, (code) => (state.user ? replaceHash('#/home') : viewLanding({ invite: code }))],
   [/^#\/reset\/([\w-]+)$/, (token) => viewReset(token)],
   [/^#\/home$/, viewHome, true],
   [/^#\/discover$/, viewDiscover],
   [/^#\/messages$/, () => viewMessages(), true],
   [/^#\/messages\/(\d+)$/, viewMessages, true],
   [/^#\/nu$/, viewNu, true],
-  [/^#\/feed$/, () => location.replace('#/nu'), true],
+  [/^#\/feed$/, () => replaceHash('#/nu'), true],
   [/^#\/events$/, viewEvents, true],
   [/^#\/e\/(\d+)$/, viewEvent, true],
   [/^#\/p\/(\d+)$/, viewSocialPost, true],
@@ -848,6 +879,8 @@ const routes = [
   [/^#\/npcs$/, viewNpcs, true],
   [/^#\/lore$/, viewLore, true],
   [/^#\/archive$/, viewArchive, true],
+  [/^#\/profiles$/, viewProfiles, true],
+  [/^#\/profiles\/(\d+)$/, viewProfile, true],
   [/^#\/phone(?:\/(\d+))?$/, viewPhone, true],
   [/^#\/phone\/(\d+)\/t\/(\d+)$/, viewPhoneThread, true],
   [/^#\/c\/(\d+)$/, viewCharacter],
@@ -860,7 +893,7 @@ const routes = [
   [/^#\/s\/\d+\/phone(?:\/(\d+))?$/, viewPhone, true],
   [/^#\/s\/\d+\/phone\/(\d+)\/t\/(\d+)$/, viewPhoneThread, true],
   // Old story-overview links lead to the one Lore page.
-  [/^#\/s\/(\d+)\/overview$/, () => location.replace('#/lore'), true],
+  [/^#\/s\/(\d+)\/overview$/, () => replaceHash('#/lore'), true],
   [/^#\/s\/(\d+)(?:\/(\d+))?$/, viewChannel],
 ];
 
@@ -888,7 +921,7 @@ export async function router() {
   const [re, fn, needsUser] = found;
   if (needsUser && !state.user) {
     store.set('nuuvi:after-login', hash);
-    return location.replace('#/');
+    return replaceHash('#/');
   }
   try {
     await fn(...hash.match(re).slice(1));
@@ -896,7 +929,7 @@ export async function router() {
     if (err instanceof StaleView) return;
     if (err.status === 401) {
       store.set('nuuvi:after-login', hash);
-      return location.replace('#/');
+      return replaceHash('#/');
     }
     page({ title: err.status === 404 ? 'Not found' : 'Something went wrong', body: html`<div class="empty"><p>${err.message}</p><a href="#/home">Go home</a></div>` });
   }
@@ -927,7 +960,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-18';
+export const APP_BUILD = 'NV-19';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

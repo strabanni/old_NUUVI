@@ -71,16 +71,47 @@ export async function uploadBanner(file) {
   const w = bitmap.width;
   const h = Math.min(bitmap.height, Math.round(w / 3));
   const cw = h === bitmap.height ? Math.round(h * 3) : w;
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.min(1800, cw);
-  canvas.height = Math.round(canvas.width / 3);
+  const width = Math.min(2400, cw);
+  if (cw < 900) toast(`Heads-up: this picture is narrow (${bitmap.width} px wide); headers look best 1800 px wide or more.`);
   // Faces usually sit in the upper half, so the crop leans a little above center.
   const sy = Math.max(0, Math.round((bitmap.height - h) * 0.4));
   const sx = Math.max(0, Math.round((w - cw) / 2));
-  canvas.getContext('2d').drawImage(bitmap, sx, sy, cw, h, 0, 0, canvas.width, canvas.height);
-  let blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', 0.88));
-  if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.88));
-  return uploadFile(blob);
+  const canvas = drawSharp(bitmap, sx, sy, cw, h, width, Math.round(width / 3));
+  return uploadFile(await encode(canvas));
+}
+
+// Pictures go up sharp: they're kept at twice the size they're shown (for phone screens), shrunk
+// in gentle steps with the browser's best smoothing, and saved at high quality. A picture that's
+// already small enough goes up untouched. Very small pictures get a heads-up that they may look soft.
+const sharpSize = (maxSize) => Math.min(2560, Math.max(800, Math.round(maxSize * 2)));
+async function encode(canvas) {
+  let blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', 0.92));
+  if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.92));
+  return blob;
+}
+function drawSharp(bitmap, sx, sy, sw, sh, w, h) {
+  // Halve the picture until it's close to the target, then draw it at the final size.
+  let src = bitmap;
+  let cw = sw;
+  let ch = sh;
+  let x = sx;
+  let y = sy;
+  while (cw / 2 > w && ch / 2 > h) {
+    const step = document.createElement('canvas');
+    step.width = Math.round(cw / 2);
+    step.height = Math.round(ch / 2);
+    const g = step.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(src, x, y, cw, ch, 0, 0, step.width, step.height);
+    src = step; cw = step.width; ch = step.height; x = 0; y = 0;
+  }
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = h;
+  const g = out.getContext('2d');
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(src, x, y, cw, ch, 0, 0, w, h);
+  return out;
 }
 
 export async function uploadImage(file, maxSize = 640) {
@@ -91,17 +122,14 @@ export async function uploadImage(file, maxSize = 640) {
     return uploadFile(file);
   }
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  let blob = await new Promise((r) => canvas.toBlob(r, 'image/webp', 0.88));
-  if (!blob || blob.type !== 'image/webp') blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
-  const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob, credentials: 'same-origin' });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Upload failed');
-  return data.url;
+  const target = sharpSize(maxSize);
+  const longest = Math.max(bitmap.width, bitmap.height);
+  if (longest < Math.min(600, maxSize)) toast(`Heads-up: this picture is small (${bitmap.width} × ${bitmap.height}), so it may look soft when shown big.`);
+  // Already the right size, in a format browsers show everywhere: send it as it is (no re-saving).
+  if (longest <= target && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 7.5 * 1024 * 1024) return uploadFile(file);
+  const scale = Math.min(1, target / longest);
+  const canvas = drawSharp(bitmap, 0, 0, bitmap.width, bitmap.height, Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
+  return uploadFile(await encode(canvas));
 }
 
 // Uploads a file as-is (videos, audio). Images should go through uploadImage instead.
@@ -303,6 +331,65 @@ function blocks(text) {
   return `${paragraphs(before)}${inner}${blocks(after)}`;
 }
 
+// Simple HTML works too (<center>, <b>, <i>, <br>, <font color>, <span style="color: …">, <a href>,
+// <img src>, <h1>…): each tag is turned into the matching formatting code, so nothing unsafe can
+// get through. (The text arrives already escaped, so tags look like &lt;b&gt; here.)
+const Q = '(?:&quot;|&#39;)?';
+const attr = (name) => new RegExp(`\\b${name}\\s*=\\s*${Q}([^&\\s>]+(?:\\s[^&>]*?)?)${Q}(?=\\s|&gt;|/)`, 'i');
+const styleProp = (style, prop) => (style.match(new RegExp(`${prop}\\s*:\\s*([^;&]+)`, 'i')) || [])[1]?.trim();
+function htmlCodes(s) {
+  if (!/&lt;\/?[a-z]/i.test(s)) return s;
+  const pair = (tags, fn) => {
+    const re = new RegExp(`&lt;(${tags})((?:\\s[^]*?)?)&gt;([\\s\\S]*?)&lt;\\/\\1\\s*&gt;`, 'gi');
+    let prev;
+    do { prev = s; s = s.replace(re, (m, tag, attrs, inner) => fn(tag.toLowerCase(), attrs || '', inner)); } while (s !== prev);
+  };
+  const aligned = (attrs, inner, fallback = null) => {
+    const a = (attrs.match(attr('align')) || [])[1] || styleProp(attrs.replace(/&quot;|&#39;/g, ''), 'text-align') || fallback;
+    return /^(center|right|left)$/i.test(a || '') ? `[${a.toLowerCase()}]${inner}[/${a.toLowerCase()}]` : inner;
+  };
+  const styled = (attrs, inner) => {
+    const st = (attrs.match(/style\s*=\s*(?:&quot;|&#39;)([^]*?)(?:&quot;|&#39;)/i) || [])[1] || '';
+    let out = inner;
+    const color = styleProp(st, 'color') || (attrs.match(attr('color')) || [])[1];
+    const bg = styleProp(st, 'background(?:-color)?');
+    const weight = styleProp(st, 'font-weight');
+    const fstyle = styleProp(st, 'font-style');
+    const deco = styleProp(st, 'text-decoration');
+    const face = styleProp(st, 'font-family') || (attrs.match(attr('face')) || [])[1];
+    const size = (attrs.match(attr('size')) || [])[1];
+    if (color) out = `[color=${color}]${out}[/color]`;
+    if (bg) out = `[highlight=${bg}]${out}[/highlight]`;
+    if (weight && /bold|[6-9]00/.test(weight)) out = `[b]${out}[/b]`;
+    if (fstyle === 'italic') out = `[i]${out}[/i]`;
+    if (deco && /underline/.test(deco)) out = `[u]${out}[/u]`;
+    if (deco && /line-through/.test(deco)) out = `[s]${out}[/s]`;
+    if (face) out = `[font=${face.split(',')[0].replace(/&quot;|&#39;/g, '')}]${out}[/font]`;
+    if (size) out = `[size=${size}]${out}[/size]`;
+    return aligned(attrs.replace(/&quot;|&#39;/g, '"'), out);
+  };
+  s = s.replace(/&lt;br\s*\/?&gt;/gi, '\n').replace(/&lt;hr\s*\/?&gt;/gi, '\n[hr]\n')
+    .replace(/&lt;img\b([^]*?)\/?&gt;/gi, (m, a) => { const src = (a.match(attr('src')) || [])[1]; return src ? `[img]${src}[/img]` : m; });
+  pair('center', (t, a, inner) => `[center]${inner}[/center]`);
+  pair('b|strong', (t, a, inner) => `[b]${inner}[/b]`);
+  pair('i|em', (t, a, inner) => `[i]${inner}[/i]`);
+  pair('u|ins', (t, a, inner) => `[u]${inner}[/u]`);
+  pair('s|strike|del', (t, a, inner) => `[s]${inner}[/s]`);
+  pair('sup', (t, a, inner) => `[sup]${inner}[/sup]`);
+  pair('sub', (t, a, inner) => `[sub]${inner}[/sub]`);
+  pair('small', (t, a, inner) => `[size=small]${inner}[/size]`);
+  pair('big', (t, a, inner) => `[size=big]${inner}[/size]`);
+  pair('mark', (t, a, inner) => `[highlight=#fff3a3]${inner}[/highlight]`);
+  pair('code', (t, a, inner) => `\`${inner}\``);
+  pair('blockquote', (t, a, inner) => `[quote]${inner}[/quote]`);
+  pair('h1|h2|h3|h4|h5|h6', (t, a, inner) => `\n${'#'.repeat(Math.min(3, Number(t[1])))} ${inner.replace(/\n/g, ' ')}\n`);
+  pair('a', (t, a, inner) => { const href = (a.match(attr('href')) || [])[1]; return href && /^https?:\/\//i.test(href) ? `[url=${href}]${inner}[/url]` : inner; });
+  pair('font|span', (t, a, inner) => styled(a, inner));
+  pair('div|p', (t, a, inner) => `${styled(a, inner)}\n`);
+  pair('ul|ol', (t, a, inner) => `[list${t === 'ol' ? '=1' : ''}]${inner.replace(/&lt;li[^]*?&gt;/gi, '[*]').replace(/&lt;\/li\s*&gt;/gi, '')}[/list]`);
+  return s;
+}
+
 export function formatPost(text) {
   let s = esc(String(text ?? '').replace(/[\u0000\u0001]/g, ''));
   // Code blocks keep their text exactly as typed, so they're set aside before anything else.
@@ -311,6 +398,7 @@ export function formatPost(text) {
   s = s.replace(/```(?:[\w+-]*\n)?([\s\S]*?)```/g, (m, body) => code(body))
     .replace(/\[code\]([\s\S]*?)\[\/code\]/gi, (m, body) => code(body))
     .replace(/\[align=(left|center|right)\]([\s\S]*?)\[\/align\]/gi, '[$1]$2[/$1]');
+  s = htmlCodes(s);
   return raw(blocks(s).replace(/\u0001(\d+)\u0001/g, (_, i) => codes[i]));
 }
 
@@ -487,6 +575,9 @@ export const icons = {
   card: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="3"/><circle cx="9.5" cy="11" r="2"/><path d="M6.5 16c.6-1.6 1.7-2.4 3-2.4s2.4.8 3 2.4M14.5 10h3M14.5 13.5h3"/></svg>'),
   smartphone: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="3"/><path d="M10.5 5.5h3M11 18.5h2"/></svg>'),
   book: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/><path d="M8 7.5h8M8 11h5"/></svg>'),
+  mute: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/></svg>'),
+  sound: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>'),
+  pin: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6.2-6.5-11.2A6.5 6.5 0 0 1 18.5 9.8C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/></svg>'),
   archive: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>'),
   camera: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8l1.4-2h4.6l1.4 2h1.8A2.5 2.5 0 0 1 20 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>'),
   warning: raw('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.3"/></svg>'),
@@ -578,6 +669,73 @@ export function attachSheet({ max = 10, onPictures, extras = [] } = {}) {
   d.addEventListener('touchstart', (e) => { y0 = e.target.closest('.sheet-grip, .sheet-head') ? e.touches[0].clientY : null; }, { passive: true });
   d.addEventListener('touchmove', (e) => { if (y0 !== null && e.touches[0].clientY - y0 > 70) { y0 = null; close(); } }, { passive: true });
   return { close };
+}
+
+// A small "Jump to latest" button that appears when you've scrolled up a chat, and takes you
+// back down to the newest message.
+export function jumpToLatest(scroller, { label = 'Jump to latest' } = {}) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'jump-latest';
+  btn.hidden = true;
+  render(btn, html`${icons.chevron}<span>${label}</span>`);
+  scroller.parentElement.append(btn);
+  const check = () => { btn.hidden = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < Math.min(400, scroller.clientHeight * 0.4); };
+  scroller.addEventListener('scroll', check, { passive: true });
+  btn.addEventListener('click', () => { scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' }); });
+  check();
+  return check;
+}
+
+// The formatting guide: every code with a Copy button (and Insert, when there's a box to put it in).
+export const FORMAT_GUIDE = [
+  ['Discord style', null],
+  ['*action* or _italic_', 'italic action'], ['**bold**', 'bold'], ['***bold italic***', 'both at once'], ['__underline__', 'underline'], ['~~strike~~', 'strikethrough'],
+  ['"dialogue"', 'dialogue'], ['||spoiler||', 'hidden until tapped'], ['`code`', 'typewriter text, no formatting inside'],
+  ['# Heading', 'big heading (## and ### for smaller ones, at the start of a line)'], ['-# small print', 'small grey text under something'],
+  ['> quote', 'a quote (each line that starts with >)'], ['- item', 'a bullet list (1. for numbers), one per line'], ['[text](https://…)', 'a link with your own words'],
+  ['@username', 'mention someone'],
+  ['HTML', null],
+  ['<center>Centered text</center>', 'centered'], ['<div align="right">Right side</div>', 'right (or left)'],
+  ['<b>bold</b> <i>italic</i> <u>underline</u>', 'the basics'], ['<s>struck</s>', 'strikethrough'],
+  ['<span style="color: #EE719E">pink words</span>', 'any color'], ['<font color="#C79AD8">purple</font>', 'old-school color'],
+  ['<mark>highlighted</mark>', 'highlighted'], ['<small>small print</small>', 'smaller text'], ['<br>', 'a line break'], ['<hr>', 'a divider line'],
+  ['<h1>Title</h1>', 'a heading (h2, h3 smaller)'], ['<blockquote>Quote</blockquote>', 'a quote block'],
+  ['<a href="https://…">link</a>', 'a link'], ['<img src="https://…/pic.gif">', 'a picture or GIF'],
+  ['Forum (Jcink) style', null],
+  ['[center]…[/center]', 'centered (can hold paragraphs); also [left] [right]'], ['[indent]…[/indent]', 'indented'],
+  ['[box]…[/box]', 'a box in your character’s color'], ['[quote=Name]…[/quote]', 'a quote block, with who said it'],
+  ['[list][*]one[*]two[/list]', 'bullet list ([list=1] for numbers)'], ['[h]Heading[/h]', 'a big heading'], ['[hr]', 'a divider line (on its own line)'],
+  ['[color=#ff7aa2]…[/color]', 'any color, as a #hex code or a name like red'], ['[highlight=yellow]…[/highlight]', 'highlighted, like a marker'],
+  ['[size=small]…[/size]', 'small, big or huge (or 1–7)'], ['[font=Verdana]…[/font]', 'Arial, Verdana, Trebuchet, Rounded, Mono, Impact or Comic Sans'],
+  ['[caps]…[/caps]', 'ALL CAPS'], ['[spoiler]…[/spoiler]', 'hidden until tapped'], ['[img]https://…[/img]', 'a picture or GIF from a link'],
+  ['Ready-made layouts', null],
+  ['<center><h2>Title</h2><i>a short tagline</i></center>\n<hr>\nYour text here.', 'a centered title card'],
+  ['[box][center][b]NAME[/b]\n[size=small]age · job · city[/size][/center][/box]', 'a character info box'],
+  ['<center><span style="color: #EE719E">❝ a quote they said ❞</span></center>', 'a centered colored quote'],
+];
+
+export function formattingGuide({ insert = null } = {}) {
+  return modal(html`
+    <div class="fmt-guide">
+      <h2>Formatting</h2>
+      <p class="muted small">Tap <b>Copy</b> to grab a code${insert ? html`, or <b>Insert</b> to drop it into your post` : ''}. Mix and match them; formatted words take your character’s color.</p>
+      <dl>${FORMAT_GUIDE.map(([code, what], i) => (what === null ? html`<dt class="fmt-sec">${code}</dt>` : html`
+        <div class="fmt-row"><dt><code>${code}</code></dt><dd>${what}</dd>
+          <span class="fmt-btns"><button type="button" class="sm" data-copy="${i}">Copy</button>${insert ? html`<button type="button" class="sm primary" data-insert="${i}">Insert</button>` : ''}</span></div>`))}</dl>
+      <div class="actions end"><button type="button" class="primary" data-close>Done</button></div>
+    </div>`, {
+    init: (d, close) => d.addEventListener('click', async (e) => {
+      const c = e.target.closest('[data-copy]');
+      if (c) {
+        const text = FORMAT_GUIDE[Number(c.dataset.copy)][0];
+        try { await navigator.clipboard.writeText(text); c.textContent = 'Copied ✓'; } catch { toast('Couldn’t copy. Press and hold the code to copy it'); }
+        setTimeout(() => { c.textContent = 'Copy'; }, 1400);
+      }
+      const ins = e.target.closest('[data-insert]');
+      if (ins) { insert(FORMAT_GUIDE[Number(ins.dataset.insert)][0]); close(null); }
+    }),
+  });
 }
 
 // Instead of uploading, use a picture that's already online (Pinterest, Tumblr, Imgur…).

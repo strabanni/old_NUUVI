@@ -1,6 +1,6 @@
 // Owner tools for a story: details, channels, turn order, invites, members.
 import { html, render, api, $, bindForm, toast, avatar, icons, confirmModal, promptModal } from '../lib.js';
-import { state, page, loadStory, refreshHome, copyText, routeAlive, ensureAlive } from '../main.js';
+import { state, page, loadStory, refreshHome, copyText, routeAlive, ensureAlive , replaceHash } from '../main.js';
 import { storyFields, bindIconUpload } from './home.js';
 import { openThreadForm } from './threads.js';
 
@@ -10,7 +10,7 @@ export async function viewStorySettings(idStr) {
   const s = await loadStory(id);
   ensureAlive(alive);
   // Story owners and admins.
-  if (s.role !== 'owner' && !state.user?.isAdmin) return location.replace(`#/s/${id}`);
+  if (s.role !== 'owner' && !state.user?.isAdmin) return replaceHash(`#/s/${id}`);
   const story = s.story;
   const inviteLink = () => `${location.origin}/#/join/${id}/${state.story.story.inviteCode}`;
 

@@ -1,0 +1,72 @@
+// Character profiles: a detailed dossier for any character on NUUVI, NPCs included. Everyone can
+// read them; the character's writer (or an admin) edits them.
+import { fail, str } from '../http.js';
+import { toCharacter, toUser, requireUser, uploadRef } from '../model.js';
+
+// Quick facts, in the order they're shown.
+export const FACTS = ['fullName', 'nicknames', 'age', 'birthday', 'zodiac', 'pronouns', 'gender', 'sexuality', 'height',
+  'nationality', 'hometown', 'residence', 'occupation', 'affiliation', 'relationship', 'faceclaim'];
+// Long sections, in the order they're shown.
+export const SECTIONS = ['personality', 'appearance', 'history', 'relationships', 'goals', 'trivia'];
+
+const parse = (json) => { try { return JSON.parse(json || '{}') || {}; } catch { return {}; } };
+
+export function profileRoutes(r, ctx) {
+  const { db } = ctx;
+  const canEdit = (row, user) => !!user && (row.user_id === user.id || user.isAdmin);
+
+  r.get('/api/profiles', ({ user, query }) => {
+    requireUser(user);
+    const q = (query.get('q') || '').trim().toLowerCase().slice(0, 60);
+    const rows = db.prepare(`SELECT c.*, u.display_name AS owner_name FROM characters c JOIN users u ON u.id = c.user_id
+      WHERE (c.bot IS NULL OR c.bot != 'gossip') ORDER BY c.npc, c.name COLLATE NOCASE`).all();
+    const profiles = rows.map((c) => {
+      const d = parse(c.dossier);
+      return {
+        ...toCharacter(c), ownerName: c.owner_name, mine: c.user_id === user.id,
+        quote: d.quote || '', occupation: d.facts?.occupation || '', age: d.facts?.age || '',
+        filled: Object.values(d.sections || {}).filter(Boolean).length + Object.values(d.facts || {}).filter(Boolean).length,
+      };
+    }).filter((c) => !q || `${c.name} ${c.handle} ${c.aka} ${c.occupation} ${c.ownerName}`.toLowerCase().includes(q));
+    return { data: { profiles } };
+  });
+
+  r.get('/api/profiles/:id', ({ user, params }) => {
+    requireUser(user);
+    const row = db.prepare('SELECT * FROM characters WHERE id = ?').get(params.id);
+    if (!row || (row.bot === 'gossip' && row.user_id !== user.id)) fail(404, 'Character not found');
+    const owner = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
+    return { data: { character: toCharacter(row), dossier: parse(row.dossier), owner: toUser(owner), canEdit: canEdit(row, user) } };
+  });
+
+  r.put('/api/profiles/:id', ({ user, params, body }) => {
+    requireUser(user);
+    const row = db.prepare('SELECT * FROM characters WHERE id = ?').get(params.id);
+    if (!row || !canEdit(row, user)) fail(404, 'Character not found');
+    const old = parse(row.dossier);
+    const d = body.dossier && typeof body.dossier === 'object' ? body.dossier : fail(400, 'Expected a profile');
+    const text = (v, label, max) => str(typeof v === 'string' ? v : '', label, { max }) ?? '';
+    const facts = {};
+    for (const k of FACTS) { const v = text(d.facts?.[k], k, 160); if (v) facts[k] = v; }
+    const sections = {};
+    for (const k of SECTIONS) { const v = text(d.sections?.[k], k, 20000); if (v) sections[k] = v; }
+    const keep = new Set(old.gallery || []);
+    const pic = (v) => (keep.has(v) ? v : uploadRef(db, v, user.id));
+    const dossier = {
+      quote: text(d.quote, 'Quote', 300),
+      tagline: text(d.tagline, 'Tagline', 160),
+      cover: d.cover ? (d.cover === old.cover ? old.cover : uploadRef(db, d.cover, user.id) ?? fail(400, 'Cover picture missing')) : null,
+      facts, sections,
+      traits: (Array.isArray(d.traits) ? d.traits : []).map((t) => String(t).trim().slice(0, 30)).filter(Boolean).slice(0, 12),
+      likes: text(d.likes, 'Likes', 1000),
+      dislikes: text(d.dislikes, 'Dislikes', 1000),
+      gallery: (Array.isArray(d.gallery) ? d.gallery : []).slice(0, 12).map((v) => pic(v) ?? fail(400, 'Picture missing')),
+      playlist: (Array.isArray(d.playlist) ? d.playlist : []).slice(0, 12)
+        .map((t) => ({ title: String(t?.title ?? '').trim().slice(0, 80), artist: String(t?.artist ?? '').trim().slice(0, 80) })).filter((t) => t.title),
+    };
+    const json = JSON.stringify(dossier);
+    if (json.length > 120000) fail(413, 'That profile is too long');
+    db.prepare('UPDATE characters SET dossier = ?, pronouns = ? WHERE id = ?').run(json, facts.pronouns || null, row.id);
+    return { data: { dossier, character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(row.id)) } };
+  });
+}

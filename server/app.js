@@ -19,6 +19,7 @@ import { phoneRoutes } from './routes/phone.js';
 import { overviewRoutes } from './routes/overview.js';
 import { socialRoutes, socialPostRoutes } from './routes/social.js';
 import { connectionRoutes } from './routes/connections.js';
+import { profileRoutes } from './routes/profiles.js';
 import { messageRoutes } from './routes/messages.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
@@ -286,6 +287,7 @@ export function createApp({
   socialRoutes(router, ctx);
   socialPostRoutes(router, ctx);
   connectionRoutes(router, ctx);
+  profileRoutes(router, ctx);
   messageRoutes(router, ctx);
 
   // ---------- Live updates ----------

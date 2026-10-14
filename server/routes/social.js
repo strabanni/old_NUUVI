@@ -143,7 +143,7 @@ export function socialPostRoutes(r, ctx) {
     return {
       type: 'social',
       id: row.id, kind: row.kind, body: row.body, title: row.title,
-      media: JSON.parse(row.media), meta: JSON.parse(row.meta),
+      media: JSON.parse(row.media), meta: JSON.parse(row.meta), location: row.location ?? null,
       createdAt: row.created_at, editedAt: row.edited_at, userId: row.user_id,
       character: charOf(row),
       // Likes start from the character's fame (a share of their followers, or the number the writer set)
@@ -259,12 +259,13 @@ export function socialPostRoutes(r, ctx) {
     if (kind === 'text' && !text) fail(400, 'Write something first');
     if (['photo', 'video', 'voice'].includes(kind) && !media.length) fail(400, `Add a ${kind === 'photo' ? 'photo' : kind === 'video' ? 'video' : 'voice note'} first`);
     if (kind === 'stream' && !title) fail(400, 'Give the stream a title');
-    const { lastInsertRowid } = db.prepare('INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(metaInput(kind, body.meta), musicInput(body.music))));
+    const location = str(body.location, 'Location', { max: 100 }) || null;
+    const { lastInsertRowid } = db.prepare('INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(metaInput(kind, body.meta), musicInput(body.music))), location);
     ctx.bots?.onSocialPost(Number(lastInsertRowid));
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(lastInsertRowid);
     const fame = db.prepare(`SELECT COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = ?)) AS n FROM characters WHERE id = ?`).get(c.id, c.id).n;
-    addBuzz(db, fresh, buzzForFollowers(fame), { handle: c.handle, followers: fame });
+    addBuzz(db, fresh, buzzForFollowers(fame), { followers: fame });
     return { status: 201, data: { post: toSocial(load(lastInsertRowid, user), user.id) } };
   });
 
@@ -285,14 +286,15 @@ export function socialPostRoutes(r, ctx) {
     };
     const likesShown = count(body.likesDisplay, 'Likes', row.likes_display);
     const commentsShown = count(body.commentsDisplay, 'Comments', row.comments_display);
-    const onlyCounts = body.body === undefined && body.title === undefined && body.meta === undefined && body.music === undefined;
-    db.prepare(`UPDATE social_posts SET body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`)
-      .run(text, title, meta, likesShown, commentsShown, row.id);
+    const location = body.location === undefined ? row.location : (str(body.location, 'Location', { max: 100 }) || null);
+    const onlyCounts = body.body === undefined && body.title === undefined && body.meta === undefined && body.music === undefined && body.location === undefined;
+    db.prepare(`UPDATE social_posts SET body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?, location = ?${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`)
+      .run(text, title, meta, likesShown, commentsShown, location, row.id);
     // A bigger comment number brings in some crowd comments to go with it (a handful, not thousands).
     if (commentsShown && commentsShown !== row.comments_display) {
       const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;
       const want = Math.min(commentsShown, 6 + Math.floor(Math.random() * 7));
-      addBuzz(db, db.prepare('SELECT * FROM social_posts WHERE id = ?').get(row.id), want - have, { handle: row.c_handle, followers: row.c_followers });
+      addBuzz(db, db.prepare('SELECT * FROM social_posts WHERE id = ?').get(row.id), want - have, { followers: row.c_followers });
     }
     return { data: { post: toSocial(load(row.id, user), user.id) } };
   });

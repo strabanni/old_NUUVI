@@ -2628,3 +2628,154 @@ dialog.sheet.closing { transform: translateY(100%); transition: transform .18s e
 .sheet-bar label { background: none; font: 400 .74rem var(--sans); display: flex; }
 .sheet-bar label:hover { background: var(--glass-2); }
 .rail-count { font-style: normal; }
+/* Rail: a divider under the logo, then Home / Archive / Profiles, then a spaced divider before the stories. */
+.rail-sep-top { margin: 4px 0 6px; }
+.rail-sep-stories { margin: 10px 0 10px; }
+.rail-item.profiles-link { color: var(--muted); }
+.rail-item.profiles-link.active, .rail-item.profiles-link:hover { color: var(--text); }
+.rail-item.profiles-link svg { width: 22px; height: 22px; }
+
+/* ---------- Profiles (character dossiers) ---------- */
+.pf-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+.pf-tools input[type=search] { flex: 1 1 220px; min-width: 0; }
+.pf-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.pf-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(46%, 200px), 1fr)); padding-bottom: 30px; }
+.pf-card { --c: var(--accent); position: relative; display: block; aspect-ratio: 3 / 4; border-radius: 22px; overflow: hidden; color: #fff; isolation: isolate;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 80%, #fff 10%), color-mix(in srgb, var(--c) 40%, #000)); box-shadow: var(--shadow); transition: transform .25s; }
+.pf-card:hover { text-decoration: none; transform: translateY(-3px); }
+.pf-card-pic { position: absolute; inset: 0; z-index: -2; }
+.pf-card-pic img { width: 100%; height: 100%; object-fit: cover; object-position: center 22%; display: block; transition: transform .5s; }
+.pf-card:hover .pf-card-pic img { transform: scale(1.05); }
+.pf-initial { width: 100%; height: 100%; display: grid; place-items: center; font: 800 4.5rem var(--display); color: rgb(255 255 255 / .85); }
+.pf-card-shade { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, transparent 35%, rgb(0 0 0 / .78)); }
+.pf-tag { position: absolute; top: 10px; left: 10px; padding: 3px 9px; border-radius: 999px; font: 700 .62rem var(--sans); letter-spacing: .12em;
+  background: rgb(255 255 255 / .2); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.pf-card-info { position: absolute; left: 0; right: 0; bottom: 0; display: grid; gap: 2px; padding: 14px; }
+.pf-card-info b { font: 800 1.05rem/1.15 var(--display); text-transform: uppercase; letter-spacing: .01em; }
+.pf-card[data-grad] .pf-card-info b { background: var(--g); -webkit-background-clip: text; background-clip: text; color: transparent; filter: brightness(1.25); }
+.pf-card-info small { font-size: .74rem; opacity: .85; }
+.pf-card-info i { font-size: .74rem; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.pf-body { padding-top: 0; }
+.dossier { --c: var(--accent); display: grid; gap: 16px; max-width: 980px; margin: 0 auto; padding-bottom: 40px; }
+.ds-hero { position: relative; border-radius: 28px; overflow: hidden; background: var(--glass-solid); box-shadow: var(--shadow); }
+.ds-cover { height: clamp(170px, 34vw, 320px); background: linear-gradient(135deg, color-mix(in srgb, var(--c) 85%, #fff 10%), color-mix(in srgb, var(--c) 35%, #000)); }
+.dossier[data-grad] .ds-cover { background: var(--g); }
+.ds-cover img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; display: block; }
+.ds-hero-in { display: flex; gap: 18px; align-items: flex-end; padding: 0 22px; margin-top: -70px; position: relative; }
+.ds-portrait { flex: none; width: clamp(110px, 24vw, 170px); aspect-ratio: 4 / 5; border-radius: 22px; overflow: hidden; border: 4px solid var(--glass-solid);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 80%, #fff 10%), color-mix(in srgb, var(--c) 40%, #000)); box-shadow: 0 12px 30px rgb(0 0 0 / .25); }
+.ds-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: center 22%; display: block; }
+.ds-id { min-width: 0; padding-bottom: 6px; }
+.ds-eyebrow { font: 700 .66rem var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.ds-name { margin: 4px 0 2px; font: 900 clamp(1.7rem, 5.5vw, 3rem)/1 var(--display); text-transform: uppercase; letter-spacing: -.01em; color: var(--c); }
+.dossier[data-grad] .ds-name { background: var(--g); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.ds-tagline { margin: 6px 0 0; color: var(--muted); }
+.ds-traits { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ds-traits span { padding: 4px 11px; border-radius: 999px; font-size: .74rem; background: color-mix(in srgb, var(--c) 16%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
+.ds-quote { margin: 18px 22px 22px; padding: 14px 18px; border-left: 3px solid var(--c); font-size: 1.05rem; font-style: italic; color: var(--text); background: var(--glass-2); border-radius: 0 16px 16px 0; }
+.ds-quote::before { content: '“'; } .ds-quote::after { content: '”'; }
+.ds-hero:not(:has(.ds-quote)) { padding-bottom: 22px; }
+.ds-card { padding: 20px 22px; border-radius: 24px; background: var(--glass-solid); border: 1px solid var(--glass-border); box-shadow: var(--shadow); }
+.ds-title { margin: 0 0 12px; font: 800 .78rem var(--sans); letter-spacing: .18em; text-transform: uppercase;
+  background: linear-gradient(100deg, #EE719E, #C79AD8, #B8A6DB); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.dossier[data-grad] .ds-title { background-image: var(--g); }
+.ds-facts dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: 2px 18px; margin: 0; }
+.ds-facts dl > div { padding: 9px 0; border-bottom: 1px solid var(--glass-border); }
+.ds-facts dt { font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.ds-facts dd { margin: 3px 0 0; font-weight: 600; }
+.ds-likes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 18px; }
+.ds-likes p { margin: 0; line-height: 1.6; }
+.ds-section .body { line-height: 1.75; }
+.ds-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(46%, 170px), 1fr)); gap: 6px; }
+.ds-gallery a { display: block; aspect-ratio: 4 / 5; border-radius: 14px; overflow: hidden; }
+.ds-gallery img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ds-playlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ds-playlist li { display: grid; grid-template-columns: 32px 1fr; grid-template-rows: auto auto; column-gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--glass-border); }
+.ds-n { grid-row: span 2; align-self: center; font: 700 .8rem var(--sans); color: var(--muted); }
+.ds-playlist small { color: var(--muted); }
+.ds-empty { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 30px 20px; color: var(--muted); }
+.ds-empty svg { width: 40px; height: 40px; }
+@media (max-width: 600px) { .ds-hero-in { flex-direction: column; align-items: flex-start; margin-top: -60px; padding: 0 16px; } .ds-quote { margin: 14px 16px 16px; } .ds-card { padding: 16px; } }
+.ds-editor { width: min(720px, 100%); }
+.ds-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 6px; }
+.ds-fact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 0 12px; }
+.ds-cover-pick { height: 110px; border-radius: 16px; overflow: hidden; background: var(--glass-2); display: grid; place-items: center; color: var(--muted); font-size: .8rem; }
+.ds-cover-pick img { width: 100%; height: 100%; object-fit: cover; }
+.ds-gal-edit { display: flex; flex-wrap: wrap; gap: 6px; }
+.ds-gal-edit .thumb { position: relative; width: 74px; height: 92px; border-radius: 12px; overflow: hidden; }
+.ds-gal-edit .thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ds-gal-edit .thumb button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; background: rgb(0 0 0 / .6); color: #fff; font-size: .7rem; }
+.ds-song { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; margin-bottom: 6px; }
+/* Episode picture, season and location */
+.t-banner { position: relative; height: 140px; border-radius: 16px; overflow: hidden; background: var(--glass-2); border: 1px dashed var(--glass-3);
+  display: grid; place-items: center; color: var(--muted); font-size: .85rem; cursor: pointer; }
+.t-banner span { display: flex; align-items: center; gap: 6px; }
+.t-banner svg { width: 20px; height: 20px; }
+.t-banner img { width: 100%; height: 100%; object-fit: cover; }
+.t-banner-x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 0; background: rgb(0 0 0 / .55); color: #fff; }
+.th-banner { margin: 0 auto 4px; width: min(100% - 24px, 980px); aspect-ratio: 16 / 7; border-radius: 24px; overflow: hidden; box-shadow: var(--shadow); }
+.th-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.th-loc svg, .np-loc svg, .loc-tag svg { width: 13px; height: 13px; vertical-align: -2px; }
+.np-loc { position: absolute; top: 12px; left: 12px; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; font-size: .72rem;
+  color: #fff; background: rgb(0 0 0 / .4); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.loc-tag { display: inline-flex; align-items: center; gap: 3px; font-size: .72rem; font-weight: 500; color: var(--muted); letter-spacing: 0; text-transform: none; }
+.loc-bar svg { color: var(--accent-fg); }
+
+/* ---------- v20: phones keep the whole app between the status bar and the home bar ---------- */
+/* Nothing runs under the clock/battery or the home bar: the rail, the drawer and the page all stop
+   at the safe area, and a short fade blends each edge into the app's background. */
+@media (max-width: 899px) {
+  body:not(.guest) { padding-top: var(--sat); padding-bottom: var(--sab); }
+  .main { height: calc(var(--app-h, calc(100dvh / var(--ui-zoom))) - var(--sat) - var(--sab)); }
+  .rail, .sidebar { top: var(--sat); bottom: var(--sab); }
+  .rail { padding-top: 10px; padding-bottom: 12px; border-radius: 0 18px 18px 0; }
+  .side-welcome { padding-top: 16px; }
+  body.has-members .members-panel { top: var(--sat); bottom: var(--sab); padding-top: 0; }
+  body:not(.guest)::before, body:not(.guest)::after { content: ''; position: fixed; left: 0; right: 0; z-index: 35; pointer-events: none; }
+  body:not(.guest)::before { top: 0; height: calc(var(--sat) + min(var(--sat), 16px));
+    background: linear-gradient(to bottom, var(--base) 0, var(--base) var(--sat), color-mix(in srgb, var(--base) 0%, transparent) 100%); }
+  body:not(.guest)::after { bottom: 0; height: calc(var(--sab) + min(var(--sab), 16px));
+    background: linear-gradient(to top, var(--base) 0, var(--base) var(--sab), color-mix(in srgb, var(--base) 0%, transparent) 100%); }
+}
+/* Feed videos: shaped to the video, playing on their own, a small sound button (no black overlay). */
+.np-vid { position: relative; aspect-ratio: var(--vr, 0.8); background: #000; overflow: hidden; }
+.np-vid .sm-video, .np .np-vid .sm-video { width: 100%; height: 100%; max-height: none; object-fit: cover; border-radius: 0; display: block; background: #000; }
+.np-vid video::-webkit-media-controls, .np-vid video::-webkit-media-controls-start-playback-button { display: none !important; -webkit-appearance: none; }
+.vid-sound { position: absolute; right: 12px; bottom: 12px; width: 32px; height: 32px; padding: 0; border-radius: 50%; border: 0; display: grid; place-items: center;
+  background: rgb(0 0 0 / .55); color: #fff; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.vid-sound svg { width: 17px; height: 17px; }
+.size-hint { font-size: .72rem; color: var(--faint, var(--muted)); }
+/* Pictures scale smoothly everywhere (no blocky upscaling), and cover their frames without stretching. */
+img { image-rendering: auto; }
+.avatar img, img.avatar, .rail-item img, .np-media img, .car-track img { object-fit: cover; }
+/* Messages: more room around each name (no tapping the name by accident), and a jump-to-latest button. */
+.dm-msg:not(.grouped) { margin-top: 20px; padding-top: 6px; }
+.dm-meta-line { margin-bottom: 6px; }
+.dm-name { cursor: default; }
+.dm-name:hover { text-decoration: none; }
+.dm-chat, .ph-chat, .phone.chat, .channel-view, #feed-scroll { position: relative; }
+.jump-latest { position: absolute; left: 50%; bottom: 84px; transform: translateX(-50%); z-index: 6; display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--glass-border); background: var(--glass-solid); color: var(--text);
+  font-size: .8rem; font-weight: 600; box-shadow: 0 6px 20px rgb(0 0 0 / .18); animation: pop-in .2s var(--ease) both; }
+.jump-latest svg { width: 15px; height: 15px; }
+.jump-latest[hidden] { display: none; }
+.username-field { display: flex; align-items: center; gap: 0; }
+.username-field span { padding: 0 4px 0 12px; color: var(--muted); font-weight: 600; }
+.username-field input { flex: 1; min-width: 0; }
+.toggle-row { margin-top: 10px; }
+/* Formatting guide: each code with Copy / Insert. */
+.fmt-guide dl { display: grid; gap: 2px; }
+.fmt-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 0; border-bottom: 1px solid var(--glass-border); }
+.fmt-row dt { grid-column: 1; min-width: 0; }
+.fmt-row dt code { white-space: pre-wrap; word-break: break-word; }
+.fmt-row dd { grid-column: 1; margin: 0; font-size: .8rem; color: var(--muted); }
+.fmt-btns { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: flex; gap: 6px; }
+.fmt-guide dl:has(.fmt-row) { display: block; }
+.fmt-guide .fmt-row dt, .fmt-guide .fmt-row dd { margin: 0; padding: 0; border: 0; }
+.fmt-guide .fmt-sec { margin-top: 14px; }
+/* Grouped messages stay tight: the hover time never wraps onto two lines. */
+.dm-gutter time { white-space: nowrap; display: block; font-size: .58rem; letter-spacing: -.01em; }
+.dm-msg.grouped { margin-top: 0; padding-top: 2px; padding-bottom: 2px; }
+/* One back arrow on phones: the top one (the conversation's own arrow added a second, competing one). */
+.dm-back { display: none !important; }

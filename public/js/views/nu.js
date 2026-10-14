@@ -19,7 +19,8 @@ const writerHead = (u, sub) => html`
 
 // An episode or self para, as a post: the story as the poster, the cover as the picture.
 function threadPost(it) {
-  const pic = it.story.banner || it.starter?.portrait || it.starter?.avatar;
+  // The episode's own picture first; the story's header only when the episode has none.
+  const pic = it.banner || it.story.banner || it.starter?.portrait || it.starter?.avatar;
   return html`
     <article class="np np-thread-post" data-color="${it.story.color}">
       <header class="np-head">
@@ -32,7 +33,8 @@ function threadPost(it) {
       </header>
       <a class="np-media np-cover ${pic ? '' : 'no-img'}" href="#/s/${it.storyId}/${it.id}">
         ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : ''}
-        <span class="np-cover-title"><small>${ONE[it.kind] || 'Episode'}</small>${it.name}</span>
+        <span class="np-cover-title"><small>${it.season ? `Season ${it.season} · ` : ''}${ONE[it.kind] || 'Episode'}</small>${it.name}</span>
+        ${it.location ? html`<span class="np-loc">${icons.pin} ${it.location}</span>` : ''}
         ${it.unread ? html`<span class="car-count">${it.unread} new</span>` : ''}
       </a>
       <div class="np-actions">

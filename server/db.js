@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 13;
+const SCHEMA_VERSION = 14;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -455,6 +455,17 @@ const MIGRATIONS = [
   `ALTER TABLE story_members ADD COLUMN rail_pos INTEGER;`,
   // v13: a story marked complete moves to the Archive (read-only; the owner can reopen it).
   `ALTER TABLE stories ADD COLUMN completed_at TEXT;`,
+  // v14: character profiles (a detailed dossier) and pronouns; episode banner, season and location;
+  // a location on posts and social posts; showing "About" on your profile; username change cool-off.
+  `ALTER TABLE characters ADD COLUMN dossier TEXT NOT NULL DEFAULT '{}';
+   ALTER TABLE characters ADD COLUMN pronouns TEXT;
+   ALTER TABLE channels ADD COLUMN banner TEXT;
+   ALTER TABLE channels ADD COLUMN season INTEGER;
+   ALTER TABLE channels ADD COLUMN location TEXT;
+   ALTER TABLE posts ADD COLUMN location TEXT;
+   ALTER TABLE social_posts ADD COLUMN location TEXT;
+   ALTER TABLE users ADD COLUMN show_about INTEGER NOT NULL DEFAULT 1;
+   ALTER TABLE users ADD COLUMN username_changed_at TEXT;`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

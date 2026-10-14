@@ -49,6 +49,8 @@ function inviteRow(db, code) {
   return row;
 }
 
+const USERNAME_COOLDOWN = 3 * 60 * 60 * 1000; // 3 hours between username changes
+
 export function accountRoutes(r, ctx) {
   const { db, config, authLimiter } = ctx;
 
@@ -168,9 +170,30 @@ export function accountRoutes(r, ctx) {
     const banner = uploadRef(db, body.banner, user.id);
     const profile = profileInput(body.profile, user.profile);
     const gradient = gradientInput(body.gradient);
-    db.prepare('UPDATE users SET display_name = ?, bio = ?, avatar = ?, banner = ?, profile = ?, gradient = ? WHERE id = ?')
+    const row = db.prepare('SELECT show_about, username_changed_at FROM users WHERE id = ?').get(user.id);
+    const showAbout = body.showAbout === undefined ? row.show_about : body.showAbout ? 1 : 0;
+    // A new username: free to pick, but only once every 3 hours (so nobody can hop between names).
+    let username = user.username;
+    let changedAt = row.username_changed_at;
+    if (body.username !== undefined && body.username !== user.username) {
+      const next = validUsername(body.username);
+      if (next !== user.username) {
+        const since = changedAt ? Date.now() - new Date(`${changedAt.replace(' ', 'T')}Z`).getTime() : Infinity;
+        if (since < USERNAME_COOLDOWN) {
+          const mins = Math.ceil((USERNAME_COOLDOWN - since) / 60000);
+          fail(429, `You can change your username again in ${mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`}`);
+        }
+        const taken = findByUsername(next);
+        if (taken && taken.id !== user.id) fail(409, 'That username is taken');
+        username = next;
+        changedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      }
+    }
+    db.prepare(`UPDATE users SET display_name = ?, bio = ?, avatar = ?, banner = ?, profile = ?, gradient = ?, show_about = ?,
+      username = ?, username_changed_at = ? WHERE id = ?`)
       .run(displayName, bio, avatar === undefined ? user.avatar : avatar, banner === undefined ? user.banner : banner,
-        JSON.stringify(profile ?? user.profile), gradient === undefined ? user.gradient?.join(',') ?? null : gradient, user.id);
+        JSON.stringify(profile ?? user.profile), gradient === undefined ? user.gradient?.join(',') ?? null : gradient, showAbout,
+        username, changedAt, user.id);
     return { data: { user: toSelf(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) } };
   });
 
@@ -193,7 +216,8 @@ export function accountRoutes(r, ctx) {
     return {
       data: {
         user: {
-          ...toUser(row), bio: row.bio, banner: row.banner, profile: parseProfile(row.profile),
+          ...toUser(row), bio: row.show_about === 0 && row.id !== user?.id ? '' : row.bio, banner: row.banner, profile: parseProfile(row.profile),
+          showAbout: row.show_about !== 0,
           isAdmin: !!row.is_admin, suspended: !!row.banned_at, joinedAt: row.created_at,
         },
         stats: ctx.userStats(row.id),

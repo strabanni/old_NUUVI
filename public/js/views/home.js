@@ -1,5 +1,5 @@
 import { html, render, api, $, $$, bindForm, timeAgo, toast, uploadImage, avatar, icons, askImageLink, applyColors } from '../lib.js';
-import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive, greeting } from '../main.js';
+import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive, greeting , replaceHash } from '../main.js';
 import { feedCard, masonry } from './threads.js';
 
 export function storyCard(s) {
@@ -204,10 +204,10 @@ export function storyFields(s = {}) {
     <input id="contentWarnings" name="contentWarnings" maxlength="800" placeholder="e.g. violence, character death" value="${(s.contentWarnings || []).join(', ')}">
     <div class="row">
       <div class="fixed"><label for="color">Icon color</label><input type="color" id="color" name="color" value="${s.color || '#EE719E'}"></div>
-      <div><label for="icon-file">Icon picture</label>
+      <div><label for="icon-file">Icon picture <span class="muted small">(800 × 800)</span></label>
         <span class="row-inline"><input type="file" id="icon-file" accept="image/*"><button type="button" class="sm link-btn" data-link="icon">Link</button></span><input type="hidden" name="icon" value="${s.icon || ''}"></div>
     </div>
-    <label for="banner-file">Banner picture <span class="muted small">— shown on the story card</span></label>
+    <label for="banner-file">Banner picture <span class="muted small">— shown on the story card (1800 × 600)</span></label>
     <span class="row-inline"><input type="file" id="banner-file" accept="image/*"><button type="button" class="sm link-btn" data-link="banner">Link</button></span><input type="hidden" name="banner" value="${s.banner || ''}">`;
 }
 
@@ -260,5 +260,5 @@ export async function viewJoin(id, code) {
   await refreshHome();
   ensureAlive(alive);
   toast('You joined the story!');
-  location.replace(`#/s/${id}`);
+  replaceHash(`#/s/${id}`);
 }

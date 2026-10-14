@@ -27,6 +27,7 @@ export function toCharacter(r) {
     followersDisplay: r.followers_display ?? null, followingDisplay: r.following_display ?? null,
     handle: r.handle ?? null, npc: !!r.npc, bot: r.bot ?? null,
     gradient: r.gradient ? r.gradient.split(',') : null, npcTags: splitTags(r.npc_tags),
+    pronouns: r.pronouns ?? null,
   };
 }
 
@@ -63,6 +64,7 @@ export function toChannel(r) {
     kind: r.kind ?? 'thread', status: r.status ?? 'open', summary: r.summary ?? '', tags: splitWarnings(r.tags),
     eventAt: r.event_at ?? null, createdBy: r.created_by ?? null, starterCharacterId: r.starter_character_id ?? null,
     icon: r.icon ?? null, eventId: r.event_id ?? null,
+    banner: r.banner ?? null, season: r.season ?? null, location: r.location ?? null,
     createdAt: r.created_at, lastPostAt: r.last_post_at ?? null,
     turns: turnState(r), unread: r.unread ?? 0, mentions: r.mentions ?? 0, lastPostId: r.last_post_id ?? 0,
   };
@@ -74,6 +76,7 @@ export function toPost(r) {
     body: r.body, cw: r.cw, roll: r.roll ? JSON.parse(r.roll) : null, wordCount: r.word_count,
     createdAt: r.created_at, editedAt: r.edited_at,
     media: r.media ? JSON.parse(r.media) : [],
+    location: r.location ?? null,
     replyTo: r.reply_to && r.reply_user_id != null
       ? { id: r.reply_to, name: r.reply_name, color: r.reply_color ?? null, text: plainText(r.reply_body || ''), hasMedia: r.reply_media !== '[]' }
       : null,

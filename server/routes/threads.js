@@ -9,6 +9,15 @@ const OWNER_KINDS = ['ooc']; // only story owners create these
 const STATUSES = ['open', 'closed', 'complete'];
 
 // A channel's icon (shown for comms threads): an emoji or two, or a picture (upload or https link).
+// Which season of the story an episode belongs to (1–99), or none.
+function seasonInput(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > 99) fail(400, 'Season must be a number from 1 to 99');
+  return n;
+}
+
 function iconInput(db, value, userId) {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
@@ -144,6 +153,9 @@ export function threadRoutes(r, ctx) {
     const status = oneOf(body.status, 'Status', STATUSES) ?? 'open';
     const eventAt = eventInput(body.eventAt) ?? null;
     const icon = iconInput(db, body.icon, user.id) ?? null;
+    const banner = uploadRef(db, body.banner, user.id) ?? null;
+    const season = seasonInput(body.season) ?? null;
+    const location = str(body.location, 'Location', { max: 100 }) || null;
     const eventId = eventLink(row.id, body.eventId) ?? null;
     if (kind === 'event' && !eventId) fail(400, 'Pick which event this thread is part of');
     let starter = null;
@@ -156,9 +168,9 @@ export function threadRoutes(r, ctx) {
     const channel = transaction(db, () => {
       const position = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM channels WHERE story_id = ?').get(row.id).p;
       const { lastInsertRowid } = db.prepare(`INSERT INTO channels
-        (story_id, name, topic, position, kind, status, summary, tags, event_at, created_by, starter_character_id, icon, event_id, last_post_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
-        .run(row.id, name, topic, position, kind, status, summary, tags, eventAt, user.id, starter?.id ?? null, icon, eventId);
+        (story_id, name, topic, position, kind, status, summary, tags, event_at, created_by, starter_character_id, icon, event_id, banner, season, location, last_post_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
+        .run(row.id, name, topic, position, kind, status, summary, tags, eventAt, user.id, starter?.id ?? null, icon, eventId, banner, season, location);
       const ch = db.prepare('SELECT * FROM channels WHERE id = ?').get(lastInsertRowid);
       tagCharacters(ch, [...(starter ? [starter] : []), ...tagged], user);
       return ch;
@@ -183,6 +195,9 @@ export function threadRoutes(r, ctx) {
       eventAt: body.eventAt === undefined ? channel.event_at : eventInput(body.eventAt),
       icon: body.icon === undefined ? channel.icon : iconInput(db, body.icon, user.id),
       eventId: body.eventId === undefined ? channel.event_id : eventLink(channel.story_id, body.eventId),
+      banner: body.banner === undefined || body.banner === channel.banner ? channel.banner : uploadRef(db, body.banner, user.id),
+      season: body.season === undefined ? channel.season : seasonInput(body.season),
+      location: body.location === undefined ? channel.location : (str(body.location, 'Location', { max: 100 }) || null),
     };
     let position = channel.position;
     if (body.move === 'up' || body.move === 'down') {
@@ -194,8 +209,9 @@ export function threadRoutes(r, ctx) {
         position = neighbour.position;
       }
     }
-    db.prepare(`UPDATE channels SET name = ?, topic = ?, summary = ?, tags = ?, status = ?, event_at = ?, kind = ?, position = ?, icon = ?, event_id = ?
-      WHERE id = ?`).run(f.name, f.topic, f.summary, f.tags, f.status, f.eventAt, kind, position, f.icon, f.eventId, channel.id);
+    db.prepare(`UPDATE channels SET name = ?, topic = ?, summary = ?, tags = ?, status = ?, event_at = ?, kind = ?, position = ?, icon = ?, event_id = ?,
+      banner = ?, season = ?, location = ? WHERE id = ?`).run(f.name, f.topic, f.summary, f.tags, f.status, f.eventAt, kind, position, f.icon, f.eventId,
+      f.banner ?? null, f.season ?? null, f.location ?? null, channel.id);
     if (body.tagged !== undefined) tagCharacters(channel, validTagged(channel.story_id, body.tagged), user);
     if (f.status === 'complete' && channel.status !== 'complete') ctx.bots?.onThread(channel.id, 'finished');
     storyChanged(channel.story_id);
@@ -209,6 +225,20 @@ export function threadRoutes(r, ctx) {
     db.prepare('DELETE FROM channels WHERE id = ?').run(channel.id);
     storyChanged(channel.story_id);
     return { data: { ok: true } };
+  });
+
+  // Places writers have used (episodes, posts in them, social posts), most used first, for the
+  // location suggestions. Only from stories the person can see.
+  r.get('/api/locations', ({ user }) => {
+    requireUser(user);
+    const rows = db.prepare(`SELECT location AS l, COUNT(*) AS n FROM (
+        SELECT c.location FROM channels c JOIN stories s ON s.id = c.story_id
+          WHERE c.location IS NOT NULL AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
+        UNION ALL SELECT p.location FROM posts p JOIN stories s ON s.id = p.story_id
+          WHERE p.location IS NOT NULL AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
+        UNION ALL SELECT location FROM social_posts WHERE location IS NOT NULL)
+      GROUP BY l COLLATE NOCASE ORDER BY n DESC, l LIMIT 200`).all({ u: user.id });
+    return { data: { locations: rows.map((r) => r.l) } };
   });
 
   // ---------- Feed ----------

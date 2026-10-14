@@ -45,6 +45,7 @@ export function toSelf(row) {
     id: row.id, username: row.username, displayName: row.display_name, bio: row.bio,
     avatar: row.avatar, banner: row.banner ?? null, isAdmin: !!row.is_admin,
     profile: parseProfile(row.profile), gradient: row.gradient ? row.gradient.split(',') : null,
+    showAbout: row.show_about !== 0, usernameChangedAt: row.username_changed_at ?? null,
   };
 }
 

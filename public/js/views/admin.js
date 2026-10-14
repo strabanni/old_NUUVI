@@ -1,12 +1,12 @@
 // Admin panel: reports, people, invites, stories, moderation log.
 import { html, render, api, $, $$, bindForm, toast, avatar, confirmModal, promptModal, modal, timeAgo, formatPost, icons, uploadBanner, askImageLink } from '../lib.js';
-import { state, page, refreshHome, copyText, routeAlive, ensureAlive, loadHeaders } from '../main.js';
+import { state, page, refreshHome, copyText, routeAlive, ensureAlive, loadHeaders , replaceHash } from '../main.js';
 
 const TABS = [['reports', 'Reports'], ['users', 'People'], ['invites', 'Invites'], ['stories', 'Stories'], ['log', 'Log'], ['npcs', 'NPCs & bots'], ['headers', 'Headers']];
 
 export async function viewAdmin() {
   const alive = routeAlive();
-  if (!state.user.isAdmin) return location.replace('#/home');
+  if (!state.user.isAdmin) return replaceHash('#/home');
   const overview = await api('/api/admin/overview');
   let tab = sessionStorage.getItem('nuuvi:admin-tab') || 'reports';
   const body = page({

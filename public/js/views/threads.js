@@ -1,5 +1,5 @@
 // The feed (every thread you can see, filterable by type) and the start/edit-a-thread form.
-import { html, render, applyColors, api, $, $$, toast, avatar, icons, modal, uploadImage, askImageLink } from '../lib.js';
+import { html, render, applyColors, api, $, $$, toast, avatar, icons, modal, uploadImage, askImageLink, attachSheet } from '../lib.js';
 import { state, page, loadStory, refreshHome, myCharacters, routeAlive, KIND_LABELS, kindIcon, channelIcon } from '../main.js';
 
 const STATUS_LABELS = { open: 'Open', closed: 'Private', complete: 'Complete' };
@@ -13,7 +13,7 @@ export function avatarStack(chars, max = 4) {
 }
 
 export function feedCard(item) {
-  const pic = item.story.banner || item.starter?.portrait || item.starter?.avatar;
+  const pic = item.banner || item.story.banner || item.starter?.portrait || item.starter?.avatar;
   const when = item.kind === 'event' && item.eventAt ? item.eventAt : item.lastPostAt || item.createdAt;
   return html`
     <a class="feed-card kind-${item.kind}" href="#/s/${item.storyId}/${item.id}" data-color="${item.story.color}">
@@ -56,6 +56,36 @@ export function masonry(root) {
 // Quick picks for a comms thread's icon (texts, DMs, socials, work chat…).
 const COMMS_EMOJI = ['💬', '📱', '💌', '📸', '🐦', '🎮', '💼', '🖤', '🩷', '✨', '🔒', '📞'];
 
+// Places already used anywhere on NUUVI (episodes, posts, social posts), as suggestions for a
+// location field; writers can always type a new one.
+let locationCache = null;
+export async function fillLocations(list) {
+  if (!list) return;
+  locationCache ??= api('/api/locations').then((r) => r.locations).catch(() => []);
+  render(list, html`${(await locationCache).map((l) => html`<option value="${l}"></option>`)}`);
+}
+export const forgetLocations = () => { locationCache = null; };
+
+// Ask for a place: pick one already used on NUUVI, or type a new one. Resolves to the text ('' clears it), or null if cancelled.
+export async function askLocation(current = '', title = 'Where is this?') {
+  const res = await modal(html`<form>
+    <h2>${title}</h2>
+    <label for="ask-loc">Location</label>
+    <input id="ask-loc" name="location" maxlength="100" list="ask-loc-list" value="${current}" placeholder="Pick or type a place" autocomplete="off">
+    <datalist id="ask-loc-list"></datalist>
+    <div class="actions end">${current ? html`<button type="button" id="ask-loc-clear">Remove</button>` : ''}<button type="button" data-close>Cancel</button><button type="submit" class="primary">Done</button></div>
+  </form>`, {
+    init: (d, close) => {
+      fillLocations($('#ask-loc-list', d));
+      $('#ask-loc', d).focus();
+      $('#ask-loc-clear', d)?.addEventListener('click', () => close({ location: '' }));
+    },
+  });
+  if (!res) return null;
+  forgetLocations();
+  return String(res.location || '').trim();
+}
+
 export async function openThreadForm({ storyId = null, channel = null, tag = [], eventId = null, kind: startKind = null } = {}) {
   document.body.classList.remove('drawer-open', 'members-open');
   const editing = !!channel;
@@ -85,6 +115,16 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
           ${editing ? html`<option value="complete" ${c.status === 'complete' ? 'selected' : ''}>Complete — read only</option>` : ''}
         </select></div>
       </div>
+      <label>Episode picture <span class="muted small">— shows at the top of the episode and on THE : NU (best 1600 × 900)</span></label>
+      <div class="t-banner" id="t-banner">${c.banner ? html`<img src="${c.banner}" alt="">` : html`<span>${icons.image} Add a picture</span>`}</div>
+      <input type="hidden" name="banner" value="${c.banner || ''}">
+      <div class="row">
+        <div><label for="t-season">Season <span class="muted small">(optional)</span></label>
+          <input id="t-season" name="season" type="number" min="1" max="99" inputmode="numeric" value="${c.season || ''}" placeholder="1"></div>
+        <div><label for="t-loc">Location</label>
+          <input id="t-loc" name="location" maxlength="100" list="nuuvi-locations" value="${c.location || ''}" placeholder="Pick or type a place"></div>
+      </div>
+      <datalist id="nuuvi-locations"></datalist>
       <div id="t-icon" ${(c.kind || 'thread') === 'comms' ? '' : 'hidden'}>
         <label>Icon <span class="muted small">— which app is this? Pick an emoji or use a picture</span></label>
         <div class="icon-picker">
@@ -164,6 +204,14 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
         if (!file) return;
         try { setIcon(await uploadImage(file, 256)); } catch (err) { toast(err.message); }
       });
+      // Episode picture (tap to change; long-press-free so it works the same on phones).
+      const drawBanner = () => render($('#t-banner', d), form.banner.value ? html`<img src="${form.banner.value}" alt=""><button type="button" class="t-banner-x" aria-label="Remove picture">✕</button>` : html`<span>${icons.image} Add a picture</span>`);
+      drawBanner();
+      $('#t-banner', d).addEventListener('click', (e) => {
+        if (e.target.closest('.t-banner-x')) { form.banner.value = ''; return drawBanner(); }
+        attachSheet({ max: 1, onPictures: ([u]) => { form.banner.value = u; drawBanner(); } });
+      });
+      fillLocations($('#nuuvi-locations', d));
       const picker = $('#t-tagged', d);
       const loadTaggable = async (id) => {
         const { characters: all } = await api(`/api/stories/${id}/characters`).catch(() => ({ characters: [] }));
@@ -191,6 +239,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
       const payload = {
         name: data.name, kind: data.kind, status: data.status, summary: data.summary, tags: data.tags, tagged,
         eventId: ['event', 'comms'].includes(data.kind) && data.eventId ? Number(data.eventId) : null,
+        banner: data.banner || null, season: data.season ? Number(data.season) : null, location: data.location || '',
       };
       if (data.kind === 'comms') payload.icon = data.icon || null;
       if (!editing && data.characterId) payload.characterId = Number(data.characterId);

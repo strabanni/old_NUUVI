@@ -1,6 +1,6 @@
 // Messages: private, out-of-character conversations between writers (this replaced OOC channels).
 // Computers show the conversation list and the open conversation side by side; phones show one at a time.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, formatPost, userGrad, attachSheet } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, formatPost, userGrad, attachSheet, jumpToLatest } from '../lib.js';
 import { state, page, routeAlive, ensureAlive, onLeave, bus, refreshHome } from '../main.js';
 import { agoShort } from './social.js';
 
@@ -102,7 +102,7 @@ export async function viewMessages(userIdStr) {
         ${grouped ? html`<span class="dm-gutter"><time>${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></span>`
           : html`<a class="dm-av" href="#/u/${who.id}">${avatar({ name: who.displayName, src: who.avatar, color: '#8F8D8E' })}</a>`}
         <div class="dm-content">
-          ${grouped ? '' : html`<div class="dm-meta-line"><a href="#/u/${who.id}" class="dm-name u-grad"${userGrad(who)}>${who.displayName}</a><time>${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>`}
+          ${grouped ? '' : html`<div class="dm-meta-line"><span class="dm-name u-grad"${userGrad(who)}>${who.displayName}</span><time>${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>`}
           ${m.media.length ? html`<div class="b-pics n${Math.min(m.media.length, 4)}">${m.media.map((u) => html`<a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="" loading="lazy"></a>`)}</div>` : ''}
           ${m.body ? html`<div class="body">${formatPost(m.body)}</div>` : ''}
         </div>
@@ -114,6 +114,7 @@ export async function viewMessages(userIdStr) {
     if (stick) list.scrollTop = list.scrollHeight;
   };
   draw();
+  jumpToLatest(list);
   const markRead = () => api(`/api/messages/${otherId}/read`, { method: 'POST', body: {} }).then(() => refreshHome()).catch(() => {});
   markRead();
   list.addEventListener('click', async (e) => {

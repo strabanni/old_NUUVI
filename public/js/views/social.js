@@ -1,6 +1,7 @@
 // Character social media: posts (text, photo, video, voice note, stream), likes, comments.
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink, gradAttr, looksForeign, translateText } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive } from '../main.js';
+import { fillLocations } from './threads.js';
 
 const KINDS = [['text', 'Text', 'text'], ['photo', 'Photo', 'image'], ['video', 'Video', 'video'], ['voice', 'Voice note', 'mic'], ['stream', 'Stream', 'live']];
 export const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : n >= 1e3 ? `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}K` : String(n));
@@ -24,7 +25,15 @@ function mediaHtml(p, { full = false } = {}) {
       <span class="np-burst" aria-hidden="true">${icons.heartFill}</span>
     </div>`;
   }
-  if (p.kind === 'video') return html`<video class="sm-video" src="${p.media[0]}" controls playsinline preload="metadata"></video>`;
+  // Videos play by themselves, muted and looping, while on screen (like Instagram): no black play
+  // overlay, shaped to the video itself. Tap for sound.
+  if (p.kind === 'video') {
+    return html`<div class="np-media np-vid">
+      <video class="sm-video" src="${p.media[0]}" muted loop playsinline autoplay preload="metadata" disablepictureinpicture></video>
+      <button type="button" class="vid-sound" data-sm="sound" aria-label="Turn sound on">${icons.mute}</button>
+      <span class="np-burst" aria-hidden="true">${icons.heartFill}</span>
+    </div>`;
+  }
   if (p.kind === 'voice') {
     return html`<div class="voice-note" data-src="${p.media[0]}">
       <button type="button" class="vn-play" aria-label="Play voice note">${icons.play}</button>
@@ -82,6 +91,7 @@ export function socialCard(p, { full = false } = {}) {
         <a class="np-av" href="#/c/${ch.id}">${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })}</a>
         <div class="np-id">
           <div class="np-line"><a href="#/c/${ch.id}" class="np-who">${nameBadge(ch)}</a><span class="np-dot">•</span><a class="np-ago" href="#/p/${p.id}">${agoShort(p.createdAt)}</a></div>
+          ${p.location ? html`<span class="np-sub loc-tag">${icons.pin} ${p.location}</span>` : ''}
           ${songLine(p.meta.music)}
         </div>
         <button class="icon-btn sm np-more" data-sm="more" aria-label="Post options">${icons.more}</button>
@@ -121,8 +131,35 @@ export function styleBars(root) {
 }
 
 // Wires likes, menus and voice notes inside `root`; `posts` maps id → post; `redraw(post)` re-renders one.
+// Videos on screen play (muted, looping); off screen they pause. Each video's box takes its shape
+// (between 4:5 tall and 1.91:1 wide), so nothing is squashed or boxed in black.
+const seen = new WeakSet();
+const vidObserver = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
+  for (const en of entries) {
+    const v = en.target;
+    if (en.isIntersecting && en.intersectionRatio > 0.5) v.play().catch(() => {}); else v.pause();
+  }
+}, { threshold: [0, 0.5, 1] }) : null;
+export function wireVideos(root) {
+  for (const v of root.querySelectorAll('.np-vid video')) {
+    if (seen.has(v)) continue;
+    seen.add(v);
+    v.muted = true;
+    const shape = () => {
+      if (!v.videoWidth) return;
+      const r = Math.min(1.91, Math.max(0.8, v.videoWidth / v.videoHeight));
+      v.parentElement.style.setProperty('--vr', String(r));
+    };
+    v.addEventListener('loadedmetadata', shape);
+    shape();
+    vidObserver?.observe(v);
+  }
+}
+
 export function bindSocial(root, posts, redraw) {
   styleBars(root);
+  wireVideos(root);
+  new MutationObserver(() => wireVideos(root)).observe(root, { childList: true, subtree: true });
   root.addEventListener('scroll', (e) => {
     const car = e.target.closest?.('.carousel');
     if (car) syncCarousel(car);
@@ -148,6 +185,18 @@ export function bindSocial(root, posts, redraw) {
     }
     const b = e.target.closest('[data-sm]');
     if (!b) return;
+    if (b.dataset.sm === 'sound') {
+      // One video with sound at a time.
+      const v = b.parentElement.querySelector('video');
+      const on = v.muted;
+      root.querySelectorAll('.np-vid video').forEach((x) => { x.muted = true; x.parentElement.classList.remove('sound'); });
+      v.muted = !on;
+      b.parentElement.classList.toggle('sound', on);
+      b.setAttribute('aria-label', on ? 'Turn sound off' : 'Turn sound on');
+      render(b, on ? icons.sound : icons.mute);
+      if (on) v.play().catch(() => {});
+      return;
+    }
     const card = b.closest('[data-social]');
     const p = posts.get(Number(card.dataset.social));
     if (b.dataset.sm === 'like') { b.classList.add('pop'); await toggleLike(p, b, redraw); }
@@ -226,6 +275,11 @@ const songFields = (m = {}) => html`
     <label for="s-link">Link <span class="muted small">(optional — Spotify, Apple Music, YouTube…)</span></label>
     <input id="s-link" name="songUrl" type="url" maxlength="500" value="${m.url || ''}" placeholder="https://">
   </details>`;
+// Tag a place, like Instagram's location line.
+const locationField = (v = '') => html`
+  <label for="s-loc">${icons.pin} Location <span class="muted small">(optional)</span></label>
+  <input id="s-loc" name="location" maxlength="100" list="s-loc-list" value="${v}" placeholder="Add a location" autocomplete="off">
+  <datalist id="s-loc-list"></datalist>`;
 const songFrom = (data) => {
   const music = { title: (data.songTitle || '').trim(), artist: (data.songArtist || '').trim(), url: (data.songUrl || '').trim() };
   return music.title || music.artist || music.url ? music : null;
@@ -234,10 +288,12 @@ const songFrom = (data) => {
 async function editCaption(p, redraw) {
   const res = await modal(html`<form><h2>Edit post</h2><label for="e-body">Caption</label><textarea id="e-body" name="body" rows="5" maxlength="5000">${p.body}</textarea>
     ${p.kind === 'stream' ? html`<label>Stream title</label><input name="title" maxlength="120" value="${p.title}">` : ''}
+    ${locationField(p.location || '')}
     ${songFields(p.meta.music)}
     <div class="error"></div><div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`, {
+    init: (d) => fillLocations($('#s-loc-list', d)),
     submit: async (data) => {
-      const body = { body: data.body, music: songFrom(data) };
+      const body = { body: data.body, music: songFrom(data), location: data.location || '' };
       if (p.kind === 'stream') body.title = data.title;
       return (await api(`/api/social/${p.id}`, { method: 'PUT', body })).post;
     },
@@ -295,6 +351,7 @@ export async function openSocialComposer({ characterId = null } = {}) {
       </div>
       <label for="s-body" id="s-body-label">What's happening?</label>
       <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work"></textarea>
+      ${locationField()}
       ${songFields()}
       <div class="error"></div>
       <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Post</button></div>
@@ -322,7 +379,8 @@ export async function openSocialComposer({ characterId = null } = {}) {
               <span>${kind === 'photo' ? 'Add photos' : kind === 'video' ? 'Add a video' : 'Add a thumbnail'}</span>
               <input type="file" accept="${accept}" id="s-file" ${kind === 'photo' ? 'multiple' : ''} hidden></label>` : ''}
           </div>
-          ${kind !== 'video' && ((kind === 'photo' && media.length < 10) || !media.length) ? html`<button type="button" class="sm link-btn" id="s-link-pic">${icons.image} Use a picture link instead</button>` : ''}`);
+          ${kind !== 'video' && ((kind === 'photo' && media.length < 10) || !media.length) ? html`<button type="button" class="sm link-btn" id="s-link-pic">${icons.image} Use a picture link instead</button>` : ''}
+          ${kind === 'photo' ? html`<p class="hint size-hint">Best size: 1080 × 1350 (4:5, tall) or 1080 × 1080 (square). Every photo in a post shows at the first photo's shape.</p>` : ''}`);
       };
       const setKind = (k) => {
         if (recorder) { recorder.stop(); recorder = null; }
@@ -370,10 +428,11 @@ export async function openSocialComposer({ characterId = null } = {}) {
         }
       });
       drawMedia();
+      fillLocations($('#s-loc-list', d));
       form.body.focus();
     },
     submit: async (data) => {
-      const payload = { characterId: Number(data.characterId), kind, body: data.body, media };
+      const payload = { characterId: Number(data.characterId), kind, body: data.body, media, location: data.location || '' };
       const music = songFrom(data);
       if (music) payload.music = music;
       if (kind === 'stream') {
