@@ -3425,3 +3425,21 @@ mark.fx-chip { color: inherit; background: color-mix(in srgb, var(--c, var(--acc
 .ig-by .avatar { width: 22px; height: 22px; font-size: .6rem; }
 /* Brand accounts. */
 .npc-badge.brand { background: linear-gradient(135deg, #F2B04C, #E85D4A); color: #fff; }
+/* NV-51: phones — pages show straight away. The fade-in animations started hidden, and on iPhone they
+   sometimes didn't start until the screen was touched, so a new page looked like it hadn't loaded. */
+@media (pointer: coarse) {
+  .main-body > *, #main.enter .main-head .head-title, #main.enter .main-head .head-actions > *,
+  .bento > *, .char-grid > *, .lore-list > *, .dm-list > .dm-row, .ph-list > .ph-row,
+  :is(.char-grid, .grid, .ov-indies, .ov-congloms, .event-list) > * { animation: none !important; }
+}
+/* A thin bar at the top while a page loads. */
+body.routing::after { content: ''; position: fixed; z-index: 2000; top: var(--sat, 0px); left: 0; height: 3px; width: 40%; border-radius: 0 3px 3px 0;
+  background: linear-gradient(90deg, #EE719E, #B8A6DB); animation: route-bar 1s ease-in-out infinite; pointer-events: none; }
+@keyframes route-bar { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+/* At any Interface size, things sized to the screen use the real screen width. */
+.popover { max-width: calc(100vw / var(--ui-zoom) - 16px); }
+#toast { max-width: calc(100vw / var(--ui-zoom) - 32px); }
+@media (max-width: 899px) {
+  :root { --side-w: min(276px, calc(100vw / var(--ui-zoom) - var(--rail-w) - 40px)); }
+  body.has-members .members-panel { width: min(290px, calc(85vw / var(--ui-zoom))); }
+}

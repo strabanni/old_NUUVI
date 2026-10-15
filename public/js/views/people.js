@@ -321,8 +321,11 @@ export async function viewSettings() {
     if (us) {
       if (us.dataset.uiSize === document.documentElement.dataset.ui) return;
       try { localStorage.setItem('nuuvi:ui', us.dataset.uiSize); } catch { /* ignore */ }
-      window.nuuviScale?.apply(us.dataset.uiSize);
       body.querySelectorAll('[data-ui-size]').forEach((b) => b.setAttribute('aria-pressed', String(b === us)));
+      // Phones and tablets (the home-screen app especially) don't fully re-measure the screen when
+      // the size changes, so parts of the page kept the old size. Reloading starts fresh at the new size.
+      if (window.nuuviScale?.touch) { toast('Changing the size…'); setTimeout(() => location.reload(), 250); return; }
+      window.nuuviScale?.apply(us.dataset.uiSize);
       return;
     }
     const sw = e.target.closest('[data-theme-pick]');

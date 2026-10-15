@@ -955,6 +955,10 @@ export async function router() {
     store.set('nuuvi:after-login', hash);
     return replaceHash('#/');
   }
+  // A thin bar at the top while a page is loading (only if it takes a moment), so a tap always
+  // shows something happening.
+  const seq = routeSeq;
+  const busy = setTimeout(() => { if (seq === routeSeq) document.body.classList.add('routing'); }, 150);
   try {
     await fn(...hash.match(re).slice(1));
   } catch (err) {
@@ -964,6 +968,9 @@ export async function router() {
       return replaceHash('#/');
     }
     page({ title: err.status === 404 ? 'Not found' : 'Something went wrong', body: html`<div class="empty"><p>${err.message}</p><a href="#/home">Go home</a></div>` });
+  } finally {
+    clearTimeout(busy);
+    if (seq === routeSeq) document.body.classList.remove('routing');
   }
 }
 
@@ -992,7 +999,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-50';
+export const APP_BUILD = 'NV-51';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

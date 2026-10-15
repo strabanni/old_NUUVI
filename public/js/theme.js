@@ -87,7 +87,19 @@
       }
     };
     vv.addEventListener('resize', fit);
-    document.addEventListener('focusin', function () { setTimeout(function () { fit({ type: 'focusin' }); }, 300); });
+    // While the keyboard slides up, keep fitting every frame (for about a second) so the app shrinks
+    // along with it, instead of staying full height and then snapping into place.
+    var settleUntil = 0;
+    var settle = function () {
+      fit({ type: 'focusin' });
+      if (performance.now() < settleUntil) requestAnimationFrame(settle);
+    };
+    document.addEventListener('focusin', function () {
+      if (!typing()) return;
+      var running = performance.now() < settleUntil;
+      settleUntil = performance.now() + 1000;
+      if (!running) requestAnimationFrame(settle);
+    });
     document.addEventListener('focusout', function () { setTimeout(fit, 120); });
   }
   window.nuuviScale = { apply: apply, touch: touch, mobile: mobile };

@@ -1,5 +1,16 @@
 [
   {
+    "code": "NV-51",
+    "date": "2026-10-15",
+    "title": "Smoother phones: pages, keyboard & interface size",
+    "items": [
+      "Phones: new pages show straight away. Before, the fade-in could leave a page blank until you touched the screen.",
+      "A thin pink bar shows at the top while a page is loading, so you know your tap worked.",
+      "Typing: when the keyboard opens, the app now shrinks along with it instead of jumping into place afterwards.",
+      "Interface size: changing it on a phone now restarts the app at the new size, so every part of the screen matches and it stays that way."
+    ]
+  },
+  {
     "code": "NV-50",
     "date": "2026-10-15",
     "title": "Photo tags, Tagged tab & brand accounts",
