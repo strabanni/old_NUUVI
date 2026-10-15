@@ -86,6 +86,7 @@ function characterForm(c = {}) {
         </div>
         <p class="hint">Deceased or missing characters stay on NUUVI with everything they've written, but they're no longer playable: no new posts, comments, likes, follows or texts as them. They don't become NPCs. Switch back to Playable any time (for a flashback, or a comeback).</p>
       </fieldset>` : ''}
+      <label class="check"><input type="checkbox" name="brand" ${c.brand ? 'checked' : ''}> This is a brand account <span class="muted small">(a shop, label, café, magazine… gets a Brand badge and shows under Directory → Brands)</span></label>
       <fieldset class="npc-box">
         <label class="check"><input type="checkbox" name="npc" ${c.npc ? 'checked' : ''}> This is an NPC <span class="muted small">(gets an NPC badge)</span></label>
         <div class="npc-auto" ${c.npc ? '' : 'hidden'}>
@@ -214,6 +215,7 @@ export function editCharacter(c = {}) {
     submit: async (data) => {
       data.verified = !!form.verified.checked;
       data.npc = !!form.npc.checked;
+      data.brand = !!form.brand.checked;
       data.gradient = form.useGradient.checked ? $$('[data-stop]', form).filter((x) => x.dataset.stop !== '2' || form.querySelector('#g-three').checked).map((x) => x.value) : '';
       if (data.gradient) data.color = data.gradient[0];
       delete data.useGradient;
@@ -234,7 +236,7 @@ export function editCharacter(c = {}) {
 export function characterCard(c, { editable = false } = {}) {
   const pic = c.portrait || c.avatar;
   const followers = c.followersDisplay ?? c.followers;
-  const badge = c.status === 'deceased' ? 'Deceased' : c.status === 'mia' ? 'Missing' : c.bot === 'gossip' ? 'Anonymous' : c.npc ? 'NPC' : c.verified ? 'Verified' : followers ? `${compact(followers)} followers` : '';
+  const badge = c.status === 'deceased' ? 'Deceased' : c.status === 'mia' ? 'Missing' : c.bot === 'gossip' ? 'Anonymous' : c.brand ? 'Brand' : c.npc ? 'NPC' : c.verified ? 'Verified' : followers ? `${compact(followers)} followers` : '';
   return html`
     <a class="char-card ${c.status ? 'char-gone' : ''}" href="#/c/${c.id}" data-color="${c.color}"${gradAttr(c)} data-tilt>
       ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}
@@ -304,6 +306,7 @@ export async function viewCharacter(id) {
         </div>
         <nav class="ig-tabs" role="tablist">
           <button role="tab" data-tab="posts">${icons.grid}<span>Posts</span></button>
+          <button role="tab" data-tab="tagged">${icons.user}<span>Tagged</span></button>
           <button role="tab" data-tab="threads">${icons.episode}<span>Episodes</span></button>
           <button role="tab" data-tab="about">${icons.profile}<span>About</span></button>
         </nav>
@@ -312,6 +315,7 @@ export async function viewCharacter(id) {
   });
   const pane = $('#ig-pane', body);
   let profile = null;
+  let tagged = null; // other characters' posts this character is tagged in (loaded when the tab opens)
   const thumb = (p) => html`
     <a class="ig-tile kind-${p.kind}" href="#/p/${p.id}">
       ${p.kind === 'photo' ? html`<img src="${p.media[0]}" alt="" loading="lazy">${p.media.length > 1 ? html`<span class="ig-badge">${icons.grid}</span>` : ''}`
@@ -328,6 +332,15 @@ export async function viewCharacter(id) {
       render(pane, posts.length ? html`<div class="ig-grid">${posts.map(thumb)}</div>`
         : html`<div class="empty"><p>No posts yet.</p>${own && !c.status ? html`<p><button class="primary" id="first-post">Make ${c.name}'s first post</button></p>` : ''}</div>`);
       $('#first-post', pane)?.addEventListener('click', newPost);
+    } else if (tab === 'tagged') {
+      // Posts by others that tag this character on a photo or @mention them (like Instagram's Tagged).
+      if (!tagged) {
+        render(pane, html`<p class="muted small ig-loading">Loading…</p>`);
+        api(`/api/social?tagged=${c.id}`).then((r) => { tagged = r.posts; if (tab === 'tagged') draw(); }).catch(() => { tagged = []; if (tab === 'tagged') draw(); });
+        return;
+      }
+      render(pane, tagged.length ? html`<div class="ig-grid">${tagged.map((p) => html`<div class="ig-tagged">${thumb(p)}<a class="ig-by" href="#/c/${p.character.id}">${avatar({ name: p.character.name, src: p.character.avatar, color: p.character.color, size: 'xs' })}</a></div>`)}</div>`
+        : html`<div class="empty"><p>No tagged posts yet.</p><p class="small muted">When someone tags ${c.name} on a photo or @mentions them in a post, it shows here.</p></div>`);
     } else if (tab === 'threads') {
       render(pane, threads.length ? html`<div class="sp-threads">${threads.map((t) => html`
         <a class="sp-thread status-${t.status}" href="#/s/${t.storyId}/${t.id}">

@@ -372,11 +372,15 @@ export function makeComments(post, character, count, { mentions = [], seed = pos
 }
 
 // Characters @mentioned in a caption, by their handles (shown as @handle in comments).
+// Characters tagged on the photos count too (they're in the picture).
 export function mentionedHandles(db, post) {
   const tokens = mentionTokens(post.body);
-  if (!tokens.length) return [];
   const known = db.prepare('SELECT handle FROM characters WHERE handle = ? COLLATE NOCASE');
-  return [...new Set(tokens.map((t) => resolveMention(t, (h) => known.get(h)?.handle)).filter(Boolean))].map((h) => `@${h}`);
+  const onPhotos = post.id ? db.prepare(`SELECT DISTINCT c.handle FROM social_photo_tags t JOIN characters c ON c.id = t.character_id
+    WHERE t.post_id = ? AND c.id != ? AND c.handle IS NOT NULL`).all(post.id, post.character_id ?? 0).map((r) => r.handle) : [];
+  const handles = [...tokens.map((t) => resolveMention(t, (h) => known.get(h)?.handle)).filter(Boolean), ...onPhotos];
+  const seen = new Set();
+  return handles.filter((h) => !seen.has(h.toLowerCase()) && seen.add(h.toLowerCase())).map((h) => `@${h}`);
 }
 
 // Replaces a post's crowd comments with `count` fresh ones that fit what the post says now.

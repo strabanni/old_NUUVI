@@ -10,7 +10,7 @@ const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padSt
 
 // Social posts go out under the character's @username (their given name shows on their profile).
 export const handleOf = (ch) => (ch.handle ? `@${ch.handle}` : ch.name);
-export const npcBadges = (ch) => html`${ch.npc ? html`<span class="npc-badge" title="NPC">NPC</span>` : ''}${ch.bot === 'bot' ? html`<span class="npc-badge auto" title="Posts and comments on its own">AUTO</span>` : ''}`;
+export const npcBadges = (ch) => html`${ch.brand ? html`<span class="npc-badge brand" title="Brand account">BRAND</span>` : ''}${ch.npc ? html`<span class="npc-badge" title="NPC">NPC</span>` : ''}${ch.bot === 'bot' ? html`<span class="npc-badge auto" title="Posts and comments on its own">AUTO</span>` : ''}`;
 export const nameBadge = (ch) => html`<span class="sp-name">${handleOf(ch)}</span>${ch.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(ch)}`;
 
 function mediaHtml(p, { full = false } = {}) {
@@ -19,6 +19,7 @@ function mediaHtml(p, { full = false } = {}) {
     const n = p.media.length;
     return html`<div class="np-media carousel ${n > 1 ? 'multi' : ''}" data-n="${n}">
       <div class="car-track no-swipe">${p.media.map((u, i) => html`<img src="${u}" alt="" loading="${i ? 'lazy' : 'eager'}" draggable="false">`)}</div>
+      ${photoTagsHtml(p)}
       ${n > 1 ? html`<span class="car-count" aria-hidden="true">1/${n}</span>
         <button type="button" class="car-btn prev" data-car="-1" aria-label="Previous photo" hidden>${icons.chevron}</button>
         <button type="button" class="car-btn next" data-car="1" aria-label="Next photo">${icons.chevron}</button>
@@ -51,6 +52,17 @@ function mediaHtml(p, { full = false } = {}) {
     </div>`;
   }
   return '';
+}
+
+// People tagged on the photos (Instagram-style): a person button on photos with tags; tap it (or
+// the photo) to show their names where they are, and tap a name to open their profile.
+function photoTagsHtml(p) {
+  const tags = p.photoTags || [];
+  if (!tags.length) return '';
+  const on = (i) => tags.some((t) => t.mediaIndex === i);
+  return html`<div class="ptag-layer" aria-label="Tagged people">${tags.map((t) => html`
+      <a class="ptag" href="#/c/${t.characterId}" data-mi="${t.mediaIndex}" data-x="${t.x}" data-y="${t.y}" ${t.mediaIndex ? 'hidden' : ''}>${t.handle ? `@${t.handle}` : t.name}</a>`)}</div>
+    <button type="button" class="ptag-btn" data-ptags aria-label="Show tagged people" ${on(0) ? '' : 'hidden'} data-on="${tags.map((t) => t.mediaIndex).join(',')}">${icons.user}</button>`;
 }
 
 // The song attached to a post, under the poster's name (like Instagram). Links open in a new tab.
@@ -161,6 +173,10 @@ function syncCarousel(car, at = null) {
   const count = car.querySelector('.car-count');
   if (count) count.textContent = `${i + 1}/${n}`;
   car.querySelectorAll('.car-dots i').forEach((d, k) => d.classList.toggle('on', k === i));
+  // Only the tags on the photo showing.
+  car.querySelectorAll('.ptag[data-mi]').forEach((t) => { t.hidden = Number(t.dataset.mi) !== i; });
+  const pb = car.querySelector('[data-ptags]');
+  if (pb) pb.hidden = !pb.dataset.on.split(',').map(Number).includes(i);
   const prev = car.querySelector('.car-btn.prev');
   const next = car.querySelector('.car-btn.next');
   if (prev) prev.hidden = i <= 0;
@@ -190,6 +206,7 @@ function moveCarousel(car, step) {
 
 export function styleBars(root) {
   for (const i of root.querySelectorAll('.vn-bars i')) i.style.height = `${i.dataset.h}%`;
+  for (const t of root.querySelectorAll('.ptag[data-x]')) { t.style.setProperty('--x', `${Number(t.dataset.x) * 100}%`); t.style.setProperty('--y', `${Number(t.dataset.y) * 100}%`); }
 }
 
 // Wires likes, menus and voice notes inside `root`; `posts` maps id → post; `redraw(post)` re-renders one.
@@ -221,7 +238,7 @@ export function wireVideos(root) {
 export function bindSocial(root, posts, redraw) {
   styleBars(root);
   wireVideos(root);
-  new MutationObserver(() => wireVideos(root)).observe(root, { childList: true, subtree: true });
+  new MutationObserver(() => { wireVideos(root); styleBars(root); }).observe(root, { childList: true, subtree: true });
   root.addEventListener('scroll', (e) => {
     const car = e.target.closest?.('.carousel');
     if (car) syncCarousel(car);
@@ -248,6 +265,11 @@ export function bindSocial(root, posts, redraw) {
     const arrow = e.target.closest('[data-car]');
     if (arrow) {
       moveCarousel(arrow.closest('.carousel'), Number(arrow.dataset.car));
+      return;
+    }
+    // Tagged people: the person button (or a tap on the photo) shows and hides their names.
+    if (e.target.closest('[data-ptags]') || (e.target.closest('.car-track') && e.target.closest('.carousel')?.querySelector('.ptag-layer'))) {
+      e.target.closest('.carousel').classList.toggle('show-tags');
       return;
     }
     const b = e.target.closest('[data-sm]');
@@ -498,6 +520,81 @@ async function deletePost(p, card) {
 }
 
 // ---------- New post ----------
+// Tag people on the photos: tap a spot on a photo, pick who it is. Resolves the new list of tags,
+// or null if cancelled.
+async function tagPhotos(media, tags, ownerId) {
+  const { writers } = await api('/api/directory');
+  const everyone = writers.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w.username }))).filter((c) => c.id !== ownerId)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  let list = tags.map((t) => ({ ...t }));
+  let at = 0;
+  let pending = null;
+  return modal(html`
+    <form class="tag-editor">
+      <h2>Tag people</h2>
+      <p class="hint">Tap someone in the photo, then pick who they are. Tap a name to remove it.</p>
+      <div class="te-stage" id="te-stage"><img id="te-img" alt="" draggable="false"><div class="te-pins" id="te-pins"></div><i class="te-dot" id="te-dot" hidden></i></div>
+      <div class="te-nav" ${media.length > 1 ? '' : 'hidden'}><button type="button" class="sm" id="te-prev" aria-label="Previous photo">‹</button><span id="te-count"></span><button type="button" class="sm" id="te-next" aria-label="Next photo">›</button></div>
+      <div class="te-pick" id="te-pick" hidden>
+        <input type="search" id="te-q" placeholder="Who's this? Search characters…" aria-label="Search characters" autocomplete="off">
+        <div class="pc-list" id="te-list"></div>
+      </div>
+      <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Done</button></div>
+    </form>`, {
+    init: (d) => {
+      const img = $('#te-img', d);
+      const pins = $('#te-pins', d);
+      const dot = $('#te-dot', d);
+      const pick = $('#te-pick', d);
+      const place = (el, x, y) => { el.style.setProperty('--x', `${x * 100}%`); el.style.setProperty('--y', `${y * 100}%`); };
+      const draw = () => {
+        img.src = media[at];
+        $('#te-count', d).textContent = `${at + 1} / ${media.length}`;
+        render(pins, html`${list.filter((t) => t.url === media[at]).map((t) => html`<button type="button" class="ptag on" data-untag="${t.characterId}" data-x="${t.x}" data-y="${t.y}">${t.handle ? `@${t.handle}` : t.name} ✕</button>`)}`);
+        pins.querySelectorAll('[data-x]').forEach((el) => place(el, Number(el.dataset.x), Number(el.dataset.y)));
+        dot.hidden = !pending;
+        if (pending) place(dot, pending.x, pending.y);
+      };
+      const drawPick = (q = '') => {
+        const shown = everyone.filter((c) => !q || `${c.name} ${c.handle} ${c.writer}`.toLowerCase().includes(q)).slice(0, 40);
+        render($('#te-list', d), shown.length ? html`${shown.map((c) => html`<button type="button" class="pc-item" data-tag="${c.id}">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span class="grow"><b>${c.name}</b><small>@${c.handle} · ${c.writer}</small></span></button>`)}`
+          : html`<p class="muted small">No one matches.</p>`);
+      };
+      draw();
+      $('#te-stage', d).addEventListener('click', (e) => {
+        if (e.target.closest('[data-untag]')) {
+          list = list.filter((t) => !(t.url === media[at] && t.characterId === Number(e.target.closest('[data-untag]').dataset.untag)));
+          draw();
+          return;
+        }
+        const r = img.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        pending = { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+        pick.hidden = false;
+        drawPick();
+        draw();
+        $('#te-q', d).focus();
+      });
+      $('#te-q', d).addEventListener('input', (e) => drawPick(e.target.value.trim().toLowerCase()));
+      $('#te-list', d).addEventListener('click', (e) => {
+        const b = e.target.closest('[data-tag]');
+        if (!b || !pending) return;
+        const c = everyone.find((x) => x.id === Number(b.dataset.tag));
+        list = list.filter((t) => !(t.url === media[at] && t.characterId === c.id));
+        list.push({ url: media[at], characterId: c.id, name: c.name, handle: c.handle, x: pending.x, y: pending.y });
+        pending = null;
+        pick.hidden = true;
+        $('#te-q', d).value = '';
+        draw();
+      });
+      const go = (step) => { at = (at + step + media.length) % media.length; pending = null; pick.hidden = true; draw(); };
+      $('#te-prev', d).addEventListener('click', () => go(-1));
+      $('#te-next', d).addEventListener('click', () => go(1));
+    },
+    submit: async () => list,
+  });
+}
+
 export async function openSocialComposer({ characterId = null, category = 'post', edit = null } = {}) {
   const mine = edit ? await myCharacters(true) : await playableCharacters(true);
   if (!mine.length) { toast('Create a character first — posts are made by characters'); location.hash = '#/characters'; return null; }
@@ -508,6 +605,8 @@ export async function openSocialComposer({ characterId = null, category = 'post'
   let duration = edit?.meta?.duration || 0;
   let recorder = null;
   let peopleOf = () => [];
+  // People tagged on the photos, kept with the photo's link so they follow it when photos move.
+  let photoTags = edit ? (edit.photoTags || []).map((t) => ({ ...t, url: edit.media[t.mediaIndex] })) : [];
 
   const result = await modal(html`
     <form class="social-form">
@@ -562,6 +661,7 @@ export async function openSocialComposer({ characterId = null, category = 'post'
               <input type="file" accept="${accept}" id="s-file" ${kind === 'photo' ? 'multiple' : ''} hidden></label>` : ''}
           </div>
           ${kind !== 'video' && ((kind === 'photo' && media.length < 10) || !media.length) ? html`<button type="button" class="sm link-btn" id="s-link-pic">${icons.image} Use a picture link instead</button>` : ''}
+          ${kind === 'photo' && media.length ? html`<button type="button" class="sm" id="s-tag">${icons.user} Tag people${photoTags.filter((t) => media.includes(t.url)).length ? ` (${photoTags.filter((t) => media.includes(t.url)).length})` : ''}</button>` : ''}
           ${kind === 'photo' && media.length > 1 ? html`<p class="hint">Drag the photos, or use ‹ ›, to change their order. Photo 1 shows first.</p>` : ''}
           ${kind === 'photo' ? html`<p class="hint size-hint">Best size: 1080 × 1350 (4:5, tall) or 1080 × 1080 (square). Every photo in a post shows at the first photo's shape.</p>` : ''}`);
       };
@@ -614,6 +714,11 @@ export async function openSocialComposer({ characterId = null, category = 'post'
           drawMedia();
         }
         if (e.target.closest('#rec-clear')) { media = []; drawMedia(); }
+        if (e.target.closest('#s-tag')) {
+          const owner = edit ? edit.character.id : Number(form.characterId.value);
+          const next = await tagPhotos(media, photoTags, owner);
+          if (next) { photoTags = next; drawMedia(); }
+        }
         if (e.target.closest('#s-link-pic')) {
           const url = await askImageLink();
           if (url) { media.push(url); drawMedia(); }
@@ -644,6 +749,10 @@ export async function openSocialComposer({ characterId = null, category = 'post'
     submit: async (data) => {
       const payload = { characterId: Number(edit ? edit.character.id : data.characterId), kind, body: data.body, media, location: data.location || '', people: peopleOf(), context: data.context || '', ...extrasFrom(data, edit?.createdAt ?? null) };
       if (kind === 'photo' && media[0]) { const look = await analyzeLook(media[0]); if (look) payload.meta = { look }; }
+      if (kind === 'photo' || edit) {
+        payload.photoTags = kind !== 'photo' ? [] : photoTags.filter((t) => media.includes(t.url))
+          .map((t) => ({ characterId: t.characterId, mediaIndex: media.indexOf(t.url), x: t.x, y: t.y }));
+      }
       const music = songFrom(data);
       if (music || edit) payload.music = music;
       if (kind === 'stream') {

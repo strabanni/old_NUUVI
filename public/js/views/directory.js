@@ -38,6 +38,7 @@ export async function viewDirectory() {
           <button type="button" data-view="writers">By writer</button>
           <button type="button" data-view="characters">All characters</button>
           <button type="button" data-view="npcs">NPCs</button>
+          <button type="button" data-view="brands">Brands</button>
           <button type="button" data-view="places">Locations</button>
         </div>
       </div>
@@ -77,6 +78,17 @@ export async function viewDirectory() {
         </section>`)}
         ${anonymous.length ? html`<section class="dir-writer"><div class="dir-head"><span class="grow"><b>Accounts</b><small>Run anonymously</small></span></div>
           <div class="char-grid compact">${anonymous.map((c) => characterCard(c))}</div></section>` : ''}` : html`<div class="empty"><p>Nobody matches “${q}”.</p></div>`);
+    } else if (view === 'brands') {
+      // Brand accounts: shops, labels, cafés, magazines… that post on THE NU.
+      const brands = all.filter((c) => c.brand);
+      const shown = brands.filter((c) => match(c.name, c.handle, c.tagline, c.writer.username));
+      render(list, html`
+        <p class="hint">Brand accounts post on THE NU like a business would. Make one by ticking “This is a brand account” in a character's editor.</p>
+        ${shown.length ? html`<div class="char-grid npc-grid">${shown.map((c) => html`
+          <div class="npc-item">
+            ${characterCard(c, { editable: c.writer.id === state.user.id })}
+            <div class="npc-meta"><span class="muted small">by @${c.writer.username}</span></div>
+          </div>`)}</div>` : html`<div class="empty"><p>${brands.length ? 'No brands match.' : 'No brand accounts yet.'}</p></div>`}`);
     } else if (view === 'npcs') {
       // NPCs: everyone's shared background characters, by category.
       if (!npcData) {
@@ -189,9 +201,9 @@ export async function viewDirectory() {
     // Me: make a character, or edit one of yours.
     if (e.target.closest('#new-char')) { if (await editCharacter()) { toast('Saved'); state.characters = null; sessionStorage.setItem('nuuvi:dir-once', 'me'); viewDirectory(); } return; }
     const edMine = e.target.closest('[data-edit]');
-    if (edMine && view === 'me') {
+    if (edMine && (view === 'me' || view === 'brands')) {
       e.preventDefault();
-      if (await editCharacter(mine.find((c) => c.id === Number(edMine.dataset.edit)))) { toast('Saved'); state.characters = null; sessionStorage.setItem('nuuvi:dir-once', 'me'); viewDirectory(); }
+      if (await editCharacter(mine.find((c) => c.id === Number(edMine.dataset.edit)))) { toast('Saved'); state.characters = null; sessionStorage.setItem('nuuvi:dir-once', view); viewDirectory(); }
       return;
     }
     if (e.target.closest('#new-npc')) { if (await editCharacter({ npc: true })) { npcData = null; draw(); } return; }

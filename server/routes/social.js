@@ -126,11 +126,12 @@ const MEDIA_EXT = {
 export function socialPostRoutes(r, ctx) {
   const { db } = ctx;
   const charCols = `c.name AS c_name, c.avatar AS c_avatar, c.color AS c_color, c.verified AS c_verified, c.user_id AS c_user,
-    c.handle AS c_handle, c.npc AS c_npc, c.bot AS c_bot, c.gradient AS c_gradient,
+    c.handle AS c_handle, c.npc AS c_npc, c.bot AS c_bot, c.gradient AS c_gradient, c.brand AS c_brand,
     COALESCE(c.followers_display, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id)) AS c_followers`;
   const charOf = (row) => ({
     id: row.character_id, name: row.c_name, avatar: row.c_avatar, color: row.c_color, verified: !!row.c_verified, userId: row.c_user,
     handle: row.c_handle, npc: !!row.c_npc, bot: row.c_bot ?? null, gradient: row.c_gradient ? row.c_gradient.split(',') : null,
+    brand: !!row.c_brand,
   });
 
   // The "what's happening" note is the writer's own; nobody else gets it.
@@ -168,7 +169,14 @@ export function socialPostRoutes(r, ctx) {
       comments: comments.map((cm) => ({ id: cm.id, body: cm.body, createdAt: cm.created_at, userId: cm.user_id, parentId: cm.parent_id ?? null,
         likes: autoCommentLikes(cm.c_followers, cm.id), character: charOf(cm) })),
       buzz: buzz.map((b) => ({ id: b.id, handle: b.handle, body: b.body, likes: b.likes, createdAt: b.created_at })),
+      // People tagged on the photos themselves (Instagram-style), with where on the photo.
+      photoTags: photoTagRows(row.id).map((t) => ({ characterId: t.character_id, name: t.name, handle: t.handle, mediaIndex: t.media_index, x: t.x, y: t.y })),
     };
+  }
+  const photoTagUsers = (postId) => photoTagRows(postId).map((t) => t.user_id);
+  function photoTagRows(postId) {
+    return db.prepare(`SELECT t.*, c.name, c.handle, c.user_id FROM social_photo_tags t JOIN characters c ON c.id = t.character_id
+      WHERE t.post_id = ? ORDER BY t.media_index, t.rowid`).all(postId);
   }
 
   const SELECT = `SELECT p.*, ${charCols} FROM social_posts p JOIN characters c ON c.id = p.character_id`;
@@ -176,9 +184,18 @@ export function socialPostRoutes(r, ctx) {
   const NOT_BLOCKED = `p.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = :viewer)
     AND p.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = :viewer)`;
 
-  ctx.socialFeed = ({ viewerId, q = '', limit = 60, characterId = null, before = null, category = null }) => {
+  ctx.socialFeed = ({ viewerId, q = '', limit = 60, characterId = null, before = null, category = null, taggedId = null }) => {
     const where = [NOT_BLOCKED];
     const args = { viewer: viewerId, limit };
+    // A profile's "Tagged" tab: other characters' posts that tag them on a photo or @mention them.
+    if (taggedId) {
+      const t = db.prepare('SELECT handle FROM characters WHERE id = ?').get(taggedId);
+      where.push(`p.character_id != :tid AND (p.id IN (SELECT post_id FROM social_photo_tags WHERE character_id = :tid)
+        OR (:th != '' AND (' ' || p.body || ' ') LIKE :thl ESCAPE '\\'))`);
+      args.tid = taggedId;
+      args.th = t?.handle || '';
+      args.thl = `%@${(t?.handle || '').replace(/[\\%_]/g, (m) => '\\' + m)}%`;
+    }
     if (category) { where.push("COALESCE(p.category, 'post') = :cat"); args.cat = category; }
     if (characterId) { where.push('p.character_id = :cid'); args.cid = characterId; }
     // Older posts: everything dated before the given post (back-dated posts sit at their date).
@@ -192,7 +209,14 @@ export function socialPostRoutes(r, ctx) {
     }
     // On a character's profile, pinned posts come first (newest pin first), then everything by date.
     const order = characterId && !before ? 'p.pinned_at IS NULL, p.pinned_at DESC, p.created_at DESC, p.id DESC' : 'p.created_at DESC, p.id DESC';
-    return db.prepare(`${SELECT} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT :limit`).all(args).map((row) => toSocial(row, viewerId));
+    let rows = db.prepare(`${SELECT} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT :limit`).all(args);
+    if (taggedId) {
+      // "@mina" also matches "@minako" in the search above, so check each @mention properly.
+      const find = db.prepare('SELECT id FROM characters WHERE handle = ? COLLATE NOCASE');
+      const onPhoto = new Set(db.prepare('SELECT post_id FROM social_photo_tags WHERE character_id = ?').all(taggedId).map((x) => x.post_id));
+      rows = rows.filter((row) => onPhoto.has(row.id) || mentionTokens(row.body).some((w) => resolveMention(w, (h) => find.get(h))?.id === taggedId));
+    }
+    return rows.map((row) => toSocial(row, viewerId));
   };
 
   const load = (postId, user) => {
@@ -337,9 +361,68 @@ export function socialPostRoutes(r, ctx) {
   r.get('/api/social', ({ user, query }) => {
     requireUser(user);
     const characterId = Number(query.get('character')) || null;
+    const taggedId = Number(query.get('tagged')) || null;
     const before = Number(query.get('before')) || null;
+    if (taggedId) return { data: { posts: ctx.socialFeed({ viewerId: user.id, taggedId, before, limit: 300 }) } };
     return { data: { posts: ctx.socialFeed({ viewerId: user.id, characterId, before, limit: characterId ? 300 : 30 }) } };
   });
+
+  // Tags on the photos of a photo post: [{ characterId, mediaIndex, x, y }] with x and y from 0 to 1
+  // (across and down the photo). undefined = leave as they are.
+  function photoTagsInput(list, kind, media, user) {
+    if (list === undefined) return undefined;
+    if (kind !== 'photo' || list === null) return [];
+    if (!Array.isArray(list)) fail(400, 'Photo tags must be a list');
+    if (list.length > 60) fail(400, 'At most 60 photo tags');
+    const out = new Map();
+    for (const t of list) {
+      const cid = Number(t?.characterId);
+      const mi = Number(t?.mediaIndex ?? 0);
+      const x = Number(t?.x);
+      const y = Number(t?.y);
+      if (!Number.isInteger(mi) || mi < 0 || mi >= media.length) continue;
+      if (![x, y].every((v) => Number.isFinite(v) && v >= 0 && v <= 1)) fail(400, 'A photo tag is off the photo');
+      const c = db.prepare('SELECT id, user_id FROM characters WHERE id = ?').get(cid);
+      if (!c) fail(400, 'Someone tagged on a photo is gone');
+      if (isBlocked(db, c.user_id, user.id) || isBlocked(db, user.id, c.user_id)) fail(403, "You can't tag one of those characters");
+      out.set(`${cid}:${mi}`, { characterId: cid, mediaIndex: mi, x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000 });
+    }
+    return [...out.values()];
+  }
+  // Saves a post's photo tags and lets newly tagged characters' writers know.
+  function savePhotoTags(postId, tags, user, me) {
+    if (tags === undefined) return;
+    const before = new Set(photoTagRows(postId).map((t) => t.character_id));
+    db.prepare('DELETE FROM social_photo_tags WHERE post_id = ?').run(postId);
+    const ins = db.prepare('INSERT INTO social_photo_tags (post_id, character_id, media_index, x, y) VALUES (?, ?, ?, ?, ?)');
+    for (const t of tags) ins.run(postId, t.characterId, t.mediaIndex, t.x, t.y);
+    const told = new Set();
+    for (const t of photoTagRows(postId)) {
+      if (before.has(t.character_id) || told.has(t.character_id) || t.character_id === me.id) continue;
+      told.add(t.character_id);
+      if (t.user_id === user.id || isBlocked(db, t.user_id, user.id)) continue;
+      ctx.notify({ userId: t.user_id, type: 'socialtag', actorId: user.id, characterId: me.id, socialId: postId, text: `${me.name} tagged ${t.name} in a photo` });
+    }
+  }
+  // Everyone tagged on a photo is in the picture, so fan comments can say so. They're kept in the
+  // post's people list (marked as from the photo) next to the @mentioned ones.
+  function withPhotoPeople(metaJson, postId) {
+    const meta = JSON.parse(metaJson);
+    const people = Object.fromEntries(Object.entries(meta.people || {}).filter(([, p]) => !p.photo));
+    for (const t of photoTagRows(postId)) {
+      if (!t.handle) continue;
+      const key = t.handle.toLowerCase();
+      people[key] = { handle: t.handle, rel: people[key]?.rel || '', in: true, photo: !people[key] };
+    }
+    if (Object.keys(people).length) meta.people = people; else delete meta.people;
+    if (Object.values(people).some((p) => p.in)) meta.tagged = true; else if (meta.people) delete meta.tagged;
+    return JSON.stringify(meta);
+  }
+  const syncPhotoPeople = (postId) => {
+    const row = db.prepare('SELECT meta FROM social_posts WHERE id = ?').get(postId);
+    const meta = withPhotoPeople(row.meta, postId);
+    if (meta !== row.meta) db.prepare('UPDATE social_posts SET meta = ? WHERE id = ?').run(meta, postId);
+  };
 
   r.get('/api/social/:id', ({ user, params }) => {
     requireUser(user);
@@ -361,12 +444,15 @@ export function socialPostRoutes(r, ctx) {
     const likesShown = countInput(body.likesDisplay, 'Likes');
     const commentsShown = countInput(body.commentsDisplay, 'Comments');
     const postedAt = whenInput(body.postedAt) ?? null;
+    const photoTags = photoTagsInput(body.photoTags, kind, media, user);
     const { lastInsertRowid } = db.prepare(`INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta, location, category, likes_display, comments_display, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`)
       .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(withPeople(withTagged(metaInput(kind, body.meta), body.taggedIn), body.people, body.context), musicInput(body.music))), location,
         category, likesShown ?? null, commentsShown ?? null, postedAt);
+    savePhotoTags(Number(lastInsertRowid), photoTags, user, c);
+    syncPhotoPeople(Number(lastInsertRowid));
     ctx.bots?.onSocialPost(Number(lastInsertRowid));
-    notifyTags(user, c, Number(lastInsertRowid), text, 'post');
+    notifyTags(user, c, Number(lastInsertRowid), text, 'post', photoTagUsers(Number(lastInsertRowid)));
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(lastInsertRowid);
     const fame = db.prepare(`SELECT COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = ?)) AS n FROM characters WHERE id = ?`).get(c.id, c.id).n;
     newBuzz(fresh, buzzTarget(commentsShown, fame), fame);
@@ -386,11 +472,18 @@ export function socialPostRoutes(r, ctx) {
     if (['photo', 'video', 'voice'].includes(kind) && !media.length) fail(400, `Add a ${kind === 'photo' ? 'photo' : kind === 'video' ? 'video' : 'voice note'} first`);
     if (kind === 'stream' && !title) fail(400, 'Give the stream a title');
     const mediaChanged = kind !== row.kind || JSON.stringify(media) !== row.media;
+    // New pictures without new tags: tags only stay on photos that are still there.
+    let photoTags = photoTagsInput(body.photoTags, kind, media, user);
+    if (photoTags === undefined && mediaChanged) {
+      photoTags = kind !== 'photo' ? [] : photoTagRows(row.id).filter((t) => JSON.parse(row.media)[t.media_index] === media[t.media_index])
+        .map((t) => ({ characterId: t.character_id, mediaIndex: t.media_index, x: t.x, y: t.y }));
+    }
+    const tagsBefore = JSON.stringify(photoTagRows(row.id).map((t) => [t.character_id, t.media_index, t.x, t.y]));
     // Meta that belongs to the post rather than its type (song, tags, what the pictures look like) carries over.
     const prev = JSON.parse(row.meta);
     const keep = Object.fromEntries(['music', 'tagged', 'people', 'context', ...(mediaChanged ? [] : ['seen', 'look'])].filter((k) => prev[k] !== undefined).map((k) => [k, prev[k]]));
     const base = body.meta === undefined ? (mediaChanged ? keep : prev) : { ...keep, ...metaInput(kind, body.meta) };
-    const meta = JSON.stringify(withMusic(withPeople(withTagged(base, body.taggedIn), body.people, body.context), musicInput(body.music)));
+    const metaIn = JSON.stringify(withMusic(withPeople(withTagged(base, body.taggedIn), body.people, body.context), musicInput(body.music)));
     const count = (v, field, old) => (v === undefined ? old ?? null : countInput(v, field));
     const likesShown = count(body.likesDisplay, 'Likes', row.likes_display);
     const commentsShown = count(body.commentsDisplay, 'Comments', row.comments_display);
@@ -398,13 +491,17 @@ export function socialPostRoutes(r, ctx) {
     const category = oneOf(body.category, 'Category', ['post', 'musing']) ?? row.category ?? 'post';
     // The post's date and time can be set (to build up a character's history).
     const postedAt = body.postedAt === undefined ? row.created_at : whenInput(body.postedAt) ?? row.created_at;
+    // Everything checks out: save the photo tags, then the post.
+    savePhotoTags(row.id, photoTags, user, { id: row.character_id, name: row.c_name });
+    const tagsChanged = JSON.stringify(photoTagRows(row.id).map((t) => [t.character_id, t.media_index, t.x, t.y])) !== tagsBefore;
+    const meta = withPhotoPeople(metaIn, row.id);
     const contentChanged = (body.body !== undefined && text !== row.body) || (body.title !== undefined && title !== row.title)
-      || location !== row.location || meta !== row.meta || mediaChanged;
+      || location !== row.location || meta !== row.meta || mediaChanged || tagsChanged;
     const onlyCounts = !contentChanged && category === (row.category ?? 'post');
     db.prepare(`UPDATE social_posts SET kind = ?, media = ?, body = ?, title = ?, meta = ?, likes_display = ?, comments_display = ?, location = ?, category = ?, created_at = ?
       ${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`)
       .run(kind, JSON.stringify(media), text, title, meta, likesShown, commentsShown, location, category, postedAt, row.id);
-    notifyTags(user, { id: row.character_id, name: row.c_name }, row.id, text, 'post', [], row.body);
+    notifyTags(user, { id: row.character_id, name: row.c_name }, row.id, text, 'post', photoTagUsers(row.id), row.body);
     // Crowd comments follow the post: a changed caption (or place, song, pictures) gets fresh comments
     // that fit it, and a new comment number gets at least a quarter of it written out.
     const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;

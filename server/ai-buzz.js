@@ -98,13 +98,14 @@ export function createAiBuzz({ db, hub, uploadDir, ai }) {
   }
 
   function describe(post) {
-    const c = db.prepare('SELECT name, handle, pronouns, COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = characters.id)) AS followers FROM characters WHERE id = ?').get(post.character_id) || {};
+    const c = db.prepare('SELECT name, handle, pronouns, brand, COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = characters.id)) AS followers FROM characters WHERE id = ?').get(post.character_id) || {};
     let meta = {};
     try { meta = JSON.parse(post.meta || '{}'); } catch { /* none */ }
     const p = pronounSet(c.pronouns);
     const tagged = mentionedHandles(db, post);
     const lines = [
-      `Posted by ${c.name || 'a character'}${c.handle ? ` (@${c.handle})` : ''}, pronouns ${p.sub}/${p.obj}, ${Number(c.followers || 0).toLocaleString('en-US')} followers.`,
+      c.brand ? `Posted by the brand account ${c.name || 'a brand'}${c.handle ? ` (@${c.handle})` : ''} (a business, not a person), ${Number(c.followers || 0).toLocaleString('en-US')} followers. The commenters are its customers and followers: they talk about the product, the shop, prices, drops, service and collabs, not about the brand as a person.`
+        : `Posted by ${c.name || 'a character'}${c.handle ? ` (@${c.handle})` : ''}, pronouns ${p.sub}/${p.obj}, ${Number(c.followers || 0).toLocaleString('en-US')} followers.`,
       `Kind of post: ${post.category === 'musing' ? 'a musing (a written thought)' : post.kind}.`,
       `Caption: ${post.body ? `"${post.body}"` : '(none)'}`,
       post.title ? `Stream title: "${post.title}"` : '',

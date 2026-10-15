@@ -406,6 +406,8 @@ export function accountRoutes(r, ctx) {
     // The picture on their thread posts (empty: their avatar is used).
     const threadAvatar = uploadRef(db, body.threadAvatar, userId);
     if (threadAvatar !== undefined) db.prepare('UPDATE characters SET thread_avatar = ? WHERE id = ?').run(threadAvatar, characterId);
+    // A brand account (a shop, label, café, magazine…): posts on THE NU as a business, not a person.
+    if (body.brand !== undefined) db.prepare('UPDATE characters SET brand = ? WHERE id = ?').run(body.brand ? 1 : 0, characterId);
     // Deceased / missing in action (empty: playable again).
     if (body.status !== undefined) {
       const status = body.status ? oneOf(body.status, 'Status', CHARACTER_STATUSES) : null;

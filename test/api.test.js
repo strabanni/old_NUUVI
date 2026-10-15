@@ -1163,3 +1163,47 @@ test('birthdays come from character profiles; only the site owner gets update no
   assert.equal((await app.admin('/api/home')).data.isOwner, true);
   assert.equal((await w('/api/home')).data.isOwner, false);
 });
+
+test('photo tags: tag people on photos, they hear about it, fan comments know they are in it, Tagged tab', async () => {
+  const a = await app.signUp('ptag_a');
+  const b = await app.signUp('ptag_b');
+  const mk = async (who, name, extra = {}) => (await who('/api/characters', { method: 'POST', body: { name, ...extra } })).data.character;
+  const mina = await mk(a, 'Mina Ptag');
+  const ivy = await mk(b, 'Ivy Ptag');
+  const leo = await mk(b, 'Leo Ptag');
+  const pics = ['https://i.pinimg.com/originals/a/b/1.jpg', 'https://i.pinimg.com/originals/a/b/2.jpg'];
+  // A tag off the photo, or on a photo that isn't there, isn't kept.
+  assert.equal((await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'photo', media: pics, photoTags: [{ characterId: ivy.id, mediaIndex: 0, x: 1.5, y: 0.2 }] } })).status, 400);
+  const res = await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'photo', body: 'pier day', media: pics,
+    photoTags: [{ characterId: ivy.id, mediaIndex: 1, x: 0.25, y: 0.5 }, { characterId: leo.id, mediaIndex: 7, x: 0.5, y: 0.5 }] } });
+  assert.equal(res.status, 201);
+  const post = res.data.post;
+  assert.deepEqual(post.photoTags.map((t) => [t.name, t.mediaIndex, t.x, t.y]), [['Ivy Ptag', 1, 0.25, 0.5]]);
+  const note = (await b('/api/notifications')).data.notifications.find((n) => n.type === 'socialtag');
+  assert.match(note.text, /Mina Ptag tagged Ivy Ptag in a photo/);
+  assert.equal(note.from.name, 'Mina Ptag'); // the picture is the character who tagged
+  // Fan comments treat photo-tagged people as in the picture.
+  const meta = (await a(`/api/social/${post.id}`)).data.post.meta;
+  assert.equal(meta.people[ivy.handle.toLowerCase()].in, true);
+  // Ivy's Tagged tab has it (and @mentions too); Mina's own posts don't show on her own Tagged tab.
+  await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: `coffee with @${leo.handle}!!` } });
+  await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: `@${leo.handle}xyz is someone else` } });
+  assert.deepEqual((await b(`/api/social?tagged=${ivy.id}`)).data.posts.map((p) => p.id), [post.id]);
+  assert.deepEqual((await b(`/api/social?tagged=${leo.id}`)).data.posts.map((p) => p.body), [`coffee with @${leo.handle}!!`]);
+  assert.equal((await a(`/api/social?tagged=${mina.id}`)).data.posts.length, 0);
+  // Editing without photoTags keeps them; swapping a photo drops the tags on the old one; [] clears.
+  const kept = (await a(`/api/social/${post.id}`, { method: 'PUT', body: { body: 'pier day 🌊' } })).data.post;
+  assert.equal(kept.photoTags.length, 1);
+  const swapped = (await a(`/api/social/${post.id}`, { method: 'PUT', body: { media: [pics[0], 'https://i.pinimg.com/originals/a/b/3.jpg'] } })).data.post;
+  assert.equal(swapped.photoTags.length, 0);
+  assert.equal((await a(`/api/social/${post.id}`)).data.post.meta.people, undefined);
+  // Brand accounts.
+  const shop = await mk(a, 'Velvet Café', { brand: true });
+  assert.equal(shop.brand, true);
+  const dir = (await b('/api/directory')).data.writers.flatMap((w) => w.characters);
+  assert.equal(dir.find((c) => c.id === shop.id).brand, true);
+  const bp = (await a('/api/social', { method: 'POST', body: { characterId: shop.id, kind: 'text', body: 'new matcha drop 🍵' } })).data.post;
+  assert.equal(bp.character.brand, true);
+  await a(`/api/characters/${shop.id}`, { method: 'PUT', body: { brand: false } });
+  assert.equal((await a(`/api/characters/${shop.id}`)).data.character.brand, false);
+});

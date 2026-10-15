@@ -1,5 +1,17 @@
 [
   {
+    "code": "NV-50",
+    "date": "2026-10-15",
+    "title": "Photo tags, Tagged tab & brand accounts",
+    "items": [
+      "Tag people on photos like Instagram: in a photo post, tap Tag people, tap someone in the photo and pick who it is. No @ needed.",
+      "On the post, a small person button shows on photos with tags. Tap it (or the photo) to show the names, and tap a name to open their profile.",
+      "Tagged people hear about it, and fan comments know they are in the picture.",
+      "Profiles have a new Tagged tab: posts by other characters that tag them on a photo or @mention them.",
+      "Brand accounts: tick “This is a brand account” in a character’s editor for shops, labels, cafés, magazines… They get a BRAND badge and their own list in Directory → Brands. Fan comments on their posts talk like customers."
+    ]
+  },
+  {
     "code": "NV-49",
     "date": "2026-10-15",
     "title": "iPhone-style texts, group chats & better notifications",
