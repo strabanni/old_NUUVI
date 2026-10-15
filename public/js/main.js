@@ -243,6 +243,7 @@ function renderRail() {
       ${logoMark}<span class="online-badge"><span class="pulse"></span>${state.online.length || ''}</span>
     </button>
     <div class="rail-sep rail-sep-top"></div>
+    <button type="button" class="rail-item rail-menu phone-only-flex" data-drawer title="Menu" aria-label="Open the menu">${icons.menu}</button>
     <a href="#/home" class="rail-item home-link ${!active && !inArchive && !inMessages ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
     <a href="#/archive" class="rail-item archive-link ${inArchive ? 'active' : ''}" title="Archive: completed stories" aria-label="Archive">${icons.archive}${archivedCount ? html`<i class="rail-count">${archivedCount}</i>` : ''}</a>
     <a href="#/messages" class="rail-item messages-link phone-only-flex ${inMessages ? 'active' : ''}" title="Messages" aria-label="Messages">${icons.chat}${state.home.messagesUnread ? html`<span class="badge">${state.home.messagesUnread}</span>` : ''}</a>
@@ -514,14 +515,13 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
   if (banner) {
     body = html`<section class="page-banner" aria-hidden="true"><div class="pb-glass"><span class="eyebrow">nuuvi</span><b>${banner === true ? title : banner}</b></div></section>${body}`;
   }
-  // Phones: a back arrow on every page but Home; the menu button moves to the right-hand end.
+  // Phones: a back arrow on every page but Home. The menu (☰) lives in the rail on the left.
   const atHome = /^#\/(home)?$/.test(location.hash || '#/');
-  const menuBtn = html`<button class="icon-btn only-mobile" data-drawer aria-label="Open navigation">${icons.menu}</button>`;
   render(main, html`
     <header class="main-head">
-      ${atHome ? menuBtn : html`<button class="icon-btn only-mobile back-btn" data-back aria-label="Back">${icons.back}</button>`}
+      ${atHome ? '' : html`<button class="icon-btn only-mobile back-btn" data-back aria-label="Back">${icons.back}</button>`}
       <div class="head-title"><h1>${title}</h1>${subtitle ? html`<span class="topic">${subtitle}</span>` : ''}</div>
-      <div class="head-actions">${actions}${state.route.storyId ? html`<button class="icon-btn" data-members aria-label="Members" title="Members">${icons.users}</button>` : ''}${atHome ? '' : menuBtn}</div>
+      <div class="head-actions">${actions}${state.route.storyId ? html`<button class="icon-btn" data-members aria-label="Members" title="Members">${icons.users}</button>` : ''}</div>
     </header>
     <div class="main-body ${className}">${body}</div>`);
   // Replay the page's entrance animation (see "Motion" in styles.css).
@@ -746,7 +746,7 @@ function setupDrawer() {
       signedOut();
       return;
     }
-    if (e.target.closest('[data-drawer]')) { document.body.classList.add('drawer-open'); return; }
+    if (e.target.closest('[data-drawer]')) { document.body.classList.toggle('drawer-open'); return; }
     if (e.target.closest('[data-members]')) {
       const wide = window.matchMedia('(min-width: 1200px)').matches;
       if (wide) {
@@ -986,7 +986,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-46';
+export const APP_BUILD = 'NV-47';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

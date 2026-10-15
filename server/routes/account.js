@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fail, str, id, color, oneOf } from '../http.js';
-import { hashPassword, verifyPassword, createSession, destroySession, toSelf } from '../auth.js';
+import { hashPassword, verifyPassword, createSession, destroySession, toSelf, weakPassword } from '../auth.js';
 import { toUser, toCharacter, requireUser, uploadRef, gradientInput, CHARACTER_STATUSES } from '../model.js';
 import { validateSubscription } from '../push.js';
 import { profileInput, detailsInput, parseProfile } from '../profile.js';
@@ -36,9 +36,10 @@ const MEDIA_TYPES = {
 };
 MEDIA_TYPES['audio/x-wav'] = MEDIA_TYPES['audio/wav'];
 
-function validPassword(password) {
+function validPassword(password, username = '') {
   if (typeof password !== 'string' || password.length < 8) fail(400, 'Password must be at least 8 characters');
   if (password.length > 200) fail(400, 'Password is too long');
+  if (weakPassword(password, username)) fail(400, 'That password is too easy to guess. Try a few words together, like "velvet-taxi-midnight"');
   return password;
 }
 
@@ -52,7 +53,7 @@ function inviteRow(db, code) {
 const USERNAME_COOLDOWN = 3 * 60 * 60 * 1000; // 3 hours between username changes
 
 export function accountRoutes(r, ctx) {
-  const { db, config, authLimiter } = ctx;
+  const { db, config, authLimiter, accountLimiter } = ctx;
 
   // Exact match first (fast, case-insensitive for plain letters), then the same name in any
   // case or look-alike form, so "Rosé" and "ROSÉ" are one account.
@@ -73,7 +74,7 @@ export function accountRoutes(r, ctx) {
   r.post('/api/auth/register', ({ body, ip, setSession }) => {
     if (!authLimiter(ip)) fail(429, 'Too many attempts, try again later');
     const username = validUsername(body.username);
-    const password = validPassword(body.password);
+    const password = validPassword(body.password, username);
     const displayName = validDisplayName(str(body.displayName, 'Display name', { max: 40 })) || username;
 
     const user = transaction(db, () => {
@@ -96,7 +97,10 @@ export function accountRoutes(r, ctx) {
   r.post('/api/auth/login', ({ body, ip, setSession }) => {
     if (!authLimiter(ip)) fail(429, 'Too many attempts, try again later');
     const row = typeof body.username === 'string' ? findByUsername(body.username.normalize('NFC').trim()) : null;
+    // Too many wrong passwords for this account lately: it waits a while, whoever is trying.
+    if (row && accountLimiter.blocked(`u${row.id}`)) fail(429, 'Too many wrong passwords for this account. Try again in 15 minutes, or reset your password.');
     if (!row || typeof body.password !== 'string' || !verifyPassword(body.password, row.password_hash)) {
+      if (row) accountLimiter(`u${row.id}`);
       fail(401, 'Wrong username or password');
     }
     if (row.banned_at) fail(403, 'This account is suspended');
@@ -200,8 +204,9 @@ export function accountRoutes(r, ctx) {
   r.put('/api/me/password', ({ user, body, token }) => {
     requireUser(user);
     const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id);
-    if (typeof body.current !== 'string' || !verifyPassword(body.current, row.password_hash)) fail(400, 'Current password is wrong');
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(validPassword(body.next)), user.id);
+    if (accountLimiter.blocked(`u${user.id}`)) fail(429, 'Too many wrong passwords. Try again in 15 minutes.');
+    if (typeof body.current !== 'string' || !verifyPassword(body.current, row.password_hash)) { accountLimiter(`u${user.id}`); fail(400, 'Current password is wrong'); }
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(validPassword(body.next, user.username)), user.id);
     // Sign out every other device.
     db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(user.id, token);
     return { data: { ok: true } };

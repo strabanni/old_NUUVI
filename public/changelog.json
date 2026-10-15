@@ -1,5 +1,16 @@
 [
   {
+    "code": "NV-47",
+    "date": "2026-10-15",
+    "title": "Menu in the rail & extra security",
+    "items": [
+      "Phones: the ☰ menu button now lives at the top of the rail on the left (tap again to close the menu), so page headers have more room.",
+      "Security: the browser is told to always use HTTPS and to block other sites from reaching into NUUVI.",
+      "Too many wrong passwords for one account now pauses sign-in for that account for 15 minutes, wherever the tries come from.",
+      "Very common passwords (like password123) can't be used for new accounts or password changes."
+    ]
+  },
+  {
     "code": "NV-46",
     "date": "2026-10-15",
     "title": "Character plans on the calendar",

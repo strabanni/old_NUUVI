@@ -62,9 +62,13 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'same-origin',
   'X-Frame-Options': 'DENY',
   'X-Robots-Tag': 'noindex, nofollow',
-  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=()',
+  'Permissions-Policy': 'camera=(), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()',
+  // Other sites can't open NUUVI in a way that lets them reach into it, or embed its files.
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Resource-Policy': 'same-origin',
+  'X-Permitted-Cross-Domain-Policies': 'none',
   'Content-Security-Policy':
-    "default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob:; style-src 'self'; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self'; frame-src https://open.spotify.com https://embed.music.apple.com https://www.youtube-nocookie.com https://w.soundcloud.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "upgrade-insecure-requests; default-src 'self'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' blob:; style-src 'self'; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self'; frame-src https://open.spotify.com https://embed.music.apple.com https://www.youtube-nocookie.com https://w.soundcloud.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 
 // Live connections (Server-Sent Events). Each stream belongs to a user (or an anonymous
@@ -132,6 +136,8 @@ export function createApp({
   ai: aiOptions = {},
 } = {}) {
   const db = openDb(dbPath);
+  // In production (always HTTPS): browsers remember to only ever use HTTPS for this site.
+  if (secureCookies) SECURITY_HEADERS['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
   uploadDir ??= dbPath === ':memory:' ? mkdtempSync(join(tmpdir(), 'nuuvi-uploads-')) : join(dirname(dbPath), 'uploads');
   mkdirSync(uploadDir, { recursive: true });
 
@@ -141,6 +147,8 @@ export function createApp({
     hub,
     config: { uploadDir, openRegistration },
     authLimiter: createRateLimiter({ limit: authRateLimit, windowMs: 15 * 60 * 1000 }),
+    // Wrong passwords for one account, from anywhere: slows down guessing spread over many addresses.
+    accountLimiter: createRateLimiter({ limit: Math.max(10, Math.round(authRateLimit / 2)), windowMs: 15 * 60 * 1000 }),
     pusher: createPusher({ db, vapid: loadVapidKeys(db), subject: vapidSubject, fetchImpl: pushFetch }),
     modLog: (actorId, action, detail) => modLog(db, actorId, action, detail),
   };

@@ -72,14 +72,32 @@ export function sessionCookie(token, maxAge, secure) {
 // Simple fixed-window limiter for login/register attempts, keyed by IP.
 export function createRateLimiter({ limit, windowMs }) {
   const hits = new Map();
-  return (key) => {
+  const limiter = (key) => {
     const now = Date.now();
     const entry = hits.get(key);
     if (!entry || entry.reset < now) {
       hits.set(key, { count: 1, reset: now + windowMs });
+      if (hits.size > 50000) for (const [k, v] of hits) if (v.reset < now) hits.delete(k);
       return true;
     }
     entry.count += 1;
     return entry.count <= limit;
   };
+  // Whether `key` is over the limit right now, without counting a try.
+  limiter.blocked = (key) => { const e = hits.get(key); return !!e && e.reset >= Date.now() && e.count >= limit; };
+  return limiter;
+}
+
+// Passwords so common they're the first ones anyone guesses (and that phones warn about).
+const COMMON = new Set(['password', 'password1', 'password12', 'password123', 'passw0rd', '12345678', '123456789', '1234567890', '11111111',
+  '00000000', '87654321', 'qwertyui', 'qwerty123', 'qwertyuiop', 'iloveyou', 'iloveyou1', 'sunshine', 'princess', 'football', 'baseball',
+  'welcome1', 'abc12345', 'abcd1234', 'letmein1', 'trustno1', 'superman', 'starwars', 'whatever', 'dragon12', 'monkey12', 'charlie1',
+  'aa123456', 'asdfghjk', 'asdf1234', 'zaq12wsx', '1q2w3e4r', '1qaz2wsx', 'qazwsxedc', 'michelle', 'jennifer', 'computer', 'internet',
+  'liverpool', 'chocolate', 'blink182', 'butterfly', 'babygirl', 'lovelove', 'loveyou1', 'nuuvi123', 'nuuvinuuvi', 'roleplay', 'roleplay1']);
+export function weakPassword(password, username = '') {
+  const p = password.toLowerCase();
+  if (COMMON.has(p)) return true;
+  if (/^(.)\1+$/.test(p)) return true; // aaaaaaaa
+  if (username && p.includes(String(username).toLowerCase()) && p.length < username.length + 4) return true;
+  return false;
 }

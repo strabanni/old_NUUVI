@@ -229,3 +229,25 @@ test('character plans on the calendar: add, see, edit, private, delete', async (
   assert.equal((await a(`/api/plans/${made.data.plan.id}`, { method: 'DELETE' })).status, 200);
   assert.ok(!(await b('/api/plans')).data.plans.some((p) => p.id === made.data.plan.id));
 });
+
+test('security: headers, common passwords refused, too many wrong passwords lock the account a while', async () => {
+  const res = await fetch(app.base + '/');
+  for (const h of ['content-security-policy', 'cross-origin-opener-policy', 'x-frame-options', 'x-content-type-options', 'referrer-policy']) assert.ok(res.headers.get(h), h);
+  assert.match(res.headers.get('content-security-policy'), /object-src 'none'/);
+  // Very common passwords can't be used.
+  const code = (await app.admin('/api/admin/invites', { method: 'POST', body: {} })).data.code;
+  const c = app.client();
+  const weak = await c('/api/auth/register', { method: 'POST', body: { username: 'weakling', password: 'password123', invite: code } });
+  assert.equal(weak.status, 400);
+  assert.match(weak.data.error, /too easy/);
+  // Wrong passwords for one account, even from "different places", lock it for a while.
+  const limited = await (await import('./helpers.js')).startApp({ authRateLimit: 20 });
+  try {
+    await limited.signUp('lockme');
+    let last;
+    for (let i = 0; i < 12; i++) last = await limited.client()('/api/auth/login', { method: 'POST', body: { username: 'lockme', password: `wrong guess ${i}` } });
+    assert.equal(last.status, 429, JSON.stringify(last.data));
+    const right = await limited.client()('/api/auth/login', { method: 'POST', body: { username: 'lockme', password: 'correct horse' } });
+    assert.equal(right.status, 429, 'still waiting, even with the right password');
+  } finally { limited.close(); }
+});
