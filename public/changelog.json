@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-44",
+    "date": "2026-10-15",
+    "title": "Text box lower on phones",
+    "items": [
+      "On phones the text box now sits right above the home bar instead of floating with an empty strip under it, and the side rail reaches the bottom of the screen."
+    ]
+  },
+  {
     "code": "NV-43",
     "date": "2026-10-14",
     "title": "Museum gallery & song players",

@@ -3189,3 +3189,17 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
 .ds-player.song.video { height: auto; aspect-ratio: 16 / 9; }
 
 .ds-song .ds-song-link { grid-column: 1 / -1; margin-bottom: 6px; }
+
+/* NV-44: phones: the app reaches the bottom of the screen. The home-bar space is left only once,
+   under the text box (it was left twice: under the whole app and again under the box), so the
+   text box sits right above the home bar. With the keyboard up there's no home bar to leave room for. */
+@media (max-width: 899px) {
+  body:not(.guest) { padding-bottom: 0; }
+  .main { height: calc(var(--app-h, calc(100dvh / var(--ui-zoom))) - var(--sat)); }
+  .rail, .sidebar, body.has-members .members-panel { bottom: 0; }
+  .rail { padding-bottom: calc(12px + var(--sab)); }
+  .composer { padding-bottom: calc(6px + var(--sab)); }
+  .composer-locked { margin-bottom: calc(8px + var(--sab)); }
+  body:not(.guest)::after { height: var(--sab); }
+}
+:root.kb-up { --sab: 0px; }
