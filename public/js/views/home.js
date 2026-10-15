@@ -63,6 +63,9 @@ export async function viewHome() {
   const upcoming = cal.events.filter((e) => new Date(e.endsAt || e.startsAt) >= new Date()).slice(0, 3);
   // Characters' birthdays (from their profiles) on the calendar.
   const birthdays = (await api('/api/birthdays').catch(() => ({ birthdays: [] }))).birthdays;
+  // Character plans (appointments, work shifts, dates…).
+  const { loadPlans, plansOn, planTime, kindIcon, whoOf, openPlanForm, showPlan } = await import('./plans.js');
+  let plans = await loadPlans();
   const birthdaysOn = (day) => birthdays.filter((b) => b.month === day.getMonth() + 1 && b.day === day.getDate());
   const homeBody = page({
     alive,
@@ -95,12 +98,13 @@ export async function viewHome() {
             <button class="primary" data-quick="thread">${icons.episode} New episode</button>
             <button data-quick="post">${icons.image} New post</button>
             <button data-quick="event">${icons.calendar} New event</button>
+            <button data-quick="plan">📌 New plan</button>
           </div>
         </div>
         <div class="bento-week card">
           <div class="bw-head"><b>${new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><a href="#/events" class="see-all">Calendar</a></div>
           <div class="bw-weather" id="bw-weather"></div>
-          <div class="bw-days no-swipe">${weekDays.map((d, i) => { const w = forecast(d); return html`<button type="button" class="bw-day ${i === 1 ? 'today' : ''} ${eventsOn(d).length || birthdaysOn(d).length ? 'has' : ''}" data-day="${i}" aria-pressed="${i === 1}">
+          <div class="bw-days no-swipe">${weekDays.map((d, i) => { const w = forecast(d); return html`<button type="button" class="bw-day ${i === 1 ? 'today' : ''} ${eventsOn(d).length || birthdaysOn(d).length || plansOn(plans, d).length ? 'has' : ''}" data-day="${i}" aria-pressed="${i === 1}">
             <small>${d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2)}</small><b>${d.getDate()}</b>
             <span class="bw-wx" title="${w.label}">${w.icon}<i>${w.hi}°</i></span></button>`; })}</div>
           <div class="bw-list" id="bw-list"></div>
@@ -145,27 +149,42 @@ export async function viewHome() {
     $$('.bw-day', homeBody).forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.day) === i)));
     const evs = eventsOn(weekDays[i]);
     const bdays = birthdaysOn(weekDays[i]);
+    const dayPlans = plansOn(plans, weekDays[i]);
     const w = forecast(weekDays[i]);
     render($('#bw-weather', homeBody), html`<span class="bw-wx-big">${w.icon}</span>
       <span class="grow"><b>${w.hi}° <small>/ ${w.lo}°F · ${w.hiC}°C</small></b><small>${i === 1 ? 'Today in Ardell City' : weekDays[i].toLocaleDateString(undefined, { weekday: 'long' })} · ${w.label}${w.rain > 30 ? ` · ${w.rain}% rain` : ''}</small><i>${w.line}</i></span>`);
-    render($('#bw-list', homeBody), evs.length || bdays.length ? html`${bdays.map((c) => html`
+    render($('#bw-list', homeBody), evs.length || bdays.length || dayPlans.length ? html`${bdays.map((c) => html`
       <a class="bw-ev bw-bday" href="#/c/${c.id}" data-color="${c.color}"><span class="bw-bar"></span>
         <span class="grow"><b>🎂 ${c.name}'s birthday</b><small>${i === 1 ? 'Today!' : 'Coming up'}</small></span>${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}</a>`)}
       ${evs.map((e) => html`
       <a class="bw-ev" href="#/e/${e.id}" data-color="${e.story.color}"><span class="bw-bar"></span>
         <span class="grow"><b>${e.title}</b><small>${new Date(e.startsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${e.location ? ` · ${e.location}` : ''}</small></span>
-        ${e.participants.length ? html`<span class="avatar-stack">${e.participants.slice(0, 3).map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}</span>` : ''}</a>`)}`
+        ${e.participants.length ? html`<span class="avatar-stack">${e.participants.slice(0, 3).map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}</span>` : ''}</a>`)}
+      ${dayPlans.map((p) => html`
+      <button type="button" class="bw-ev bw-plan" data-plan="${p.id}" data-color="${p.character?.color || '#EE719E'}"><span class="bw-bar"></span>
+        <span class="grow"><b>${kindIcon(p.kind)} ${p.title}</b><small>${planTime(p)} · ${whoOf(p)}${p.location ? ` · ${p.location}` : ''}</small></span>
+        ${p.character ? avatar({ name: p.character.name, src: p.character.avatar, color: p.character.color, size: 'xs' }) : ''}</button>`)}`
       : html`<p class="bw-none">Nothing planned${i === 1 ? ' today' : ''}.</p>`);
     applyColors(homeBody);
   };
   drawDay(1);
+  // A plan changed (edited from its card): redraw the week.
+  const onPlans = async () => {
+    if (!alive()) { document.removeEventListener('nuuvi:plans', onPlans); return; }
+    plans = await loadPlans();
+    drawDay(Number($('.bw-day[aria-pressed=true]', homeBody)?.dataset.day ?? 1));
+  };
+  document.addEventListener('nuuvi:plans', onPlans);
   homeBody.addEventListener('click', async (e) => {
     const d = e.target.closest('.bw-day');
     if (d) { drawDay(Number(d.dataset.day)); return; }
+    const pl = e.target.closest('[data-plan]');
+    if (pl) { const p = plans.find((x) => x.id === Number(pl.dataset.plan)); if (p) showPlan(p); return; }
     const q = e.target.closest('[data-quick]');
     if (!q) return;
     if (q.dataset.quick === 'thread') { const { openThreadForm } = await import('./threads.js'); openThreadForm(); }
     if (q.dataset.quick === 'post') { const { openSocialComposer } = await import('./social.js'); if (await openSocialComposer()) location.hash = '#/nu'; }
+    if (q.dataset.quick === 'plan') { if (await openPlanForm()) { plans = await loadPlans(); drawDay(Number($('.bw-day[aria-pressed=true]', homeBody)?.dataset.day ?? 1)); } return; }
     if (q.dataset.quick === 'event') {
       const { openEventForm } = await import('./events.js');
       const made = await openEventForm();

@@ -3208,3 +3208,23 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
 mark.fx-chip { color: inherit; background: color-mix(in srgb, var(--c, var(--accent)) 26%, transparent);
   padding: .06em .42em; border-radius: 7px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 [data-grad] mark.fx-chip { background: color-mix(in srgb, var(--g1, var(--c, var(--accent))) 26%, transparent); }
+
+/* NV-46: character plans on the calendar (appointments, shifts, dates…), in the character's color. */
+.cal-ev.cal-plan { width: 100%; text-align: left; border: 0; cursor: pointer; font: inherit; font-size: .7rem; font-weight: 600;
+  background: color-mix(in srgb, var(--c, #EE719E) 22%, transparent); color: var(--text); }
+.bw-plan { width: 100%; text-align: left; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
+.plan-days { display: grid; gap: 10px; margin-bottom: 18px; }
+.plan-day { display: flex; gap: 12px; align-items: flex-start; }
+.plan-day-date { flex: none; width: 46px; display: grid; place-items: center; padding: 6px 0; border-radius: 14px; background: var(--glass-2); }
+.plan-day-date small { font-size: .65rem; text-transform: uppercase; color: var(--muted); }
+.plan-day-date b { font-size: 1.15rem; }
+.plan-row { --c: #EE719E; width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 6px; border-radius: 14px; text-align: left;
+  border: 1px solid var(--glass-border); border-left: 4px solid var(--c); background: var(--glass); color: var(--text); font: inherit; cursor: pointer; }
+.plan-row b { display: block; font-size: .92rem; }
+.plan-row small { display: block; color: var(--muted); font-size: .76rem; }
+.plan-ico { font-size: 1.15rem; }
+.plan-view .plan-when { margin: 6px 0; }
+.plan-who { display: inline-flex; align-items: center; gap: 8px; margin: 6px 0; padding: 4px 12px 4px 4px; border-radius: 999px; background: var(--glass-2); color: var(--text); }
+.plan-who:hover { text-decoration: none; }
+.plan-notes { margin-top: 10px; padding: 10px 14px; border-radius: 14px; background: var(--glass-2); }
+@media (max-width: 899px) { .cal-ev.cal-plan { font-size: 0; padding: 0; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--c, #EE719E) 70%, transparent); } }

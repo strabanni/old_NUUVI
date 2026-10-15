@@ -23,6 +23,7 @@ import { profileRoutes } from './routes/profiles.js';
 import { messageRoutes } from './routes/messages.js';
 import { aiRoutes } from './routes/ai.js';
 import { placeRoutes } from './routes/places.js';
+import { planRoutes } from './routes/plans.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
 import { createBots } from './bots.js';
@@ -300,6 +301,7 @@ export function createApp({
   messageRoutes(router, ctx);
   aiRoutes(router, ctx);
   placeRoutes(router, ctx);
+  planRoutes(router, ctx);
 
   // ---------- Live updates ----------
   function handleEvents(req, res, user, query) {

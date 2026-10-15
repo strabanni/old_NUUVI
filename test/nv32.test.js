@@ -201,3 +201,31 @@ test('unticking characters in an episode\'s cast removes them; others stay', asy
   await w(`/api/channels/${ch.id}`, { method: 'PUT', body: { name: 'ep', tagged: [a.id] } });
   assert.deepEqual(await cast(), ['Aedan', 'Charlotte']);
 });
+
+test('character plans on the calendar: add, see, edit, private, delete', async () => {
+  const a = await app.signUp('plan_writer');
+  const b = await app.signUp('plan_reader');
+  const ca = await mk(a, 'Aedan');
+  const cb = await mk(b, 'Theo');
+  const made = await a('/api/plans', { method: 'POST', body: { characterId: ca.id, kind: 'doctor', title: 'Check-up at Ardell General',
+    startsAt: '2026-10-20T15:00:00.000Z', endsAt: '2026-10-20T16:00:00.000Z', location: 'Montclair Harbor' } });
+  assert.equal(made.status, 201, JSON.stringify(made.data));
+  assert.equal(made.data.plan.character.name, 'Aedan');
+  // A weekly work shift, kept private.
+  const shift = (await a('/api/plans', { method: 'POST', body: { kind: 'work', title: 'Bar shift', startsAt: '2026-10-16T22:00:00.000Z', repeat: 'weekly', private: true } })).data.plan;
+  assert.equal(shift.repeat, 'weekly');
+  // Others see the public one only.
+  const seen = (await b('/api/plans')).data.plans.map((p) => p.title);
+  assert.ok(seen.includes('Check-up at Ardell General'));
+  assert.ok(!seen.includes('Bar shift'));
+  assert.equal((await a('/api/plans')).data.plans.length >= 2, true);
+  // Only the writer edits; can't use someone else's character; bad input refused.
+  assert.equal((await b(`/api/plans/${made.data.plan.id}`, { method: 'PUT', body: { title: 'x' } })).status, 403);
+  assert.equal((await a('/api/plans', { method: 'POST', body: { characterId: cb.id, title: 'x', startsAt: '2026-10-20T15:00:00Z' } })).status, 400);
+  assert.equal((await a('/api/plans', { method: 'POST', body: { title: 'x', startsAt: '2026-10-20T15:00:00Z', endsAt: '2026-10-19T15:00:00Z' } })).status, 400);
+  const edited = (await a(`/api/plans/${made.data.plan.id}`, { method: 'PUT', body: { title: 'Surgery follow-up', kind: 'surgery' } })).data.plan;
+  assert.equal(edited.title, 'Surgery follow-up');
+  assert.equal(edited.location, 'Montclair Harbor');
+  assert.equal((await a(`/api/plans/${made.data.plan.id}`, { method: 'DELETE' })).status, 200);
+  assert.ok(!(await b('/api/plans')).data.plans.some((p) => p.id === made.data.plan.id));
+});

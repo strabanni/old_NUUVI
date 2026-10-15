@@ -1,6 +1,7 @@
 // Calendar events: the events page (cards or a month calendar), the new/edit event form,
 // and an event's own page listing every thread and comms that's part of it.
-import { html, render, api, $, $$, toast, icons, modal, confirmModal, uploadImage, askImageLink, applyColors } from '../lib.js';
+import { html, render, api, $, $$, toast, icons, modal, confirmModal, uploadImage, askImageLink, applyColors, menu, avatar } from '../lib.js';
+import { loadPlans, plansOn, planTime, kindIcon, whoOf, openPlanForm, showPlan } from './plans.js';
 import { state, page, routeAlive, ensureAlive, loadStory } from '../main.js';
 import { feedCard, masonry, avatarStack, openThreadForm } from './threads.js';
 
@@ -104,7 +105,8 @@ export async function openEventForm({ event = null, storyId = null } = {}) {
 // Events page: cards or a month calendar. Tapping an event opens its page.
 export async function viewEvents() {
   const alive = routeAlive();
-  const [{ events }, { birthdays }] = await Promise.all([api('/api/calendar'), api('/api/birthdays').catch(() => ({ birthdays: [] }))]);
+  const [{ events }, { birthdays }, plansAll] = await Promise.all([api('/api/calendar'), api('/api/birthdays').catch(() => ({ birthdays: [] })), loadPlans()]);
+  let plans = plansAll;
   ensureAlive(alive);
   let layout = sessionStorage.getItem('nuuvi:events-layout') || 'cards';
   let month = (() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); })();
@@ -116,6 +118,7 @@ export async function viewEvents() {
     actions: html`<div class="seg" role="group" aria-label="Layout">
       <button data-layout="cards" aria-pressed="${layout === 'cards'}">Cards</button>
       <button data-layout="calendar" aria-pressed="${layout === 'calendar'}">Calendar</button></div>
+      <button id="new-plan" title="Appointments, work shifts, dates… for your characters">${icons.calendar}<span class="lbl">New plan</span></button>
       <button class="primary" id="new-event">${icons.plus}<span class="lbl">New event</span></button>`,
     body: html`<div id="events-view"></div>`,
   });
@@ -134,6 +137,19 @@ export async function viewEvents() {
         ${e.participants.length ? avatarStack(e.participants) : ''}
       </a>`;
   };
+  // Character plans in the next two weeks, day by day (repeating ones each time they come round).
+  const planWeeks = () => {
+    const days = Array.from({ length: 14 }, (_, i) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i); return d; })
+      .map((d) => [d, plansOn(plans, d)]).filter(([, l]) => l.length);
+    return html`<h2 class="section-title">Character plans <small class="muted">next 2 weeks</small></h2>
+      ${days.length ? html`<div class="plan-days">${days.map(([d, list]) => html`
+        <div class="plan-day"><span class="plan-day-date"><small>${d.toLocaleDateString(undefined, { weekday: 'short' })}</small><b>${d.getDate()}</b></span>
+          <div class="grow">${list.map(planRow)}</div></div>`)}</div>`
+        : html`<div class="empty small"><p>No plans yet. <button class="link" id="empty-plan">Add an appointment, shift or date</button></p></div>`}`;
+  };
+  const planRow = (p) => html`<button type="button" class="plan-row" data-plan="${p.id}" data-color="${p.character?.color || '#EE719E'}">
+    <span class="plan-ico">${kindIcon(p.kind)}</span><span class="grow"><b>${p.title}</b><small>${planTime(p)} · ${whoOf(p)}${p.location ? ` · ${p.location}` : ''}</small></span>
+    ${p.character ? avatar({ name: p.character.name, src: p.character.avatar, color: p.character.color, size: 'xs' }) : ''}</button>`;
   function draw() {
     if (layout === 'cards') {
       const upcoming = events.filter(ongoing);
@@ -141,6 +157,7 @@ export async function viewEvents() {
       render(view, html`
         ${upcoming.length ? html`<h2 class="section-title">Upcoming</h2><div class="event-list">${upcoming.map(card)}</div>`
           : html`<div class="empty"><p>No upcoming events.</p><p><button class="primary" id="empty-new">Add one</button></p></div>`}
+        ${planWeeks()}
         ${past.length ? html`<h2 class="section-title">Past</h2><div class="event-list past">${past.map(card)}</div>` : ''}`);
       applyColors(view);
       return;
@@ -173,9 +190,11 @@ export async function viewEvents() {
             <span class="cal-num">${d}</span>
             ${birthdays.filter((b) => b.month === first.getMonth() + 1 && b.day === d).map((b) => html`<a class="cal-ev cal-bday" href="#/c/${b.id}" title="${b.name}'s birthday">🎂 ${b.name}</a>`)}
             ${onDay(d).map((e) => html`<a class="cal-ev" href="#/e/${e.id}" title="${e.title}">${fmtTime(new Date(e.startsAt))} ${e.title}</a>`)}
+            ${plansOn(plans, new Date(first.getFullYear(), first.getMonth(), d)).map((p) => html`<button type="button" class="cal-ev cal-plan" data-plan="${p.id}" data-color="${p.character?.color || '#EE719E'}" title="${whoOf(p)}: ${p.title}">${kindIcon(p.kind)} ${p.title}</button>`)}
           </div>`))}
       </div>
-      <p class="hint">Tap an empty spot on a day to add an event then.</p>`);
+      <p class="hint">Tap an empty spot on a day to add an event or a character plan then.</p>`);
+    applyColors(view);
   }
   const create = async () => {
     const made = await openEventForm({ storyId: state.route.storyId });
@@ -193,8 +212,23 @@ export async function viewEvents() {
     const m = e.target.closest('[data-month]');
     if (m) { month = new Date(month.getFullYear(), month.getMonth() + Number(m.dataset.month), 1); draw(); return; }
     if (e.target.closest('#new-event, #empty-new')) { create(); return; }
-    if (e.target.closest('.cal-cell[data-day]') && !e.target.closest('a')) create();
+    if (e.target.closest('#new-plan, #empty-plan')) { if (await openPlanForm()) refreshPlans(); return; }
+    const pl = e.target.closest('[data-plan]');
+    if (pl) { const p = plans.find((x) => x.id === Number(pl.dataset.plan)); if (p) showPlan(p); return; }
+    const cell = e.target.closest('.cal-cell[data-day]');
+    if (cell && !e.target.closest('a')) {
+      const date = new Date(month.getFullYear(), month.getMonth(), Number(cell.dataset.day));
+      menu(cell, [
+        { label: '🗓 New event', action: create },
+        { label: '📌 Character plan', action: async () => { if (await openPlanForm({ date })) refreshPlans(); } },
+      ]);
+    }
   };
+  const refreshPlans = async () => {
+    if (!alive()) { document.removeEventListener('nuuvi:plans', refreshPlans); return; }
+    plans = await loadPlans(); draw();
+  };
+  document.addEventListener('nuuvi:plans', refreshPlans);
   $('#main .head-actions').addEventListener('click', onClick);
   view.addEventListener('click', onClick);
   draw();

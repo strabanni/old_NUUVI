@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 22;
+const SCHEMA_VERSION = 23;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -527,6 +527,25 @@ const MIGRATIONS = [
    UPDATE locations SET gallery = json_array(picture) WHERE picture IS NOT NULL AND picture != '';`,
   // v22: a character can be marked deceased or missing in action (no longer playable).
   `ALTER TABLE characters ADD COLUMN status TEXT;`,
+  // v23: character plans on the calendar (appointments, work shifts, dates…), just for fun.
+  `CREATE TABLE plans (
+     id           INTEGER PRIMARY KEY,
+     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     character_id INTEGER REFERENCES characters(id) ON DELETE CASCADE,
+     kind         TEXT NOT NULL DEFAULT 'other',
+     title        TEXT NOT NULL,
+     starts_at    TEXT NOT NULL,
+     ends_at      TEXT,
+     all_day      INTEGER NOT NULL DEFAULT 0,
+     repeat       TEXT NOT NULL DEFAULT 'none',
+     repeat_until TEXT,
+     location     TEXT NOT NULL DEFAULT '',
+     notes        TEXT NOT NULL DEFAULT '',
+     private      INTEGER NOT NULL DEFAULT 0,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX plans_user_idx ON plans(user_id);
+   CREATE INDEX plans_character_idx ON plans(character_id);`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

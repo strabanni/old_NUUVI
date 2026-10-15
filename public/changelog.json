@@ -1,5 +1,16 @@
 [
   {
+    "code": "NV-46",
+    "date": "2026-10-15",
+    "title": "Character plans on the calendar",
+    "items": [
+      "New: put your characters' plans on the calendar just for fun — doctor's appointments, fittings, surgeries, work shifts, dates, classes, trips, parties…",
+      "Tap New plan on Home or the Calendar page (or tap a day on the month calendar). Pick the character, the kind, the time (or all day) and where.",
+      "Plans can repeat (every day, weekday, week, 2 weeks or month) — handy for work schedules — and can be kept to yourself with Only me.",
+      "They show on Home's week and on the Calendar in the character's color. Tap one to see it, edit it or delete it."
+    ]
+  },
+  {
     "code": "NV-45",
     "date": "2026-10-15",
     "title": "<hl> highlights & HTML in AKA lines",
