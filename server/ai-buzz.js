@@ -13,7 +13,7 @@ const MAX_IMAGES = 4;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // the API's limit for one picture
 const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
 
-const SYSTEM = `You write the fan comments under posts on THE : NU, the Instagram-style social feed inside NUUVI, a private roleplay writing community. The characters are fictional people living in Ardell City (NUUVI's version of New York). The commenters are their fans and followers: ordinary social media users.
+const SYSTEM = `You write the fan comments under posts on THE NU, the Instagram-style social feed inside NUUVI, a private roleplay writing community. The characters are fictional people living in Ardell City (NUUVI's version of New York). The commenters are their fans and followers: ordinary social media users.
 
 Write comments the way real people comment on Instagram:
 - Mostly lowercase, short (often 2-12 words), slang, emojis now and then, the odd typo. Some longer ones.

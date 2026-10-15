@@ -2194,7 +2194,7 @@ html:has(body:not(.guest)) { overflow: hidden; overscroll-behavior: none; }
 .update-bar { position: fixed; left: 50%; bottom: calc(18px + var(--sab)); transform: translateX(-50%); z-index: 90; display: flex; align-items: center; gap: 12px;
   padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--glass-solid); border: 1px solid var(--glass-border); box-shadow: var(--shadow); font-size: .9rem; white-space: nowrap; }
 
-/* ---------- v18: THE : NU — an Instagram-style feed ---------- */
+/* ---------- v18: THE NU — an Instagram-style feed ---------- */
 .main-body.nu-body { padding-top: 6px; }
 .nu-layout { display: grid; grid-template-columns: minmax(0, 470px); justify-content: center; gap: 56px; }
 @media (min-width: 1180px) { .nu-layout { grid-template-columns: minmax(0, 470px) 300px; } }
@@ -2851,7 +2851,7 @@ a.hashtag:hover { text-decoration: underline; }
 .ds-intro .ds-quote { margin: 0; }
 .ds-intro .ds-tagline { margin: 0; }
 .npc-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
-/* Birthday post from NUUVI Official, pinned on THE : NU. */
+/* Birthday post from NUUVI Official, pinned on THE NU. */
 .np-av.official { width: 36px; height: 36px; display: grid; place-items: center; }
 .np-av.official svg { width: 34px; height: 34px; }
 .np-bday-card { position: relative; display: grid; place-items: center; gap: 14px; padding: 34px 18px; text-align: center; color: #fff; text-decoration: none;
@@ -3155,8 +3155,13 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
 /* NV-43: profile gallery as a museum-style carousel. The middle picture is big and flat; the ones
    beside it turn away and tuck behind (--d = how far from the middle, set in profiles.js). */
 .ds-gallery-card { overflow: hidden; }
-.ds-flow { --cw: min(62vw, 340px); --persp: 900px; position: relative; margin: 4px -14px 0; }
+.ds-flow { --cw: min(62vw, 340px); --persp: 900px; position: relative; margin: 4px -14px 0; container-type: inline-size; }
 @media (max-width: 899px) { .ds-flow { --cw: 50vw; --persp: 600px; } }
+/* The cards follow the gallery box itself (not the whole screen), so they fill it in any window. */
+@supports (width: 1cqw) {
+  .ds-flow { --cw: clamp(150px, 46cqw, 460px); }
+  @container (max-width: 560px) { .ds-flow-track { --cw: 60cqw; } }
+}
 .ds-flow-track { display: flex; align-items: center; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none;
   padding: 18px calc(50% - var(--cw) / 2) 22px; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; outline: none; cursor: grab; }
 .ds-flow-track::-webkit-scrollbar { display: none; }
@@ -3228,3 +3233,22 @@ mark.fx-chip { color: inherit; background: color-mix(in srgb, var(--c, var(--acc
 .plan-who:hover { text-decoration: none; }
 .plan-notes { margin-top: 10px; padding: 10px 14px; border-radius: 14px; background: var(--glass-2); }
 @media (max-width: 899px) { .cal-ev.cal-plan { font-size: 0; padding: 0; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--c, #EE719E) 70%, transparent); } }
+
+/* NV-48: Messages: a row of people to start a chat with (online first). */
+.dm-people { display: flex; gap: 12px; overflow-x: auto; padding: 4px 4px 12px; margin-bottom: 6px; border-bottom: 1px solid var(--glass-border); scrollbar-width: none; }
+.dm-people::-webkit-scrollbar { display: none; }
+.dm-person { flex: none; width: 60px; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--text); text-align: center; }
+.dm-person:hover { text-decoration: none; }
+.dm-person .av-wrap { position: relative; }
+.dm-person small { width: 100%; font-size: .68rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+/* THE NU: the Episodes tab stands out a little next to the feed. */
+.chip-btn.nu-ep-chip { display: inline-flex; align-items: center; gap: 5px; }
+.chip-btn.nu-ep-chip svg { width: 14px; height: 14px; }
+
+/* NV-48: comments: the comment box sits on top, and only the first 15 show until "See more". */
+.np-thread .np-cform { margin: 0 0 12px; padding-bottom: 12px; border-bottom: 1px solid var(--glass-border); border-top: 0; }
+.cm-more-wrap { position: relative; }
+.cm-peek { filter: blur(4px); opacity: .55; pointer-events: none; user-select: none; max-height: 110px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(#000, transparent); mask-image: linear-gradient(#000, transparent); }
+.cm-more { display: block; margin: -40px auto 6px; position: relative; padding: 9px 18px; border-radius: 999px; border: 1px solid var(--glass-border);
+  background: var(--glass-solid, var(--base)); color: var(--text); font: 600 .85rem var(--sans); box-shadow: var(--shadow); }

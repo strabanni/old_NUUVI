@@ -281,7 +281,7 @@ export function threadRoutes(r, ctx) {
       items = items.concat(ctx.socialFeed({ viewerId: user.id, q, limit: 60, category }).map((p) => ({ ...p, sortAt: p.createdAt })));
     }
     if (filter === 'all' || filter === 'connection') items = items.concat(ctx.connectionItems({ userId: user.id, q }));
-    // THE : NU is chronological: everything stays in the order it was made (Home's "mine" list goes by activity).
+    // THE NU is chronological: everything stays in the order it was made (Home's "mine" list goes by activity).
     if (filter !== 'mine') for (const it of items) if (it.type === 'thread') it.sortAt = it.createdAt;
     items.sort((x, y) => (y.sortAt > x.sortAt ? 1 : y.sortAt < x.sortAt ? -1 : 0));
     return { data: { items: items.slice(0, 100) } };
@@ -315,7 +315,7 @@ export function threadRoutes(r, ctx) {
         postCount: row.post_count,
         story: { id: row.story_id, title: row.story_title, color: row.story_color, icon: row.story_icon, banner: row.story_banner },
         starter: st ? toCharacter(st) : null,
-        // Who started it (episodes on THE : NU show the writer, not a character).
+        // Who started it (episodes on THE NU show the writer, not a character).
         author: row.created_by ? (() => { const u = writer.get(row.created_by); return u ? toUser(u) : null; })() : null,
         participants: participants(row.id, 6),
         lastPost: lp ? { by: lp.character_name || lp.display_name, text: lp.cw ? `CW: ${lp.cw}` : plainText(lp.body, 160), createdAt: lp.created_at } : null,

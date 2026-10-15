@@ -217,7 +217,7 @@ export function createApp({
       follow: () => ({ title: 'New follower', body: text }),
       like: () => ({ title: 'New like', body: text }),
       comment: () => ({ title: 'New comment', body: text }),
-      socialtag: () => ({ title: 'Tagged on THE : NU', body: text }),
+      socialtag: () => ({ title: 'Tagged on THE NU', body: text }),
       tag: () => ({ title: `${n.actor?.displayName} tagged you in a thread`, body: `${where} · ${n.story?.title}` }),
       dm: () => ({ title: n.count > 1 ? `${n.count} new texts` : 'New text', body: text }),
       reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),

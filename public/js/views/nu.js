@@ -1,12 +1,13 @@
-// THE : NU — everything happening in NUUVI, laid out like an Instagram feed: one column of posts,
+// THE NU — everything happening in NUUVI, laid out like an Instagram feed: one column of posts,
 // newest first, in the order they were made. Character posts, open episodes, self paras, events
 // and connections (muse ideas anyone can pick up) all share the same post shape.
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost, timeAgo, applyColors, gradAttr, userGrad, uploadImage, askImageLink, logoMark } from '../lib.js';
-import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, kindIcon } from '../main.js';
+import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, kindIcon, previousHash } from '../main.js';
 import { socialCard, bindSocial, openSocialComposer, styleBars, handleOf, nameBadge, agoShort } from './social.js';
 
 const ONE = { thread: 'Episode', para: 'Self para', event: 'Event', comms: 'Comms', ooc: 'OOC' };
-const FILTERS = [['all', 'All'], ['social', 'Posts'], ['musing', 'Musings'], ['open', 'Episodes'], ['connection', 'Connections'], ['event', 'Events']];
+// The social feed comes first; episodes and the rest are a tap away.
+const FILTERS = [['social', 'Feed'], ['open', 'Episodes'], ['musing', 'Musings'], ['connection', 'Connections'], ['event', 'Events'], ['all', 'Everything']];
 const parseDate = (d) => new Date(String(d).includes('T') ? d : `${String(d).replace(' ', 'T')}Z`);
 
 // Posts that come from a writer (connections, episodes): their picture, display name and @username.
@@ -155,7 +156,7 @@ async function takeConnection(k) {
   return res;
 }
 
-// Put a new connection out on THE : NU, or edit one (`k`).
+// Put a new connection out on THE NU, or edit one (`k`).
 export async function openConnectionComposer(k = null) {
   const mine = await playableCharacters(true);
   if (!mine.length) { toast('Create a character first'); return null; }
@@ -202,13 +203,15 @@ export async function viewNu(tagStr = null) {
   const alive = routeAlive();
   // #/nu/tag/<tag>: everything with that hashtag.
   const tag = tagStr ? decodeURIComponent(tagStr) : null;
-  let filter = sessionStorage.getItem('nuuvi:nu-filter') || 'all';
-  if (!FILTERS.some(([k]) => k === filter)) filter = 'all';
+  // Opening THE NU starts on the social feed. Coming back from a post or an episode keeps the tab you were on.
+  const back = /^#\/(p|s|e|c)\//.test(previousHash() || '');
+  let filter = (back && sessionStorage.getItem('nuuvi:nu-filter')) || 'social';
+  if (!FILTERS.some(([k]) => k === filter)) filter = 'social';
   const mine = await myCharacters(true);
   ensureAlive(alive);
   const body = page({
     alive,
-    title: tag ? `#${tag}` : 'THE : NU',
+    title: tag ? `#${tag}` : 'THE NU',
     subtitle: tag ? 'Posts with this hashtag' : '',
     className: 'nu-body',
     actions: html`<button class="icon-btn sm only-mobile" id="nu-refresh" aria-label="Refresh">${icons.refresh}</button><button class="primary sm" id="nu-new">${icons.plus}<span class="lbl">New</span></button>`,
@@ -217,7 +220,7 @@ export async function viewNu(tagStr = null) {
         <div class="nu-col">
           <div class="nu-stories no-swipe" id="nu-stories"></div>
           <div class="nu-tools no-swipe">
-            <div class="chips scroll-x" role="tablist">${FILTERS.map(([k, label]) => html`<button class="chip-btn" data-f="${k}" aria-pressed="${k === filter}">${label}</button>`)}</div>
+            <div class="chips scroll-x" role="tablist">${FILTERS.map(([k, label]) => html`<button class="chip-btn ${k === 'open' ? 'nu-ep-chip' : ''}" data-f="${k}" aria-pressed="${k === filter}">${k === 'open' ? icons.episode : ''}${label}</button>`)}</div>
           </div>
           <div id="nu-list" class="nu-list"></div>
         </div>
@@ -229,7 +232,7 @@ export async function viewNu(tagStr = null) {
           <button class="nu-side-btn" data-new="post">${icons.image} New post</button>
           <button class="nu-side-btn" data-new="musing">${icons.quill} New musing</button>
           <button class="nu-side-btn" data-new="connection">${icons.link} New connection</button>
-          <p class="nu-foot">THE : NU · everything in NUUVI, newest first</p>
+          <p class="nu-foot">THE NU · everything in NUUVI, newest first</p>
         </aside>
       </div>`,
   });
@@ -252,7 +255,7 @@ export async function viewNu(tagStr = null) {
     const now = new Date();
     const today = tag || filter === 'connection' || filter === 'event' ? [] : birthdays.filter((b) => b.month === now.getMonth() + 1 && b.day === now.getDate());
     render(list, items.length || today.length ? html`${today.map(birthdayPost)}${items.map((it) => (it.type === 'social' ? socialCard(it) : it.type === 'event' ? eventPost(it) : it.type === 'connection' ? connectionPost(it) : threadPost(it)))}`
-      : html`<div class="empty"><p>Nothing on THE : NU yet.</p><p class="small">Make a post, put out a connection, or start an episode.</p></div>`);
+      : html`<div class="empty"><p>Nothing on THE NU yet.</p><p class="small">Make a post, put out a connection, or start an episode.</p></div>`);
     styleBars(list);
     applyColors(list);
     // Progress bars: their width comes from the episode (set here, since inline styles aren't allowed).

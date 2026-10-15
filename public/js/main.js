@@ -158,9 +158,10 @@ function userTiles({ vertical = false } = {}) {
   return html`
     <nav class="ub-tiles ${vertical ? 'vertical' : ''}" aria-label="Your shortcuts">
       ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon }[next])}
-      ${tile({ href: '#/nu' }, 'THE : NU', icons.apps)}
+      ${tile({ href: '#/nu' }, 'THE NU', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
-      ${tile({ href: '#/characters' }, 'Your characters', icons.user)}
+      ${vertical ? html`${tile({ href: '#/phone' }, 'Phone', icons.smartphone)}${tile({ href: '#/directory' }, 'Directory', icons.users)}`
+        : tile({ href: '#/characters' }, 'Your characters', icons.user)}
       ${tile({ href: '#/settings' }, 'You & settings', icons.crown)}
       ${tile({ act: 'logout' }, 'Sign out', icons.power)}
     </nav>`;
@@ -245,7 +246,7 @@ function renderRail() {
     <div class="rail-sep rail-sep-top"></div>
     <button type="button" class="rail-item rail-menu phone-only-flex" data-drawer title="Menu" aria-label="Open the menu">${icons.menu}</button>
     <a href="#/home" class="rail-item home-link ${!active && !inArchive && !inMessages ? 'active' : ''}" title="Home" aria-label="Home">${icons.home}</a>
-    <a href="#/archive" class="rail-item archive-link ${inArchive ? 'active' : ''}" title="Archive: completed stories" aria-label="Archive">${icons.archive}${archivedCount ? html`<i class="rail-count">${archivedCount}</i>` : ''}</a>
+    <a href="#/archive" class="rail-item archive-link desk-only ${inArchive ? 'active' : ''}" title="Archive: completed stories" aria-label="Archive">${icons.archive}${archivedCount ? html`<i class="rail-count">${archivedCount}</i>` : ''}</a>
     <a href="#/messages" class="rail-item messages-link phone-only-flex ${inMessages ? 'active' : ''}" title="Messages" aria-label="Messages">${icons.chat}${state.home.messagesUnread ? html`<span class="badge">${state.home.messagesUnread}</span>` : ''}</a>
     <div class="rail-sep rail-sep-stories"></div>
     ${state.home.stories.filter((s) => !s.completedAt).map((s) => html`
@@ -341,7 +342,7 @@ function renderSidebar() {
       <div class="side-scroll">
         <a href="#/u/${state.user.id}" class="nav-link me-link ${hash === `#/u/${state.user.id}` ? 'active' : ''}">${avatar({ name: state.user.displayName, src: state.user.avatar, color: '#EE719E', size: 'xs' })}<span class="u-grad"${userGrad(state.user)}>${state.user.displayName}</span><small>@${state.user.username}</small></a>
         ${link('#/home', 'Home', icons.home)}
-        ${link('#/nu', 'THE : NU', icons.apps)}
+        ${link('#/nu', 'THE NU', icons.apps)}
         ${link('#/notifications', 'Notifications', icons.bell, state.home.notificationsUnread)}
         ${link('#/phone', 'Phone', icons.smartphone)}
         <span class="desk-only-block">${link('#/messages', 'Messages', icons.chat, state.home.messagesUnread)}</span>
@@ -727,7 +728,12 @@ document.addEventListener('contextmenu', async (e) => {
 const closeDrawers = () => document.body.classList.remove('drawer-open', 'members-open');
 function setupDrawer() {
   document.addEventListener('click', async (e) => {
-    if (e.target.closest('#online-btn')) { showOnline(e.target.closest('#online-btn')); return; }
+    // The NUUVI logo: on phones it opens Messages (your conversations and people to talk to);
+    // on computers, who's online.
+    if (e.target.closest('#online-btn')) {
+      if (window.matchMedia('(max-width: 899px)').matches) { closeDrawers(); location.hash = '#/messages'; return; }
+      showOnline(e.target.closest('#online-btn')); return;
+    }
     if (e.target.closest('[data-back]')) {
       // Back to the previous page in NUUVI, or Home if this was the first page opened.
       goBack();
@@ -986,7 +992,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-47';
+export const APP_BUILD = 'NV-48';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

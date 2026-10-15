@@ -28,9 +28,22 @@ export async function newMessage() {
   if (res) location.hash = `#/messages/${res}`;
 }
 
-function conversationList(convos, activeId) {
+// People to talk to: everyone online first, then the other writers (tap one to open a chat).
+function peopleStrip(writers) {
+  const online = new Set(state.online);
+  const people = writers.filter((w) => w.id !== state.user.id)
+    .sort((a, b) => (online.has(b.id) - online.has(a.id)) || a.displayName.localeCompare(b.displayName));
+  if (!people.length) return '';
+  return html`<div class="dm-people no-swipe" aria-label="Start a chat">${people.slice(0, 40).map((w) => html`
+    <a class="dm-person" href="#/messages/${w.id}" title="Message ${w.displayName}">
+      <span class="av-wrap ${online.has(w.id) ? 'is-online' : ''}">${avatar({ name: w.displayName, src: w.avatar, color: '#8F8D8E' })}<i class="online-dot"></i></span>
+      <small>${w.displayName}</small></a>`)}</div>`;
+}
+
+function conversationList(convos, activeId, writers = []) {
   return html`
     <div class="dm-list-head"><h2>Messages</h2><button type="button" class="icon-btn" id="dm-new" aria-label="New message" title="New message">${icons.edit || icons.plus}</button></div>
+    ${peopleStrip(writers)}
     ${convos.length ? convos.map((c) => html`
       <a class="dm-row ${c.unread ? 'unread' : ''} ${c.with.id === activeId ? 'active' : ''}" href="#/messages/${c.with.id}">
         ${avatar({ name: c.with.displayName, src: c.with.avatar, color: '#8F8D8E' })}
@@ -43,9 +56,10 @@ export async function viewMessages(userIdStr) {
   const alive = routeAlive();
   const otherId = Number(userIdStr) || null;
   const showList = !otherId || wide();
-  const [{ conversations }, chat] = await Promise.all([
+  const [{ conversations }, chat, { writers }] = await Promise.all([
     showList ? api('/api/messages') : { conversations: [] },
     otherId ? api(`/api/messages/${otherId}`) : null,
+    showList ? api('/api/directory').catch(() => ({ writers: [] })) : { writers: [] },
   ]);
   ensureAlive(alive);
   const other = chat?.with;
@@ -55,7 +69,7 @@ export async function viewMessages(userIdStr) {
     subtitle: other ? `@${other.username} · private` : 'Private conversations between writers',
     className: 'dm-body',
     body: html`<div class="dm-split ${otherId ? 'has-chat' : ''}">
-      ${showList ? html`<section class="dm-list" id="dm-list">${conversationList(conversations, otherId)}</section>` : ''}
+      ${showList ? html`<section class="dm-list" id="dm-list">${conversationList(conversations, otherId, writers)}</section>` : ''}
       ${otherId ? html`<section class="dm-chat">
         <header class="dm-chat-head">
           <a class="dm-back" href="#/messages" aria-label="Back to messages">${icons.back}</a>
@@ -75,7 +89,7 @@ export async function viewMessages(userIdStr) {
   const reloadList = async () => {
     const list = $('#dm-list', body);
     if (!list) return;
-    render(list, conversationList((await api('/api/messages')).conversations, otherId));
+    render(list, conversationList((await api('/api/messages')).conversations, otherId, writers));
   };
   live('message', (m) => { if (!otherId || !m.between.includes(otherId)) reloadList().catch(() => {}); });
   if (!otherId) return;

@@ -1,6 +1,6 @@
 // Connections: a writer puts out an idea for their muse ("looking for an ex who still has my
-// hoodie…") on THE : NU. Anyone can pick it up for one of their characters; once taken it stays
-// on THE : NU, locked, showing who took it.
+// hoodie…") on THE NU. Anyone can pick it up for one of their characters; once taken it stays
+// on THE NU, locked, showing who took it.
 import { fail, str } from '../http.js';
 import { toCharacter, toUser, requireUser, uploadRef, isBlocked } from '../model.js';
 import { transaction } from '../db.js';
@@ -53,7 +53,7 @@ export function connectionRoutes(r, ctx) {
   const own = (characterId, userId) => db.prepare('SELECT * FROM characters WHERE id = ? AND user_id = ?').get(Number(characterId), userId)
     ?? fail(400, 'Pick one of your own characters');
 
-  // For THE : NU (newest first), skipping people you've blocked or who blocked you.
+  // For THE NU (newest first), skipping people you've blocked or who blocked you.
   ctx.connectionItems = ({ userId, q = '', limit = 60 }) => db.prepare(`
     SELECT * FROM connections k
     WHERE k.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = :u) AND k.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = :u)

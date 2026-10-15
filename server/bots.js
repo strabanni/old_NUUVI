@@ -6,7 +6,7 @@
 // When the site has Claude switched on (an Anthropic API key), NPCs write fresh lines in their own
 // voice instead, using their writer's lines as examples; if Claude can't be reached, a line is picked.
 
-const NPC_SYSTEM = `You write social media posts and comments for an NPC (a non-player character) on THE : NU, the Instagram-style feed inside NUUVI, a private roleplay writing community set in Ardell City (its version of New York). Write in the NPC's own voice, matching their writer's example lines: their tone, slang, length and habits. Write something new rather than copying an example. Keep it short like a real post or comment, react to what you're given, and never be cruel, hateful or sexual. Plain text; emojis are fine.`;
+const NPC_SYSTEM = `You write social media posts and comments for an NPC (a non-player character) on THE NU, the Instagram-style feed inside NUUVI, a private roleplay writing community set in Ardell City (its version of New York). Write in the NPC's own voice, matching their writer's example lines: their tone, slang, length and habits. Write something new rather than copying an example. Keep it short like a real post or comment, react to what you're given, and never be cruel, hateful or sexual. Plain text; emojis are fine.`;
 const NPC_SCHEMA = { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false };
 
 export const DEFAULT_SETTINGS = { enabled: true, commentChance: 0.35, maxCommentsPerPost: 2, postEveryHours: 12, gossipAboutThreads: true };

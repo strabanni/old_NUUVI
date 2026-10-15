@@ -253,7 +253,7 @@ function inlineFormat(s) {
     .replace(/\|\|(.+?)\|\|/g, '<span class="spoiler" tabindex="0">$1</span>')
     .replace(/(&quot;|“)(.+?)(&quot;|”)/g, '<span class="dialogue">$1$2$3</span>')
     .replace(/(^|[\s(>])@([^\s@<&]+?)(?=[.,!?;:)\]]*(?:\s|$|<|&))/gu, '$1<span class="mention">@$2</span>')
-    // #hashtags open THE : NU filtered to that tag.
+    // #hashtags open THE NU filtered to that tag.
     .replace(/(^|[\s(>])#((?=[\p{L}\p{N}_]*\p{L})[\p{L}\p{N}_]{2,40})/gu, (m, pre, tag) => `${pre}<a class="hashtag" href="#/nu/tag/${encodeURIComponent(tag)}">#${tag}</a>`)
     .replace(/\u0000(\d+)\u0000/g, (_, i) => kept[i])
     .replace(/[ \t]{2,}|^ |\n /g, keepSpaces);

@@ -115,7 +115,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
           ${editing ? html`<option value="complete" ${c.status === 'complete' ? 'selected' : ''}>Complete — read only</option>` : ''}
         </select></div>
       </div>
-      <label>Episode picture <span class="muted small">— shows at the top of the episode and on THE : NU (best 1600 × 900)</span></label>
+      <label>Episode picture <span class="muted small">— shows at the top of the episode and on THE NU (best 1600 × 900)</span></label>
       <div class="t-banner" id="t-banner">${c.banner ? html`<img src="${c.banner}" alt="">` : html`<span>${icons.image} Add a picture</span>`}</div>
       <input type="hidden" name="banner" value="${c.banner || ''}">
       <div class="row">

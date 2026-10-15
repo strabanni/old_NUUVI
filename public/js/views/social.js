@@ -117,7 +117,7 @@ export async function showPeople(title, url, { note = '' } = {}) {
     </div>`);
 }
 
-// A post as shown on THE : NU and on profiles — laid out like an Instagram post.
+// A post as shown on THE NU and on profiles — laid out like an Instagram post.
 export function socialCard(p, { full = false } = {}) {
   const ch = p.character;
   const liked = p.likedBy.length > 0;
@@ -699,6 +699,9 @@ async function startRecording({ tick, done }) {
 }
 
 // ---------- Single post page ----------
+// How many comments show on a post before "See more".
+const FIRST_COMMENTS = 15;
+
 export async function viewSocialPost(id) {
   const alive = routeAlive();
   const [{ post }, mine] = await Promise.all([api(`/api/social/${id}`), playableCharacters()]);
@@ -713,7 +716,6 @@ export async function viewSocialPost(id) {
       <div class="sm-single">
         <div id="sm-post"></div>
         <section class="card np-thread">
-          <div id="sm-comments"></div>
           ${mine.length ? html`<form id="sm-comment" class="np-cform">
             <div class="np-replying" id="np-replying" hidden></div>
             <div class="np-cform-row">
@@ -728,6 +730,7 @@ export async function viewSocialPost(id) {
               <button type="button" class="link" id="np-when-clear">Now</button>
             </div>
           </form>` : html`<p class="muted small">Create a character to comment.</p>`}
+          <div id="sm-comments"></div>
         </section>
       </div>`,
   });
@@ -755,6 +758,7 @@ export async function viewSocialPost(id) {
         <button type="button" class="cm-heart" aria-label="Like comment">${icons.heart}</button>
       </div>`;
   };
+  let showAll = false;
   const draw = (p) => {
     posts.set(p.id, p);
     render($('#sm-post', body), socialCard(p, { full: true }));
@@ -763,7 +767,13 @@ export async function viewSocialPost(id) {
     const top = all.filter((c) => !c.parentId);
     const repliesOf = (c) => (c.character ? p.comments.filter((r) => r.parentId === c.id) : []);
     const waiting = p.buzzPending ? html`<p class="muted small np-buzz-wait">${icons.sparkles || ''} Fans are looking at the post… their comments will show up here in a moment.</p>` : '';
-    render($('#sm-comments', body), top.length || waiting ? html`${waiting}${top.map((c) => html`${commentRow(c, p)}${repliesOf(c).length ? html`<div class="cm-replies">${repliesOf(c).map((r) => commentRow(r, p, true))}</div>` : ''}`)}`
+    // Characters' comments come first; only the first ones show until "See more" (so you're not scrolling forever).
+    const shown = showAll ? top : top.slice(0, FIRST_COMMENTS);
+    const hiddenCount = top.length - shown.length;
+    const thread = (c) => html`${commentRow(c, p)}${repliesOf(c).length ? html`<div class="cm-replies">${repliesOf(c).map((r) => commentRow(r, p, true))}</div>` : ''}`;
+    render($('#sm-comments', body), top.length || waiting ? html`${waiting}${shown.map(thread)}
+      ${hiddenCount ? html`<div class="cm-more-wrap"><div class="cm-peek" aria-hidden="true">${top.slice(FIRST_COMMENTS, FIRST_COMMENTS + 2).map((c) => commentRow(c, p))}</div>
+        <button type="button" class="cm-more" id="cm-more">See ${hiddenCount.toLocaleString()} more ${hiddenCount === 1 ? 'comment' : 'comments'}</button></div>` : ''}`
       : html`<p class="muted small np-empty">No comments yet. Start the conversation.</p>`);
   };
   draw(post);
@@ -787,6 +797,7 @@ export async function viewSocialPost(id) {
     }
   };
   $('#sm-comments', body).addEventListener('click', async (e) => {
+    if (e.target.closest('#cm-more')) { showAll = true; draw(posts.get(post.id)); return; }
     const heart = e.target.closest('.cm-heart');
     if (heart) { heart.classList.toggle('on'); heart.classList.add('pop'); return; }
     const rep = e.target.closest('[data-reply]');
