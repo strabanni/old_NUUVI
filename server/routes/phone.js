@@ -1,11 +1,14 @@
-// Phones: every character has one. Contacts (with the name you saved them as) and private
-// one-to-one texts between two characters. Only the writers of those two characters can read a
-// conversation, and live updates go to just them.
+// Phones: every character has one. Contacts (with the name you saved them as), one-to-one texts
+// between two characters and group texts. Only the writers of the characters in a conversation can
+// read it, and live updates go to just them.
 import { fail, str, id } from '../http.js';
 import { toCharacter, requireUser, isBlocked, uploadRef, requirePlayable } from '../model.js';
 import { plainText } from '../text.js';
 
 const MAX_TEXT = 20000;
+const MAX_GROUP = 32;
+// Tapbacks: the six classic ones, or any single emoji from the picker.
+const isEmoji = (s) => typeof s === 'string' && s.length > 0 && s.length <= 16 && /\p{Extended_Pictographic}/u.test(s) && !/[\p{L}\p{N}\s<>]/u.test(s);
 
 export function phoneRoutes(r, ctx) {
   const { db, hub } = ctx;
@@ -17,46 +20,74 @@ export function phoneRoutes(r, ctx) {
     return c;
   };
   const blockedEitherWay = (a, b) => isBlocked(db, a, b) || isBlocked(db, b, a);
+  const members = (threadId) => db.prepare(`SELECT c.* FROM phone_members pm JOIN characters c ON c.id = pm.character_id
+    WHERE pm.thread_id = ? ORDER BY pm.joined_at, c.id`).all(threadId);
+  const memberUsers = (threadId) => new Set(members(threadId).map((c) => c.user_id));
 
-  // Which of a thread's two characters is "me" for this user (they may own both).
+  // Which of a conversation's characters is "me" for this user (they may own several).
   function threadFor(threadId, user, as) {
-    const t = db.prepare('SELECT * FROM phone_threads WHERE id = ?').get(threadId);
+    const t = db.prepare('SELECT * FROM phone_threads WHERE id = ?').get(Number(threadId));
     if (!t) fail(404, 'Conversation not found');
-    const a = character(t.a_id);
-    const b = character(t.b_id);
-    const mine = [a, b].filter((c) => c.user_id === user.id);
+    const all = members(t.id);
+    const mine = all.filter((c) => c.user_id === user.id);
     if (!mine.length) fail(404, 'Conversation not found');
     const me = (as && mine.find((c) => c.id === Number(as))) || mine[0];
-    const other = me.id === a.id ? b : a;
-    return { t, me, other };
+    const others = all.filter((c) => c.id !== me.id);
+    return { t, me, others, other: t.is_group ? null : others[0] ?? null };
   }
 
   const contactName = (meId, otherId) => db.prepare('SELECT name FROM phone_contacts WHERE character_id = ? AND contact_id = ?').get(meId, otherId)?.name || '';
   // The picture this phone saved for a contact (only this phone sees it; the character keeps their own).
   const contactAvatar = (meId, otherId) => db.prepare('SELECT avatar FROM phone_contacts WHERE character_id = ? AND contact_id = ?').get(meId, otherId)?.avatar || null;
-  const asContact = (meId, c) => { const ch = toCharacter(c); const pic = contactAvatar(meId, c.id); return pic ? { ...ch, avatar: pic } : ch; };
+  const asContact = (meId, c) => {
+    const ch = toCharacter(c);
+    const pic = contactAvatar(meId, c.id);
+    return { ...ch, avatar: pic || ch.avatar, contactName: contactName(meId, c.id) || ch.name };
+  };
+  const groupName = (t, meId, others) => t.title || others.map((c) => (contactName(meId, c.id) || c.name).split(' ')[0]).join(', ') || 'Group';
+
+  const reactionsFor = (messageId) => db.prepare('SELECT character_id, emoji FROM phone_reactions WHERE message_id = ? ORDER BY created_at')
+    .all(messageId).map((x) => ({ characterId: x.character_id, emoji: x.emoji }));
 
   function toMessage(m) {
     const reply = m.reply_to ? db.prepare('SELECT id, body, media, character_id FROM phone_messages WHERE id = ?').get(m.reply_to) : null;
     return {
-      id: m.id, threadId: m.thread_id, characterId: m.character_id, userId: m.user_id, body: m.body,
-      media: JSON.parse(m.media), createdAt: m.created_at, editedAt: m.edited_at,
+      id: m.id, threadId: m.thread_id, characterId: m.character_id, userId: m.user_id, body: m.body, kind: m.kind || 'text',
+      media: JSON.parse(m.media), createdAt: m.created_at, editedAt: m.edited_at, reactions: reactionsFor(m.id),
       replyTo: reply ? { id: reply.id, characterId: reply.character_id, text: plainText(reply.body), hasMedia: reply.media !== '[]' } : null,
     };
   }
+  const lastText = (m) => (m.kind === 'call' ? '📞 Call' : plainText(m.body, 90) || (m.media !== '[]' ? 'Photo' : ''));
 
-  function summary(t, meId) {
-    const otherId = t.a_id === meId ? t.b_id : t.a_id;
-    const other = character(otherId);
+  function summary(t, meId, others = null) {
+    const rest = others ?? members(t.id).filter((c) => c.id !== meId);
     const last = db.prepare('SELECT * FROM phone_messages WHERE thread_id = ? ORDER BY id DESC LIMIT 1').get(t.id);
     const read = db.prepare('SELECT last_read_id FROM phone_reads WHERE character_id = ? AND thread_id = ?').get(meId, t.id)?.last_read_id ?? 0;
-    return {
-      id: t.id, other: asContact(meId, other), name: contactName(meId, otherId) || other.name,
-      last: last ? { text: plainText(last.body, 90) || (last.media !== '[]' ? 'Photo' : ''), at: last.created_at, mine: last.character_id === meId } : null,
+    const sender = last && last.character_id !== meId && t.is_group ? rest.find((c) => c.id === last.character_id) : null;
+    const base = {
+      id: t.id, group: !!t.is_group, lastAt: t.last_at,
+      last: last ? { text: `${sender ? `${(contactName(meId, sender.id) || sender.name).split(' ')[0]}: ` : ''}${lastText(last)}`, at: last.created_at, mine: last.character_id === meId } : null,
       unread: db.prepare('SELECT COUNT(*) AS n FROM phone_messages WHERE thread_id = ? AND id > ? AND character_id != ?').get(t.id, read, meId).n,
-      lastAt: t.last_at,
     };
+    if (t.is_group) {
+      return { ...base, name: groupName(t, meId, rest), title: t.title, photo: t.photo, members: rest.map((c) => asContact(meId, c)), other: null };
+    }
+    const other = rest[0];
+    return { ...base, other: asContact(meId, other), name: contactName(meId, other.id) || other.name };
   }
+  // A group is hidden from a writer only if everyone else in it has blocked them (or the other way).
+  const visible = (user, t) => (t.group ? t.members.some((m) => !blockedEitherWay(user.id, m.userId)) || !t.members.length : !blockedEitherWay(user.id, t.other.userId));
+
+  // Unread texts on each of this writer's phones (for the dot in the phone switcher).
+  r.get('/api/phone/unread', ({ user }) => {
+    requireUser(user);
+    const rows = db.prepare(`SELECT pm.character_id AS cid, COUNT(m.id) AS n FROM phone_members pm
+      JOIN characters c ON c.id = pm.character_id AND c.user_id = ?
+      JOIN phone_messages m ON m.thread_id = pm.thread_id AND m.character_id != pm.character_id
+        AND m.id > COALESCE((SELECT last_read_id FROM phone_reads pr WHERE pr.character_id = pm.character_id AND pr.thread_id = pm.thread_id), 0)
+      GROUP BY pm.character_id`).all(user.id);
+    return { data: { unread: Object.fromEntries(rows.map((x) => [x.cid, x.n])) } };
+  });
 
   // A character's phone: their contacts and conversations.
   r.get('/api/phone/:id', ({ user, params }) => {
@@ -66,9 +97,10 @@ export function phoneRoutes(r, ctx) {
       WHERE pc.character_id = ? ORDER BY COALESCE(NULLIF(pc.name, ''), c.name) COLLATE NOCASE`).all(me.id)
       .filter((c) => !blockedEitherWay(user.id, c.user_id))
       .map((c) => ({ id: c.id, name: c.contact_name || c.name, character: { ...toCharacter(c), avatar: c.contact_avatar || c.avatar }, customAvatar: !!c.contact_avatar }));
-    const threads = db.prepare('SELECT * FROM phone_threads WHERE a_id = ? OR b_id = ? ORDER BY last_at DESC').all(me.id, me.id)
+    const threads = db.prepare(`SELECT t.* FROM phone_threads t JOIN phone_members pm ON pm.thread_id = t.id AND pm.character_id = ?
+      ORDER BY t.last_at DESC`).all(me.id)
       .map((t) => summary(t, me.id))
-      .filter((t) => !blockedEitherWay(user.id, t.other.userId) && (t.last || contacts.some((c) => c.id === t.other.id)));
+      .filter((t) => (t.group || t.other) && visible(user, t) && (t.group || t.last || contacts.some((c) => c.id === t.other.id)));
     return { data: { character: toCharacter(me), contacts, threads } };
   });
 
@@ -103,32 +135,132 @@ export function phoneRoutes(r, ctx) {
     if (!other || other.id === me.id) fail(400, 'Pick someone else to text');
     if (blockedEitherWay(user.id, other.user_id)) fail(403, "You can't text this character");
     const [a, b] = me.id < other.id ? [me.id, other.id] : [other.id, me.id];
-    db.prepare('INSERT OR IGNORE INTO phone_threads (a_id, b_id) VALUES (?, ?)').run(a, b);
-    const t = db.prepare('SELECT * FROM phone_threads WHERE a_id = ? AND b_id = ?').get(a, b);
+    let t = db.prepare('SELECT * FROM phone_threads WHERE a_id = ? AND b_id = ? AND is_group = 0').get(a, b);
+    if (!t) {
+      const tid = db.prepare('INSERT INTO phone_threads (a_id, b_id) VALUES (?, ?)').run(a, b).lastInsertRowid;
+      const add = db.prepare('INSERT OR IGNORE INTO phone_members (thread_id, character_id) VALUES (?, ?)');
+      add.run(tid, a);
+      add.run(tid, b);
+      t = db.prepare('SELECT * FROM phone_threads WHERE id = ?').get(tid);
+    }
     return { data: { thread: summary(t, me.id) } };
+  });
+
+  const pickMembers = (user, me, ids) => {
+    const list = [...new Set((Array.isArray(ids) ? ids : []).map(Number))].filter((x) => x && x !== me.id).map((x) => character(x));
+    if (list.some((c) => !c)) fail(400, 'Someone in that list is gone');
+    if (list.some((c) => blockedEitherWay(user.id, c.user_id))) fail(403, "You can't add one of those characters");
+    return list;
+  };
+  const broadcast = (threadId, type, payload, extra = []) => { for (const uid of new Set([...memberUsers(threadId), ...extra])) hub.sendUser(uid, type, payload); };
+
+  // Start a group text with two or more others.
+  r.post('/api/phone/:id/groups', ({ user, params, body }) => {
+    requireUser(user);
+    const me = ownCharacter(params.id, user);
+    requirePlayable(me);
+    const others = pickMembers(user, me, body.memberIds);
+    if (others.length < 2) fail(400, 'Pick at least two people for a group');
+    if (others.length + 1 > MAX_GROUP) fail(400, `A group can have up to ${MAX_GROUP} people`);
+    const title = str(body.title, 'Group name', { max: 60 }) ?? '';
+    const tid = db.prepare('INSERT INTO phone_threads (is_group, title, created_by) VALUES (1, ?, ?)').run(title, me.id).lastInsertRowid;
+    const add = db.prepare('INSERT INTO phone_members (thread_id, character_id) VALUES (?, ?)');
+    for (const c of [me, ...others]) add.run(tid, c.id);
+    const t = db.prepare('SELECT * FROM phone_threads WHERE id = ?').get(tid);
+    broadcast(t.id, 'dm-thread', { threadId: t.id });
+    return { status: 201, data: { thread: summary(t, me.id) } };
+  });
+
+  // Rename a group or change its picture (anyone in it can, like on a real phone).
+  r.put('/api/phone/threads/:id', ({ user, params, body }) => {
+    requireUser(user);
+    const { t } = threadFor(params.id, user, body.as);
+    if (!t.is_group) fail(400, 'Only group chats have a name');
+    const title = body.title === undefined ? t.title : str(body.title, 'Group name', { max: 60 }) ?? '';
+    const pic = uploadRef(db, body.photo, user.id);
+    const photo = pic === undefined ? t.photo : pic;
+    db.prepare('UPDATE phone_threads SET title = ?, photo = ? WHERE id = ?').run(title, photo, t.id);
+    broadcast(t.id, 'dm-thread', { threadId: t.id });
+    return { data: { ok: true } };
+  });
+
+  // Add people to a group.
+  r.post('/api/phone/threads/:id/members', ({ user, params, body }) => {
+    requireUser(user);
+    const { t, me, others } = threadFor(params.id, user, body.as);
+    if (!t.is_group) fail(400, 'Start a group to add more people');
+    const add = pickMembers(user, me, body.memberIds).filter((c) => !others.some((o) => o.id === c.id));
+    if (others.length + add.length + 1 > MAX_GROUP) fail(400, `A group can have up to ${MAX_GROUP} people`);
+    const ins = db.prepare('INSERT OR IGNORE INTO phone_members (thread_id, character_id) VALUES (?, ?)');
+    for (const c of add) ins.run(t.id, c.id);
+    broadcast(t.id, 'dm-thread', { threadId: t.id });
+    return { data: { ok: true, added: add.length } };
+  });
+
+  // Leave a group (or, for the one who started it, remove someone).
+  r.delete('/api/phone/threads/:id/members/:cid', ({ user, params, query }) => {
+    requireUser(user);
+    const { t, me } = threadFor(params.id, user, query.get('as'));
+    if (!t.is_group) fail(400, 'Only group chats can be left');
+    const target = Number(params.cid);
+    const leaving = character(target);
+    if (!leaving) fail(404, 'Character not found');
+    if (leaving.user_id !== user.id && t.created_by !== me.id) fail(403, 'Only the person who started the group can remove people');
+    const before = memberUsers(t.id);
+    db.prepare('DELETE FROM phone_members WHERE thread_id = ? AND character_id = ?').run(t.id, target);
+    db.prepare('DELETE FROM phone_reads WHERE thread_id = ? AND character_id = ?').run(t.id, target);
+    if (!db.prepare('SELECT 1 FROM phone_members WHERE thread_id = ?').get(t.id)) db.prepare('DELETE FROM phone_threads WHERE id = ?').run(t.id);
+    broadcast(t.id, 'dm-thread', { threadId: t.id }, [...before]);
+    return { data: { ok: true } };
   });
 
   r.get('/api/phone/threads/:id', ({ user, params, query }) => {
     requireUser(user);
-    const { t, me, other } = threadFor(params.id, user, query.get('as'));
-    if (blockedEitherWay(user.id, other.user_id)) fail(404, 'Conversation not found');
+    const { t, me, others, other } = threadFor(params.id, user, query.get('as'));
+    if (other && blockedEitherWay(user.id, other.user_id)) fail(404, 'Conversation not found');
     const before = Number(query.get('before')) || Number.MAX_SAFE_INTEGER;
     const rows = db.prepare('SELECT * FROM phone_messages WHERE thread_id = ? AND id < ? ORDER BY id DESC LIMIT 101').all(t.id, before).reverse();
     const hasMore = rows.length > 100;
     if (hasMore) rows.shift();
+    // How far the other person has read (one-to-one only, for "Read" under your last text).
+    const readUpTo = other ? db.prepare('SELECT last_read_id FROM phone_reads WHERE character_id = ? AND thread_id = ?').get(other.id, t.id)?.last_read_id ?? 0 : 0;
+    const s = summary(t, me.id, others);
     return {
       data: {
-        thread: { id: t.id, me: toCharacter(me), other: asContact(me.id, other), name: contactName(me.id, other.id) || other.name },
+        thread: {
+          id: t.id, group: !!t.is_group, me: toCharacter(me), name: s.name, title: t.title, photo: t.photo,
+          other: other ? asContact(me.id, other) : null, members: others.map((c) => asContact(me.id, c)),
+          createdBy: t.created_by, readUpTo,
+        },
         messages: rows.map(toMessage), hasMore,
       },
     };
   });
 
+  // Tell everyone else in the conversation: "{a} texted {b}" / "{b} missed a call from {a}".
+  function notifyOthers(t, me, others, user, type, text) {
+    for (const c of others) {
+      if (c.user_id === user.id) continue;
+      ctx.notify({ userId: c.user_id, type, actorId: user.id, characterId: c.id, fromCharacterId: me.id, phoneThreadId: t.id, text });
+    }
+  }
+
+  function addMessage(t, me, user, { text = '', media = [], replyTo = null, kind = 'text' }) {
+    const { lastInsertRowid } = db.prepare(`INSERT INTO phone_messages (thread_id, character_id, user_id, body, media, reply_to, kind)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`).run(t.id, me.id, user.id, text, JSON.stringify(media), replyTo, kind);
+    db.prepare("UPDATE phone_threads SET last_at = datetime('now') WHERE id = ?").run(t.id);
+    db.prepare(`INSERT INTO phone_reads (character_id, thread_id, last_read_id) VALUES (?, ?, ?)
+      ON CONFLICT(character_id, thread_id) DO UPDATE SET last_read_id = excluded.last_read_id`).run(me.id, t.id, lastInsertRowid);
+    const message = toMessage(db.prepare('SELECT * FROM phone_messages WHERE id = ?').get(lastInsertRowid));
+    broadcast(t.id, 'dm', message);
+    return message;
+  }
+
   r.post('/api/phone/threads/:id/messages', ({ user, params, body }) => {
     requireUser(user);
-    const { t, me, other } = threadFor(params.id, user, body.as);
+    const { t, me, others, other } = threadFor(params.id, user, body.as);
     requirePlayable(me);
-    if (blockedEitherWay(user.id, other.user_id)) fail(403, "You can't text this character");
+    if (other && blockedEitherWay(user.id, other.user_id)) fail(403, "You can't text this character");
     const text = str(body.body, 'Message', { max: MAX_TEXT }) ?? '';
     const media = Array.isArray(body.media) ? body.media.slice(0, 10).map((v) => uploadRef(db, v, user.id) ?? fail(400, 'Picture missing')) : [];
     if (!text && !media.length) fail(400, 'Write something or add a picture');
@@ -136,18 +268,39 @@ export function phoneRoutes(r, ctx) {
     if (body.replyTo != null) {
       replyTo = db.prepare('SELECT id FROM phone_messages WHERE id = ? AND thread_id = ?').get(Number(body.replyTo), t.id)?.id ?? fail(400, 'That message is gone');
     }
-    const { lastInsertRowid } = db.prepare(`INSERT INTO phone_messages (thread_id, character_id, user_id, body, media, reply_to)
-      VALUES (?, ?, ?, ?, ?, ?)`).run(t.id, me.id, user.id, text, JSON.stringify(media), replyTo);
-    db.prepare("UPDATE phone_threads SET last_at = datetime('now') WHERE id = ?").run(t.id);
-    db.prepare(`INSERT INTO phone_reads (character_id, thread_id, last_read_id) VALUES (?, ?, ?)
-      ON CONFLICT(character_id, thread_id) DO UPDATE SET last_read_id = excluded.last_read_id`).run(me.id, t.id, lastInsertRowid);
-    const message = toMessage(db.prepare('SELECT * FROM phone_messages WHERE id = ?').get(lastInsertRowid));
-    for (const uid of new Set([me.user_id, other.user_id])) hub.sendUser(uid, 'dm', message);
-    if (other.user_id !== user.id) {
-      const shownAs = contactName(other.id, me.id) || me.name;
-      ctx.notify({ userId: other.user_id, type: 'dm', actorId: user.id, characterId: other.id, text: `${shownAs}: ${plainText(text) || 'sent a photo'}` });
-    }
+    const message = addMessage(t, me, user, { text, media, replyTo });
+    notifyOthers(t, me, others.filter((c) => !blockedEitherWay(user.id, c.user_id)), user, 'dm', plainText(text, 140) || 'sent a photo');
     return { status: 201, data: { message } };
+  });
+
+  // A call is just for the story: it shows in the conversation and as a missed call.
+  r.post('/api/phone/threads/:id/call', ({ user, params, body }) => {
+    requireUser(user);
+    const { t, me, others, other } = threadFor(params.id, user, body.as);
+    requirePlayable(me);
+    if (other && blockedEitherWay(user.id, other.user_id)) fail(403, "You can't call this character");
+    const message = addMessage(t, me, user, { kind: 'call' });
+    notifyOthers(t, me, others.filter((c) => !blockedEitherWay(user.id, c.user_id)), user, 'call', '');
+    return { status: 201, data: { message } };
+  });
+
+  // Tapback: tap the same one again to take it off.
+  r.post('/api/phone/messages/:id/react', ({ user, params, body }) => {
+    requireUser(user);
+    const m = db.prepare('SELECT * FROM phone_messages WHERE id = ?').get(params.id);
+    if (!m) fail(404, 'Message not found');
+    const { me } = threadFor(m.thread_id, user, body.as);
+    const emoji = body.emoji === null || body.emoji === '' ? null : String(body.emoji ?? '');
+    if (emoji !== null && !isEmoji(emoji)) fail(400, 'Pick an emoji');
+    const had = db.prepare('SELECT emoji FROM phone_reactions WHERE message_id = ? AND character_id = ?').get(m.id, me.id);
+    if (emoji === null || had?.emoji === emoji) db.prepare('DELETE FROM phone_reactions WHERE message_id = ? AND character_id = ?').run(m.id, me.id);
+    else {
+      db.prepare(`INSERT INTO phone_reactions (message_id, character_id, emoji) VALUES (?, ?, ?)
+        ON CONFLICT(message_id, character_id) DO UPDATE SET emoji = excluded.emoji, created_at = datetime('now')`).run(m.id, me.id, emoji);
+    }
+    const reactions = reactionsFor(m.id);
+    broadcast(m.thread_id, 'dm-react', { id: m.id, threadId: m.thread_id, reactions });
+    return { data: { reactions } };
   });
 
   r.post('/api/phone/threads/:id/read', ({ user, params, body }) => {
@@ -156,7 +309,10 @@ export function phoneRoutes(r, ctx) {
     const lastId = Number(body.lastId) || 0;
     db.prepare(`INSERT INTO phone_reads (character_id, thread_id, last_read_id) VALUES (?, ?, ?)
       ON CONFLICT(character_id, thread_id) DO UPDATE SET last_read_id = MAX(last_read_id, excluded.last_read_id)`).run(me.id, t.id, lastId);
-    db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type = 'dm' AND character_id = ? AND read_at IS NULL").run(user.id, me.id);
+    db.prepare(`UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type IN ('dm', 'call') AND character_id = ?
+      AND (phone_thread_id = ? OR phone_thread_id IS NULL) AND read_at IS NULL`).run(user.id, me.id, t.id);
+    // The other writers see "Read" under their texts.
+    broadcast(t.id, 'dm-read', { threadId: t.id, characterId: me.id, lastId });
     return { data: { ok: true } };
   });
 
@@ -165,8 +321,7 @@ export function phoneRoutes(r, ctx) {
     const m = db.prepare('SELECT * FROM phone_messages WHERE id = ?').get(params.id);
     if (!m || (m.user_id !== user.id && !user.isAdmin)) fail(404, 'Message not found');
     db.prepare('DELETE FROM phone_messages WHERE id = ?').run(m.id);
-    const t = db.prepare('SELECT * FROM phone_threads WHERE id = ?').get(m.thread_id);
-    for (const cid of [t.a_id, t.b_id]) hub.sendUser(character(cid).user_id, 'dm-delete', { id: m.id, threadId: t.id });
+    broadcast(m.thread_id, 'dm-delete', { id: m.id, threadId: m.thread_id });
     return { data: { ok: true } };
   });
 }

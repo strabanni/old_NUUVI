@@ -671,15 +671,69 @@ test('phones: contacts, private texts between two characters, unread counts and 
   const aPhone = (await a(`/api/phone/${yoonoh.id}`)).data;
   assert.equal(aPhone.threads[0].unread, 1);
   assert.equal(aPhone.threads[0].last.text, 'Photo');
-  assert.ok((await b('/api/notifications')).data.notifications.some((n) => n.type === 'dm' && n.url === `#/phone/${daehyun.id}`));
+  const textNote = (await b('/api/notifications')).data.notifications.find((n) => n.type === 'dm');
+  assert.equal(textNote.url, `#/phone/${daehyun.id}/t/${thread.id}`);
+  assert.equal(textNote.from.name, 'Cha Yoonoh'); // who texted, with their picture
+  assert.equal(textNote.to.name, 'Bang Daehyun'); // and whose phone it went to
+  assert.equal((await a('/api/phone/unread')).data.unread[yoonoh.id], 1);
 
   await a(`/api/phone/threads/${thread.id}/read`, { method: 'POST', body: { as: yoonoh.id, lastId: pic.data.message.id } });
   assert.equal((await a(`/api/phone/${yoonoh.id}`)).data.threads[0].unread, 0);
+
+  // Tapbacks: one per character, tap the same again to take it off; only emoji.
+  const react = (who, as, emoji) => who(`/api/phone/messages/${sent.data.message.id}/react`, { method: 'POST', body: { as, emoji } });
+  assert.deepEqual((await react(b, daehyun.id, '❤️')).data.reactions, [{ characterId: daehyun.id, emoji: '❤️' }]);
+  assert.deepEqual((await react(b, daehyun.id, '😂')).data.reactions, [{ characterId: daehyun.id, emoji: '😂' }]);
+  assert.deepEqual((await react(b, daehyun.id, '😂')).data.reactions, []);
+  assert.equal((await react(b, daehyun.id, 'lol')).status, 400);
+  assert.equal((await react(snoop, daehyun.id, '❤️')).status, 404);
+
+  // A call shows in the conversation and as "{b} missed a call from {a}".
+  const call = await a(`/api/phone/threads/${thread.id}/call`, { method: 'POST', body: { as: yoonoh.id } });
+  assert.equal(call.data.message.kind, 'call');
+  const missed = (await b('/api/notifications')).data.notifications.find((n) => n.type === 'call');
+  assert.equal(missed.from.name, 'Cha Yoonoh');
+  assert.equal(missed.to.name, 'Bang Daehyun');
+  await b(`/api/phone/threads/${thread.id}/read`, { method: 'POST', body: { as: daehyun.id, lastId: call.data.message.id } });
+  assert.equal((await a(`/api/phone/threads/${thread.id}?as=${yoonoh.id}`)).data.thread.readUpTo, call.data.message.id);
+  assert.equal((await b('/api/phone/unread')).data.unread[daehyun.id], undefined);
 
   // Blocking ends it.
   await b('/api/blocks', { method: 'POST', body: { userId: (await a('/api/me')).data.user.id } });
   assert.equal((await a(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: yoonoh.id, body: 'hello?' } })).status, 403);
   assert.equal((await a(`/api/phone/${yoonoh.id}`)).data.threads.length, 0);
+});
+
+test('phones: group texts with three or more characters', async () => {
+  const a = await app.signUp('grp_a');
+  const b = await app.signUp('grp_b');
+  const c = await app.signUp('grp_c');
+  const out = await app.signUp('grp_out');
+  const mk = async (who, name) => (await who('/api/characters', { method: 'POST', body: { name } })).data.character;
+  const [ann, bo, cy, dee] = [await mk(a, 'Ann Grp'), await mk(b, 'Bo Grp'), await mk(c, 'Cy Grp'), await mk(out, 'Dee Grp')];
+  assert.equal((await a(`/api/phone/${ann.id}/groups`, { method: 'POST', body: { memberIds: [bo.id] } })).status, 400); // needs two others
+  const g = (await a(`/api/phone/${ann.id}/groups`, { method: 'POST', body: { memberIds: [bo.id, cy.id], title: 'Crew' } })).data.thread;
+  assert.equal(g.group, true);
+  assert.equal(g.name, 'Crew');
+  assert.equal(g.members.length, 2);
+  await a(`/api/phone/threads/${g.id}/messages`, { method: 'POST', body: { as: ann.id, body: 'meeting at 9' } });
+  const forBo = (await b('/api/notifications')).data.notifications.find((n) => n.type === 'dm');
+  assert.equal(forBo.group.title, 'Crew');
+  assert.equal(forBo.to.name, 'Bo Grp');
+  assert.ok((await c('/api/notifications')).data.notifications.some((n) => n.type === 'dm' && n.url === `#/phone/${cy.id}/t/${g.id}`));
+  const boPhone = (await b(`/api/phone/${bo.id}`)).data;
+  assert.equal(boPhone.threads[0].group, true);
+  assert.equal(boPhone.threads[0].last.text, 'Ann: meeting at 9');
+  assert.equal((await out(`/api/phone/threads/${g.id}?as=${dee.id}`)).status, 404);
+  // Anyone in it can rename it or add people; only the starter can remove others; anyone can leave.
+  assert.equal((await b(`/api/phone/threads/${g.id}`, { method: 'PUT', body: { as: bo.id, title: 'Crew 🖤' } })).status, 200);
+  assert.equal((await b(`/api/phone/threads/${g.id}/members`, { method: 'POST', body: { as: bo.id, memberIds: [dee.id] } })).data.added, 1);
+  assert.equal((await out(`/api/phone/threads/${g.id}?as=${dee.id}`)).data.thread.name, 'Crew 🖤');
+  assert.equal((await b(`/api/phone/threads/${g.id}/members/${cy.id}?as=${bo.id}`, { method: 'DELETE' })).status, 403);
+  assert.equal((await a(`/api/phone/threads/${g.id}/members/${cy.id}?as=${ann.id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await c(`/api/phone/threads/${g.id}?as=${cy.id}`)).status, 404);
+  assert.equal((await out(`/api/phone/threads/${g.id}/members/${dee.id}?as=${dee.id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await a(`/api/phone/threads/${g.id}?as=${ann.id}`)).data.thread.members.length, 1);
 });
 
 test('story overview: owners write the lore page, members read it', async () => {

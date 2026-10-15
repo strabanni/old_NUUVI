@@ -1,6 +1,6 @@
 // Messages: private, out-of-character conversations between writers (this replaced OOC channels).
 // Computers show the conversation list and the open conversation side by side; phones show one at a time.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, formatPost, userGrad, attachSheet, jumpToLatest } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, promptModal, confirmModal, formatPost, plainText, userGrad, attachSheet, jumpToLatest } from '../lib.js';
 import { state, page, routeAlive, ensureAlive, onLeave, bus, refreshHome } from '../main.js';
 import { agoShort } from './social.js';
 
@@ -76,6 +76,7 @@ export async function viewMessages(userIdStr) {
           <a href="#/u/${other.id}" class="dm-who">${avatar({ name: other.displayName, src: other.avatar, color: '#8F8D8E', size: 'sm' })}<span><b class="u-grad"${userGrad(other)}>${other.displayName}</b><small>@${other.username}</small></span></a>
         </header>
         <div class="dm-msgs" id="dm-msgs"></div>
+        <div class="dm-replying" id="dm-replying" hidden></div>
         ${chat.blocked ? html`<p class="dm-blocked">You can't message each other.</p>` : html`
         <form class="chatbar" id="dm-form">
           <button type="button" class="chatbar-plus" id="dm-attach" aria-label="Add a photo">${icons.plus}</button>
@@ -110,17 +111,22 @@ export async function viewMessages(userIdStr) {
       if (d.toDateString() !== day) { day = d.toDateString(); items.push(html`<div class="dm-day"><span>${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span></div>`); }
       const mine = m.userId === state.user.id;
       const who = mine ? state.user : other;
-      const grouped = prev && prev.userId === m.userId && d - parse(prev.createdAt) < 5 * 60000;
+      const grouped = prev && prev.userId === m.userId && d - parse(prev.createdAt) < 5 * 60000 && !m.replyTo;
       // Discord-style: no bubbles. Picture, name and time once, then the messages underneath.
       items.push(html`<div class="dm-msg ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''}" data-id="${m.id}">
         ${grouped ? html`<span class="dm-gutter"><time>${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></span>`
           : html`<a class="dm-av" href="#/u/${who.id}">${avatar({ name: who.displayName, src: who.avatar, color: '#8F8D8E' })}</a>`}
         <div class="dm-content">
           ${grouped ? '' : html`<div class="dm-meta-line"><span class="dm-name u-grad"${userGrad(who)}>${who.displayName}</span><time>${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time></div>`}
+          ${m.replyTo ? html`<button type="button" class="dm-quote" data-jump="${m.replyTo.id}">${icons.reply}<b>${m.replyTo.userId === state.user.id ? state.user.displayName : other.displayName}</b><span>${plainText(m.replyTo.text) || (m.replyTo.hasMedia ? 'Photo' : '')}</span></button>` : ''}
           ${m.media.length ? html`<div class="b-pics n${Math.min(m.media.length, 4)}">${m.media.map((u) => html`<a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="" loading="lazy"></a>`)}</div>` : ''}
-          ${m.body ? html`<div class="body">${formatPost(m.body)}</div>` : ''}
+          ${m.body ? html`<div class="body">${formatPost(m.body)}${m.editedAt ? html` <small class="dm-edited" title="Edited">(edited)</small>` : ''}</div>` : ''}
         </div>
-        ${mine ? html`<button type="button" class="dm-del" data-del="${m.id}" aria-label="Delete">✕</button>` : ''}
+        <span class="dm-tools">
+          <button type="button" data-reply="${m.id}" aria-label="Reply" title="Reply">${icons.reply}</button>
+          ${mine && m.body ? html`<button type="button" data-edit="${m.id}" aria-label="Edit" title="Edit">✎</button>` : ''}
+          ${mine ? html`<button type="button" data-del="${m.id}" aria-label="Delete" title="Delete">✕</button>` : ''}
+        </span>
       </div>`);
       prev = m;
     }
@@ -142,9 +148,53 @@ export async function viewMessages(userIdStr) {
       list.scrollTop = list.scrollHeight - h;
       return;
     }
+    const j = e.target.closest('[data-jump]');
+    if (j) { $(`.dm-msg[data-id="${j.dataset.jump}"]`, list)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    const rep = e.target.closest('[data-reply]');
+    if (rep) { startReply(msgs.get(Number(rep.dataset.reply))); return; }
+    const ed = e.target.closest('[data-edit]');
+    if (ed) { editMessage(msgs.get(Number(ed.dataset.edit))); return; }
     const del = e.target.closest('[data-del]');
-    if (del) { await api(`/api/messages/item/${del.dataset.del}`, { method: 'DELETE' }); msgs.delete(Number(del.dataset.del)); draw(false); }
+    if (del) deleteMessage(Number(del.dataset.del));
   });
+  // Hold a message (phones) or right-click it: Reply, Edit, Copy, Delete.
+  list.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.dm-msg');
+    if (!row || e.target.closest('a[href]:not([target])')) return;
+    e.preventDefault();
+    const m = msgs.get(Number(row.dataset.id));
+    if (!m) return;
+    const mine = m.userId === state.user.id;
+    menu(row.querySelector('.dm-content') || row, [
+      { label: 'Reply', action: () => startReply(m) },
+      mine && m.body && { label: 'Edit', action: () => editMessage(m) },
+      m.body && { label: 'Copy text', action: async () => { try { await navigator.clipboard.writeText(plainText(m.body)); toast('Copied'); } catch { toast('Couldn’t copy'); } } },
+      mine && { label: 'Delete', danger: true, action: () => deleteMessage(m.id) },
+    ]);
+  });
+  async function deleteMessage(mid) {
+    if (!(await confirmModal('Delete this message for both of you?', { ok: 'Delete', danger: true }))) return;
+    try { await api(`/api/messages/item/${mid}`, { method: 'DELETE' }); msgs.delete(mid); draw(false); } catch (err) { toast(err.message); }
+  }
+  async function editMessage(m) {
+    const text = await promptModal('Edit message', { value: m.body, multiline: true, maxlength: 4000, ok: 'Save' });
+    if (text === null || text.trim() === m.body) return;
+    try { const { message } = await api(`/api/messages/item/${m.id}`, { method: 'PUT', body: { body: text.trim() } }); msgs.set(message.id, message); draw(false); } catch (err) { toast(err.message); }
+  }
+  let replying = null;
+  const replyBox = $('#dm-replying', body);
+  function drawReply() {
+    replyBox.hidden = !replying;
+    render(replyBox, replying ? html`<div class="reply-bar">${icons.reply}<span>Replying to <b>${replying.userId === state.user.id ? 'yourself' : other.displayName}</b><small>${plainText(replying.body) || 'Photo'}</small></span>
+      <button type="button" class="icon-btn sm" id="dm-unreply" aria-label="Cancel reply">✕</button></div>` : '');
+  }
+  replyBox.addEventListener('click', (e) => { if (e.target.closest('#dm-unreply')) { replying = null; drawReply(); } });
+  function startReply(m) {
+    if (!m || chat.blocked) return;
+    replying = m;
+    drawReply();
+    $('#dm-input', body)?.focus();
+  }
   live('message', (m) => {
     if (!m.between.includes(otherId) || !m.between.includes(state.user.id)) return;
     msgs.set(m.id, m);
@@ -153,6 +203,7 @@ export async function viewMessages(userIdStr) {
     reloadList().catch(() => {});
   });
   live('message-delete', ({ id }) => { if (msgs.delete(id)) draw(false); });
+  live('message-edit', (m) => { if (msgs.has(m.id)) { msgs.set(m.id, m); draw(false); } });
   // Phones drop the live connection when locked or switched away from. When it comes back (and
   // every 15 seconds as a safety net), fetch anything that arrived meanwhile.
   const catchUp = async () => {
@@ -175,8 +226,10 @@ export async function viewMessages(userIdStr) {
   const input = $('#dm-input', body);
   const send = async (payload) => {
     try {
-      const { message } = await api(`/api/messages/${otherId}`, { method: 'POST', body: payload });
+      const { message } = await api(`/api/messages/${otherId}`, { method: 'POST', body: { ...payload, replyTo: replying?.id ?? null } });
       msgs.set(message.id, message);
+      replying = null;
+      drawReply();
       draw();
     } catch (err) { toast(err.message); }
   };

@@ -21,7 +21,14 @@ export function messageRoutes(r, ctx) {
     }
     return { t, other };
   };
-  const toMessage = (m) => ({ id: m.id, userId: m.user_id, body: m.body, media: JSON.parse(m.media), createdAt: m.created_at });
+  const replyRow = db.prepare('SELECT id, user_id, body, media FROM dm_messages WHERE id = ?');
+  const toMessage = (m) => {
+    const r = m.reply_to ? replyRow.get(m.reply_to) : null;
+    return {
+      id: m.id, userId: m.user_id, body: m.body, media: JSON.parse(m.media), createdAt: m.created_at, editedAt: m.edited_at ?? null,
+      replyTo: r ? { id: r.id, userId: r.user_id, text: r.body.slice(0, 140), hasMedia: r.media !== '[]' } : null,
+    };
+  };
 
   // Unread conversations, for the badge.
   ctx.messageUnread = (userId) => db.prepare(`
@@ -74,7 +81,11 @@ export function messageRoutes(r, ctx) {
     const text = str(body.body, 'Message', { max: MAX_TEXT }) ?? '';
     const media = (Array.isArray(body.media) ? body.media.slice(0, 10) : []).map((v) => uploadRef(db, v, user.id) ?? fail(400, 'Picture missing'));
     if (!text && !media.length) fail(400, 'Write something or add a picture');
-    const { lastInsertRowid } = db.prepare('INSERT INTO dm_messages (thread_id, user_id, body, media) VALUES (?, ?, ?, ?)').run(t.id, user.id, text, JSON.stringify(media));
+    let replyTo = null;
+    if (body.replyTo != null) {
+      replyTo = db.prepare('SELECT id FROM dm_messages WHERE id = ? AND thread_id = ?').get(Number(body.replyTo), t.id)?.id ?? fail(400, 'That message is gone');
+    }
+    const { lastInsertRowid } = db.prepare('INSERT INTO dm_messages (thread_id, user_id, body, media, reply_to) VALUES (?, ?, ?, ?, ?)').run(t.id, user.id, text, JSON.stringify(media), replyTo);
     db.prepare("UPDATE dm_threads SET last_at = datetime('now') WHERE id = ?").run(t.id);
     db.prepare(`INSERT INTO dm_reads (thread_id, user_id, last_read_id) VALUES (?, ?, ?)
       ON CONFLICT(thread_id, user_id) DO UPDATE SET last_read_id = excluded.last_read_id`).run(t.id, user.id, lastInsertRowid);
@@ -93,6 +104,19 @@ export function messageRoutes(r, ctx) {
       ON CONFLICT(thread_id, user_id) DO UPDATE SET last_read_id = MAX(last_read_id, excluded.last_read_id)`).run(t.id, user.id, last);
     db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type = 'message' AND actor_id = ? AND read_at IS NULL").run(user.id, Number(params.userId));
     return { data: { ok: true } };
+  });
+
+  // Edit your own message (it shows "edited").
+  r.put('/api/messages/item/:id', ({ user, params, body }) => {
+    requireUser(user);
+    const m = db.prepare('SELECT m.*, t.user_a, t.user_b FROM dm_messages m JOIN dm_threads t ON t.id = m.thread_id WHERE m.id = ?').get(Number(params.id));
+    if (!m || m.user_id !== user.id) fail(404, 'Message not found');
+    const text = str(body.body, 'Message', { max: MAX_TEXT }) ?? '';
+    if (!text && m.media === '[]') fail(400, 'Write something, or delete the message instead');
+    if (text !== m.body) db.prepare("UPDATE dm_messages SET body = ?, edited_at = datetime('now') WHERE id = ?").run(text, m.id);
+    const message = toMessage(db.prepare('SELECT * FROM dm_messages WHERE id = ?').get(m.id));
+    for (const u of [m.user_a, m.user_b]) hub.sendUser(u, 'message-edit', { ...message, threadId: m.thread_id, between: [m.user_a, m.user_b] });
+    return { data: { message } };
   });
 
   r.delete('/api/messages/item/:id', ({ user, params }) => {

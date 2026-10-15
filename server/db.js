@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 23;
+const SCHEMA_VERSION = 24;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -195,7 +195,7 @@ CREATE INDEX reports_status_idx ON reports(status, id);
 `;
 
 // Upgrades for databases created by earlier versions. Index i upgrades version i+1 → i+2.
-const MIGRATIONS = [
+export const MIGRATIONS = [
   // v2: roleplay profile fields, banners, character details and portraits.
   `ALTER TABLE users ADD COLUMN profile TEXT NOT NULL DEFAULT '{}';
    ALTER TABLE users ADD COLUMN banner TEXT;
@@ -546,6 +546,57 @@ const MIGRATIONS = [
    );
    CREATE INDEX plans_user_idx ON plans(user_id);
    CREATE INDEX plans_character_idx ON plans(character_id);`,
+  // v24: group texts (a phone conversation can have many members, a name and a picture), tapback
+  // reactions and calls on phones; which character texted (for "{a} texted {b}" notifications);
+  // replies and edits in writers' messages; photo tags on social posts; brand accounts.
+  // phone_threads is rebuilt so a group needs no fixed pair (foreign keys are off during migrations,
+  // so the texts that point at it stay put).
+  `CREATE TABLE phone_threads_v24 (
+     id         INTEGER PRIMARY KEY,
+     a_id       INTEGER REFERENCES characters(id) ON DELETE CASCADE,
+     b_id       INTEGER REFERENCES characters(id) ON DELETE CASCADE,
+     is_group   INTEGER NOT NULL DEFAULT 0,
+     title      TEXT NOT NULL DEFAULT '',
+     photo      TEXT,
+     created_by INTEGER REFERENCES characters(id) ON DELETE SET NULL,
+     last_at    TEXT NOT NULL DEFAULT (datetime('now')),
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   INSERT INTO phone_threads_v24 (id, a_id, b_id, last_at, created_at) SELECT id, a_id, b_id, last_at, created_at FROM phone_threads;
+   DROP TABLE phone_threads;
+   ALTER TABLE phone_threads_v24 RENAME TO phone_threads;
+   CREATE UNIQUE INDEX phone_threads_pair_idx ON phone_threads(a_id, b_id) WHERE is_group = 0;
+   CREATE TABLE phone_members (
+     thread_id    INTEGER NOT NULL REFERENCES phone_threads(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     joined_at    TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (thread_id, character_id)
+   );
+   CREATE INDEX phone_members_character_idx ON phone_members(character_id);
+   INSERT INTO phone_members (thread_id, character_id) SELECT id, a_id FROM phone_threads;
+   INSERT OR IGNORE INTO phone_members (thread_id, character_id) SELECT id, b_id FROM phone_threads;
+   ALTER TABLE phone_messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'text';
+   CREATE TABLE phone_reactions (
+     message_id   INTEGER NOT NULL REFERENCES phone_messages(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     emoji        TEXT NOT NULL,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (message_id, character_id)
+   );
+   ALTER TABLE notifications ADD COLUMN from_character_id INTEGER REFERENCES characters(id) ON DELETE CASCADE;
+   ALTER TABLE notifications ADD COLUMN phone_thread_id INTEGER REFERENCES phone_threads(id) ON DELETE CASCADE;
+   ALTER TABLE dm_messages ADD COLUMN reply_to INTEGER REFERENCES dm_messages(id) ON DELETE SET NULL;
+   ALTER TABLE dm_messages ADD COLUMN edited_at TEXT;
+   CREATE TABLE social_photo_tags (
+     post_id      INTEGER NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     media_index  INTEGER NOT NULL DEFAULT 0,
+     x            REAL NOT NULL DEFAULT 0.5,
+     y            REAL NOT NULL DEFAULT 0.5,
+     PRIMARY KEY (post_id, character_id, media_index)
+   );
+   CREATE INDEX social_photo_tags_character_idx ON social_photo_tags(character_id);
+   ALTER TABLE characters ADD COLUMN brand INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.
@@ -564,6 +615,30 @@ function backfill(db) {
   }
 }
 
+// Runs schema changes in one transaction. Foreign keys are switched off meanwhile (SQLite's own
+// recipe for rebuilding a table), so dropping and re-creating a table can't wipe the rows that point
+// at it; every link is checked before the changes are kept.
+function migrate(db, steps) {
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    db.exec('BEGIN');
+    try {
+      // Old stray links (if any) don't block the upgrade; only new ones made by it do.
+      const before = db.prepare('PRAGMA foreign_key_check').all().length;
+      for (const m of steps) db.exec(m);
+      const broken = db.prepare('PRAGMA foreign_key_check').all();
+      if (broken.length > before) throw new Error(`Database upgrade stopped: it would break ${broken.length - before} link(s), first in ${broken[0].table}`);
+      db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+}
+
 export function openDb(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
@@ -573,16 +648,9 @@ export function openDb(path) {
     if (db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'users'").get()) {
       throw new Error(`${path} was created by an early preview build of NUUVI. Delete it and restart to create a fresh database.`);
     }
-    db.exec('BEGIN');
-    db.exec(SCHEMA);
-    for (const m of MIGRATIONS) db.exec(m);
-    db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-    db.exec('COMMIT');
+    migrate(db, [SCHEMA, ...MIGRATIONS]);
   } else if (version < SCHEMA_VERSION) {
-    db.exec('BEGIN');
-    for (let v = version; v < SCHEMA_VERSION; v++) db.exec(MIGRATIONS[v - 1]);
-    db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
-    db.exec('COMMIT');
+    migrate(db, MIGRATIONS.slice(version - 1));
   } else if (version > SCHEMA_VERSION) {
     throw new Error(`${path} was created by a newer version of NUUVI.`);
   }

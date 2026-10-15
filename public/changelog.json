@@ -1,5 +1,20 @@
 [
   {
+    "code": "NV-49",
+    "date": "2026-10-15",
+    "title": "iPhone-style texts, group chats & better notifications",
+    "items": [
+      "Phone conversations now look like iMessage: your texts in blue, theirs in gray, with tails, big emoji and “Read” under your last text.",
+      "Hold a text (or double-tap it) to react with ❤️ 👍 👎 😂 ‼️ ❓ or any emoji, reply, copy or delete it.",
+      "New emoji button in the text box opens an emoji picker.",
+      "Group texts: on a phone, tap Group, pick two or more people and give it a name if you like. Tap the people icon to rename it, change its photo, add people or leave.",
+      "Calls: tap the phone icon to call. The call shows in the chat and they get a missed call.",
+      "Notifications now say who texted whom, like “Mina texted Ivy” or “Ivy missed a call from Mina”, and show the character’s picture.",
+      "The phone switcher shows a red dot when another of your phones has new texts, and how many each phone has.",
+      "Messages between writers: hold a message (or use the buttons on a computer) to reply, edit, copy or delete it. Edited messages say “(edited)”."
+    ]
+  },
+  {
     "code": "NV-48",
     "date": "2026-10-15",
     "title": "Feed first, phone rail & easier comments",

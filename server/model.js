@@ -28,7 +28,7 @@ export function toCharacter(r) {
     handle: r.handle ?? null, npc: !!r.npc, bot: r.bot ?? null,
     gradient: r.gradient ? r.gradient.split(',') : null, npcTags: splitTags(r.npc_tags),
     pronouns: r.pronouns ?? null, threadAvatar: r.thread_avatar ?? null,
-    status: r.status ?? null,
+    status: r.status ?? null, brand: !!r.brand,
   };
 }
 

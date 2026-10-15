@@ -12,7 +12,14 @@ function describe(n) {
     case 'tag': return html`<strong>${n.actor?.displayName}</strong> tagged your character in ${where}`;
     case 'reply': return html`<strong>${n.actor?.displayName}</strong> replied to you in ${where}`;
     case 'added': return html`<strong>${n.actor?.displayName}</strong> added you to <strong>${n.story?.title}</strong>`;
-    case 'dm': return html`<strong>${n.count > 1 ? `${n.count} new texts` : 'New text'}</strong>`;
+    case 'dm': {
+      const from = html`<strong>${n.from?.name ?? 'Someone'}</strong>`;
+      const to = html`<strong>${n.to?.name ?? 'you'}</strong>`;
+      const where = n.group ? html` in <strong>${n.group.title || 'a group chat'}</strong>` : '';
+      if (n.count > 1) return n.group ? html`${n.count} new texts for ${to}${where}` : html`${from} sent ${n.count} texts to ${to}`;
+      return html`${from} texted ${to}${where}`;
+    }
+    case 'call': return html`<strong>${n.to?.name ?? 'You'}</strong> missed a ${n.group ? 'group ' : ''}call from <strong>${n.from?.name ?? 'someone'}</strong>${n.group?.title ? html` in <strong>${n.group.title}</strong>` : ''}`;
     default: return n.text;
   }
 }
@@ -21,13 +28,21 @@ function describe(n) {
 // your posts and characters, and system notices.
 const GROUPS = {
   all: () => true,
-  mentions: (n) => ['mention', 'reply', 'tag', 'socialtag', 'dm', 'turn'].includes(n.type),
+  mentions: (n) => ['mention', 'reply', 'tag', 'socialtag', 'dm', 'call', 'message', 'turn'].includes(n.type),
   activity: (n) => ['post', 'like', 'comment', 'follow'].includes(n.type),
-  system: (n) => ['report'].includes(n.type) || !['mention', 'reply', 'tag', 'socialtag', 'dm', 'turn', 'post', 'like', 'comment', 'follow'].includes(n.type),
+  system: (n) => ['report'].includes(n.type) || !['mention', 'reply', 'tag', 'socialtag', 'dm', 'call', 'message', 'turn', 'post', 'like', 'comment', 'follow'].includes(n.type),
 };
 const TAB_LABELS = [['all', 'All'], ['mentions', 'For you'], ['activity', 'Activity'], ['system', 'System']];
-const iconFor = (n) => (n.type === 'turn' ? icons.hourglass : n.type === 'report' ? icons.shield : n.type === 'dm' ? icons.chat
-  : avatar({ name: n.actor?.displayName, src: n.actor?.avatar }));
+// The picture of whoever did it: the character who texted, liked, commented or posted (with a
+// small badge for texts and calls), or the writer when no character was involved.
+const iconFor = (n) => {
+  if (n.type === 'turn') return icons.hourglass;
+  if (n.type === 'report') return icons.shield;
+  const pic = n.from ? avatar({ name: n.from.name, src: n.from.avatar, color: n.from.color })
+    : n.actor ? avatar({ name: n.actor.displayName, src: n.actor.avatar }) : icons.chat;
+  const badge = n.type === 'dm' ? icons.chat : n.type === 'call' ? icons.phone : '';
+  return badge ? html`${pic}<span class="notif-badge">${badge}</span>` : pic;
+};
 
 export async function viewNotifications() {
   const alive = routeAlive();

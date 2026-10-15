@@ -3252,3 +3252,146 @@ mark.fx-chip { color: inherit; background: color-mix(in srgb, var(--c, var(--acc
   -webkit-mask-image: linear-gradient(#000, transparent); mask-image: linear-gradient(#000, transparent); }
 .cm-more { display: block; margin: -40px auto 6px; position: relative; padding: 9px 18px; border-radius: 999px; border: 1px solid var(--glass-border);
   background: var(--glass-solid, var(--base)); color: var(--text); font: 600 .85rem var(--sans); box-shadow: var(--shadow); }
+
+/* NV-48: Phone conversations look like iMessage — blue and gray bubbles with tails, tapbacks,
+   centered time stamps, "Read", calls, group chats and an emoji picker. */
+.ph-ios, .ph-tb-layer { --imsg-bg: #000; --imsg-them: #26252A; --imsg-text: #fff; --imsg-sub: #8E8E93; --imsg-me: #0B84FE; --imsg-line: rgb(255 255 255 / .14); --imsg-bar: rgb(22 22 24 / .88); --imsg-card: #1C1C1E; }
+[data-theme=light] .ph-ios, [data-theme=light] .ph-tb-layer { --imsg-bg: #fff; --imsg-them: #E9E9EB; --imsg-text: #000; --imsg-line: rgb(0 0 0 / .12); --imsg-bar: rgb(249 249 249 / .9); --imsg-card: #fff; }
+.phone.chat.ph-ios { background: var(--imsg-bg); }
+.ph-ios .ph-chat { background: var(--imsg-bg); color: var(--imsg-text); border-radius: 0; }
+.ph-ios .ph-chat-head { display: grid; grid-template-columns: 64px 1fr 64px; align-items: center; gap: 4px; padding: 8px 10px 8px; background: var(--imsg-bar);
+  border-bottom: 1px solid var(--imsg-line); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+.ph-ios .ph-back { color: var(--imsg-me); width: 36px; height: 36px; }
+.ph-ios .ph-back svg { width: 22px; height: 22px; }
+.ph-who { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; color: var(--imsg-text); text-decoration: none; }
+.ph-who:hover { text-decoration: none; }
+.ph-who .avatar, .ph-who .ph-gav { width: 40px; height: 40px; }
+.ph-who-name { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; font-size: .74rem; font-weight: 500; }
+.ph-who-name svg { width: 10px; height: 10px; flex: none; transform: rotate(-90deg); opacity: .5; }
+.ph-who small { font-size: .62rem; color: var(--imsg-sub); }
+.ph-ios .ph-chat-actions { justify-content: flex-end; gap: 2px; }
+.ph-ios .ph-pill { width: 34px; height: 34px; background: transparent; color: var(--imsg-me); }
+.ph-ios .ph-pill:hover { background: var(--imsg-line); }
+.ph-ios .ph-pill svg { width: 19px; height: 19px; }
+.ph-ios .ph-msgs { gap: 0; padding: 8px 14px 14px; overflow-x: hidden; }
+.ph-ios .ph-msg { display: flex; align-items: flex-end; gap: 6px; margin-top: 2px; }
+.ph-ios .ph-msg:not(.cont) { margin-top: 9px; }
+.ph-ios .ph-msg.has-tb { margin-top: 18px; }
+.ph-ios .ph-msg.mine { flex-direction: row-reverse; }
+.ph-col { position: relative; display: flex; flex-direction: column; align-items: flex-start; max-width: min(75%, 520px); min-width: 0; }
+.ph-msg.mine .ph-col { align-items: flex-end; }
+.ph-ios .ph-bubble { position: relative; display: block; max-width: 100%; padding: 7px 12px 8px; border-radius: 18px; background: var(--imsg-them); color: var(--imsg-text);
+  font-size: calc(.95rem * var(--read-scale)); line-height: 1.3; -webkit-backdrop-filter: none; backdrop-filter: none; overflow-wrap: anywhere; }
+.ph-ios .ph-msg.mine .ph-bubble { background: var(--imsg-me); color: #fff; }
+.ph-ios .ph-msg.mine .ph-bubble a { color: #fff; text-decoration: underline; }
+.ph-ios .ph-text p { display: block; }
+.ph-ios .ph-text p + p::before { display: none; }
+.ph-ios .ph-text p + p { margin-top: .35em; }
+/* The tail on the last bubble of a run. */
+.ph-ios .ph-msg.tail:not(.big-emoji) .ph-bubble::before, .ph-ios .ph-msg.tail:not(.big-emoji) .ph-bubble::after { content: ''; position: absolute; bottom: 0; height: 20px; }
+.ph-ios .ph-msg.tail.mine .ph-bubble::before { right: -7px; width: 20px; background: var(--imsg-me); border-bottom-left-radius: 16px 14px; }
+.ph-ios .ph-msg.tail.mine .ph-bubble::after { right: -10px; width: 10px; background: var(--imsg-bg); border-bottom-left-radius: 10px; }
+.ph-ios .ph-msg.tail.theirs .ph-bubble::before { left: -7px; width: 20px; background: var(--imsg-them); border-bottom-right-radius: 16px 14px; }
+.ph-ios .ph-msg.tail.theirs .ph-bubble::after { left: -10px; width: 10px; background: var(--imsg-bg); border-bottom-right-radius: 10px; }
+.ph-ios .ph-msg.big-emoji .ph-bubble { background: none; padding: 0 2px; font-size: calc(2.6rem * var(--read-scale)); line-height: 1.15; }
+.ph-ios .ph-pics { max-width: 240px; margin: 0 0 3px; border-radius: 18px; overflow: hidden; }
+.ph-ios .ph-pics img { border-radius: 0; }
+.ph-sender { margin: 0 0 2px 12px; font-size: .68rem; color: var(--imsg-sub); }
+.ph-msg-av { flex: none; width: 28px; margin-right: 6px; align-self: flex-end; }
+.ph-msg-av .avatar { width: 28px; height: 28px; font-size: .7rem; }
+.ph-ios .ph-quote { display: flex; flex-direction: column; align-items: flex-start; gap: 0; max-width: 100%; margin: 0 0 2px; padding: 5px 11px; border: 1px solid var(--imsg-line); border-radius: 16px;
+  background: transparent; color: var(--imsg-sub); font-size: .74rem; }
+.ph-ios .ph-quote small { display: inline-flex; align-items: center; gap: 3px; font-size: .62rem; }
+.ph-ios .ph-quote svg { width: 10px; height: 10px; }
+.ph-ios .ph-quote span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 1; }
+/* Tapbacks sit on the bubble's top corner. */
+.ph-tb { position: absolute; top: -15px; z-index: 2; display: inline-flex; gap: 1px; padding: 3px 7px; border-radius: 999px; border: 2px solid var(--imsg-bg);
+  background: var(--imsg-them); color: var(--imsg-text); font-size: .82rem; line-height: 1.1; cursor: pointer; }
+.ph-tb.by-me { background: var(--imsg-me); }
+.ph-tb small { font-size: .6rem; margin-left: 1px; color: inherit; }
+.ph-msg.theirs .ph-tb { right: -12px; }
+.ph-msg.mine .ph-tb { left: -12px; }
+.ph-ios .ph-tools { align-self: center; }
+.ph-ios .ph-tools button { background: var(--imsg-line); color: var(--imsg-text); font-size: .8rem; }
+@media (hover: none) {
+  .ph-ios .ph-tools { display: none; }
+  .ph-ios .ph-bubble, .ph-ios .ph-pics { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+.ph-stamp { align-self: center; margin: 14px 0 4px; font-size: .66rem; color: var(--imsg-sub); text-align: center; }
+.ph-stamp b { font-weight: 600; }
+.ph-receipt { align-self: flex-end; margin: 3px 4px 0 0; font-size: .64rem; font-weight: 500; color: var(--imsg-sub); }
+.ph-call-line { align-self: center; display: inline-flex; align-items: center; gap: 6px; margin: 10px 0 2px; padding: 6px 12px; border-radius: 999px;
+  background: var(--imsg-them); color: var(--imsg-text); font-size: .74rem; }
+.ph-call-line svg { width: 13px; height: 13px; color: #34C759; }
+.ph-call-line time { color: var(--imsg-sub); font-size: .66rem; }
+.ph-ios .ph-hint, .ph-ios .ph-more { color: var(--imsg-sub); }
+.ph-ios .ph-more { background: var(--imsg-them); }
+/* Compose bar: + on the left, a rounded field with the emoji button and a blue send arrow inside. */
+.ph-ios .chatbar.ph-compose { margin: 6px 10px calc(8px + var(--sab)); padding: 0; gap: 8px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.ph-ios .chatbar-plus { width: 34px; height: 34px; background: var(--imsg-them); color: var(--imsg-sub); }
+.ph-field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; padding: 2px 3px 2px 12px; border-radius: 20px; border: 1px solid var(--imsg-line); background: var(--imsg-bg); }
+.ph-ios .ph-field input { height: 32px; padding: 0; color: var(--imsg-text); font-size: 1rem; }
+.ph-ios .ph-field input::placeholder { color: var(--imsg-sub); }
+.ph-emoji-btn { flex: none; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--imsg-sub); font-size: 1.15rem; line-height: 1; }
+.ph-emoji-btn[aria-pressed=true] { color: var(--imsg-me); }
+.ph-ios .chatbar-send { width: 28px; height: 28px; background: var(--imsg-me); opacity: 0; transform: scale(.6); pointer-events: none; }
+.ph-ios .chatbar.has-text .chatbar-send { opacity: 1; transform: scale(1); pointer-events: auto; }
+.ph-ios .chatbar-send svg { width: 14px; height: 14px; }
+.ph-ios .ph-extra { background: var(--imsg-bg); }
+.ph-emoji-panel { max-height: 230px; overflow-y: auto; border-radius: 14px; background: var(--imsg-them); padding: 4px 6px 8px; }
+.emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); }
+.emoji-cat { grid-column: 1 / -1; margin: 8px 4px 2px; font-size: .64rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--imsg-sub, var(--faint)); }
+.emoji-btn { height: 38px; padding: 0; border: 0; border-radius: 8px; background: transparent; font-size: 1.45rem; line-height: 1; }
+.emoji-btn:hover { background: var(--imsg-line, var(--glass-2)); }
+/* Hold (or double-tap) a bubble: tapbacks on top, then Reply / Copy / Delete. */
+.ph-tb-layer { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 12px; }
+.ph-tb-back { position: absolute; inset: 0; background: rgb(0 0 0 / .32); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: fade-in .15s ease both; }
+.ph-tb-card { position: relative; width: min(330px, 100%); display: flex; flex-direction: column; gap: 8px;
+  animation: pop-menu .18s var(--ease) both; }
+.ph-tb-bar { display: flex; justify-content: space-between; padding: 5px 6px; border-radius: 999px; background: var(--imsg-card); box-shadow: 0 8px 30px rgb(0 0 0 / .3); }
+.ph-tb-bar button { width: 38px; height: 38px; padding: 0; border: 0; border-radius: 50%; background: transparent; font-size: 1.35rem; line-height: 1; }
+.ph-tb-bar button.on { background: var(--imsg-me); }
+.ph-tb-bar .ph-tb-more { color: var(--imsg-sub); font-size: 1.1rem; background: var(--imsg-them); }
+.ph-tb-pick { max-height: 250px; overflow-y: auto; padding: 4px 8px 8px; border-radius: 18px; background: var(--imsg-card); box-shadow: 0 8px 30px rgb(0 0 0 / .3); }
+.ph-tb-menu { display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: var(--imsg-card); color: var(--imsg-text); box-shadow: 0 8px 30px rgb(0 0 0 / .3); }
+.ph-tb-time { margin: 0; padding: 8px 14px; font-size: .68rem; color: var(--imsg-sub); border-bottom: 1px solid var(--imsg-line); }
+.ph-tb-menu button { display: flex; align-items: center; justify-content: space-between; flex-direction: row-reverse; padding: 11px 14px; border: 0; border-radius: 0; background: transparent;
+  color: var(--imsg-text); font-size: .9rem; text-align: left; }
+.ph-tb-menu button + button { border-top: 1px solid var(--imsg-line); }
+.ph-tb-menu button.danger { color: #FF3B30; }
+.ph-tb-menu svg { width: 16px; height: 16px; }
+.ph-tb-ic { width: 16px; text-align: center; }
+/* Groups: two faces overlapping (or the group's photo). */
+.ph-gav { position: relative; display: inline-block; width: 44px; height: 44px; flex: none; }
+.ph-gav > .avatar { width: 100%; height: 100%; }
+.ph-gav.two > .avatar { position: absolute; width: 66%; height: 66%; font-size: .72rem; }
+.ph-gav.two > .avatar:first-child { left: 0; top: 0; }
+.ph-gav.two > .avatar:nth-child(2) { right: 0; bottom: 0; box-shadow: 0 0 0 2px var(--glass-solid); }
+.ph-row-av .ph-gav.two .avatar { width: 30px; height: 30px; }
+.ph-gav.xl { width: 84px; height: 84px; }
+.ph-ginfo-top { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ph-ginfo .pc-item { cursor: default; }
+.pc-check { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line, var(--glass-3)); display: grid; place-items: center; color: #fff; font-size: .75rem; }
+.pc-item.on .pc-check { background: var(--accent); border-color: var(--accent); }
+/* A dot on the phone switcher when another of your phones has new texts. */
+.ph-switch { position: relative; }
+.ph-dot { display: none; position: absolute; top: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: #FF3B30; box-shadow: 0 0 0 2px #fff; }
+.ph-switch.has-dot .ph-dot { display: block; }
+/* Notifications: the character who did it, with a small badge for texts and calls. */
+.notif-panel .notif-icon { position: relative; overflow: visible; }
+.notif-panel .notif-icon > .avatar { border-radius: 50%; overflow: hidden; }
+.notif-badge { position: absolute; right: -3px; bottom: -3px; width: 19px; height: 19px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; box-shadow: 0 0 0 2px var(--base); }
+.notif-badge svg { width: 10px; height: 10px; }
+/* NV-48: Messages between writers: reply, edit (shows "edited"), copy and delete. */
+.dm-tools { display: flex; gap: 2px; align-self: flex-start; opacity: 0; transition: opacity .15s; }
+.dm-msg:hover .dm-tools, .dm-msg:focus-within .dm-tools { opacity: 1; }
+.dm-tools button { width: 26px; height: 26px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 8px; background: var(--glass-2); color: var(--muted); font-size: .78rem; }
+.dm-tools button:hover { color: var(--text); background: var(--glass-3); }
+.dm-tools svg { width: 13px; height: 13px; }
+@media (hover: none) { .dm-tools { display: none; } }
+.dm-quote { display: flex; align-items: center; gap: 5px; max-width: 100%; margin: 2px 0 3px; padding: 0; border: 0; background: none; color: var(--faint); font-size: .76rem; text-align: left; cursor: pointer; }
+.dm-quote svg { width: 12px; height: 12px; flex: none; transform: scaleX(-1); }
+.dm-quote b { flex: none; font-weight: 600; color: var(--muted); }
+.dm-quote span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dm-edited { color: var(--faint); font-size: .68rem; }
+.dm-replying { padding: 6px 12px 0; }

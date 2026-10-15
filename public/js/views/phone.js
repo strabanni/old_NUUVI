@@ -1,10 +1,30 @@
-// Phones: each character has one, with contacts and private one-to-one texts.
-// Styled after a modern messaging app: a soft gradient header, a contact strip and a chat list,
-// and conversations on a gradient with small frosted bubbles.
+// Phones: each character has one, with contacts, one-to-one texts and group texts.
+// The home is a soft gradient header, a contact strip and a chat list; conversations look like
+// iMessage: blue and gray bubbles with tails, tapbacks, an emoji picker, calls and "Read".
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, promptModal, formatPost, uploadImage, askImageLink, plainText, applyColors, store, attachSheet, jumpToLatest } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, onLeave, bus, loadStory, replaceHash, previousHash } from '../main.js';
 
 const lastKey = 'nuuvi:phone';
+export const TAPBACKS = ['❤️', '👍', '👎', '😂', '‼️', '❓'];
+// The emoji picker: a few rows of the ones people use most, by kind.
+const EMOJI = {
+  Smileys: '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😋 😛 😜 🤪 😝 🤑 🤗 🤭 🫢 🤫 🤔 🫡 🤐 🤨 😐 😑 😶 🫠 😏 😒 🙄 😬 😮‍💨 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🤢 🤮 🥵 🥶 🥴 😵 🤯 🤠 🥳 🥸 😎 🤓 🧐 😕 🫤 😟 🙁 😮 😯 😲 😳 🥺 🥹 😦 😧 😨 😰 😥 😢 😭 😱 😖 😣 😞 😓 😩 😫 🥱 😤 😡 😠 🤬 😈 👿 💀 👻 👽 🤖 💩',
+  Hearts: '❤️ 🩷 🧡 💛 💚 🩵 💙 💜 🖤 🩶 🤍 🤎 💔 ❤️‍🔥 ❤️‍🩹 💕 💞 💓 💗 💖 💘 💝 💟 💋 💌',
+  Hands: '👍 👎 👏 🙌 🫶 👐 🤲 🤝 🙏 ✌️ 🤞 🫰 🤟 🤘 👌 🤌 🤏 👈 👉 👆 👇 ☝️ ✋ 🤚 🖐️ 🖖 👋 🤙 💪 🫵 ✍️ 💅',
+  People: '👀 👁️ 👄 🫦 🧠 🙋 🙅 🙆 💁 🤷 🤦 🙇 💃 🕺 👯 🧍 🏃 🚶 👫 👬 👭 💏 💑',
+  Things: '🔥 ✨ 🌟 ⭐ 💫 🎉 🎊 🎂 🎁 🎈 🍾 🥂 🍷 🍸 🍹 🍺 ☕ 🧋 🍕 🍔 🍟 🍜 🍣 🍰 🍓 🍒 🍑 🌹 🌸 💐 🌙 ☀️ 🌧️ ❄️ 🌈 🎵 🎶 🎧 🎤 📸 📱 💻 💸 💰 💎 👑 💍 🚗 ✈️ 🏠 🗝️ 🔪 💊 🩸 🚬',
+  Symbols: '‼️ ❓ ❗ ❕ ❔ 💯 ✅ ❌ ⭕ 🚫 ⚠️ 💤 💢 💥 💦 💨 🕊️ 🤍 ♾️ 🆗 🆒 🔞 ‼️',
+};
+const emojiOnly = (s) => { const t = (s || '').trim(); return !!t && t.length <= 24 && /\p{Extended_Pictographic}/u.test(t) && !/[\p{L}\p{N}<>]/u.test(t); };
+export function emojiGrid() {
+  return html`<div class="emoji-grid no-swipe">${Object.entries(EMOJI).map(([k, list]) => html`<p class="emoji-cat">${k}</p>${[...new Set(list.split(' '))].map((e) => html`<button type="button" class="emoji-btn" data-emoji="${e}">${e}</button>`)}`)}</div>`;
+}
+// A group's picture: its own photo, or the first two people overlapping.
+function groupAvatar(t, size = '') {
+  if (t.photo) return html`<span class="ph-gav ${size}"><img class="avatar" src="${t.photo}" alt=""></span>`;
+  const [a, b] = t.members;
+  return html`<span class="ph-gav two ${size}">${a ? avatar({ name: a.contactName || a.name, src: a.avatar, color: a.color }) : ''}${b ? avatar({ name: b.contactName || b.name, src: b.avatar, color: b.color }) : ''}</span>`;
+}
 const clock = (sql) => new Date(`${sql.replace(' ', 'T')}Z`).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 function shortWhen(sql) {
   const d = new Date(`${sql.replace(' ', 'T')}Z`);
@@ -58,6 +78,50 @@ async function pickContact(me, existing) {
   });
 }
 
+// Start a group text: pick two or more people (contacts first) and, if you like, a name.
+async function newGroup(me, contacts) {
+  const { writers } = await api('/api/directory');
+  const saved = new Map(contacts.map((c) => [c.id, c.name]));
+  const all = writers.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w.username, shown: saved.get(c.id) || c.name })))
+    .filter((c) => c.id !== me.id).sort((a, b) => (saved.has(b.id) - saved.has(a.id)) || a.shown.localeCompare(b.shown));
+  const picked = new Set();
+  return modal(html`
+    <form class="pick-contact">
+      <h2>New group</h2>
+      <input name="title" maxlength="60" placeholder="Group name (optional)" aria-label="Group name" autocomplete="off">
+      <input type="search" class="search" id="ng-q" placeholder="Add people…" aria-label="Search characters" autocomplete="off">
+      <p class="small muted" id="ng-count">Pick at least two people.</p>
+      <div class="pc-list" id="ng-list"></div>
+      <div class="error"></div>
+      <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Start group</button></div>
+    </form>`, {
+    init: (d) => {
+      const list = $('#ng-list', d);
+      const draw = (q = '') => {
+        const shown = all.filter((c) => picked.has(c.id) || !q || `${c.shown} ${c.name} ${c.handle} ${c.writer}`.toLowerCase().includes(q));
+        render(list, shown.length ? html`${shown.slice(0, 80).map((c) => html`
+          <button type="button" class="pc-item ${picked.has(c.id) ? 'on' : ''}" data-pick="${c.id}" aria-pressed="${picked.has(c.id)}">
+            ${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span class="grow"><b>${c.shown}</b><small>@${c.handle} · ${c.writer}</small></span><span class="pc-check">${picked.has(c.id) ? '✓' : ''}</span></button>`)}`
+          : html`<p class="muted small">No one matches.</p>`);
+        $('#ng-count', d).textContent = picked.size ? `${picked.size} picked${picked.size < 2 ? ' — pick one more' : ''}` : 'Pick at least two people.';
+      };
+      draw();
+      $('#ng-q', d).addEventListener('input', (e) => draw(e.target.value.trim().toLowerCase()));
+      list.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-pick]');
+        if (!b) return;
+        const cid = Number(b.dataset.pick);
+        if (picked.has(cid)) picked.delete(cid); else picked.add(cid);
+        draw($('#ng-q', d).value.trim().toLowerCase());
+      });
+    },
+    submit: async (data) => {
+      if (picked.size < 2) throw new Error('Pick at least two people');
+      return (await api(`/api/phone/${me.id}/groups`, { method: 'POST', body: { memberIds: [...picked], title: data.title } })).thread;
+    },
+  });
+}
+
 // ---------- Phone home: contacts strip + conversations ----------
 // Opened from inside a story (#/s/5/phone…) the phone stays in that story, with its sidebar;
 // from the main menu it's #/phone….
@@ -95,6 +159,9 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
   let data = initial;
   const me = data.character;
   let q = '';
+  let unread = {};
+  // Do this writer's other phones have texts waiting? (a dot on the switch button)
+  const otherUnread = () => mine.some((m) => m.id !== cid && unread[m.id]);
 
   function draw() {
     const contacts = data.contacts.filter((c) => !q || c.name.toLowerCase().includes(q));
@@ -104,19 +171,20 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
       <section class="ph-hero">
         <div class="ph-top">
           <label class="ph-search">${icons.search}<input type="search" id="ph-q" placeholder="Search…" value="${q}" aria-label="Search contacts and messages"></label>
-          <button type="button" class="ph-switch" id="ph-switch" aria-label="Switch phone" title="Switch phone">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'xs' })}${icons.chevron}</button>
+          <button type="button" class="ph-switch ${otherUnread() ? 'has-dot' : ''}" id="ph-switch" aria-label="Switch phone${otherUnread() ? ' (another phone has new texts)' : ''}" title="Switch phone">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'xs' })}${icons.chevron}<i class="ph-dot" aria-hidden="true"></i></button>
         </div>
         <h1>Let's Stay<br>Connected</h1>
         <div class="ph-contacts no-swipe">
           <button type="button" class="ph-contact add" id="ph-add"><span class="ph-av">${icons.plus}</span><span>Add</span></button>
+          <button type="button" class="ph-contact add" id="ph-group"><span class="ph-av">${icons.users}</span><span>Group</span></button>
           ${contacts.map((c) => html`
             <button type="button" class="ph-contact" data-open="${c.id}" title="${c.name}"><span class="ph-av">${avatar({ name: c.character.name, src: c.character.avatar, color: c.character.color })}</span><span>${c.name}</span></button>`)}
         </div>
       </section>
       <section class="ph-list">
         ${threads.length ? threads.map((t) => html`
-          <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="${phoneBase()}/${me.id}/t/${t.id}" data-contact="${t.other.id}">
-            <span class="ph-row-av">${avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color })}</span>
+          <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="${phoneBase()}/${me.id}/t/${t.id}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
+            <span class="ph-row-av">${t.group ? groupAvatar(t) : avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color })}</span>
             <span class="grow"><b>${t.name}</b><small>${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'Say hi 👋'}</small></span>
             <span class="ph-meta">${t.lastAt ? html`<small>${shortWhen(t.lastAt)}</small>` : ''}${t.unread ? html`<span class="badge">${t.unread}</span>` : ''}</span>
           </a>`) : html`<div class="ph-empty"><p>No messages yet.</p><p class="small">Tap <b>Add</b> to save someone's number, then tap them to text.</p></div>`}
@@ -124,8 +192,10 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     applyColors(root);
   }
   draw();
+  const loadUnread = () => api('/api/phone/unread').then((r) => { unread = r.unread; const sw = $('#ph-switch', root); if (sw) sw.classList.toggle('has-dot', otherUnread()); }).catch(() => {});
+  loadUnread();
 
-  const reload = async () => { data = await api(`/api/phone/${cid}`); draw(); };
+  const reload = async () => { data = await api(`/api/phone/${cid}`); draw(); loadUnread(); };
   const open = async (otherId) => {
     const { thread } = await api(`/api/phone/${cid}/threads`, { method: 'POST', body: { withId: otherId } });
     location.hash = `${phoneBase()}/${cid}/t/${thread.id}`;
@@ -142,6 +212,11 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
   root.addEventListener('click', async (e) => {
     const c = e.target.closest('[data-open]');
     if (c) { open(Number(c.dataset.open)); return; }
+    if (e.target.closest('#ph-group')) {
+      const g = await newGroup(me, data.contacts);
+      if (g) location.hash = `${phoneBase()}/${cid}/t/${g.id}`;
+      return;
+    }
     if (e.target.closest('#ph-add')) {
       const added = await pickContact(me, new Set(data.contacts.map((x) => x.id)));
       if (added) { toast(`${added.name} saved to contacts`); reload(); }
@@ -149,7 +224,12 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     }
     const sw = e.target.closest('#ph-switch');
     if (sw) {
-      menu(sw, mine.map((m) => ({ label: `${m.id === cid ? '✓ ' : ''}${m.name}'s phone`, action: () => { location.hash = `${phoneBase()}/${m.id}`; } })));
+      // Each phone shows how many unread texts it has.
+      await loadUnread();
+      menu(sw, mine.map((m) => ({
+        label: `${m.id === cid ? '✓ ' : ''}${m.name}'s phone${unread[m.id] ? `  ● ${unread[m.id]} new` : ''}`,
+        action: () => { location.hash = `${phoneBase()}/${m.id}`; },
+      })));
     }
   });
   root.addEventListener('contextmenu', async (e) => {
@@ -160,7 +240,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
   });
   async function contactMenu(anchor, id) {
     const contact = data.contacts.find((x) => x.id === id)
-      || (() => { const t = data.threads.find((x) => x.other.id === id); return t && { id, name: t.name, character: t.other }; })();
+      || (() => { const t = data.threads.find((x) => x.other?.id === id); return t && { id, name: t.name, character: t.other }; })();
     if (!contact) return;
     // Pictures and names saved here are this phone's own: the character's writer still sees theirs.
     const savePic = async (avatar) => { await api(`/api/phone/${cid}/contacts`, { method: 'POST', body: { contactId: id, avatar } }); reload(); toast('Contact picture changed'); };
@@ -189,9 +269,25 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     contactMenu(row, Number(row.dataset.contact));
   });
   live('dm', () => reload());
+  live('dm-thread', () => reload());
 }
 
 // ---------- A conversation ----------
+// Looks like iMessage: your texts in blue on the right, theirs in gray on the left, a tail on the
+// last bubble of each run, the time shown when there's a gap, tapbacks on bubbles, "Read" under
+// your last text, and calls as a line in the middle. Hold (or double-tap) a bubble to react,
+// reply, copy or delete.
+const at = (sql) => new Date(`${sql.replace(' ', 'T')}Z`);
+function stamp(d) {
+  const today = new Date();
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === today.toDateString()) return html`<b>Today</b> ${time}`;
+  const y = new Date(today); y.setDate(today.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return html`<b>Yesterday</b> ${time}`;
+  if (today - d < 6 * 864e5) return html`<b>${d.toLocaleDateString(undefined, { weekday: 'long' })}</b> ${time}`;
+  return html`<b>${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</b> at ${time}`;
+}
+
 export async function viewPhoneThread(cidStr, tidStr) {
   const alive = routeAlive();
   await keepStory();
@@ -199,32 +295,42 @@ export async function viewPhoneThread(cidStr, tidStr) {
   let { thread, messages, hasMore } = await api(`/api/phone/threads/${tidStr}?as=${cid}`);
   ensureAlive(alive);
   const me = thread.me;
-  const other = thread.other;
   const byId = new Map(messages.map((m) => [m.id, m]));
   let replying = null;
   let attached = [];
+  let showEmoji = false;
+  const people = () => new Map(thread.members.map((c) => [c.id, c]));
+  const nameOf = (id) => (id === me.id ? 'You' : people().get(id)?.contactName || people().get(id)?.name || 'Someone');
+  const first = (id) => nameOf(id).split(' ')[0];
 
   const wide = matchMedia('(min-width: 900px)').matches;
-  const body = page({ alive, title: thread.name, subtitle: `@${other.handle}`, className: 'phone-body', body: html`
+  const head = () => html`
+    <a class="ph-back" href="${phoneBase()}/${cid}" data-ph-back aria-label="Back">${icons.back}</a>
+    <a class="ph-who" ${thread.group ? html`href="#" data-ginfo` : html`href="#/c/${thread.other.id}"`}>
+      ${thread.group ? groupAvatar(thread, 'sm') : avatar({ name: thread.other.name, src: thread.other.avatar, color: thread.other.color, size: 'sm' })}
+      <span class="ph-who-name">${thread.name}${icons.chevron}</span>
+      ${thread.group ? html`<small>${thread.members.length + 1} people</small>` : ''}
+    </a>
+    <span class="ph-chat-actions">
+      <button type="button" class="ph-pill" id="ph-call" aria-label="${thread.group ? 'Call the group' : `Call ${thread.name}`}">${icons.phone}</button>
+      ${thread.group ? html`<button type="button" class="ph-pill" data-ginfo aria-label="Group details">${icons.users}</button>`
+        : html`<a class="ph-pill" href="#/c/${thread.other.id}" aria-label="Contact profile">${icons.card}</a>`}
+    </span>`;
+  const body = page({ alive, title: thread.name, subtitle: thread.group ? `${thread.members.length + 1} people` : `@${thread.other.handle}`, className: 'phone-body', body: html`
     <div class="phone-split">${wide ? html`<div class="phone" id="phone"></div>` : ''}
-    <div class="phone chat">
+    <div class="phone chat ph-ios">
       <section class="ph-chat">
-        <header class="ph-chat-head">
-          <a class="ph-back" href="${phoneBase()}/${cid}" data-ph-back aria-label="Back">${icons.back}</a>
-          <a class="ph-chat-av" href="#/c/${other.id}">${avatar({ name: other.name, src: other.avatar, color: other.color, size: 'sm' })}</a>
-          <h2>${thread.name}</h2>
-          <span class="ph-chat-actions">
-            <button type="button" class="ph-pill" id="ph-call" aria-label="Call">${icons.phone}</button>
-            <a class="ph-pill" href="#/c/${other.id}" aria-label="Contact profile">${icons.card}</a>
-          </span>
-        </header>
+        <header class="ph-chat-head" id="ph-head">${head()}</header>
         <div class="ph-msgs" id="ph-msgs"></div>
       </section>
       <div class="ph-extra" id="ph-extra" hidden></div>
       <form class="chatbar ph-compose" id="ph-compose">
         <button type="button" class="chatbar-plus" id="ph-attach" aria-label="Add a photo">${icons.plus}</button>
-        <input name="body" id="ph-input" autocomplete="off" placeholder="Message ${thread.name}" aria-label="Message">
-        <button type="submit" class="chatbar-send" aria-label="Send">${icons.send}</button>
+        <span class="ph-field">
+          <input name="body" id="ph-input" autocomplete="off" enterkeyhint="send" placeholder="${thread.group ? 'iMessage' : 'Text Message'}" aria-label="Message">
+          <button type="button" class="ph-emoji-btn" id="ph-emoji" aria-label="Emoji" aria-pressed="false">☺︎</button>
+          <button type="submit" class="chatbar-send" aria-label="Send">${icons.send}</button>
+        </span>
       </form>
     </div></div>` });
   if (wide) {
@@ -239,34 +345,50 @@ export async function viewPhoneThread(cidStr, tidStr) {
   const input = $('#ph-input', body);
   const extra = $('#ph-extra', body);
 
-  const bubble = (m) => {
-    const mine = m.characterId === me.id;
-    const reply = m.replyTo ? byId.get(m.replyTo.id) : null;
-    return html`
-      <div class="ph-msg ${mine ? 'mine' : ''}" data-id="${m.id}">
-        <div class="ph-bubble">
-          ${m.replyTo ? html`<button type="button" class="ph-quote" data-jump="${m.replyTo.id}">${icons.reply}<span>${m.replyTo.text || (m.replyTo.hasMedia ? 'Photo' : '')}</span></button>` : ''}
-          ${m.media.length ? html`<div class="b-pics n${Math.min(m.media.length, 4)}">${m.media.map((u) => html`<a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="" loading="lazy"></a>`)}</div>` : ''}
-          ${m.body ? html`<span class="ph-text">${formatPost(m.body)}</span>` : ''}
-          <time>${clock(m.createdAt)}</time>
-        </div>
-        <span class="ph-tools"><button type="button" data-reply="${m.id}" aria-label="Reply">${icons.reply}</button>${mine ? html`<button type="button" data-del="${m.id}" aria-label="Delete">✕</button>` : ''}</span>
-      </div>`;
+  const reactionsHtml = (m) => {
+    if (!m.reactions?.length) return '';
+    const counts = new Map();
+    for (const r of m.reactions) counts.set(r.emoji, (counts.get(r.emoji) || 0) + 1);
+    const mineOn = m.reactions.some((r) => r.characterId === me.id);
+    return html`<button type="button" class="ph-tb ${mineOn ? 'by-me' : ''}" data-who="${m.id}" aria-label="Reactions">${[...counts].slice(0, 3).map(([e, n]) => html`<span>${e}${n > 1 ? html`<small>${n}</small>` : ''}</span>`)}</button>`;
   };
-  const dayOf = (m) => new Date(`${m.createdAt.replace(' ', 'T')}Z`).toDateString();
+
   function draw(stick = true) {
     const sorted = [...byId.values()].sort((a, b) => a.id - b.id);
-    let prevDay = null;
     const items = [];
     if (hasMore) items.push(html`<button type="button" class="ph-more" id="ph-more">Earlier messages</button>`);
-    for (const m of sorted) {
-      if (dayOf(m) !== prevDay) {
-        prevDay = dayOf(m);
-        const d = new Date(`${m.createdAt.replace(' ', 'T')}Z`);
-        items.push(html`<div class="ph-day">${d.toDateString() === new Date().toDateString() ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</div>`);
+    // "Read" goes under your last text (one-to-one only).
+    const lastMine = [...sorted].reverse().find((m) => m.characterId === me.id && m.kind !== 'call');
+    sorted.forEach((m, i) => {
+      const prev = sorted[i - 1];
+      const next = sorted[i + 1];
+      const d = at(m.createdAt);
+      const gap = !prev || d - at(prev.createdAt) > 15 * 60000;
+      if (gap) items.push(html`<div class="ph-stamp">${stamp(d)}</div>`);
+      if (m.kind === 'call') {
+        const mineCall = m.characterId === me.id;
+        items.push(html`<div class="ph-call-line" data-id="${m.id}">${icons.phone}<span>${mineCall ? html`You called ${thread.group ? 'the group' : thread.name}` : html`Missed call from <b>${nameOf(m.characterId)}</b>`}</span><time>${clock(m.createdAt)}</time></div>`);
+        return;
       }
-      items.push(bubble(m));
-    }
+      const mine = m.characterId === me.id;
+      const sameAsPrev = prev && prev.kind !== 'call' && prev.characterId === m.characterId && !gap;
+      const sameAsNext = next && next.kind !== 'call' && next.characterId === m.characterId && at(next.createdAt) - d <= 15 * 60000;
+      const big = !m.media.length && !m.replyTo && emojiOnly(m.body);
+      const sender = thread.group && !mine ? people().get(m.characterId) : null;
+      items.push(html`
+        <div class="ph-msg ${mine ? 'mine' : 'theirs'} ${sameAsNext ? '' : 'tail'} ${sameAsPrev ? 'cont' : ''} ${big ? 'big-emoji' : ''} ${m.reactions?.length ? 'has-tb' : ''}" data-id="${m.id}">
+          ${thread.group && !mine ? html`<span class="ph-msg-av">${sameAsNext ? '' : avatar({ name: nameOf(m.characterId), src: sender?.avatar, color: sender?.color })}</span>` : ''}
+          <div class="ph-col">
+            ${sender && !sameAsPrev ? html`<span class="ph-sender">${first(m.characterId)}</span>` : ''}
+            ${m.replyTo ? html`<button type="button" class="ph-quote" data-jump="${m.replyTo.id}"><small>${icons.reply} ${nameOf(m.replyTo.characterId) === 'You' ? 'You' : first(m.replyTo.characterId)}</small><span>${m.replyTo.text || (m.replyTo.hasMedia ? 'Photo' : '')}</span></button>` : ''}
+            ${m.media.length ? html`<div class="ph-pics b-pics n${Math.min(m.media.length, 4)}">${m.media.map((u) => html`<a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="" loading="lazy"></a>`)}</div>` : ''}
+            ${m.body ? html`<div class="ph-bubble" title="${clock(m.createdAt)}">${big ? m.body.trim() : html`<span class="ph-text">${formatPost(m.body)}</span>`}</div>` : ''}
+            ${reactionsHtml(m)}
+          </div>
+          <span class="ph-tools"><button type="button" data-tapback="${m.id}" aria-label="React">☺︎</button><button type="button" data-reply="${m.id}" aria-label="Reply">${icons.reply}</button></span>
+        </div>`);
+      if (m === lastMine && !thread.group) items.push(html`<div class="ph-receipt">${thread.readUpTo >= m.id ? 'Read' : 'Delivered'}</div>`);
+    });
     if (!sorted.length) items.push(html`<p class="ph-hint">This is the start of your texts with ${thread.name}.</p>`);
     render(list, html`${items}`);
     if (stick) list.scrollTop = list.scrollHeight;
@@ -281,22 +403,99 @@ export async function viewPhoneThread(cidStr, tidStr) {
   markRead();
 
   function drawExtra() {
-    extra.hidden = !replying && !attached.length;
+    extra.hidden = !replying && !attached.length && !showEmoji;
+    $('#ph-emoji', body).setAttribute('aria-pressed', String(showEmoji));
     render(extra, html`
-      ${replying ? html`<div class="reply-bar">${icons.reply}<span>Replying to <b>${replying.characterId === me.id ? 'yourself' : thread.name}</b><small>${plainText(replying.body) || 'Photo'}</small></span>
+      ${replying ? html`<div class="reply-bar">${icons.reply}<span>Replying to <b>${replying.characterId === me.id ? 'yourself' : nameOf(replying.characterId)}</b><small>${plainText(replying.body) || 'Photo'}</small></span>
         <button type="button" class="icon-btn sm" id="ph-unreply" aria-label="Cancel reply">✕</button></div>` : ''}
-      ${attached.length ? html`<div class="attach-row">${attached.map((u, i) => html`<span class="thumb"><img src="${u}" alt=""><button type="button" data-unattach="${i}" aria-label="Remove">✕</button></span>`)}</div>` : ''}`);
+      ${attached.length ? html`<div class="attach-row">${attached.map((u, i) => html`<span class="thumb"><img src="${u}" alt=""><button type="button" data-unattach="${i}" aria-label="Remove">✕</button></span>`)}</div>` : ''}
+      ${showEmoji ? html`<div class="ph-emoji-panel">${emojiGrid()}</div>` : ''}`);
   }
   extra.addEventListener('click', (e) => {
-    if (e.target.closest('#ph-unreply')) { replying = null; drawExtra(); }
+    if (e.target.closest('#ph-unreply')) { replying = null; drawExtra(); return; }
     const rm = e.target.closest('[data-unattach]');
-    if (rm) { attached.splice(Number(rm.dataset.unattach), 1); drawExtra(); }
+    if (rm) { attached.splice(Number(rm.dataset.unattach), 1); drawExtra(); return; }
+    const em = e.target.closest('[data-emoji]');
+    if (em) {
+      // Put the emoji where the cursor is, without opening the keyboard on phones.
+      const pos = input.selectionStart ?? input.value.length;
+      input.value = input.value.slice(0, pos) + em.dataset.emoji + input.value.slice(input.selectionEnd ?? pos);
+      const caret = pos + em.dataset.emoji.length;
+      try { input.setSelectionRange(caret, caret); } catch { /* not focused */ }
+      form.classList.toggle('has-text', !!input.value.trim());
+    }
   });
+  $('#ph-emoji', body).addEventListener('click', () => { showEmoji = !showEmoji; drawExtra(); if (showEmoji) input.blur(); });
+  input.addEventListener('focus', () => { if (showEmoji && !matchMedia('(min-width: 900px)').matches) { showEmoji = false; drawExtra(); } });
 
+  // ---- Tapbacks and the message menu ----
+  async function react(m, emoji) {
+    try {
+      const { reactions } = await api(`/api/phone/messages/${m.id}/react`, { method: 'POST', body: { as: me.id, emoji } });
+      byId.set(m.id, { ...m, reactions });
+      draw(false);
+    } catch (err) { toast(err.message); }
+  }
+  function closeTapback() { document.querySelector('.ph-tb-layer')?.remove(); }
+  onLeave(closeTapback);
+  function openTapback(m) {
+    closeTapback();
+    if (!m) return;
+    const mine = m.characterId === me.id;
+    const myEmoji = m.reactions?.find((r) => r.characterId === me.id)?.emoji;
+    const layer = document.createElement('div');
+    layer.className = `ph-tb-layer ${mine ? 'mine' : ''}`;
+    const drawLayer = (picking = false) => render(layer, html`
+      <div class="ph-tb-back" data-tb-close></div>
+      <div class="ph-tb-card" role="dialog" aria-label="React to this message">
+        ${picking ? html`<div class="ph-tb-pick">${emojiGrid()}</div>` : html`
+        <div class="ph-tb-bar">${TAPBACKS.map((e) => html`<button type="button" class="${e === myEmoji ? 'on' : ''}" data-tb="${e}" aria-label="React ${e}">${e}</button>`)}
+          <button type="button" class="ph-tb-more" data-tb-more aria-label="More emoji">＋</button></div>`}
+        <div class="ph-tb-menu">
+          <p class="ph-tb-time">${mine ? 'Sent' : `From ${nameOf(m.characterId)} ·`} ${at(m.createdAt).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</p>
+          <button type="button" data-tb-reply>${icons.reply}<span>Reply</span></button>
+          ${m.body ? html`<button type="button" data-tb-copy><span class="ph-tb-ic">⧉</span><span>Copy</span></button>` : ''}
+          ${mine ? html`<button type="button" class="danger" data-tb-del><span class="ph-tb-ic">✕</span><span>Delete</span></button>` : ''}
+        </div>
+      </div>`);
+    drawLayer();
+    document.body.append(layer);
+    navigator.vibrate?.(8);
+    layer.addEventListener('click', async (e) => {
+      const pick = e.target.closest('[data-tb], [data-emoji]');
+      if (pick) { closeTapback(); react(m, pick.dataset.tb || pick.dataset.emoji); return; }
+      if (e.target.closest('[data-tb-more]')) { drawLayer(true); return; }
+      if (e.target.closest('[data-tb-reply]')) { closeTapback(); replying = m; drawExtra(); input.focus(); return; }
+      if (e.target.closest('[data-tb-copy]')) {
+        closeTapback();
+        try { await navigator.clipboard.writeText(plainText(m.body)); toast('Copied'); } catch { toast('Couldn’t copy'); }
+        return;
+      }
+      if (e.target.closest('[data-tb-del]')) {
+        closeTapback();
+        if (!(await confirmModal('Delete this message for everyone?', { ok: 'Delete', danger: true }))) return;
+        await api(`/api/phone/messages/${m.id}`, { method: 'DELETE' }).catch((err) => toast(err.message));
+        return;
+      }
+      if (e.target.closest('[data-tb-close]')) closeTapback();
+    });
+  }
+  const onKey = (e) => { if (e.key === 'Escape') closeTapback(); };
+  document.addEventListener('keydown', onKey);
+  onLeave(() => document.removeEventListener('keydown', onKey));
+
+  list.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.ph-msg');
+    if (!row || e.target.closest('a[href]:not([target])')) return;
+    e.preventDefault();
+    const m = byId.get(Number(row.dataset.id));
+    if (m) openTapback(m);
+  });
+  let lastTap = { id: 0, t: 0 };
   list.addEventListener('click', async (e) => {
     if (e.target.closest('#ph-more')) {
-      const first = Math.min(...byId.keys());
-      const older = await api(`/api/phone/threads/${thread.id}?as=${me.id}&before=${first}`);
+      const firstId = Math.min(...byId.keys());
+      const older = await api(`/api/phone/threads/${thread.id}?as=${me.id}&before=${firstId}`);
       for (const m of older.messages) byId.set(m.id, m);
       hasMore = older.hasMore;
       const keep = list.scrollHeight - list.scrollTop;
@@ -306,20 +505,22 @@ export async function viewPhoneThread(cidStr, tidStr) {
     }
     const j = e.target.closest('[data-jump]');
     if (j) { $(`.ph-msg[data-id="${j.dataset.jump}"]`, list)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-    const r = e.target.closest('[data-reply]');
-    if (r) { replying = byId.get(Number(r.dataset.reply)); drawExtra(); input.focus(); return; }
-    const del = e.target.closest('[data-del]');
-    if (del) {
-      if (!(await confirmModal('Delete this message for everyone?', { ok: 'Delete', danger: true }))) return;
-      await api(`/api/phone/messages/${del.dataset.del}`, { method: 'DELETE' }).catch((err) => toast(err.message));
+    const who = e.target.closest('[data-who]');
+    if (who) {
+      const m = byId.get(Number(who.dataset.who));
+      toast(m.reactions.map((r) => `${r.emoji} ${nameOf(r.characterId)}`).join('  ·  '));
       return;
     }
-    // Tap a message to show its reply / delete buttons (phones).
-    const msg = e.target.closest('.ph-msg');
-    if (msg && !e.target.closest('a')) {
-      const open = msg.classList.contains('show-tools');
-      $$('.ph-msg.show-tools', list).forEach((x) => x.classList.remove('show-tools'));
-      if (!open) msg.classList.add('show-tools');
+    const tb = e.target.closest('[data-tapback]');
+    if (tb) { openTapback(byId.get(Number(tb.dataset.tapback))); return; }
+    const r = e.target.closest('[data-reply]');
+    if (r) { replying = byId.get(Number(r.dataset.reply)); drawExtra(); input.focus(); return; }
+    // Double-tap a bubble to react (like on an iPhone).
+    const row = e.target.closest('.ph-msg');
+    if (row && !e.target.closest('a')) {
+      const now = Date.now();
+      if (lastTap.id === row.dataset.id && now - lastTap.t < 350) { lastTap = { id: 0, t: 0 }; openTapback(byId.get(Number(row.dataset.id))); return; }
+      lastTap = { id: row.dataset.id, t: now };
     }
   });
 
@@ -327,14 +528,91 @@ export async function viewPhoneThread(cidStr, tidStr) {
     max: Math.max(0, 10 - attached.length),
     onPictures: (urls) => { attached.push(...urls.slice(0, 10 - attached.length)); drawExtra(); },
   }));
-  $('#ph-call', body).addEventListener('click', () => toast(`Calling ${thread.name}… 📞 (calls are just for the story)`));
-  // The phone's own back arrow is a real "back": if the page before was this phone's list, step back
-  // to it (so the top Back button keeps working); otherwise swap to the list without adding a step.
-  $('[data-ph-back]', body).addEventListener('click', (e) => {
-    e.preventDefault();
-    const list = e.currentTarget.getAttribute('href');
-    if (previousHash() === list) history.back(); else replaceHash(list);
+
+  // ---- Header: call, group details, back ----
+  const headEl = $('#ph-head', body);
+  headEl.addEventListener('click', async (e) => {
+    if (e.target.closest('#ph-call')) {
+      if (!(await confirmModal(`Call ${thread.name}? 📞 Calls are just for the story: the call shows in this chat and ${thread.group ? 'everyone gets' : 'they get'} a missed call.`, { ok: 'Call' }))) return;
+      try {
+        const { message } = await api(`/api/phone/threads/${thread.id}/call`, { method: 'POST', body: { as: me.id } });
+        byId.set(message.id, message);
+        draw();
+      } catch (err) { toast(err.message); }
+      return;
+    }
+    if (e.target.closest('[data-ginfo]')) { e.preventDefault(); groupInfo(); return; }
+    // The phone's own back arrow is a real "back": if the page before was this phone's list, step back
+    // to it (so the top Back button keeps working); otherwise swap to the list without adding a step.
+    const back = e.target.closest('[data-ph-back]');
+    if (back) {
+      e.preventDefault();
+      const to = back.getAttribute('href');
+      if (previousHash() === to) history.back(); else replaceHash(to);
+    }
   });
+  const refreshThread = async () => {
+    try {
+      const fresh = await api(`/api/phone/threads/${thread.id}?as=${me.id}`);
+      thread = fresh.thread;
+      render(headEl, head());
+      draw(false);
+    } catch { location.hash = `${phoneBase()}/${cid}`; } // removed from the group
+  };
+  async function groupInfo() {
+    const { writers } = await api('/api/directory');
+    const inGroup = new Set([me.id, ...thread.members.map((c) => c.id)]);
+    const canAdd = writers.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w.username }))).filter((c) => !inGroup.has(c.id))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const starter = thread.createdBy === me.id;
+    await modal(html`
+      <form class="pick-contact ph-ginfo">
+        <div class="ph-ginfo-top">${groupAvatar(thread, 'xl')}<button type="button" class="sm" id="gi-photo">Change photo</button></div>
+        <label for="gi-title">Group name</label>
+        <input id="gi-title" name="title" maxlength="60" value="${thread.title}" placeholder="${thread.name}">
+        <p class="small muted">${thread.members.length + 1} people</p>
+        <div class="pc-list">
+          <div class="pc-item on">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'sm' })}<span class="grow"><b>${me.name}</b><small>You</small></span></div>
+          ${thread.members.map((c) => html`<div class="pc-item">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span class="grow"><b>${c.contactName}</b><small>@${c.handle}</small></span>
+            ${starter ? html`<button type="button" class="sm danger" data-gi-remove="${c.id}">Remove</button>` : ''}</div>`)}
+        </div>
+        <label for="gi-add">Add people</label>
+        <select id="gi-add"><option value="">Pick someone…</option>${canAdd.map((c) => html`<option value="${c.id}">${c.name} (@${c.handle} · ${c.writer})</option>`)}</select>
+        <div class="error"></div>
+        <div class="actions"><button type="button" class="danger" id="gi-leave">Leave group</button><span class="grow"></span><button type="button" data-close>Close</button><button type="submit" class="primary">Save</button></div>
+      </form>`, {
+      init: (d, close) => {
+        $('#gi-add', d).addEventListener('change', async (e) => {
+          const add = Number(e.target.value);
+          if (!add) return;
+          try { await api(`/api/phone/threads/${thread.id}/members`, { method: 'POST', body: { as: me.id, memberIds: [add] } }); toast('Added to the group'); close(true); refreshThread(); } catch (err) { toast(err.message); }
+        });
+        $('#gi-photo', d).addEventListener('click', () => attachSheet({
+          max: 1,
+          onPictures: async ([url]) => {
+            if (!url) return;
+            try { await api(`/api/phone/threads/${thread.id}`, { method: 'PUT', body: { as: me.id, photo: url } }); close(true); refreshThread(); } catch (err) { toast(err.message); }
+          },
+        }));
+        d.addEventListener('click', async (e) => {
+          const rm = e.target.closest('[data-gi-remove]');
+          if (rm) {
+            try { await api(`/api/phone/threads/${thread.id}/members/${rm.dataset.giRemove}?as=${me.id}`, { method: 'DELETE' }); close(true); refreshThread(); } catch (err) { toast(err.message); }
+            return;
+          }
+          if (e.target.closest('#gi-leave')) {
+            if (!(await confirmModal('Leave this group? You won’t get its texts any more.', { ok: 'Leave', danger: true }))) return;
+            try { await api(`/api/phone/threads/${thread.id}/members/${me.id}?as=${me.id}`, { method: 'DELETE' }); close(true); replaceHash(`${phoneBase()}/${cid}`); } catch (err) { toast(err.message); }
+          }
+        });
+      },
+      submit: async (data) => {
+        await api(`/api/phone/threads/${thread.id}`, { method: 'PUT', body: { as: me.id, title: data.title } });
+        refreshThread();
+        return true;
+      },
+    });
+  }
 
   let sending = false;
   form.addEventListener('input', () => form.classList.toggle('has-text', !!input.value.trim()));
@@ -352,7 +630,10 @@ export async function viewPhoneThread(cidStr, tidStr) {
       replying = null;
       drawExtra();
       draw();
-    } catch (err) { toast(err.message); } finally { sending = false; input.focus(); }
+    } catch (err) { toast(err.message); } finally {
+      sending = false;
+      if (!showEmoji) input.focus();
+    }
   });
 
   live('dm', (m) => {
@@ -363,6 +644,17 @@ export async function viewPhoneThread(cidStr, tidStr) {
     if (document.visibilityState === 'visible') markRead();
   });
   live('dm-delete', ({ id, threadId }) => { if (threadId === thread.id && byId.delete(id)) draw(false); });
+  live('dm-react', ({ id, threadId, reactions }) => {
+    const m = byId.get(id);
+    if (threadId !== thread.id || !m) return;
+    byId.set(id, { ...m, reactions });
+    draw(false);
+  });
+  live('dm-read', ({ threadId, characterId, lastId }) => {
+    if (threadId !== thread.id || characterId === me.id || thread.group) return;
+    if (lastId > thread.readUpTo) { thread.readUpTo = lastId; draw(false); }
+  });
+  live('dm-thread', ({ threadId }) => { if (threadId === thread.id) refreshThread(); });
   // Phones drop the live connection when locked or switched away from. When it comes back (and
   // every 15 seconds as a safety net), fetch any texts that arrived meanwhile.
   const catchUp = async () => {
@@ -370,7 +662,14 @@ export async function viewPhoneThread(cidStr, tidStr) {
     try {
       const latest = await api(`/api/phone/threads/${thread.id}?as=${me.id}`);
       const fresh = latest.messages.filter((m) => !byId.has(m.id));
-      if (!fresh.length) return;
+      // Tapbacks and "Read" can change without a new text, so take those too.
+      let changed = latest.thread.readUpTo !== thread.readUpTo;
+      thread.readUpTo = latest.thread.readUpTo;
+      for (const m of latest.messages) {
+        const old = byId.get(m.id);
+        if (old && JSON.stringify(old.reactions) !== JSON.stringify(m.reactions)) { byId.set(m.id, m); changed = true; }
+      }
+      if (!fresh.length) { if (changed) draw(false); return; }
       fresh.forEach((m) => byId.set(m.id, m));
       draw(true);
       markRead();

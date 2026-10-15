@@ -285,13 +285,7 @@ export function accountRoutes(r, ctx) {
   r.get('/api/notifications', ({ user, query }) => {
     requireUser(user);
     const before = Number(query.get('before')) || Number.MAX_SAFE_INTEGER;
-    const rows = db.prepare(`
-      SELECT n.*, a.username AS a_username, a.display_name AS a_display_name, a.avatar AS a_avatar, a.id AS a_id,
-        s.title AS story_title, c.name AS channel_name
-      FROM notifications n
-      LEFT JOIN users a ON a.id = n.actor_id
-      LEFT JOIN stories s ON s.id = n.story_id
-      LEFT JOIN channels c ON c.id = n.channel_id
+    const rows = db.prepare(`${ctx.notificationSql}
       WHERE n.user_id = ? AND n.id < ? ORDER BY n.id DESC LIMIT 50`).all(user.id, before);
     const unread = db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL').get(user.id).n;
     return { data: { notifications: rows.map(ctx.toNotification), unread } };

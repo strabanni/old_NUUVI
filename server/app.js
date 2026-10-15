@@ -160,6 +160,23 @@ export function createApp({
       (SELECT COUNT(*) FROM story_members WHERE user_id = :u) AS stories`).get({ u: userId });
 
   // ---------- Notifications ----------
+  // Every notification is read with its writer, story, channel and the characters involved: the one
+  // who acted (texted, liked, posted…) for the picture, and for texts the phone it went to.
+  ctx.notificationSql = `
+    SELECT n.*, a.username AS a_username, a.display_name AS a_display_name, a.avatar AS a_avatar, a.id AS a_id,
+      s.title AS story_title, ch.name AS channel_name,
+      ac.id AS ac_id, ac.name AS ac_name, ac.avatar AS ac_avatar, ac.color AS ac_color,
+      rc.name AS rc_name, pt.is_group AS pt_group, pt.title AS pt_title
+    FROM notifications n
+    LEFT JOIN users a ON a.id = n.actor_id
+    LEFT JOIN stories s ON s.id = n.story_id
+    LEFT JOIN channels ch ON ch.id = n.channel_id
+    LEFT JOIN posts p ON p.id = n.post_id
+    LEFT JOIN characters ac ON ac.id = COALESCE(n.from_character_id,
+      CASE WHEN n.type IN ('like', 'comment', 'socialtag', 'follow', 'connection') THEN n.character_id END, p.character_id)
+    LEFT JOIN characters rc ON rc.id = n.character_id AND n.type IN ('dm', 'call')
+    LEFT JOIN phone_threads pt ON pt.id = n.phone_thread_id`;
+  const phoneUrl = (row) => `#/phone/${row.character_id}${row.phone_thread_id ? `/t/${row.phone_thread_id}` : ''}`;
   ctx.toNotification = (row) => ({
     id: row.id, type: row.type, count: row.count, text: row.text, createdAt: row.created_at, read: !!row.read_at,
     actor: row.a_id ? toUser(row, 'a_') : null,
@@ -168,7 +185,10 @@ export function createApp({
     postId: row.post_id,
     characterId: row.character_id ?? null,
     socialId: row.social_id ?? null,
-    url: row.type === 'report' ? '#/admin' : row.type === 'dm' ? `#/phone/${row.character_id}` : row.social_id ? `#/p/${row.social_id}`
+    from: row.ac_id ? { id: row.ac_id, name: row.ac_name, avatar: row.ac_avatar, color: row.ac_color } : null,
+    to: row.rc_name ? { id: row.character_id, name: row.rc_name } : null,
+    group: row.pt_group ? { title: row.pt_title || '' } : null,
+    url: row.type === 'report' ? '#/admin' : row.type === 'dm' || row.type === 'call' ? phoneUrl(row) : row.social_id ? `#/p/${row.social_id}`
       : row.type === 'message' ? `#/messages/${row.actor_id}` : row.type === 'connection' ? '#/nu'
       : row.type === 'follow' && row.character_id ? `#/c/${row.character_id}`
       : row.type === 'added' && row.story_id ? `#/s/${row.story_id}`
@@ -180,29 +200,24 @@ export function createApp({
     return plainText(post.body) || (post.media?.length ? 'sent a picture' : '');
   };
 
-  function createNotification({ userId, type, actorId = null, storyId = null, channelId = null, postId = null, characterId = null, socialId = null, text = '' }) {
+  function createNotification({ userId, type, actorId = null, storyId = null, channelId = null, postId = null, characterId = null, socialId = null, fromCharacterId = null, phoneThreadId = null, text = '' }) {
     let notificationId;
     // Unread posts in one channel (or texts to one phone) pile up into a single notification.
     const existing = (type === 'post' && db.prepare(`SELECT id FROM notifications
       WHERE user_id = ? AND type = 'post' AND channel_id = ? AND read_at IS NULL`).get(userId, channelId))
       || (type === 'dm' && db.prepare(`SELECT id FROM notifications
-      WHERE user_id = ? AND type = 'dm' AND character_id = ? AND read_at IS NULL`).get(userId, characterId))
+      WHERE user_id = ? AND type = 'dm' AND character_id = ? AND phone_thread_id IS ? AND read_at IS NULL`).get(userId, characterId, phoneThreadId))
       || (type === 'message' && db.prepare(`SELECT id FROM notifications
       WHERE user_id = ? AND type = 'message' AND actor_id = ? AND read_at IS NULL`).get(userId, actorId));
     if (existing) {
-      db.prepare(`UPDATE notifications SET count = count + 1, actor_id = ?, post_id = ?, text = ?, created_at = datetime('now') WHERE id = ?`)
-        .run(actorId, postId, text, existing.id);
+      db.prepare(`UPDATE notifications SET count = count + 1, actor_id = ?, post_id = ?, from_character_id = ?, text = ?, created_at = datetime('now') WHERE id = ?`)
+        .run(actorId, postId, fromCharacterId, text, existing.id);
       notificationId = existing.id;
     } else {
-      notificationId = Number(db.prepare(`INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, character_id, social_id, text)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(userId, type, actorId, storyId, channelId, postId, characterId, socialId, text).lastInsertRowid);
+      notificationId = Number(db.prepare(`INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, character_id, social_id, from_character_id, phone_thread_id, text)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(userId, type, actorId, storyId, channelId, postId, characterId, socialId, fromCharacterId, phoneThreadId, text).lastInsertRowid);
     }
-    const n = ctx.toNotification(db.prepare(`
-      SELECT n.*, a.username AS a_username, a.display_name AS a_display_name, a.avatar AS a_avatar, a.id AS a_id,
-        s.title AS story_title, c.name AS channel_name
-      FROM notifications n LEFT JOIN users a ON a.id = n.actor_id
-      LEFT JOIN stories s ON s.id = n.story_id LEFT JOIN channels c ON c.id = n.channel_id
-      WHERE n.id = ?`).get(notificationId));
+    const n = ctx.toNotification(db.prepare(`${ctx.notificationSql} WHERE n.id = ?`).get(notificationId));
     hub.sendUser(userId, 'notification', n);
 
     const where = n.channel ? `#${n.channel.name}` : '';
@@ -219,7 +234,8 @@ export function createApp({
       comment: () => ({ title: 'New comment', body: text }),
       socialtag: () => ({ title: 'Tagged on THE NU', body: text }),
       tag: () => ({ title: `${n.actor?.displayName} tagged you in a thread`, body: `${where} · ${n.story?.title}` }),
-      dm: () => ({ title: n.count > 1 ? `${n.count} new texts` : 'New text', body: text }),
+      dm: () => ({ title: ctx.textTitle(n), body: text }),
+      call: () => ({ title: `${n.to?.name ?? 'You'} missed a call`, body: `📞 ${n.from?.name ?? 'Someone'} called${n.group ? ` ${n.group.title || 'the group'}` : ''}` }),
       reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),
       message: () => ({ title: n.count > 1 ? `${n.count} messages from ${n.actor?.displayName}` : `Message from ${n.actor?.displayName}`, body: text }),
       connection: () => ({ title: 'Connection picked up', body: text }),
@@ -230,6 +246,14 @@ export function createApp({
   }
 
   ctx.notify = createNotification;
+  // "{a} texted {b}", "{a} sent 3 texts to {b}", "{a} texted {b} in Crew", "4 new texts for {b} in Crew".
+  ctx.textTitle = (n) => {
+    const from = n.from?.name ?? 'Someone';
+    const to = n.to?.name ?? 'you';
+    const where = n.group ? ` in ${n.group.title || 'a group chat'}` : '';
+    if (n.count > 1) return n.group ? `${n.count} new texts for ${to}${where}` : `${from} sent ${n.count} texts to ${to}`;
+    return `${from} texted ${to}${where}`;
+  };
 
   ctx.notifyPost = (post, story, channel) => {
     const members = db.prepare(`SELECT m.user_id, m.notify, u.username FROM story_members m JOIN users u ON u.id = m.user_id
