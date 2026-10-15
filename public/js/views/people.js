@@ -24,7 +24,7 @@ export async function viewUser(id) {
   const styles = STYLE_LABELS.filter(([k]) => p.styles?.[k] !== undefined);
   page({
     alive,
-    title: html`<span class="eyebrow">Viewing profile</span>`,
+    title: 'Profile',
     actions: !me && state.user ? html`
       <a class="btn sm primary" href="#/messages/${u.id}">${icons.chat}<span class="lbl">Message</span></a>
       <button class="sm" id="block">${blocked ? 'Unblock' : 'Block'}</button>
@@ -138,7 +138,7 @@ export async function viewSettings() {
           <label>Interface size</label>
           <div class="seg scale-seg" role="group" aria-label="Interface size">${[['xsmall', 'Smallest'], ['compact', 'Small'], ['standard', 'Standard'], ['large', 'Large'], ['xlarge', 'Largest']].map(([k, label]) => html`
             <button type="button" data-ui-size="${k}" aria-pressed="${document.documentElement.dataset.ui === k}">${label}</button>`)}</div>
-          <p class="hint">Makes the whole app smaller or bigger on this device — buttons, text and pictures together.</p>
+          <p class="hint">Makes the whole app smaller or bigger on this device: buttons, text and pictures together.</p>
           <p class="hint">Light and Dark use pink (#EE719E) only for highlights. Auto follows your device's light or dark setting.</p>
           <p class="hint">Icons: <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer">Uicons by Flaticon</a>.</p>
           <p class="hint">You're on update <b>${APP_BUILD}</b>. <button type="button" class="link" id="whats-new">What's new?</button></p>
@@ -164,7 +164,7 @@ export async function viewSettings() {
             <div class="username-field"><span>@</span><input id="p-username" name="username" required maxlength="100" autocomplete="off" autocapitalize="none" spellcheck="false" value="${u.username}"></div>
             <p class="hint">${usernameHint(u)}</p>
             <label>Your colors</label>
-            <div class="grad-box me-grad"${userGrad(u)}>
+            <div class="grad-box me-grad" data-grad="${(u.gradient || BRAND_GRADIENT).join(',')}">
               <div class="grad-presets">${GRADIENT_PRESETS.map((g, i) => html`<button type="button" class="grad-preset" data-preset="${i}" data-grad="${g.join(',')}" aria-label="Gradient ${i + 1}"></button>`)}</div>
               <div class="grad-stops">
                 ${[0, 1, 2].map((i) => html`<input type="color" data-stop="${i}" value="${(u.gradient || BRAND_GRADIENT)[i] || '#B8A6DB'}" aria-label="Color ${i + 1}">`)}
@@ -181,10 +181,10 @@ export async function viewSettings() {
             </div>
             <div class="row">
               <div><label for="p-activity">Activity</label><select id="p-activity" name="activity">
-                ${[['', '—'], ['active', 'Very active'], ['moderate', 'Moderately active'], ['low', 'Low activity'], ['hiatus', 'On hiatus']].map(([v, l]) => html`<option value="${v}" ${pr.activity === v ? 'selected' : ''}>${l}</option>`)}
+                ${[['', 'Not set'], ['active', 'Very active'], ['moderate', 'Moderately active'], ['low', 'Low activity'], ['hiatus', 'On hiatus']].map(([v, l]) => html`<option value="${v}" ${pr.activity === v ? 'selected' : ''}>${l}</option>`)}
               </select></div>
               <div><label for="p-plots">Seeking plots</label><select id="p-plots" name="plots">
-                ${[['', '—'], ['open', 'Accepting plots'], ['selective', 'Selective'], ['closed', 'Not accepting']].map(([v, l]) => html`<option value="${v}" ${pr.plots === v ? 'selected' : ''}>${l}</option>`)}
+                ${[['', 'Not set'], ['open', 'Accepting plots'], ['selective', 'Selective'], ['closed', 'Not accepting']].map(([v, l]) => html`<option value="${v}" ${pr.plots === v ? 'selected' : ''}>${l}</option>`)}
               </select></div>
             </div>
             <label for="p-status">Status</label>
@@ -194,11 +194,11 @@ export async function viewSettings() {
             <label class="check toggle-row"><input type="checkbox" name="showAbout" ${u.showAbout !== false ? 'checked' : ''}> Show “About” on my profile</label>
             <label>Writing style</label>
             ${STYLE_LABELS.map(([k, label]) => html`
-              <div class="meter"><div class="meter-head"><span>${label}</span><span id="v-${k}">${pr.styles?.[k] ?? '—'}${pr.styles?.[k] !== undefined ? '%' : ''}</span></div>
+              <div class="meter"><div class="meter-head"><span>${label}</span><span id="v-${k}">${pr.styles?.[k] ?? 'Not set'}${pr.styles?.[k] !== undefined ? '%' : ''}</span></div>
                 <input type="range" min="0" max="100" step="5" name="style-${k}" value="${pr.styles?.[k] ?? 50}" data-set="${pr.styles?.[k] !== undefined ? '1' : ''}" aria-label="${label}"></div>`)}
             <label for="p-looking">Looking for</label>
             <textarea id="p-looking" name="lookingFor" maxlength="4000" rows="3" placeholder="Genres, pairings, plot ideas…">${pr.lookingFor || ''}</textarea>
-            <label for="p-limits">Limits — not interested in</label>
+            <label for="p-limits">Limits (not interested in)</label>
             <textarea id="p-limits" name="limits" maxlength="4000" rows="3" placeholder="Hard limits, banned face claims…">${pr.limits || ''}</textarea>
             <div class="error"></div>
             <div class="actions"><a class="btn" href="#/u/${u.id}">View profile</a></div>
@@ -207,7 +207,7 @@ export async function viewSettings() {
 
         <section class="card">
           <h2>Notifications on this device</h2>
-          <p class="muted small">Get notified about new posts, @mentions and your turns — even when NUUVI is closed.
+          <p class="muted small">Get notified about new posts, @mentions and your turns, even when NUUVI is closed.
             Notification contents are end-to-end encrypted on their way to your device.</p>
           ${isIos() && !isStandalone() ? html`<p class="notice small">On iPhone/iPad: tap <strong>Share</strong> → <strong>Add to Home Screen</strong>, open NUUVI from your Home Screen, then turn notifications on here.</p>` : ''}
           <div class="actions">
@@ -369,7 +369,7 @@ export async function viewSettings() {
   });
   $('#push-test', body)?.addEventListener('click', async () => {
     await api('/api/push/test', { method: 'POST', body: {} });
-    toast('Test sent — it should pop up in a moment');
+    toast('Test sent. It should pop up in a moment');
   });
   body.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-unblock]');

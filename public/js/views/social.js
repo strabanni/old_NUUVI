@@ -367,7 +367,7 @@ const songFields = (m = {}) => html`
       <div><label for="s-song">Song title</label><input id="s-song" name="songTitle" maxlength="120" value="${m.title || ''}" placeholder="Ditto"></div>
       <div><label for="s-artist">Artist</label><input id="s-artist" name="songArtist" maxlength="120" value="${m.artist || ''}" placeholder="NewJeans"></div>
     </div>
-    <label for="s-link">Link <span class="muted small">(optional — Spotify, Apple Music, YouTube…)</span></label>
+    <label for="s-link">Link <span class="muted small">(optional: Spotify, Apple Music, YouTube…)</span></label>
     <input id="s-link" name="songUrl" type="url" maxlength="500" value="${m.url || ''}" placeholder="https://">
   </details>`;
 // Tag a place, like Instagram's location line.
@@ -597,7 +597,7 @@ async function tagPhotos(media, tags, ownerId) {
 
 export async function openSocialComposer({ characterId = null, category = 'post', edit = null } = {}) {
   const mine = edit ? await myCharacters(true) : await playableCharacters(true);
-  if (!mine.length) { toast('Create a character first — posts are made by characters'); location.hash = '#/characters'; return null; }
+  if (!mine.length) { toast('Create a character first. Posts are made by characters'); location.hash = '#/characters'; return null; }
   // Editing: start from the post as it is. Switching type clears the media; switching back brings it back.
   if (edit) { characterId = edit.character.id; category = edit.category || 'post'; }
   let kind = edit?.kind || 'text';
@@ -610,7 +610,7 @@ export async function openSocialComposer({ characterId = null, category = 'post'
 
   const result = await modal(html`
     <form class="social-form">
-      <span class="eyebrow">${edit ? 'Edit post' : category === 'musing' ? 'New musing' : 'New post'}</span>
+      <h2>${edit ? 'Edit post' : category === 'musing' ? 'New musing' : 'New post'}</h2>
       <label for="s-char">${edit ? 'Posted by' : 'Post as'}</label>
       <select id="s-char" name="characterId" ${edit ? 'disabled' : ''}>${mine.map((c) => html`<option value="${c.id}" ${c.id === characterId ? 'selected' : ''}>${c.name}</option>`)}</select>
       ${edit ? html`<p class="hint">Tap a type to change what kind of post this is.</p>` : ''}
@@ -726,7 +726,7 @@ export async function openSocialComposer({ characterId = null, category = 'post'
         if (e.target.closest('#rec-btn')) {
           if (recorder) { recorder.stop(); return; }
           recorder = await startRecording({
-            tick: (s) => { const t = $('#rec-time', d); if (t) t.textContent = `${fmtTime(s)} — tap to stop`; },
+            tick: (s) => { const t = $('#rec-time', d); if (t) t.textContent = `${fmtTime(s)}, tap to stop`; },
             done: async (blob, secs) => {
               recorder = null;
               try {
@@ -784,7 +784,7 @@ function audioDuration(url) {
 }
 
 async function startRecording({ tick, done }) {
-  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { toast("This browser can't record audio — upload a file instead"); return null; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { toast("This browser can't record audio. Upload a file instead"); return null; }
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { toast('Microphone permission was denied'); return null; }
   const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
@@ -927,7 +927,7 @@ export async function viewSocialPost(id) {
       if (!c) return;
       const updated = await modal(html`
         <form class="social-form">
-          <span class="eyebrow">Edit comment</span>
+          <h2>Edit comment</h2>
           <label for="ec-body">${c.character.name}'s comment</label>
           <textarea id="ec-body" name="body" rows="3" maxlength="2000" required>${c.body}</textarea>
           <label for="ec-when">Date</label>

@@ -49,7 +49,7 @@ function conversationList(convos, activeId, writers = []) {
         ${avatar({ name: c.with.displayName, src: c.with.avatar, color: '#8F8D8E' })}
         <span class="grow"><b class="u-grad"${userGrad(c.with)}>${c.with.displayName}</b><small>${c.last ? `${c.last.mine ? 'You: ' : ''}${c.last.text}` : ''}</small></span>
         <span class="dm-meta">${c.lastAt ? html`<small>${agoShort(c.lastAt)}</small>` : ''}${c.unread ? html`<span class="badge">${c.unread}</span>` : ''}</span>
-      </a>`) : html`<div class="dm-empty"><p>No messages yet.</p><p class="small muted">Talk plots, plans and anything out of character — privately.</p><button class="primary sm" id="dm-new-2">New message</button></div>`}`;
+      </a>`) : html`<div class="dm-empty"><p>No messages yet.</p><p class="small muted">Talk plots, plans and anything out of character, privately.</p><button class="primary sm" id="dm-new-2">New message</button></div>`}`;
 }
 
 export async function viewMessages(userIdStr) {

@@ -125,7 +125,7 @@ export function storyRoutes(r, ctx) {
       db.prepare("INSERT INTO story_members (story_id, user_id, role) VALUES (?, ?, 'owner')").run(sid, user.id);
       const ins = db.prepare(`INSERT INTO channels (story_id, name, topic, position, kind, created_by, last_post_at)
         VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`);
-      ins.run(sid, 'main-story', 'The story itself — write in character here.', 0, 'thread', user.id);
+      ins.run(sid, 'main-story', 'The story itself. Write in character here.', 0, 'thread', user.id);
       // Out-of-character talk happens in Messages (private, between writers) — no OOC channel.
       return sid;
     });

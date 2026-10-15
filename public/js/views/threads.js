@@ -101,8 +101,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
 
   const result = await modal(html`
     <form class="thread-form">
-      <span class="eyebrow">${editing ? 'Edit episode' : 'New episode'}</span>
-      <h2>${editing ? c.name : 'Start something'}</h2>
+      <h2>${editing ? 'Edit episode' : 'New episode'}</h2>
       ${!sid ? html`<label for="t-story">Story</label>
         <select id="t-story" name="storyId">${myStories.map((s) => html`<option value="${s.id}">${s.title}</option>`)}</select>` : ''}
       <label for="t-name">Title</label>
@@ -110,12 +109,12 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
       <div class="row">
         <div><label for="t-kind">Type</label><select id="t-kind" name="kind">${kinds.map(([v, l]) => html`<option value="${v}" ${(c.kind || 'thread') === v ? 'selected' : ''}>${l}</option>`)}</select></div>
         <div><label for="t-status">Who can write</label><select id="t-status" name="status">
-          <option value="open" ${(c.status || 'open') === 'open' ? 'selected' : ''}>Open — anyone in the story</option>
-          <option value="closed" ${c.status === 'closed' ? 'selected' : ''}>Private — tagged characters only</option>
-          ${editing ? html`<option value="complete" ${c.status === 'complete' ? 'selected' : ''}>Complete — read only</option>` : ''}
+          <option value="open" ${(c.status || 'open') === 'open' ? 'selected' : ''}>Open: anyone in the story</option>
+          <option value="closed" ${c.status === 'closed' ? 'selected' : ''}>Private: tagged characters only</option>
+          ${editing ? html`<option value="complete" ${c.status === 'complete' ? 'selected' : ''}>Complete: read only</option>` : ''}
         </select></div>
       </div>
-      <label>Episode picture <span class="muted small">— shows at the top of the episode and on THE NU (best 1600 × 900)</span></label>
+      <label>Episode picture <span class="muted small">(shows at the top of the episode and on THE NU, best 1600 × 900)</span></label>
       <div class="t-banner" id="t-banner">${c.banner ? html`<img src="${c.banner}" alt="">` : html`<span>${icons.image} Add a picture</span>`}</div>
       <input type="hidden" name="banner" value="${c.banner || ''}">
       <div class="row">
@@ -126,7 +125,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
       </div>
       <datalist id="nuuvi-locations"></datalist>
       <div id="t-icon" ${(c.kind || 'thread') === 'comms' ? '' : 'hidden'}>
-        <label>Icon <span class="muted small">— which app is this? Pick an emoji or use a picture</span></label>
+        <label>Icon <span class="muted small">(which app is this? Pick an emoji or use a picture)</span></label>
         <div class="icon-picker">
           <span class="icon-preview" id="t-icon-preview"></span>
           ${COMMS_EMOJI.map((e) => html`<button type="button" class="emoji-pick" data-emoji="${e}">${e}</button>`)}
@@ -146,10 +145,10 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
       </div>
       ${!editing && characters.length ? html`
         <label for="t-char">Starring</label>
-        <select id="t-char" name="characterId"><option value="">— nobody yet —</option>${characters.map((ch) => html`<option value="${ch.id}">${ch.name}</option>`)}</select>` : ''}
+        <select id="t-char" name="characterId"><option value="">Nobody yet</option>${characters.map((ch) => html`<option value="${ch.id}">${ch.name}</option>`)}</select>` : ''}
       <label>Tag characters</label>
       <div id="t-tagged" class="tag-picker"><span class="muted small">${sid ? 'Loading…' : 'Pick a story first'}</span></div>
-      <label for="t-summary">Plot / summary <span class="muted small">— shown at the top of the thread</span></label>
+      <label for="t-summary">Plot / summary <span class="muted small">(shown at the top of the thread)</span></label>
       <textarea id="t-summary" name="summary" maxlength="3000" rows="4" placeholder="Where are they, what just happened, what's at stake?">${c.summary || ''}</textarea>
       <label for="t-tags">Tags</label>
       <input id="t-tags" name="tags" maxlength="400" value="${(c.tags || []).join(', ')}" placeholder="angst, reunion, slow burn">
@@ -168,9 +167,9 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
         if (!sidNow) return render(evSelect, html`<option value="">Pick a story first</option>`);
         const { events } = await api(`/api/calendar?story=${sidNow}`).catch(() => ({ events: [] }));
         const live = events.filter((e) => e.id === keep || new Date(e.endsAt || e.startsAt) >= new Date(Date.now() - 864e5));
-        render(evSelect, html`<option value="">${form.kind.value === 'event' ? 'Choose an event…' : '— not part of an event —'}</option>
+        render(evSelect, html`<option value="">${form.kind.value === 'event' ? 'Choose an event…' : 'Not part of an event'}</option>
           ${live.map((e) => html`<option value="${e.id}" ${e.id === keep ? 'selected' : ''}>${e.title} · ${new Date(e.startsAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</option>`)}`);
-        if (!live.length && form.kind.value === 'event') $('#t-ev-note', d).textContent = '— no upcoming events yet, add one';
+        if (!live.length && form.kind.value === 'event') $('#t-ev-note', d).textContent = 'No upcoming events yet. Add one';
       };
       const syncKind = () => {
         $('#t-event', d).hidden = !['event', 'comms'].includes(form.kind.value);

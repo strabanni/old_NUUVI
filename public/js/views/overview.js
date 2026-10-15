@@ -61,7 +61,6 @@ export async function viewLore() {
       <article class="overview">
         <section class="ov-hero">
           <div class="ov-hero-glass">
-            <span class="eyebrow">The lore · NUUVI</span>
             <h1>${o.tagline || 'The world of NUUVI'}</h1>
             <div class="ov-stats">
               <a href="#/directory"><b>${stats.writers}</b><span>writers</span></a>
@@ -76,7 +75,7 @@ export async function viewLore() {
           <p><button class="primary" id="ov-load-lore">${icons.book} Load the FOYAEN × ENTITY lore</button></p>
           <p class="small muted">Puts in everything: the intro, the sections, all nine companies and the gossip column. You can edit any of it after.</p>` : ''}</div>` : ''}
         ${o.letter ? html`<section class="ov-letter">
-          <span class="eyebrow">the column · hot off the group chat</span>
+          <h3 class="ov-letter-title">The column</h3>
           <div class="prose">${formatPost(o.letter)}</div>
           ${o.signoff ? html`<p class="ov-signoff">${o.signoff}</p>` : ''}
         </section>` : ''}
@@ -164,7 +163,6 @@ async function editOverview(o) {
   let tab = 'intro';
   return modal(html`
     <form class="ov-editor">
-      <span class="eyebrow">Overview</span>
       <h2>The lore of NUUVI</h2>
       <div class="seg" role="group">${[['intro', 'Intro'], ['sections', 'Sections'], ['orgs', 'Organizations']].map(([k, l]) => html`<button type="button" data-tab="${k}" aria-pressed="${k === tab}">${l}</button>`)}</div>
       <div data-pane="intro">
@@ -175,7 +173,7 @@ async function editOverview(o) {
         <label for="ov-signoff">Column sign-off</label><input id="ov-signoff" name="signoff" maxlength="120" value="${o.signoff || ''}" placeholder="no comment, ever. — the column">
         <p class="hint">The column sits at the top of the overview, like a note from the city's anonymous insider. Each organization can have its own gossip line too.</p>
         <span class="row-inline"><button type="button" class="sm" id="ov-preset">${icons.book} Start from our lore (FOYAEN × ENTITY)</button>
-        <button type="button" class="sm" id="ov-gossip">🖤 Add the gossip column only</button></span>
+        <button type="button" class="sm" id="ov-gossip">Add the gossip column only</button></span>
       </div>
       <div data-pane="sections" hidden><div id="ov-sections">${(o.sections || []).map(sectionRow)}</div><button type="button" class="sm" data-add="section">${icons.plus} Add section</button></div>
       <div data-pane="orgs" hidden>
@@ -213,7 +211,7 @@ async function editOverview(o) {
           form.signoff.value = p.signoff;
           render($('#ov-sections', d), html`${p.sections.map(sectionRow)}`);
           render($('#ov-orgs', d), html`${p.orgs.map(orgRow)}`);
-          toast('Lore loaded — check it over, then save');
+          toast('Lore loaded. Check it over, then save');
           return;
         }
         if (e.target.closest('#ov-gossip')) {
@@ -229,7 +227,7 @@ async function editOverview(o) {
             const match = p.orgs.find((x) => x.name.toLowerCase() === name);
             if (match?.whisper) { $('[data-f="whisper"]', row).value = match.whisper; n++; }
           }
-          toast(`Gossip column added${n ? ` with ${n} gossip line${n === 1 ? '' : 's'}` : ''} — save to keep it`);
+          toast(`Gossip column added${n ? ` with ${n} gossip line${n === 1 ? '' : 's'}` : ''}. Save to keep it`);
         }
       });
     },

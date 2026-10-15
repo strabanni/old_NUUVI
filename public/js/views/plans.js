@@ -50,8 +50,7 @@ export async function openPlanForm({ plan = null, date = null } = {}) {
   const startDefault = (() => { const d = date ? new Date(date) : new Date(); if (!plan) d.setHours(date ? 12 : d.getHours() + 1, 0, 0, 0); return d.toISOString(); })();
   return modal(html`
     <form class="plan-form">
-      <span class="eyebrow">${plan ? 'Edit plan' : 'New plan'}</span>
-      <h2>${plan ? p.title : 'Put it on the calendar'}</h2>
+      <h2>${plan ? 'Edit plan' : 'New plan'}</h2>
       <p class="hint">Appointments, fittings, work shifts, dates… just for fun, to build out your characters' lives.</p>
       <div class="row">
         <div><label for="pl-who">Whose plan</label>
@@ -126,8 +125,8 @@ export async function showPlan(p) {
   const mineToo = p.userId === state.user.id;
   const res = await modal(html`
     <div class="plan-view" data-color="${p.character?.color || '#EE719E'}">
-      <span class="eyebrow">${kindIcon(p.kind)} ${kindLabel(p.kind)}${p.private ? ' · only you' : ''}</span>
       <h2>${p.title}</h2>
+      <p class="plan-kind">${kindIcon(p.kind)} ${kindLabel(p.kind)}${p.private ? ' · only you' : ''}</p>
       <p class="plan-when"><b>${new Date(p.startsAt).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</b> · ${planTime(p)}
         ${p.repeat !== 'none' ? html`<br><small class="muted">↻ ${REPEATS.find((r) => r[0] === p.repeat)?.[1]}${p.repeatUntil ? ` until ${new Date(p.repeatUntil).toLocaleDateString()}` : ''}</small>` : ''}</p>
       ${p.location ? html`<p class="muted">📍 ${p.location}</p>` : ''}

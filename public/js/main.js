@@ -240,7 +240,7 @@ function renderRail() {
   const active = inArchive ? null : state.route.storyId;
   render(rail, html`
     <button type="button" class="rail-item rail-logo ${state.online.length > 1 ? 'others' : ''}" id="online-btn"
-      title="NUUVI · ${state.online.length} online" aria-label="NUUVI — ${state.online.length} people online">
+      title="NUUVI · ${state.online.length} online" aria-label="NUUVI, ${state.online.length} people online">
       ${logoMark}<span class="online-badge"><span class="pulse"></span>${state.online.length || ''}</span>
     </button>
     <div class="rail-sep rail-sep-top"></div>
@@ -367,14 +367,14 @@ function renderMembers() {
   if (!state.route.storyId || !s) { document.body.classList.remove('has-members'); return render(panel, html``); }
   document.body.classList.add('has-members');
   const group = (title, list) => (list.length ? html`
-    <div class="side-section"><span>${title} — ${list.length}</span></div>
+    <div class="side-section"><span>${title} · ${list.length}</span></div>
     ${list.map((m) => html`<a class="member ${state.online.includes(m.id) ? 'is-online' : ''}" href="#/u/${m.id}"><span class="av-wrap">${avatar({ name: m.displayName, src: m.avatar, color: '#48484A' })}<i class="online-dot"></i></span>
       <span><span class="u-grad"${userGrad(m)}>${m.displayName}</span>${state.blocks.has(m.id) ? html` <small class="muted">(blocked)</small>` : ''}</span></a>`)}` : '');
   render(panel, html`
     <div class="side-scroll">
       ${group('Owner', s.members.filter((m) => m.role === 'owner'))}
       ${group('Writers', s.members.filter((m) => m.role !== 'owner'))}
-      ${s.cast.length ? html`<div class="side-section"><span>Cast — ${s.cast.length}</span></div>
+      ${s.cast.length ? html`<div class="side-section"><span>Cast · ${s.cast.length}</span></div>
         ${s.cast.map((c) => html`<a class="member" href="#/c/${c.id}">${avatar({ name: c.name, src: c.avatar, color: c.color })}<span data-color="${c.color}" class="cast-name">${c.name}</span></a>`)}` : ''}
     </div>`);
 }
@@ -514,7 +514,7 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
   if (alive) ensureAlive(alive);
   const main = $('#main');
   if (banner) {
-    body = html`<section class="page-banner" aria-hidden="true"><div class="pb-glass"><span class="eyebrow">nuuvi</span><b>${banner === true ? title : banner}</b></div></section>${body}`;
+    body = html`<section class="page-banner" aria-hidden="true"><div class="pb-cap"><b>${banner === true ? title : banner}</b></div></section>${body}`;
   }
   // Phones: a back arrow on every page but Home. The menu (☰) lives in the rail on the left.
   const atHome = /^#\/(home)?$/.test(location.hash || '#/');
@@ -999,7 +999,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-51';
+export const APP_BUILD = 'NV-52';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

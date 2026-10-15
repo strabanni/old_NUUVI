@@ -1,5 +1,20 @@
 [
   {
+    "code": "NV-52",
+    "date": "2026-10-15",
+    "title": "A cleaner look & adding several contacts",
+    "items": [
+      "Phone: Add now lets you tick as many characters as you like and save them all at once. With one ticked, you can still save them under your own name for them.",
+      "One set of icons everywhere, so they all match.",
+      "No more frosted glass, pink-to-purple gradients, gradient headings or film grain. Pink stays as a solid accent.",
+      "Pages, posts and comments no longer fade or slide in, and buttons no longer float up when you point at them.",
+      "Header and home buttons are plain icons instead of a row of boxes. The selected story in the rail shows its side pill instead of a pink ring.",
+      "Small capital labels above headings are gone, and banner captions say plainly what each page is.",
+      "Writing in the app uses full stops, commas and colons instead of long dashes, and buttons no longer start with emoji.",
+      "Writer names are plain unless the writer picked their own gradient in their profile."
+    ]
+  },
+  {
     "code": "NV-51",
     "date": "2026-10-15",
     "title": "Smoother phones: pages, keyboard & interface size",

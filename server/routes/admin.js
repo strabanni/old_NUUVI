@@ -216,7 +216,7 @@ export function adminRoutes(r, ctx) {
     requireAdmin(user);
     const what = body.what === 'comment' ? 'comment' : 'post';
     const res = ctx.bots.runNow(Number(body.characterId), what);
-    if (!res) fail(400, `Nothing to ${what} — add some ${what === 'comment' ? 'comment' : 'post'} lines first`);
+    if (!res) fail(400, `Nothing to ${what}. Add some ${what === 'comment' ? 'comment' : 'post'} lines first`);
     return { data: { ok: true, socialId: res } };
   });
 }

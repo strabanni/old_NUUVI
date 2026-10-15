@@ -3443,3 +3443,106 @@ body.routing::after { content: ''; position: fixed; z-index: 2000; top: var(--sa
   :root { --side-w: min(276px, calc(100vw / var(--ui-zoom) - var(--rail-w) - 40px)); }
   body.has-members .members-panel { width: min(290px, calc(85vw / var(--ui-zoom))); }
 }
+
+/* =====================================================================================
+   NV-52: plainer, less templated. No glass, no purple gradients, no gradient headings, no
+   fade-ins, no grain, no lifting on hover, one icon set. Pink (#EE719E) stays the brand colour,
+   used solid. Characters' own colours and gradients are the writers' choice, so those stay.
+   ===================================================================================== */
+:root {
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', 'Segoe UI', Roboto, system-ui, sans-serif;
+  --pink: #EE719E; --pink-ink: #C93D72;
+}
+:root[data-theme=light] { --frost: #FFFFFF; --brand-mesh: #E4E4E8; --placeholder: #E4E4E8; }
+:root[data-theme=dark] { --frost: #18181A; --brand-mesh: #232326; --placeholder: #232326; }
+:root[data-theme][data-accent] { --grad: linear-gradient(var(--pink), var(--pink)); }
+[data-brand=pink], [data-brand=pink][data-theme=dark] { --brand-grad: linear-gradient(var(--brand-text), var(--brand-text)); }
+
+/* No frosted glass anywhere: surfaces are solid; overlays on pictures are plain dark scrims. */
+*, *::before, *::after, dialog::backdrop { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+#ambient::after { display: none !important; }
+.chip { background: rgb(14 14 15 / .66); }
+.cc-badge, .pf-tag { background: rgb(0 0 0 / .55); }
+.cc-glass { background: linear-gradient(transparent, rgb(0 0 0 / .72)); }
+.ov-hero-glass { background: rgb(0 0 0 / .5); border: 0; }
+.ds-flow-expand { background: rgb(0 0 0 / .6); }
+.ds-flow-nav { background: var(--glass-solid); }
+.ph-tb-back { background: rgb(0 0 0 / .45); }
+.ph-ios, .ph-tb-layer { --imsg-bar: #161618; }
+[data-theme=light] .ph-ios { --imsg-bar: #F7F7F7; }
+dialog.modal { background: var(--glass-solid); }
+
+/* Page banners: the picture with its caption on a dark fade, no frosted box or label above it. */
+.page-banner::after { background: linear-gradient(transparent 40%, rgb(0 0 0 / .6)); }
+.pb-cap { padding: 4px 8px; color: #fff; max-width: 100%; }
+.pb-cap b { display: block; font-size: clamp(1.1rem, 2.4vw, 1.6rem); font-weight: 700; letter-spacing: -.01em; line-height: 1.2; }
+
+/* Headings are plain text, never gradient-filled. */
+.grad-text, .hero h1 span, .info .eyebrow, .th-title, .ov-qmark, .cat-title span, .ds-title,
+[data-brand=pink] :is(.ub-text h2, .welcome h1, .side-welcome h2) .grad-text {
+  background: none !important; -webkit-background-clip: border-box; background-clip: border-box; -webkit-text-fill-color: currentColor;
+}
+.grad-text, .hero h1 span { color: var(--brand-text, var(--pink)); }
+[data-brand=pink] :is(.ub-text h2, .welcome h1, .side-welcome h2) .grad-text { color: var(--brand-text); }
+.info .eyebrow { color: var(--muted); }
+.th-title, .cat-title span { color: var(--text); }
+.ds-title { color: var(--c, var(--text)); }
+.dossier[data-grad] .ds-title { background-image: none; }
+.ov-qmark { color: var(--faint); }
+.th-sub, .ev-sub, .plan-kind { margin: 2px 0 10px; color: var(--muted); font-size: .86rem; }
+.ev-sub { color: rgb(255 255 255 / .85); margin-bottom: 0; }
+.ov-letter-title { margin: 0 0 8px; font-size: 1.05rem; }
+
+/* Brand pink, solid, where the pink-to-lilac gradients were. */
+.lore-card { background: var(--pink-ink); }
+.lore-card:hover { transform: none; }
+.wn-code, #npc-tags .chip-btn[aria-pressed=true]:not([data-tag=""]) { background: var(--pink-ink); }
+.whats-new li::marker { color: var(--pink); }
+.nu-story .ring, .np-av { background: var(--pink); }
+.chatbar-send { background: var(--pink-ink); }
+.np-slots i.on, .np-cover .np-progress i, .np-cover .np-progress.done i, .ov-letter::before, .meter-fill { background: var(--pink); }
+body.routing::after { background: var(--pink); }
+.np-bday-card { background: var(--pink-ink); }
+.archive-cover { background: var(--placeholder); filter: none; }
+.bw-weather { background: var(--glass-2); }
+.np-tags, :root[data-theme=dark] .np-tags, .np-post-btn { color: var(--brand-text, var(--pink)); }
+.cm-new .cm-dot { background: var(--pink); }
+.limits-box { padding: 0; background: none; }
+.profile-hero.no-img, .portrait, .ov-hero:not(:has(> img)), .story-cover:not(:has(img)), .np-cover.no-img, .np-conn-card.no-img, .page-banner { background-color: var(--placeholder); background-image: none; }
+.ov-hero { background: var(--placeholder); }
+.bento-hero::before { display: none; }
+.rail-item > span[data-color] { background: var(--c); }
+.phone, [data-theme] .phone { --ph-grad: #2C2C2E; }
+
+/* Cards don't get coloured edges. */
+.plan-row { border-left-width: 1px; border-left-color: var(--glass-border); }
+.plan-row::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.ds-quote { border-left: 0; font-style: normal; }
+.report-reason, .ov-indies-head p, .ov-motto, .ardell-intro .ardell-tag, .bw-weather i { font-style: normal; }
+.report-reason { font-family: var(--sans); font-size: 1.05rem; }
+
+/* The selected story in the rail: the pill on the left and a rounded square, no coloured ring. */
+.rail-item.active, [data-brand=pink] .rail-item.active { box-shadow: none; }
+
+/* Header and rail buttons: plain icons, not a row of boxes. */
+.ub-tile { background: transparent; border-color: transparent; color: var(--text); }
+.ub-tile:hover { background: var(--glass-2); }
+
+/* Nothing fades in or floats up: pages, lists, posts and comments are just there. */
+.main-body > *, #main.enter .main-head .head-title, #main.enter .main-head .head-actions > *, .page-banner .pb-cap,
+.bento > *, .char-grid > *, .lore-list > *, .dm-list > .dm-row, .ph-list > .ph-row, .np, .np.sm-card, .cm, .bw-ev, .ov-sub-panel,
+:is(.char-grid, .grid, .ov-indies, .ov-congloms, .event-list) > * { animation: none !important; }
+
+/* Hover: a background or colour change, never fading or lifting. */
+button:hover, .btn:hover { transform: none; }
+.nav-link:hover, .chan:hover, .popover button:hover { transform: none; padding-left: revert; }
+.story-card:hover, .event-card:hover, .bento-week:hover, .bento-notes:hover { transform: none; box-shadow: var(--elev-1); }
+.np-who:hover, .np-handle:hover { opacity: 1; text-decoration: underline; }
+.np-act:hover { opacity: 1; color: var(--muted); }
+button.primary:hover, .btn.primary:hover, .cal-ev:hover, .greet-name:hover, .sp-follow:hover { filter: none; }
+.greet-name:not([data-grad]) { color: var(--brand-text, var(--pink)); }
+.ub-tile, .ub-tile:hover { box-shadow: none; transform: none; }
+.ub-tile:hover svg, .tile:hover svg { animation: none; }
+button.ig-banner.own.empty { background: var(--placeholder); }
+.tile { background: transparent; border-color: transparent; }
+.tile:hover { background: var(--glass-2); }

@@ -154,7 +154,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const starred = new Set(detail.starred || []);
 
   function cwWrap(p, content) {
-    return p.cw ? html`<div class="cw-wrap"><button class="cw-toggle" type="button">${icons.warn} CW: ${p.cw} — tap to show</button><div class="cw-content">${content}</div></div>` : content;
+    return p.cw ? html`<div class="cw-wrap"><button class="cw-toggle" type="button">${icons.warn} CW: ${p.cw}. Tap to show</button><div class="cw-content">${content}</div></div>` : content;
   }
 
   const menuBtn = html`<button class="icon-btn sm post-menu" data-act="menu" aria-label="Post options">${icons.more}</button>`;
@@ -247,9 +247,9 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       ${ch.banner ? html`<figure class="th-banner"><img src="${ch.banner}" alt="" class="fx-img"></figure>` : ''}
       <section class="thread-head">
         ${when ? html`<div class="event-date"><span>${when.toLocaleDateString(undefined, { month: 'short' })}</span><b>${when.getDate()}</b></div>` : ''}
-        <span class="eyebrow">${ch.season ? `Season ${ch.season} · ` : ''}${KIND_LABELS[ch.kind]} · ${state.story.story.title}</span>
         ${ch.icon ? html`<span class="th-icon">${channelIcon(ch)}</span>` : ''}
         <h1 class="th-title">${ch.kind === 'comms' && commsTitle() ? commsTitle() : ch.name}</h1>
+        <p class="th-sub">${ch.season ? `Season ${ch.season} · ` : ''}${KIND_LABELS[ch.kind]} · ${state.story.story.title}</p>
         ${ch.kind === 'comms' ? html`<p class="muted small">${commsTitle() ? `${ch.name} · ` : ''}<button class="link" id="contacts-btn" type="button">Edit contact names</button></p>` : ''}
         <div class="th-meta">
           ${statusPill(ch)}
@@ -647,7 +647,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     if (!characters.length && !isOocChannel) {
       const note = document.createElement('p');
       note.className = 'hint pad-x';
-      render(note, html`No characters yet — <a href="#/characters">create one</a> to write in character. You can still narrate or chat OOC.`);
+      render(note, html`No characters yet. <a href="#/characters">Create one</a> to write in character. You can still narrate or chat OOC.`);
       form.prepend(note);
     }
   }
@@ -659,7 +659,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       if (on) starred.delete(p.id); else starred.add(p.id);
       drawFeed({ keepScroll: true });
       drawStarBtn();
-      toast(on ? 'Star removed' : 'Starred — find it again from ★ at the top');
+      toast(on ? 'Star removed' : 'Starred. Find it again from ★ at the top');
     } catch (err) { toast(err.message); }
   }
 
@@ -692,7 +692,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       const p = known.get(id);
       const who = p ? (p.character?.name || p.author.displayName) : 'Earlier post';
       const snip = p ? plainText(p.body, 60) : '';
-      return { label: `★ ${who}${snip ? ` — ${snip}` : ''}`, action: () => jumpTo(id) };
+      return { label: `★ ${who}${snip ? `: ${snip}` : ''}`, action: () => jumpTo(id) };
     }));
   });
   drawStarBtn();
@@ -703,7 +703,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const res = await modal(html`
       <form>
         <h2>Contact names</h2>
-        <p class="muted small">Only you see these. They're what this chat — and every other text from them — shows as for you.</p>
+        <p class="muted small">Only you see these. They're what this chat, and every other text from them, shows as for you.</p>
         ${others.map((x) => html`<label for="cn-${x.id}">${x.name}</label><input id="cn-${x.id}" name="${x.id}" maxlength="60" value="${contacts[x.id] || ''}" placeholder="${x.name}">`)}
         <div class="error"></div>
         <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Save</button></div>
@@ -723,7 +723,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     if (!(await confirmModal(`End “${channel().name}”? It will be locked and marked complete. You can open it again later from Episode details.`, { ok: 'End episode' }))) return;
     try {
       await api(`/api/channels/${channelId}`, { method: 'PUT', body: { status: 'complete' } });
-      toast('Episode complete 🎬');
+      toast('Episode complete');
       await loadStory(storyId);
       viewChannel(storyIdStr, channelIdStr);
     } catch (err) { toast(err.message); }
@@ -733,7 +733,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const recapBtn = $('#main #recap-btn');
   if (recapBtn) aiEnabled().then((on) => { recapBtn.hidden = !on; });
   recapBtn?.addEventListener('click', async () => {
-    const box = modal(html`<div class="recap"><span class="eyebrow">Previously on…</span><h2>${channel().name}</h2>
+    const box = modal(html`<div class="recap"><h2>Previously on ${channel().name}</h2>
       <div id="recap-text" class="recap-text"><p class="muted">${icons.sparkles} Reading the episode…</p></div>
       <div class="actions end"><button type="button" data-close>Close</button></div></div>`);
     try {

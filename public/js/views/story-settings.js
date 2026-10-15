@@ -27,8 +27,8 @@ export async function viewStorySettings(idStr) {
             ${storyFields(story)}
             <label for="status">New writers</label>
             <select id="status" name="status">
-              <option value="open" ${story.status === 'open' ? 'selected' : ''}>Open — anyone who can see the story may join</option>
-              <option value="closed" ${story.status === 'closed' ? 'selected' : ''}>Closed — invite link only</option>
+              <option value="open" ${story.status === 'open' ? 'selected' : ''}>Open: anyone who can see the story may join</option>
+              <option value="closed" ${story.status === 'closed' ? 'selected' : ''}>Closed: invite link only</option>
             </select>
             <div class="error"></div>
             <div class="actions"><button type="submit" class="primary">Save</button></div>
@@ -37,7 +37,7 @@ export async function viewStorySettings(idStr) {
 
         <section class="card">
           <h2>Episodes & channels</h2>
-          <p class="muted small">Use channels for chapters, locations or side scenes — like channels in a Discord server.</p>
+          <p class="muted small">Use channels for chapters, locations or side scenes, like channels in a Discord server.</p>
           <div id="channels" class="stack"></div>
           <div class="actions"><button id="add-channel">${icons.plus} New episode or channel</button></div>
         </section>
@@ -194,7 +194,7 @@ export async function viewStorySettings(idStr) {
     const { story: updated } = await api(`/api/stories/${id}`, { method: 'PUT', body: { regenerateInvite: true } });
     state.story.story.inviteCode = updated.inviteCode;
     $('#invite', body).value = inviteLink();
-    toast('New link made — the old one no longer works');
+    toast('New link made. The old one no longer works');
   });
 
   // ----- Members -----

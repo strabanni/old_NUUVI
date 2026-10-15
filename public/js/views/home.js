@@ -32,7 +32,6 @@ const fmt = (n) => Number(n || 0).toLocaleString();
 
 // The lore: a wide card on Home that opens the Lore page (the whole NUUVI world).
 const loreCard = () => html`<a class="lore-card" href="#/lore">
-    <span class="eyebrow">${icons.book} the lore · NUUVI</span>
     <b id="lore-tagline">The world of NUUVI</b>
     <small>The world, the companies and the gossip. Read this first.</small>
     <span class="lore-go">Read the lore ${icons.chevron}</span>
@@ -70,7 +69,7 @@ export async function viewHome() {
   const homeBody = page({
     alive,
     title: html`<span class="script">home</span>`,
-    banner: 'write together, in your own little world.',
+    banner: 'Ardell City',
     body: html`
       <section class="card welcome phone-only">
         ${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'xl square' })}
@@ -90,15 +89,14 @@ export async function viewHome() {
       <section class="bento">
         <div class="bento-hero">
           <div>
-            <span class="eyebrow">nuuvi</span>
-            <h2>Start something new.</h2>
+            <h2>Start writing</h2>
             <p>${stories.length ? `${stories.length} ${stories.length === 1 ? 'story' : 'stories'} · ${characters.length} ${characters.length === 1 ? 'character' : 'characters'}` : 'Start a story or join one to begin.'}</p>
           </div>
           <div class="bento-actions">
             <button class="primary" data-quick="thread">${icons.episode} New episode</button>
             <button data-quick="post">${icons.image} New post</button>
             <button data-quick="event">${icons.calendar} New event</button>
-            <button data-quick="plan">📌 New plan</button>
+            <button data-quick="plan">${icons.pin} New plan</button>
           </div>
         </div>
         <div class="bento-week card">
@@ -155,7 +153,7 @@ export async function viewHome() {
       <span class="grow"><b>${w.hi}° <small>/ ${w.lo}°F · ${w.hiC}°C</small></b><small>${i === 1 ? 'Today in Ardell City' : weekDays[i].toLocaleDateString(undefined, { weekday: 'long' })} · ${w.label}${w.rain > 30 ? ` · ${w.rain}% rain` : ''}</small><i>${w.line}</i></span>`);
     render($('#bw-list', homeBody), evs.length || bdays.length || dayPlans.length ? html`${bdays.map((c) => html`
       <a class="bw-ev bw-bday" href="#/c/${c.id}" data-color="${c.color}"><span class="bw-bar"></span>
-        <span class="grow"><b>🎂 ${c.name}'s birthday</b><small>${i === 1 ? 'Today!' : 'Coming up'}</small></span>${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}</a>`)}
+        <span class="grow"><b>${c.name}'s birthday</b><small>${i === 1 ? 'Today!' : 'Coming up'}</small></span>${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}</a>`)}
       ${evs.map((e) => html`
       <a class="bw-ev" href="#/e/${e.id}" data-color="${e.story.color}"><span class="bw-bar"></span>
         <span class="grow"><b>${e.title}</b><small>${new Date(e.startsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${e.location ? ` · ${e.location}` : ''}</small></span>
@@ -224,22 +222,22 @@ export function storyFields(s = {}) {
       <div><label for="genre">Genre</label><input id="genre" name="genre" maxlength="60" placeholder="Fantasy, sci-fi, slice of life…" value="${s.genre || ''}"></div>
       <div><label for="rating">Rating</label>
         <select id="rating" name="rating">
-          ${[['G', 'G — all ages'], ['T', 'T — teen'], ['M', 'M — mature']].map(([v, l]) => html`<option value="${v}" ${(s.rating || 'T') === v ? 'selected' : ''}>${l}</option>`)}
+          ${[['G', 'G: all ages'], ['T', 'T: teen'], ['M', 'M: mature']].map(([v, l]) => html`<option value="${v}" ${(s.rating || 'T') === v ? 'selected' : ''}>${l}</option>`)}
         </select></div>
       <div><label for="visibility">Who can see it</label>
         <select id="visibility" name="visibility">
-          <option value="private" ${s.visibility !== 'public' ? 'selected' : ''}>Private — only writers you add (admins too)</option>
-          <option value="public" ${s.visibility === 'public' ? 'selected' : ''}>Public — listed in Discover</option>
+          <option value="private" ${s.visibility !== 'public' ? 'selected' : ''}>Private: only writers you add (admins too)</option>
+          <option value="public" ${s.visibility === 'public' ? 'selected' : ''}>Public: listed in Discover</option>
         </select></div>
     </div>
-    <label for="contentWarnings">Content warnings <span class="muted small">(comma separated — readers see these before entering)</span></label>
+    <label for="contentWarnings">Content warnings <span class="muted small">(comma separated; readers see these before entering)</span></label>
     <input id="contentWarnings" name="contentWarnings" maxlength="800" placeholder="e.g. violence, character death" value="${(s.contentWarnings || []).join(', ')}">
     <div class="row">
       <div class="fixed"><label for="color">Icon color</label><input type="color" id="color" name="color" value="${s.color || '#EE719E'}"></div>
       <div><label for="icon-file">Icon picture <span class="muted small">(800 × 800)</span></label>
         <span class="row-inline"><input type="file" id="icon-file" accept="image/*"><button type="button" class="sm link-btn" data-link="icon">Link</button></span><input type="hidden" name="icon" value="${s.icon || ''}"></div>
     </div>
-    <label for="banner-file">Banner picture <span class="muted small">— shown on the story card (1800 × 600)</span></label>
+    <label for="banner-file">Banner picture <span class="muted small">(shown on the story card, 1800 × 600)</span></label>
     <span class="row-inline"><input type="file" id="banner-file" accept="image/*"><button type="button" class="sm link-btn" data-link="banner">Link</button></span><input type="hidden" name="banner" value="${s.banner || ''}">`;
 }
 
@@ -270,7 +268,7 @@ export function viewNewStory() {
     body: html`
       <form class="card narrow" id="story-form">
         ${storyFields()}
-        <p class="small muted">Your story starts with two channels — <strong>#main-story</strong> and <strong>#ooc-chat</strong>. You can add more later.</p>
+        <p class="small muted">Your story starts with two channels: <strong>#main-story</strong> and <strong>#ooc-chat</strong>. You can add more later.</p>
         <div class="error"></div>
         <div class="actions"><button type="submit" class="primary">Create story</button><a href="#/home">Cancel</a></div>
       </form>`,

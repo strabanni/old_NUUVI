@@ -141,7 +141,7 @@ async function invites(pane) {
       <div class="row-item wrap ${i.active ? '' : 'inactive'}" data-id="${i.id}" data-code="${i.code}">
         <div class="grow">
           <strong>${i.note || 'Invite'}</strong> <code>${i.code}</code>
-          <div class="small muted">${i.uses}/${i.maxUses} used · ${i.revoked ? 'revoked' : i.expiresAt ? `expires ${new Date(i.expiresAt).toLocaleDateString()}` : 'never expires'} · by ${i.createdBy ?? '—'}</div>
+          <div class="small muted">${i.uses}/${i.maxUses} used · ${i.revoked ? 'revoked' : i.expiresAt ? `expires ${new Date(i.expiresAt).toLocaleDateString()}` : 'never expires'} · by ${i.createdBy ?? 'unknown'}</div>
         </div>
         ${i.active ? html`<button class="sm" data-act="copy">Copy link</button><button class="sm danger" data-act="revoke">Revoke</button>` : ''}
       </div>`)}</div>`);
@@ -187,7 +187,7 @@ async function log(pane) {
   const { entries } = await api('/api/admin/log');
   pane.onclick = null;
   render(pane, entries.length ? html`<div class="log">${entries.map((e) => html`
-    <div class="row-item"><span class="small muted nowrap">${timeAgo(e.createdAt)}</span><span class="grow"><strong>${e.actor ?? '—'}</strong> ${e.action.replace(/-/g, ' ')} <span class="muted">${e.detail}</span></span></div>`)}</div>`
+    <div class="row-item"><span class="small muted nowrap">${timeAgo(e.createdAt)}</span><span class="grow"><strong>${e.actor ?? 'Someone'}</strong> ${e.action.replace(/-/g, ' ')} <span class="muted">${e.detail}</span></span></div>`)}</div>`
     : html`<div class="empty">Nothing yet.</div>`);
 }
 

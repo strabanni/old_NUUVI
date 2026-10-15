@@ -36,44 +36,57 @@ function shortWhen(sql) {
 }
 const live = (type, fn) => { const h = (e) => fn(e.detail); bus.addEventListener(type, h); onLeave(() => bus.removeEventListener(type, h)); };
 
-// Pick a character to add as a contact (anyone in the directory).
+// Add contacts: tick as many characters as you like (anyone in the directory). With just one
+// ticked, you can also save them under a name of your own.
 async function pickContact(me, existing) {
   const { writers } = await api('/api/directory');
   const all = writers.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w.username })))
     .filter((c) => c.id !== me.id && !existing.has(c.id)).sort((a, b) => a.name.localeCompare(b.name));
+  const picked = new Set();
   return modal(html`
     <form class="pick-contact">
-      <h2>Add a contact</h2>
+      <h2>Add contacts</h2>
       <input type="search" class="search" id="pc-q" placeholder="Search characters…" aria-label="Search characters" autocomplete="off">
+      <p class="small muted" id="pc-count">Tick everyone you want to add.</p>
       <div class="pc-list" id="pc-list"></div>
-      <label for="pc-name">Save them as <span class="muted small">(optional — only you see this)</span></label>
-      <input id="pc-name" name="name" maxlength="60" placeholder="e.g. hyung 🖤">
-      <input type="hidden" name="contactId" required>
+      <div id="pc-name-box" hidden>
+        <label for="pc-name">Save them as <span class="muted small">(optional, only you see this)</span></label>
+        <input id="pc-name" name="name" maxlength="60" placeholder="e.g. hyung 🖤">
+      </div>
       <div class="error"></div>
-      <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Add contact</button></div>
+      <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary" id="pc-ok">Add</button></div>
     </form>`, {
     init: (d) => {
       const list = $('#pc-list', d);
-      const form = d.querySelector('form');
       const draw = (q = '') => {
-        const shown = all.filter((c) => !q || `${c.name} ${c.handle} ${c.writer}`.toLowerCase().includes(q));
-        render(list, shown.length ? html`${shown.slice(0, 60).map((c) => html`
-          <button type="button" class="pc-item ${String(c.id) === form.contactId.value ? 'on' : ''}" data-pick="${c.id}">
-            ${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span class="grow"><b>${c.name}</b><small>@${c.handle} · ${c.writer}</small></span></button>`)}`
-          : html`<p class="muted small">No one matches.</p>`);
+        const shown = all.filter((c) => picked.has(c.id) || !q || `${c.name} ${c.handle} ${c.writer}`.toLowerCase().includes(q));
+        render(list, shown.length ? html`${shown.slice(0, 80).map((c) => html`
+          <button type="button" class="pc-item ${picked.has(c.id) ? 'on' : ''}" data-pick="${c.id}" aria-pressed="${picked.has(c.id)}">
+            ${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span class="grow"><b>${c.name}</b><small>@${c.handle} · ${c.writer}</small></span><span class="pc-check">${picked.has(c.id) ? '✓' : ''}</span></button>`)}`
+          : html`<p class="muted small">${all.length ? 'No one matches.' : 'Everyone is already in your contacts.'}</p>`);
+        $('#pc-count', d).textContent = picked.size ? `${picked.size} ticked` : 'Tick everyone you want to add.';
+        $('#pc-ok', d).textContent = picked.size > 1 ? `Add ${picked.size} contacts` : 'Add';
+        $('#pc-name-box', d).hidden = picked.size !== 1;
       };
       draw();
       $('#pc-q', d).addEventListener('input', (e) => draw(e.target.value.trim().toLowerCase()));
       list.addEventListener('click', (e) => {
         const b = e.target.closest('[data-pick]');
         if (!b) return;
-        form.contactId.value = b.dataset.pick;
-        $$('.pc-item', list).forEach((x) => x.classList.toggle('on', x === b));
+        const cid = Number(b.dataset.pick);
+        if (picked.has(cid)) picked.delete(cid); else picked.add(cid);
+        draw($('#pc-q', d).value.trim().toLowerCase());
       });
     },
     submit: async (data) => {
-      if (!data.contactId) throw new Error('Pick someone first');
-      return (await api(`/api/phone/${me.id}/contacts`, { method: 'POST', body: { contactId: Number(data.contactId), name: data.name } })).contact;
+      if (!picked.size) throw new Error('Tick at least one person');
+      const ids = [...picked];
+      const added = [];
+      for (const contactId of ids) {
+        const body = { contactId, ...(ids.length === 1 ? { name: data.name } : {}) };
+        added.push((await api(`/api/phone/${me.id}/contacts`, { method: 'POST', body })).contact);
+      }
+      return added;
     },
   });
 }
@@ -103,7 +116,7 @@ async function newGroup(me, contacts) {
           <button type="button" class="pc-item ${picked.has(c.id) ? 'on' : ''}" data-pick="${c.id}" aria-pressed="${picked.has(c.id)}">
             ${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span class="grow"><b>${c.shown}</b><small>@${c.handle} · ${c.writer}</small></span><span class="pc-check">${picked.has(c.id) ? '✓' : ''}</span></button>`)}`
           : html`<p class="muted small">No one matches.</p>`);
-        $('#ng-count', d).textContent = picked.size ? `${picked.size} picked${picked.size < 2 ? ' — pick one more' : ''}` : 'Pick at least two people.';
+        $('#ng-count', d).textContent = picked.size ? `${picked.size} picked${picked.size < 2 ? ', pick one more' : ''}` : 'Pick at least two people.';
       };
       draw();
       $('#ng-q', d).addEventListener('input', (e) => draw(e.target.value.trim().toLowerCase()));
@@ -153,7 +166,7 @@ export async function viewPhone(cidStr) {
   mountPhoneList($('#phone', body), { cid, mine, data: data0 });
 }
 
-// The phone's home: search, "Let's Stay Connected", the contact strip and the conversation list.
+// The phone's home: search, the contact strip and the conversation list.
 // Used on its own (phones) and as the left column beside a conversation (computers).
 export function mountPhoneList(root, { cid, mine, data: initial, activeTid = null }) {
   let data = initial;
@@ -173,7 +186,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
           <label class="ph-search">${icons.search}<input type="search" id="ph-q" placeholder="Search…" value="${q}" aria-label="Search contacts and messages"></label>
           <button type="button" class="ph-switch ${otherUnread() ? 'has-dot' : ''}" id="ph-switch" aria-label="Switch phone${otherUnread() ? ' (another phone has new texts)' : ''}" title="Switch phone">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'xs' })}${icons.chevron}<i class="ph-dot" aria-hidden="true"></i></button>
         </div>
-        <h1>Let's Stay<br>Connected</h1>
+        <h1>Messages</h1>
         <div class="ph-contacts no-swipe">
           <button type="button" class="ph-contact add" id="ph-add"><span class="ph-av">${icons.plus}</span><span>Add</span></button>
           <button type="button" class="ph-contact add" id="ph-group"><span class="ph-av">${icons.users}</span><span>Group</span></button>
@@ -185,7 +198,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
         ${threads.length ? threads.map((t) => html`
           <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="${phoneBase()}/${me.id}/t/${t.id}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
             <span class="ph-row-av">${t.group ? groupAvatar(t) : avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color })}</span>
-            <span class="grow"><b>${t.name}</b><small>${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'Say hi 👋'}</small></span>
+            <span class="grow"><b>${t.name}</b><small>${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'No messages yet'}</small></span>
             <span class="ph-meta">${t.lastAt ? html`<small>${shortWhen(t.lastAt)}</small>` : ''}${t.unread ? html`<span class="badge">${t.unread}</span>` : ''}</span>
           </a>`) : html`<div class="ph-empty"><p>No messages yet.</p><p class="small">Tap <b>Add</b> to save someone's number, then tap them to text.</p></div>`}
       </section>`);
@@ -219,7 +232,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     }
     if (e.target.closest('#ph-add')) {
       const added = await pickContact(me, new Set(data.contacts.map((x) => x.id)));
-      if (added) { toast(`${added.name} saved to contacts`); reload(); }
+      if (added?.length) { toast(added.length === 1 ? `${added[0].name} saved to contacts` : `${added.length} contacts saved`); reload(); }
       return;
     }
     const sw = e.target.closest('#ph-switch');

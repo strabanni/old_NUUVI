@@ -145,8 +145,7 @@ async function takeConnection(k) {
   const mine = await playableCharacters();
   if (!mine.length) return toast('Create a character first');
   const res = await modal(html`<form>
-    <span class="eyebrow">Pick up a connection</span>
-    <h2>${k.title}</h2>
+    <h2>Pick up “${k.title}”</h2>
     <p class="muted small">From ${k.author ? k.author.displayName : 'a writer'}, for ${handleOf(k.character)}. ${(k.slots || 1) > 1 ? `It needs ${k.slots} people; it locks when everyone's in.` : 'Once you pick it up it\'s locked for everyone else.'}</p>
     <label for="k-as">Which muse is this for?</label>
     <select id="k-as" name="characterId">${mine.map((c) => html`<option value="${c.id}">${c.name}${c.handle ? ` (@${c.handle})` : ''}</option>`)}</select>
@@ -163,8 +162,7 @@ export async function openConnectionComposer(k = null) {
   const pics = [...(k?.media || [])];
   const taken = k?.takers?.length || 0;
   return modal(html`<form class="conn-form">
-    <span class="eyebrow">${k ? 'Edit connection' : 'New connection'}</span>
-    <h2>${k ? k.title : 'Looking for someone?'}</h2>
+    <h2>${k ? 'Edit connection' : 'New connection'}</h2>
     ${k ? '' : html`<p class="muted small">Put out an idea for your muse. Anyone can pick it up for one of theirs; it locks once everyone you need has joined.</p>`}
     <label for="k-char">Which muse is it for?</label>
     <select id="k-char" name="characterId">${mine.map((c) => html`<option value="${c.id}" ${k?.character?.id === c.id ? 'selected' : ''}>${c.name}</option>`)}</select>
@@ -275,7 +273,7 @@ export async function viewNu(tagStr = null) {
     const b = e.target.closest('[data-k]');
     if (!b) return;
     const k = conns.get(Number(b.closest('[data-conn]').dataset.conn));
-    if (b.dataset.k === 'take') { const taken = await takeConnection(k); if (taken) { redrawConn(taken); toast('Picked up — it\'s yours'); } }
+    if (b.dataset.k === 'take') { const taken = await takeConnection(k); if (taken) { redrawConn(taken); toast('Picked up. It\'s yours'); } }
     if (b.dataset.k === 'more') {
       const owner = k.userId === state.user.id || state.user.isAdmin;
       const takers = k.takers || [];

@@ -28,7 +28,7 @@ export async function viewDirectory() {
   const body = page({
     alive,
     title: 'Directory',
-    banner: 'everyone & everyone they play',
+    banner: 'Writers and the characters they play',
     subtitle: `${writers.length} writers · ${all.length} characters`,
     body: html`
       <div class="dir-tools">
@@ -138,7 +138,6 @@ export async function viewDirectory() {
       const groups = borough ? [[borough, shown]] : boroughs.map((b) => [b, shown.filter((p) => p.borough === b)]).concat([['Elsewhere', shown.filter((p) => !p.borough)]]).filter(([, l]) => l.length);
       render(list, html`
         ${intro ? html`<section class="ardell-intro">
-          <span class="eyebrow">Ardell City</span>
           <h2>${intro.title}</h2>
           <p class="ardell-tag">${intro.tagline}</p>
           <div class="body prose">${formatPost(intro.body)}</div>

@@ -51,7 +51,7 @@ export async function viewNotifications() {
   const body = page({
     alive,
     title: 'Notifications',
-    banner: 'what you missed',
+    banner: 'Since you were last here',
     subtitle: `${notifications.filter((n) => !n.read).length} unread`,
     actions: notifications.some((n) => !n.read) ? html`<button class="sm" id="read-all">Mark all read</button>` : '',
     body: html`

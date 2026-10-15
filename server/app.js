@@ -227,7 +227,7 @@ export function createApp({
         body: n.count > 1 ? `${n.count} new posts in ${where}` : `${n.actor?.displayName} in ${where}: ${text}`,
       }),
       mention: () => ({ title: `${n.actor?.displayName} mentioned you`, body: `${where} · ${n.story?.title}: ${text}` }),
-      turn: () => ({ title: `Your turn in ${n.story?.title}`, body: `${where}${text ? ` — ${text}` : ''}` }),
+      turn: () => ({ title: `Your turn in ${n.story?.title}`, body: `${where}${text ? `: ${text}` : ''}` }),
       report: () => ({ title: 'New report', body: text }),
       follow: () => ({ title: 'New follower', body: text }),
       like: () => ({ title: 'New like', body: text }),

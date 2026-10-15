@@ -35,7 +35,7 @@ export function validUsername(value) {
   const name = value.normalize('NFC').trim();
   if (!name) fail(400, 'Username is required');
   if ([...name].length > MAX_USERNAME) fail(400, `Username must be at most ${MAX_USERNAME} characters`);
-  if (/[\s\p{C}]/u.test(name)) fail(400, 'Usernames can’t have spaces — your display name can');
+  if (/[\s\p{C}]/u.test(name)) fail(400, 'Usernames can’t have spaces. Your display name can');
   if (isInappropriate(name)) fail(400, 'Please pick a different username');
   return name;
 }

@@ -50,8 +50,7 @@ export async function openEventForm({ event = null, storyId = null } = {}) {
   const e = event || {};
   return modal(html`
     <form class="event-form">
-      <span class="eyebrow">${event ? 'Edit event' : 'New event'}</span>
-      <h2>${event ? e.title : 'Put something on the calendar'}</h2>
+      <h2>${event ? 'Edit event' : 'New event'}</h2>
       ${event ? '' : html`<label for="ev-story">Story</label>
         <select id="ev-story" name="storyId">${stories.map((s) => html`<option value="${s.id}" ${s.id === storyId ? 'selected' : ''}>${s.title}</option>`)}</select>`}
       <label for="ev-title">Title</label>
@@ -113,7 +112,7 @@ export async function viewEvents() {
   const body = page({
     alive,
     title: 'Events',
-    banner: 'what’s happening',
+    banner: 'Coming up in your stories',
     subtitle: `${events.filter(ongoing).length} coming up`,
     actions: html`<div class="seg" role="group" aria-label="Layout">
       <button data-layout="cards" aria-pressed="${layout === 'cards'}">Cards</button>
@@ -219,8 +218,8 @@ export async function viewEvents() {
     if (cell && !e.target.closest('a')) {
       const date = new Date(month.getFullYear(), month.getMonth(), Number(cell.dataset.day));
       menu(cell, [
-        { label: '🗓 New event', action: create },
-        { label: '📌 Character plan', action: async () => { if (await openPlanForm({ date })) refreshPlans(); } },
+        { label: 'New event', action: create },
+        { label: 'Character plan', action: async () => { if (await openPlanForm({ date })) refreshPlans(); } },
       ]);
     }
   };
@@ -247,7 +246,7 @@ export async function viewEvent(idStr) {
     body: html`
       <article class="event-page" data-color="${e.story.color}">
         <div class="ev-hero">${e.banner || e.story.banner ? html`<img src="${e.banner || e.story.banner}" alt="">` : ''}
-          <div class="ev-hero-text"><span class="eyebrow">Event · ${e.story.title}</span><h1>${e.title}</h1></div></div>
+          <div class="ev-hero-text"><h1>${e.title}</h1><p class="ev-sub">Event in ${e.story.title}</p></div></div>
         <div class="ev-facts">
           <div class="info"><span class="eyebrow">When</span><div>${whenText(e)}</div></div>
           ${e.location ? html`<div class="info"><span class="eyebrow">Where</span><div>${e.location}</div></div>` : ''}

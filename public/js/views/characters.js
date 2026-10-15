@@ -33,12 +33,12 @@ function characterForm(c = {}) {
             <label class="btn sm file-btn">Thread picture<input type="file" accept="image/*" id="thread-file" hidden></label><button type="button" class="sm link-btn" data-link="threadAvatar">Link</button>
             <button type="button" class="sm" id="thread-clear" ${c.threadAvatar ? '' : 'hidden'}>Use avatar</button>
           </span>
-          <span class="hint" id="thread-state">${c.threadAvatar ? 'Thread picture set ✓' : 'Optional — shown on their thread posts instead of their social media avatar'}</span>
+          <span class="hint" id="thread-state">${c.threadAvatar ? 'Thread picture set ✓' : 'Optional. Shown on their thread posts instead of their social media avatar'}</span>
           <span class="row-inline">
             <label class="btn sm file-btn">Profile banner<input type="file" accept="image/*" id="banner-file" hidden></label><button type="button" class="sm link-btn" data-link="banner">Link</button>
             <button type="button" class="sm" id="banner-clear" ${c.banner ? '' : 'hidden'}>Remove banner</button>
           </span>
-          <span class="hint" id="banner-state">${c.banner ? 'Banner set ✓' : 'Optional — a wide picture across the top of their profile'}</span>
+          <span class="hint" id="banner-state">${c.banner ? 'Banner set ✓' : 'Optional. A wide picture across the top of their profile'}</span>
           <input type="hidden" name="avatar" value="${c.avatar || ''}">
           <input type="hidden" name="portrait" value="${c.portrait || ''}">
           <input type="hidden" name="banner" value="${c.banner || ''}">
@@ -58,7 +58,7 @@ function characterForm(c = {}) {
             ${[0, 1, 2].map((i) => html`<input type="color" data-stop="${i}" value="${(c.gradient || BRAND_GRADIENT)[i] || '#B8A6DB'}" aria-label="Gradient color ${i + 1}">`)}
             <label class="check small"><input type="checkbox" id="g-three" ${(c.gradient || BRAND_GRADIENT).length > 2 ? 'checked' : ''}> 3 colors</label>
           </div>
-          <p class="grad-preview body"><b class="g-name">${c.name || 'Their name'}</b> — <strong>bold</strong>, <em class="action">an action</em>, <span class="dialogue">"dialogue"</span>, <u>underlined</u>.</p>
+          <p class="grad-preview body"><b class="g-name">${c.name || 'Their name'}</b>: <strong>bold</strong>, <em class="action">an action</em>, <span class="dialogue">"dialogue"</span>, <u>underlined</u>.</p>
           <p class="hint">Bold takes the first color, actions the middle, underlines the last, and dialogue and their name sweep through the whole gradient.</p>
         </div>
       </div>
@@ -68,7 +68,7 @@ function characterForm(c = {}) {
       <div id="details">${details.map(detailRow)}</div>
       <datalist id="detail-suggestions">${DETAIL_SUGGESTIONS.map((d) => html`<option value="${d}">`)}</datalist>
       <button type="button" class="sm" id="add-detail">${icons.plus} Add detail</button>
-      <label for="c-aka">AKA line <span class="muted small">— shown under their name in episodes. Wrap words in **double stars** to show them in the character's color.</span></label>
+      <label for="c-aka">AKA line <span class="muted small">(shown under their name in episodes). Wrap words in **double stars** to show them in the character's color.</span></label>
       <input id="c-aka" name="aka" maxlength="200" value="${c.aka || ''}" placeholder="aka **the prodigy**, (he / him) ; twenty8 ; ceo of trinity healthcare">
       <div class="row">
         <div><label for="c-followers">Followers shown</label><input id="c-followers" name="followersDisplay" inputmode="numeric" placeholder="real count" value="${c.followersDisplay ?? ''}"></div>
@@ -90,7 +90,7 @@ function characterForm(c = {}) {
       <fieldset class="npc-box">
         <label class="check"><input type="checkbox" name="npc" ${c.npc ? 'checked' : ''}> This is an NPC <span class="muted small">(gets an NPC badge)</span></label>
         <div class="npc-auto" ${c.npc ? '' : 'hidden'}>
-          <label for="c-npc-tags">Categories <span class="muted small">— so others can find them on the NPCs page (comma separated)</span></label>
+          <label for="c-npc-tags">Categories <span class="muted small">(so others can find them on the NPCs page, comma separated)</span></label>
           <input id="c-npc-tags" name="npcTags" maxlength="300" value="${(c.npcTags || []).join(', ')}" placeholder="staff, foyaen, nightlife">
           <label class="check"><input type="radio" name="bot" value="" ${!c.bot ? 'checked' : ''}> I post for them myself</label>
           <label class="check"><input type="radio" name="bot" value="bot" ${c.bot === 'bot' ? 'checked' : ''}> They post and comment on their own</label>
@@ -402,7 +402,7 @@ export async function viewCharacter(id) {
     own && { label: 'Edit character', action: () => $('#edit', body).click() },
   ]));
   $('#follow', body)?.addEventListener('click', (e) => {
-    if (!followable.length) return toast('Create a character first — characters follow characters');
+    if (!followable.length) return toast('Create a character first. Characters follow characters');
     const act = async (me) => {
       const on = followedBy.includes(me.id);
       try {
@@ -413,7 +413,7 @@ export async function viewCharacter(id) {
     };
     if (followable.length === 1) return act(followable[0]);
     menu(e.currentTarget, followable.map((me) => ({
-      label: followedBy.includes(me.id) ? `✓ ${me.name} follows — unfollow` : `Follow as ${me.name}`,
+      label: followedBy.includes(me.id) ? `✓ ${me.name} follows (unfollow)` : `Follow as ${me.name}`,
       action: () => act(me),
     })));
   });
