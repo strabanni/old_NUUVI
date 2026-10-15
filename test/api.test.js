@@ -1207,3 +1207,34 @@ test('photo tags: tag people on photos, they hear about it, fan comments know th
   await a(`/api/characters/${shop.id}`, { method: 'PUT', body: { brand: false } });
   assert.equal((await a(`/api/characters/${shop.id}`)).data.character.brand, false);
 });
+
+test('stories on THE NU: post a photo or text story, it shows for 24 hours, seen rings, delete', async () => {
+  const a = await app.signUp('sto_a');
+  const b = await app.signUp('sto_b');
+  const mina = (await a('/api/characters', { method: 'POST', body: { name: 'Mina Story' } })).data.character;
+  const ivy = (await b('/api/characters', { method: 'POST', body: { name: 'Ivy Story' } })).data.character;
+  assert.equal((await b('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'hi' } })).status, 400); // not yours
+  assert.equal((await a('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: '  ' } })).status, 400);
+  assert.equal((await a('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'video', media: '/uploads/nope.mp4' } })).status, 400);
+  const s1 = (await a('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'photo', media: 'https://i.pinimg.com/originals/s/1.jpg' } })).data.story;
+  const s2 = (await a('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'pier at 9 🌊', bg: '#c93d72' } })).data.story;
+  assert.equal(s2.bg, '#c93d72');
+  await b('/api/social-stories', { method: 'POST', body: { characterId: ivy.id, kind: 'text', body: 'bored' } });
+  let groups = (await b('/api/social-stories')).data.groups;
+  const minaG = groups.find((g) => g.character.id === mina.id);
+  assert.equal(groups[0].character.id, ivy.id); // your own first
+  assert.deepEqual(minaG.stories.map((s) => s.id), [s1.id, s2.id]);
+  assert.equal(minaG.allSeen, false);
+  assert.equal(minaG.stories[0].views, undefined); // only the poster sees views
+  await b(`/api/social-stories/${s1.id}/seen`, { method: 'POST', body: {} });
+  await b(`/api/social-stories/${s2.id}/seen`, { method: 'POST', body: {} });
+  groups = (await b('/api/social-stories')).data.groups;
+  assert.equal(groups.find((g) => g.character.id === mina.id).allSeen, true);
+  assert.equal((await a('/api/social-stories')).data.groups.find((g) => g.character.id === mina.id).stories[0].views, 1);
+  // Older than 24 hours: gone from the strip.
+  app.server.ctx.db.prepare("UPDATE social_stories SET created_at = datetime('now', '-25 hours') WHERE id = ?").run(s1.id);
+  assert.deepEqual((await b('/api/social-stories')).data.groups.find((g) => g.character.id === mina.id).stories.map((s) => s.id), [s2.id]);
+  assert.equal((await b(`/api/social-stories/${s2.id}`, { method: 'DELETE' })).status, 404);
+  assert.equal((await a(`/api/social-stories/${s2.id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await b('/api/social-stories')).data.groups.some((g) => g.character.id === mina.id), false);
+});

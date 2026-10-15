@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 24;
+const SCHEMA_VERSION = 25;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -597,6 +597,26 @@ export const MIGRATIONS = [
    );
    CREATE INDEX social_photo_tags_character_idx ON social_photo_tags(character_id);
    ALTER TABLE characters ADD COLUMN brand INTEGER NOT NULL DEFAULT 0;`,
+  // v25: Instagram-style stories on THE NU: a photo, video or coloured text card that shows for
+  // 24 hours, and which writers have seen each one (for the grey "seen" ring).
+  `CREATE TABLE social_stories (
+     id           INTEGER PRIMARY KEY,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     kind         TEXT NOT NULL DEFAULT 'photo',
+     media        TEXT,
+     body         TEXT NOT NULL DEFAULT '',
+     bg           TEXT,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX social_stories_time_idx ON social_stories(created_at);
+   CREATE INDEX social_stories_character_idx ON social_stories(character_id, id);
+   CREATE TABLE social_story_views (
+     story_id  INTEGER NOT NULL REFERENCES social_stories(id) ON DELETE CASCADE,
+     user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     seen_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (story_id, user_id)
+   );`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

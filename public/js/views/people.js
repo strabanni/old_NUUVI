@@ -28,7 +28,7 @@ export async function viewUser(id) {
     actions: !me && state.user ? html`
       <a class="btn sm primary" href="#/messages/${u.id}">${icons.chat}<span class="lbl">Message</span></a>
       <button class="sm" id="block">${blocked ? 'Unblock' : 'Block'}</button>
-      <button class="sm" id="report">Report</button>` : me ? html`<a class="btn sm desk-only" href="#/settings">Edit profile</a>` : '',
+      <button class="sm" id="report">Report</button>` : me ? html`<a class="btn sm" id="open-settings" href="#/settings" aria-label="Settings">${icons.gear}<span class="lbl">Settings</span></a>` : '',
     body: html`
       <section class="profile-hero ${u.banner ? '' : 'no-img'}">
         ${u.banner ? html`<img class="hero-img" src="${u.banner}" alt="">` : ''}
@@ -140,7 +140,7 @@ export async function viewSettings() {
             <button type="button" data-ui-size="${k}" aria-pressed="${document.documentElement.dataset.ui === k}">${label}</button>`)}</div>
           <p class="hint">Makes the whole app smaller or bigger on this device: buttons, text and pictures together.</p>
           <p class="hint">Light and Dark use pink (#EE719E) only for highlights. Auto follows your device's light or dark setting.</p>
-          <p class="hint">Icons: <a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener noreferrer">Uicons by Flaticon</a>.</p>
+          <p class="hint">Icons: <a href="https://phosphoricons.com" target="_blank" rel="noopener noreferrer">Phosphor</a> (Light).</p>
           <p class="hint">You're on update <b>${APP_BUILD}</b>. <button type="button" class="link" id="whats-new">What's new?</button></p>
         </section>
 

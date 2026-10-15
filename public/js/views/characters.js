@@ -3,6 +3,7 @@ import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHa
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
 import { dossierAbout, editDossier, wireGallery } from './profiles.js';
+import { loadStoryGroups, openStoryViewer, openStoryComposer } from './stories.js';
 
 const DETAIL_SUGGESTIONS = ['Age', 'Pronouns', 'Face claim', 'Occupation', 'Species', 'Height', 'Birthday', 'Alignment'];
 
@@ -261,11 +262,14 @@ export function viewCharacters() {
 // Instagram-style profile: header (picture, counts, what the owner wrote), then Posts / Threads / About tabs.
 export async function viewCharacter(id) {
   const alive = routeAlive();
-  const [{ character: c, stats, threads, followedBy }, mine, { posts }] = await Promise.all([
+  const [{ character: c, stats, threads, followedBy }, mine, { posts }, storyGroups] = await Promise.all([
     api(`/api/characters/${id}`),
     state.user ? myCharacters() : [],
     api(`/api/social?character=${id}`),
+    loadStoryGroups(),
   ]);
+  // Their story, if they have one up: a ring round the picture (tap it to watch).
+  const storyGroup = storyGroups.find((g) => g.character.id === Number(id));
   ensureAlive(alive);
   const own = c.owner?.id === state.user?.id;
   const pic = c.portrait || c.avatar;
@@ -283,7 +287,8 @@ export async function viewCharacter(id) {
         : c.banner ? html`<div class="ig-banner ${c.status ? 'gone' : ''}"><img src="${c.banner}" alt=""></div>` : ''}
       <article class="ig-profile ${c.banner ? 'has-banner' : ''} ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
         <header class="ig-head">
-          ${own ? html`<button type="button" class="ig-avatar own" id="pic-avatar" aria-label="Change the profile picture">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}<span class="ig-cam">${icons.camera}</span></button>`
+          ${own ? html`<button type="button" class="ig-avatar own ${storyGroup ? `has-story ${storyGroup.allSeen ? 'seen' : ''}` : ''}" id="pic-avatar" aria-label="Change the profile picture">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}<span class="ig-cam">${icons.camera}</span></button>`
+            : storyGroup ? html`<button type="button" class="ig-avatar has-story ${storyGroup.allSeen ? 'seen' : ''}" id="watch-story" aria-label="Watch ${c.name}'s story">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</button>`
             : html`<span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>`}
           <div class="ig-stats">
             <button type="button" data-tab-go="posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
@@ -397,7 +402,10 @@ export async function viewCharacter(id) {
   $('#new-post', body)?.addEventListener('click', newPost);
   $('#edit', body)?.addEventListener('click', async () => { if (await editCharacter(c)) { state.characters = null; reload(); } });
   $('#start-thread', body)?.addEventListener('click', () => openThreadForm({ tag: [c.id] }));
+  $('#watch-story', body)?.addEventListener('click', () => openStoryViewer([storyGroup], 0, { onClose: reload }));
   $('#main #char-more').addEventListener('click', (e) => menu(e.currentTarget, [
+    storyGroup && own && { label: 'Watch their story', action: () => openStoryViewer([storyGroup], 0, { onClose: reload }) },
+    own && !c.status && { label: 'Add to their story', action: async () => { if (await openStoryComposer({ characterId: c.id })) reload(); } },
     c.owner && { label: `View ${c.owner.displayName}'s profile`, action: () => { location.hash = `#/u/${c.owner.id}`; } },
     own && { label: 'Edit character', action: () => $('#edit', body).click() },
   ]));

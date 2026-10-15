@@ -1,5 +1,20 @@
 [
   {
+    "code": "NV-53",
+    "date": "2026-10-15",
+    "title": "Real stories, new icons & settings on your profile",
+    "items": [
+      "Stories on THE NU now work like Instagram. Tap the + on Your story to post a photo, a video, or words on a colour. It stays up for 24 hours.",
+      "Tap someone’s circle to watch full screen. Tap the right side for the next one and the left side to go back. Hold to pause, and swipe down to close.",
+      "Reply at the bottom of a story, or tap the heart. It arrives as a text on their character’s phone, from yours.",
+      "The circle stays pink until you’ve watched everything, then turns grey. Your own story shows how many people have seen it, and you can delete it from the ⋯ button.",
+      "Profiles show a ring round the picture when that character has a story up. Tap it to watch.",
+      "New icons everywhere: thin and simple, in the style of Figma’s own app.",
+      "Emoji in the phone texts always use your own device’s style: Apple’s on iPhone, Google’s on Android, Microsoft’s on Windows.",
+      "The crown button is gone. Settings now has its own button on your profile page."
+    ]
+  },
+  {
     "code": "NV-52",
     "date": "2026-10-15",
     "title": "A cleaner look & adding several contacts",

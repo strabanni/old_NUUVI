@@ -81,8 +81,7 @@ export async function viewHome() {
           <a class="tile" href="#/new" title="Start a story" aria-label="Start a story">${icons.plus}</a>
           <a class="tile" href="#/notifications" title="Notifications" aria-label="Notifications">${icons.bell}${state.home.notificationsUnread ? html`<span class="badge">${state.home.notificationsUnread}</span>` : ''}</a>
           <a class="tile" href="#/nu" title="THE NU" aria-label="THE NU">${icons.apps}</a>
-          <a class="tile" href="#/u/${u.id}" title="Your profile" aria-label="Your profile">${icons.crown}</a>
-          <a class="tile" href="#/settings" title="Settings" aria-label="Settings">${icons.gear}</a>
+          <a class="tile" href="#/u/${u.id}" title="Your profile and settings" aria-label="Your profile and settings">${icons.user}</a>
         </nav>
       </section>
 

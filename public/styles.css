@@ -3546,3 +3546,78 @@ button.primary:hover, .btn.primary:hover, .cal-ev:hover, .greet-name:hover, .sp-
 button.ig-banner.own.empty { background: var(--placeholder); }
 .tile { background: transparent; border-color: transparent; }
 .tile:hover { background: var(--glass-2); }
+
+/* NV-53: Stories (Instagram-style). The row on THE NU: a pink ring while there's something new,
+   grey once you've watched it all. */
+.nu-story { border: 0; background: none; padding: 0; font: inherit; cursor: pointer; position: relative; }
+.nu-story .ring { border: 0; padding: 3px; cursor: pointer; }
+.nu-story .ring.seen { background: var(--glass-3); }
+.nu-story .ring.none { background: transparent; }
+.nu-story.you { position: relative; }
+.sv-add { position: absolute; top: 46px; left: 46px; width: 22px; height: 22px; padding: 0; display: grid; place-items: center; border-radius: 50%;
+  border: 2px solid var(--base); background: var(--pink-ink); color: #fff; }
+.sv-add svg { width: 12px; height: 12px; }
+.ig-avatar.has-story { overflow: hidden; box-shadow: 0 0 0 3px var(--base), 0 0 0 6px var(--pink); }
+.ig-avatar.has-story.seen { box-shadow: 0 0 0 3px var(--base), 0 0 0 6px var(--glass-3); }
+button.ig-avatar.has-story { padding: 0; cursor: pointer; }
+button.ig-avatar.has-story img, button.ig-avatar.has-story .avatar { width: 100%; height: 100%; object-fit: cover; }
+
+/* The viewer: full screen on phones, a tall card in the middle on computers. */
+body.sv-open { overflow: hidden; }
+.sv { position: fixed; inset: 0; z-index: 1500; background: #000; display: flex; align-items: center; justify-content: center; color: #fff;
+  -webkit-user-select: none; user-select: none; touch-action: none; }
+.sv-frame { position: relative; width: 100%; height: 100%; max-width: 460px; display: flex; flex-direction: column; background: #111; }
+@media (min-width: 900px) { .sv-frame { height: min(92vh / var(--ui-zoom), 860px); border-radius: 14px; overflow: hidden; } }
+.sv-bars { position: absolute; top: calc(8px + var(--sat)); left: 8px; right: 8px; z-index: 3; display: flex; gap: 4px; }
+.sv-bars i { flex: 1; height: 2.5px; border-radius: 2px; background: rgb(255 255 255 / .35); overflow: hidden; }
+.sv-bars b { display: block; height: 100%; width: 0; background: #fff; }
+.sv-bars b.done { width: 100%; }
+.sv-head { position: absolute; top: calc(18px + var(--sat)); left: 10px; right: 6px; z-index: 3; display: flex; align-items: center; gap: 8px; }
+.sv-who { display: flex; align-items: center; gap: 8px; min-width: 0; color: #fff; text-decoration: none; }
+.sv-who:hover { text-decoration: none; }
+.sv-who .avatar { width: 32px; height: 32px; }
+.sv-who b { font-size: .86rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-who small { font-size: .78rem; color: rgb(255 255 255 / .7); }
+.sv-head-actions { margin-left: auto; display: flex; gap: 2px; }
+.sv-btn { width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #fff; font-size: 1.05rem; }
+.sv-btn:hover { background: rgb(255 255 255 / .12); }
+.sv-btn svg { width: 20px; height: 20px; }
+.sv-stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #000; }
+.sv-media { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.sv-text { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 28px; background: var(--c); }
+.sv-text p { margin: 0; font-size: 1.6rem; font-weight: 700; line-height: 1.25; text-align: center; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sv-text[data-color="#F2F2F2" i] { color: #111; }
+.sv-caption { position: absolute; left: 16px; right: 16px; bottom: 18px; margin: 0; padding: 8px 12px; border-radius: 10px; background: rgb(0 0 0 / .55);
+  font-size: .95rem; text-align: center; overflow-wrap: anywhere; pointer-events: none; }
+.sv-tap { position: absolute; top: 0; bottom: 0; z-index: 2; border: 0; padding: 0; background: transparent; border-radius: 0; }
+.sv-tap.prev { left: 0; width: 32%; }
+.sv-tap.next { right: 0; width: 68%; }
+.sv-tap:hover, .sv-tap:active { background: transparent; transform: none; }
+.sv-foot { flex: none; padding: 10px 12px calc(12px + var(--sab)); background: #111; }
+.sv-reply { display: flex; align-items: center; gap: 4px; }
+.sv-reply input { flex: 1; min-width: 0; height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid rgb(255 255 255 / .35); background: transparent; color: #fff; font-size: 1rem; box-shadow: none; }
+.sv-reply input::placeholder { color: rgb(255 255 255 / .65); }
+.sv-views { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: rgb(255 255 255 / .8); }
+.sv-views svg { width: 16px; height: 16px; }
+
+/* Posting a story. */
+.st-kinds { margin: 12px 0 10px; }
+.st-kinds button { display: inline-flex; align-items: center; gap: 6px; }
+.st-kinds svg { width: 16px; height: 16px; }
+.st-preview { position: relative; display: grid; place-items: center; aspect-ratio: 9 / 16; max-height: 46vh; margin: 0 auto; border-radius: 14px; overflow: hidden; background: var(--glass-2); }
+.st-preview img, .st-preview video { width: 100%; height: 100%; object-fit: cover; }
+.st-pick { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; height: 100%; border: 0; border-radius: 0; background: transparent; color: var(--muted); }
+.st-pick svg { width: 28px; height: 28px; }
+.st-swap { position: absolute; right: 8px; bottom: 8px; }
+.st-card { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--c); color: #fff; }
+.st-card[data-color="#F2F2F2" i] { color: #111; }
+.st-card span { font-size: 1.15rem; font-weight: 700; text-align: center; overflow-wrap: anywhere; white-space: pre-wrap; }
+.st-colors { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 10px 0 0; }
+.st-color { width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 2px solid var(--glass-border); background: var(--c); }
+.st-color[aria-pressed=true] { box-shadow: 0 0 0 2px var(--base), 0 0 0 4px var(--text); }
+/* Emoji: each device draws them its own way (Apple's on iPhone/iPad/Mac, Microsoft's on Windows,
+   Google's on Android). Only the device's own emoji font is installed, so it's always that one. */
+:root { --emoji: 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', 'Android Emoji', EmojiSymbols;
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', 'Segoe UI', Roboto, system-ui, sans-serif, var(--emoji); }
+.ph-ios, .ph-tb-layer, .emoji-grid, .emoji-btn, .ph-tb, .sv, .sv-reply input { font-family: var(--sans); }
+.st-color[aria-pressed=true], .st-color:hover { background: var(--c); }

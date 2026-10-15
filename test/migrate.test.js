@@ -18,7 +18,7 @@ test('a version 1 database is upgraded through every migration in place and keep
   old.close();
 
   const db = openDb(path);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 24);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 25);
   const row = db.prepare("SELECT * FROM users WHERE username = 'old'").get();
   assert.equal(row.profile, '{}');
   assert.equal(row.banner, null);
@@ -47,7 +47,7 @@ test('upgrading to v24 keeps every text, read marker and contact when the phone 
   old.close();
 
   const db = openDb(path);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 24);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 25);
   assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
   assert.deepEqual(db.prepare('SELECT thread_id, body, reply_to, kind FROM phone_messages ORDER BY id').all().map((r) => ({ ...r })),
     [{ thread_id: 1, body: 'hi', reply_to: null, kind: 'text' }, { thread_id: 1, body: 'hey', reply_to: 1, kind: 'text' }, { thread_id: 2, body: 'yo', reply_to: null, kind: 'text' }]);

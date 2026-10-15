@@ -4,6 +4,7 @@
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost, timeAgo, applyColors, gradAttr, userGrad, uploadImage, askImageLink, logoMark } from '../lib.js';
 import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, kindIcon, previousHash } from '../main.js';
 import { socialCard, bindSocial, openSocialComposer, styleBars, handleOf, nameBadge, agoShort } from './social.js';
+import { mountStoryStrip } from './stories.js';
 
 const ONE = { thread: 'Episode', para: 'Self para', event: 'Event', comms: 'Comms', ooc: 'OOC' };
 // The social feed comes first; episodes and the rest are a tap away.
@@ -243,11 +244,8 @@ export async function viewNu(tagStr = null) {
     ensureAlive(alive);
     social.clear(); conns.clear();
     for (const it of items) { if (it.type === 'social') social.set(it.id, it); if (it.type === 'connection') conns.set(it.id, it); }
-    // Story bubbles: the characters who posted most recently.
-    const seen = new Map();
-    for (const it of items) if (it.type === 'social' && !seen.has(it.character.id)) seen.set(it.character.id, it.character);
-    render($('#nu-stories', body), seen.size ? html`${[...seen.values()].slice(0, 14).map((c) => html`
-      <a class="nu-story" href="#/c/${c.id}"><span class="ring">${avatar({ name: c.name, src: c.avatar, color: c.color })}</span><small>${c.handle || c.name}</small></a>`)}` : '');
+    // Stories: everyone with one up right now (tap to watch), and yours first.
+    mountStoryStrip($('#nu-stories', body)).catch(() => {});
     // Birthdays today: a post from NUUVI Official, pinned to the top for the whole day.
     birthdays ??= (await api('/api/birthdays').catch(() => ({ birthdays: [] }))).birthdays;
     const now = new Date();
