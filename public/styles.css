@@ -3203,3 +3203,8 @@ button.ig-avatar.own:hover .ig-cam, button.ig-banner.own:hover .ig-cam { opacity
   body:not(.guest)::after { height: var(--sab); }
 }
 :root.kb-up { --sab: 0px; }
+
+/* NV-45: <hl> highlight: a soft rounded chip in the character's own color; the words keep their color. */
+mark.fx-chip { color: inherit; background: color-mix(in srgb, var(--c, var(--accent)) 26%, transparent);
+  padding: .06em .42em; border-radius: 7px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+[data-grad] mark.fx-chip { background: color-mix(in srgb, var(--g1, var(--c, var(--accent))) 26%, transparent); }

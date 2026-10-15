@@ -235,6 +235,8 @@ function inlineFormat(s) {
       return k ? `<span class="fx-font-${k}">${text}</span>` : text;
     })
     .replace(/\[caps\]([\s\S]*?)\[\/caps\]/gi, '<span class="fx-caps">$1</span>')
+    // <hl> / [hl]: a soft highlight around the words in the character's own color; the text keeps its color.
+    .replace(/\[hl\]([\s\S]*?)\[\/hl\]/gi, '<mark class="fx-chip">$1</mark>')
     .replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, '<span class="spoiler" tabindex="0">$1</span>')
     .replace(/\[sup\]([\s\S]*?)\[\/sup\]/gi, '<sup>$1</sup>')
     .replace(/\[sub\]([\s\S]*?)\[\/sub\]/gi, '<sub>$1</sub>')
@@ -265,8 +267,14 @@ function keepSpaces(run) {
   if (nl || run === ' ') return `${nl}\u00a0${'\u00a0'.repeat(spaces.length - 1)}`;
   return ` ${'\u00a0'.repeat(spaces.length - 1)}`;
 }
-// An AKA line: **double stars** in the character's color, and spaces kept as typed.
-export const akaHtml = (aka) => esc(aka).replace(/\*\*(.+?)\*\*/g, '<b class="accent">$1</b>').replace(/[ \t]{2,}|^ /g, keepSpaces);
+// An AKA line: **double stars** (or <b>) in the character's color, <i> <u> <s> and <hl> highlights, and spaces kept as typed.
+export const akaHtml = (aka) => esc(aka)
+  .replace(/\*\*(.+?)\*\*|&lt;(?:b|strong)&gt;(.+?)&lt;\/(?:b|strong)&gt;/gi, (m, a, b) => `<b class="accent">${a ?? b}</b>`)
+  .replace(/&lt;(i|em)&gt;(.+?)&lt;\/\1&gt;/gi, '<i>$2</i>')
+  .replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/gi, '<u>$1</u>')
+  .replace(/&lt;(s|strike)&gt;(.+?)&lt;\/\1&gt;/gi, '<s>$2</s>')
+  .replace(/&lt;hl&gt;(.+?)&lt;\/hl&gt;|\[hl\](.+?)\[\/hl\]/gi, (m, a, b) => `<mark class="fx-chip">${a ?? b}</mark>`)
+  .replace(/[ \t]{2,}|^ /g, keepSpaces);
 
 // Discord-style line codes inside a paragraph: headings, small print, quotes and lists.
 function lineBlocks(para) {
@@ -394,6 +402,7 @@ function htmlCodes(s) {
   pair('small', (t, a, inner) => `[size=small]${inner}[/size]`);
   pair('big', (t, a, inner) => `[size=big]${inner}[/size]`);
   pair('mark', (t, a, inner) => `[highlight=#fff3a3]${inner}[/highlight]`);
+  pair('hl', (t, a, inner) => `[hl]${inner}[/hl]`);
   pair('code', (t, a, inner) => `\`${inner}\``);
   pair('blockquote', (t, a, inner) => `[quote]${inner}[/quote]`);
   pair('h1|h2|h3|h4|h5|h6', (t, a, inner) => `\n${'#'.repeat(Math.min(3, Number(t[1])))} ${inner.replace(/\n/g, ' ')}\n`);
@@ -715,14 +724,14 @@ export const FORMAT_GUIDE = [
   ['<center>Centered text</center>', 'centered'], ['<div align="right">Right side</div>', 'right (or left)'],
   ['<b>bold</b> <i>italic</i> <u>underline</u>', 'the basics'], ['<s>struck</s>', 'strikethrough'],
   ['<span style="color: #EE719E">pink words</span>', 'any color'], ['<font color="#C79AD8">purple</font>', 'old-school color'],
-  ['<mark>highlighted</mark>', 'highlighted'], ['<small>small print</small>', 'smaller text'], ['<br>', 'a line break'], ['<hr>', 'a divider line'],
+  ['<hl>highlighted</hl>', 'highlight in your character’s color (the words keep their color)'], ['<mark>highlighted</mark>', 'yellow marker'], ['<small>small print</small>', 'smaller text'], ['<br>', 'a line break'], ['<hr>', 'a divider line'],
   ['<h1>Title</h1>', 'a heading (h2, h3 smaller)'], ['<blockquote>Quote</blockquote>', 'a quote block'],
   ['<a href="https://…">link</a>', 'a link'], ['<img src="https://…/pic.gif">', 'a picture or GIF'],
   ['Forum (Jcink) style', null],
   ['[center]…[/center]', 'centered (can hold paragraphs); also [left] [right]'], ['[indent]…[/indent]', 'indented'],
   ['[box]…[/box]', 'a box in your character’s color'], ['[quote=Name]…[/quote]', 'a quote block, with who said it'],
   ['[list][*]one[*]two[/list]', 'bullet list ([list=1] for numbers)'], ['[h]Heading[/h]', 'a big heading'], ['[hr]', 'a divider line (on its own line)'],
-  ['[color=#ff7aa2]…[/color]', 'any color, as a #hex code or a name like red'], ['[highlight=yellow]…[/highlight]', 'highlighted, like a marker'],
+  ['[color=#ff7aa2]…[/color]', 'any color, as a #hex code or a name like red'], ['[hl]…[/hl]', 'highlight in your character’s color'], ['[highlight=yellow]…[/highlight]', 'highlighted, like a marker'],
   ['[size=small]…[/size]', 'small, big or huge (or 1–7)'], ['[font=Verdana]…[/font]', 'Arial, Verdana, Trebuchet, Rounded, Mono, Impact or Comic Sans'],
   ['[caps]…[/caps]', 'ALL CAPS'], ['[spoiler]…[/spoiler]', 'hidden until tapped'], ['[img]https://…[/img]', 'a picture or GIF from a link'],
   ['Ready-made layouts', null],

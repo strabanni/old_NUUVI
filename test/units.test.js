@@ -71,3 +71,14 @@ test('extra spaces are kept as typed, in posts and AKA lines', async () => {
   assert.match(f('a [url=https://example.com]link  text[/url]'), /href="https:\/\/example\.com"/);
   assert.equal(akaHtml('genius  ..  **oh little miss**'), 'genius  ..  <b class="accent">oh little miss</b>');
 });
+
+test('<b> and <hl> work in posts and AKA lines', async () => {
+  const { formatPost, akaHtml } = await import('../public/js/lib.js');
+  const f = (s) => String(formatPost(s).v ?? formatPost(s));
+  assert.match(f('He <b>hated</b> it'), /<strong>hated<\/strong>/);
+  assert.match(f('The <hl>hollow</hl> of his eye'), /<mark class="fx-chip">hollow<\/mark>/);
+  assert.match(f('[hl]soft[/hl]'), /<mark class="fx-chip">soft<\/mark>/);
+  assert.doesNotMatch(f('<hl onclick="x">a</hl>'), /onclick/);
+  assert.equal(akaHtml('<b>genius</b> <hl>by rayvn</hl>'), '<b class="accent">genius</b> <mark class="fx-chip">by rayvn</mark>');
+  assert.doesNotMatch(akaHtml('<script>x</script>'), /<script>/);
+});

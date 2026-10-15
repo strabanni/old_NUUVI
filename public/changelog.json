@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-45",
+    "date": "2026-10-15",
+    "title": "<hl> highlights & HTML in AKA lines",
+    "items": [
+      "New: <hl>words</hl> puts a soft rounded highlight in your character's color around the words, without changing their color. Works in posts, texts, captions and AKA lines ([hl]…[/hl] works too).",
+      "AKA lines now understand <b>, <i>, <u>, <s> and <hl> as well as **double stars**.",
+      "Both are in the Formatting codes list, ready to copy."
+    ]
+  },
+  {
     "code": "NV-44",
     "date": "2026-10-15",
     "title": "Text box lower on phones",
