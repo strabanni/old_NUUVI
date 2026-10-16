@@ -6,6 +6,23 @@ import { toCharacter, requireUser, isBlocked, uploadRef, requirePlayable } from 
 import { plainText } from '../text.js';
 
 const MAX_TEXT = 20000;
+// A text's or call's time, set by the writer (ISO text from the browser), stored as UTC.
+function whenInput(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime()) || d.getFullYear() < 1900 || d.getFullYear() > 2200) fail(400, "That date doesn't look right");
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+}
+// A call: answered or missed, voice or FaceTime, and how long it lasted (seconds).
+function callInput(body) {
+  const answered = body.answered === true;
+  const video = body.video === true;
+  const secs = Math.round(Number(body.duration) || 0);
+  if (answered && (!Number.isFinite(secs) || secs < 0 || secs > 24 * 3600)) fail(400, 'The call can last up to 24 hours');
+  return { answered, video, duration: answered ? secs : 0 };
+}
+const readCall = (body) => { try { const c = JSON.parse(body || '{}'); return { answered: !!c.answered, video: !!c.video, duration: Number(c.duration) || 0 }; } catch { return { answered: false, video: false, duration: 0 }; } };
+const callLength = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} hr ${Math.round((s % 3600) / 60)} min` : s >= 60 ? `${Math.round(s / 60)} min` : `${s} sec`);
 const MAX_GROUP = 32;
 // Tapbacks: the six classic ones, or any single emoji from the picker.
 const isEmoji = (s) => typeof s === 'string' && s.length > 0 && s.length <= 16 && /\p{Extended_Pictographic}/u.test(s) && !/[\p{L}\p{N}\s<>]/u.test(s);
@@ -54,14 +71,20 @@ export function phoneRoutes(r, ctx) {
     return {
       id: m.id, threadId: m.thread_id, characterId: m.character_id, userId: m.user_id, body: m.body, kind: m.kind || 'text',
       media: JSON.parse(m.media), createdAt: m.created_at, editedAt: m.edited_at, reactions: reactionsFor(m.id),
+      call: m.kind === 'call' ? readCall(m.body) : null,
       replyTo: reply ? { id: reply.id, characterId: reply.character_id, text: plainText(reply.body), hasMedia: reply.media !== '[]' } : null,
     };
   }
-  const lastText = (m) => (m.kind === 'call' ? '📞 Call' : plainText(m.body, 90) || (m.media !== '[]' ? 'Photo' : ''));
+  const lastText = (m) => {
+    if (m.kind !== 'call') return plainText(m.body, 90) || (m.media !== '[]' ? 'Photo' : '');
+    const c = readCall(m.body);
+    const what = c.video ? 'FaceTime' : 'Call';
+    return c.answered ? `${what} · ${callLength(c.duration)}` : `Missed ${c.video ? 'FaceTime' : 'call'}`;
+  };
 
   function summary(t, meId, others = null) {
     const rest = others ?? members(t.id).filter((c) => c.id !== meId);
-    const last = db.prepare('SELECT * FROM phone_messages WHERE thread_id = ? ORDER BY id DESC LIMIT 1').get(t.id);
+    const last = db.prepare('SELECT * FROM phone_messages WHERE thread_id = ? ORDER BY created_at DESC, id DESC LIMIT 1').get(t.id);
     const read = db.prepare('SELECT last_read_id FROM phone_reads WHERE character_id = ? AND thread_id = ?').get(meId, t.id)?.last_read_id ?? 0;
     const sender = last && last.character_id !== meId && t.is_group ? rest.find((c) => c.id === last.character_id) : null;
     const base = {
@@ -245,9 +268,10 @@ export function phoneRoutes(r, ctx) {
     }
   }
 
-  function addMessage(t, me, user, { text = '', media = [], replyTo = null, kind = 'text' }) {
-    const { lastInsertRowid } = db.prepare(`INSERT INTO phone_messages (thread_id, character_id, user_id, body, media, reply_to, kind)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`).run(t.id, me.id, user.id, text, JSON.stringify(media), replyTo, kind);
+  // `at` is the time the writer set (or null: now in Ardell City).
+  function addMessage(t, me, user, { text = '', media = [], replyTo = null, kind = 'text', at = null }) {
+    const { lastInsertRowid } = db.prepare(`INSERT INTO phone_messages (thread_id, character_id, user_id, body, media, reply_to, kind, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`).run(t.id, me.id, user.id, text, JSON.stringify(media), replyTo, kind, at ?? ctx.storyNow());
     db.prepare("UPDATE phone_threads SET last_at = datetime('now') WHERE id = ?").run(t.id);
     db.prepare(`INSERT INTO phone_reads (character_id, thread_id, last_read_id) VALUES (?, ?, ?)
       ON CONFLICT(character_id, thread_id) DO UPDATE SET last_read_id = excluded.last_read_id`).run(me.id, t.id, lastInsertRowid);
@@ -268,7 +292,7 @@ export function phoneRoutes(r, ctx) {
     if (body.replyTo != null) {
       replyTo = db.prepare('SELECT id FROM phone_messages WHERE id = ? AND thread_id = ?').get(Number(body.replyTo), t.id)?.id ?? fail(400, 'That message is gone');
     }
-    const message = addMessage(t, me, user, { text, media, replyTo });
+    const message = addMessage(t, me, user, { text, media, replyTo, at: whenInput(body.at) });
     notifyOthers(t, me, others.filter((c) => !blockedEitherWay(user.id, c.user_id)), user, 'dm', plainText(text, 140) || 'sent a photo');
     return { status: 201, data: { message } };
   });
@@ -279,8 +303,10 @@ export function phoneRoutes(r, ctx) {
     const { t, me, others, other } = threadFor(params.id, user, body.as);
     requirePlayable(me);
     if (other && blockedEitherWay(user.id, other.user_id)) fail(403, "You can't call this character");
-    const message = addMessage(t, me, user, { kind: 'call' });
-    notifyOthers(t, me, others.filter((c) => !blockedEitherWay(user.id, c.user_id)), user, 'call', '');
+    const call = callInput(body);
+    const message = addMessage(t, me, user, { kind: 'call', text: JSON.stringify(call), at: whenInput(body.at) });
+    // Only a call nobody picked up shows as a missed call for the others.
+    if (!call.answered) notifyOthers(t, me, others.filter((c) => !blockedEitherWay(user.id, c.user_id)), user, 'call', call.video ? 'facetime' : '');
     return { status: 201, data: { message } };
   });
 

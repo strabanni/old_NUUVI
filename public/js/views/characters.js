@@ -87,6 +87,7 @@ function characterForm(c = {}) {
         </div>
         <p class="hint">Deceased or missing characters stay on NUUVI with everything they've written, but they're no longer playable: no new posts, comments, likes, follows or texts as them. They don't become NPCs. Switch back to Playable any time (for a flashback, or a comeback).</p>
       </fieldset>` : ''}
+      <label class="check"><input type="checkbox" name="private" ${c.private ? 'checked' : ''}> Private account <span class="muted small">(only followers see their posts and stories; others have to ask to follow)</span></label>
       <label class="check"><input type="checkbox" name="brand" ${c.brand ? 'checked' : ''}> This is a brand account <span class="muted small">(a shop, label, café, magazine… gets a Brand badge and shows under Directory → Brands)</span></label>
       <fieldset class="npc-box">
         <label class="check"><input type="checkbox" name="npc" ${c.npc ? 'checked' : ''}> This is an NPC <span class="muted small">(gets an NPC badge)</span></label>
@@ -217,6 +218,7 @@ export function editCharacter(c = {}) {
       data.verified = !!form.verified.checked;
       data.npc = !!form.npc.checked;
       data.brand = !!form.brand.checked;
+      data.private = !!form.private.checked;
       data.gradient = form.useGradient.checked ? $$('[data-stop]', form).filter((x) => x.dataset.stop !== '2' || form.querySelector('#g-three').checked).map((x) => x.value) : '';
       if (data.gradient) data.color = data.gradient[0];
       delete data.useGradient;
@@ -262,7 +264,7 @@ export function viewCharacters() {
 // Instagram-style profile: header (picture, counts, what the owner wrote), then Posts / Threads / About tabs.
 export async function viewCharacter(id) {
   const alive = routeAlive();
-  const [{ character: c, stats, threads, followedBy }, mine, { posts }, storyGroups] = await Promise.all([
+  const [{ character: c, stats, threads, followedBy, requested = [], locked = false, requestCount = 0 }, mine, { posts }, storyGroups] = await Promise.all([
     api(`/api/characters/${id}`),
     state.user ? myCharacters() : [],
     api(`/api/social?character=${id}`),
@@ -299,14 +301,15 @@ export async function viewCharacter(id) {
         </header>
         ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
         <div class="ig-id">
-          <h1 class="ig-name">${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(c)}</h1>
+          <h1 class="ig-name">${c.private ? html`<span class="ig-lock" title="Private account" aria-label="Private account">${icons.lock}</span>` : ''}${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(c)}</h1>
           ${c.tagline ? html`<p class="ig-tagline">${c.tagline}</p>` : ''}
           ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
         </div>
         <div class="ig-actions">
           ${own ? html`<button id="edit">Edit profile</button>${c.status ? '' : html`<button class="primary" id="new-post">${icons.plus} New post</button>`}
-              ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}`
-            : html`<button class="${following ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>
+              ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}
+              ${c.private ? html`<button id="follow-requests">${icons.users} Requests${requestCount ? html` <span class="badge">${requestCount}</span>` : ''}</button>` : ''}`
+            : html`<button class="${following || requested.length ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : requested.length ? html`${icons.hourglass} Requested` : html`${icons.userAdd} Follow`}</button>
               <button id="start-thread">${icons.episode} Start an episode</button>`}
         </div>
         <nav class="ig-tabs" role="tablist">
@@ -333,7 +336,10 @@ export async function viewCharacter(id) {
     </a>`;
   const draw = () => {
     $$('[data-tab]', body).forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-    if (tab === 'posts') {
+    if (tab === 'posts' && locked) {
+      // A private account you don't follow (yet).
+      render(pane, html`<div class="empty ig-private">${icons.lock}<p><b>This account is private</b></p><p class="small muted">${requested.length ? 'Your follow request is waiting for an answer.' : `Follow ${c.name} to see their posts and stories.`}</p></div>`);
+    } else if (tab === 'posts') {
       render(pane, posts.length ? html`<div class="ig-grid">${posts.map(thumb)}</div>`
         : html`<div class="empty"><p>No posts yet.</p>${own && !c.status ? html`<p><button class="primary" id="first-post">Make ${c.name}'s first post</button></p>` : ''}</div>`);
       $('#first-post', pane)?.addEventListener('click', newPost);
@@ -409,19 +415,44 @@ export async function viewCharacter(id) {
     c.owner && { label: `View ${c.owner.displayName}'s profile`, action: () => { location.hash = `#/u/${c.owner.id}`; } },
     own && { label: 'Edit character', action: () => $('#edit', body).click() },
   ]));
+  // Your private character: who's asked to follow, to approve or decline.
+  $('#follow-requests', body)?.addEventListener('click', async () => {
+    const { requests } = await api(`/api/characters/${c.id}/requests`);
+    await modal(html`<div class="follow-reqs">
+      <h2>Follow requests</h2>
+      <p class="hint">${c.name}'s account is private: only followers see their posts and stories.</p>
+      <div class="pc-list" id="fr-list">${requests.length ? requests.map((r) => html`
+        <div class="pc-item" data-req="${r.id}">${avatar({ name: r.name, src: r.avatar, color: r.color, size: 'sm' })}<span class="grow"><b>${r.name}</b><small>@${r.handle}</small></span>
+          <button type="button" class="sm primary" data-fr="approve">Approve</button><button type="button" class="sm" data-fr="decline">Decline</button></div>`)
+        : html`<p class="muted small">No requests right now.</p>`}</div>
+      <div class="actions end"><button type="button" data-close>Done</button></div></div>`, {
+      init: (d) => d.addEventListener('click', async (e) => {
+        const b = e.target.closest('[data-fr]');
+        if (!b) return;
+        const row = b.closest('[data-req]');
+        try {
+          await api(`/api/characters/${c.id}/requests/${row.dataset.req}`, { method: 'POST', body: { approve: b.dataset.fr === 'approve' } });
+          render(row, html`<span class="grow muted small">${b.dataset.fr === 'approve' ? 'Approved' : 'Declined'}</span>`);
+        } catch (err) { toast(err.message); }
+      }),
+    });
+    reload();
+  });
   $('#follow', body)?.addEventListener('click', (e) => {
     if (!followable.length) return toast('Create a character first. Characters follow characters');
     const act = async (me) => {
-      const on = followedBy.includes(me.id);
+      // Following, or a request still waiting: tap again to undo.
+      const on = followedBy.includes(me.id) || requested.includes(me.id);
       try {
-        await api(`/api/characters/${c.id}/${on ? 'unfollow' : 'follow'}`, { method: 'POST', body: { asCharacterId: me.id } });
-        toast(on ? `${me.name} unfollowed ${c.name}` : `${me.name} now follows ${c.name}`);
+        const res = await api(`/api/characters/${c.id}/${on ? 'unfollow' : 'follow'}`, { method: 'POST', body: { asCharacterId: me.id } });
+        toast(on ? (followedBy.includes(me.id) ? `${me.name} unfollowed ${c.name}` : 'Follow request cancelled')
+          : res.requested ? `Follow request sent. ${c.name}'s writer will approve or decline it` : `${me.name} now follows ${c.name}`);
         reload();
       } catch (err) { toast(err.message); }
     };
     if (followable.length === 1) return act(followable[0]);
     menu(e.currentTarget, followable.map((me) => ({
-      label: followedBy.includes(me.id) ? `✓ ${me.name} follows (unfollow)` : `Follow as ${me.name}`,
+      label: followedBy.includes(me.id) ? `✓ ${me.name} follows (unfollow)` : requested.includes(me.id) ? `${me.name}: requested (cancel)` : `Follow as ${me.name}`,
       action: () => act(me),
     })));
   });

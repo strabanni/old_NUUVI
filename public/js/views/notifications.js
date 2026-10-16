@@ -19,7 +19,8 @@ function describe(n) {
       if (n.count > 1) return n.group ? html`${n.count} new texts for ${to}${where}` : html`${from} sent ${n.count} texts to ${to}`;
       return html`${from} texted ${to}${where}`;
     }
-    case 'call': return html`<strong>${n.to?.name ?? 'You'}</strong> missed a ${n.group ? 'group ' : ''}call from <strong>${n.from?.name ?? 'someone'}</strong>${n.group?.title ? html` in <strong>${n.group.title}</strong>` : ''}`;
+    case 'followreq': return html`<strong>${n.from?.name ?? 'Someone'}</strong> asked to follow your character. Tap to approve or decline.`;
+    case 'call': return html`<strong>${n.to?.name ?? 'You'}</strong> missed a ${n.group ? 'group ' : ''}${n.text === 'facetime' ? 'FaceTime' : 'call'} from <strong>${n.from?.name ?? 'someone'}</strong>${n.group?.title ? html` in <strong>${n.group.title}</strong>` : ''}`;
     default: return n.text;
   }
 }
@@ -28,9 +29,9 @@ function describe(n) {
 // your posts and characters, and system notices.
 const GROUPS = {
   all: () => true,
-  mentions: (n) => ['mention', 'reply', 'tag', 'socialtag', 'dm', 'call', 'message', 'turn'].includes(n.type),
+  mentions: (n) => ['mention', 'reply', 'tag', 'socialtag', 'dm', 'call', 'message', 'turn', 'followreq'].includes(n.type),
   activity: (n) => ['post', 'like', 'comment', 'follow'].includes(n.type),
-  system: (n) => ['report'].includes(n.type) || !['mention', 'reply', 'tag', 'socialtag', 'dm', 'call', 'message', 'turn', 'post', 'like', 'comment', 'follow'].includes(n.type),
+  system: (n) => ['report'].includes(n.type) || !['mention', 'reply', 'tag', 'socialtag', 'dm', 'call', 'message', 'turn', 'post', 'like', 'comment', 'follow', 'followreq'].includes(n.type),
 };
 const TAB_LABELS = [['all', 'All'], ['mentions', 'For you'], ['activity', 'Activity'], ['system', 'System']];
 // The picture of whoever did it: the character who texted, liked, commented or posted (with a
@@ -76,7 +77,7 @@ export async function viewNotifications() {
         <span class="notif-icon">${iconFor(n)}</span>
         <span class="grow">
           <span>${describe(n)}</span>
-          ${n.text && !['report', 'follow', 'tag', 'added'].includes(n.type) ? html`<span class="notif-text">${n.text}</span>` : ''}
+          ${n.text && !['report', 'follow', 'followreq', 'call', 'tag', 'added'].includes(n.type) ? html`<span class="notif-text">${n.text}</span>` : ''}
         </span>
         <span class="notif-when">${timeAgo(n.createdAt)}</span>
       </a>`)}</div>`

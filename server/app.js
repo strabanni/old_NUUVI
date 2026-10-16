@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { userForToken, parseCookies, sessionCookie, createRateLimiter, SESSION_COOKIE } from './auth.js';
 import { HttpError, fail, createRouter } from './http.js';
-import { toUser, toChannel, turnState, storyAccess, modLog } from './model.js';
+import { toUser, toChannel, turnState, storyAccess, modLog, requireAdmin } from './model.js';
 import { createPusher, loadVapidKeys } from './push.js';
 import { accountRoutes } from './routes/account.js';
 import { storyRoutes } from './routes/stories.js';
@@ -25,6 +25,7 @@ import { aiRoutes } from './routes/ai.js';
 import { placeRoutes } from './routes/places.js';
 import { planRoutes } from './routes/plans.js';
 import { socialStoryRoutes } from './routes/social-stories.js';
+import { readClock, writeClock, storyNowSql, publicClock } from './clock.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
 import { createBots } from './bots.js';
@@ -152,6 +153,9 @@ export function createApp({
     accountLimiter: createRateLimiter({ limit: Math.max(10, Math.round(authRateLimit / 2)), windowMs: 15 * 60 * 1000 }),
     pusher: createPusher({ db, vapid: loadVapidKeys(db), subject: vapidSubject, fetchImpl: pushFetch }),
     modLog: (actorId, action, detail) => modLog(db, actorId, action, detail),
+    clock: () => readClock(db),
+    // Now in Ardell City as SQLite text, or null when the city is on the real date.
+    storyNow: () => storyNowSql(readClock(db)),
   };
 
   ctx.userStats = (userId) => db.prepare(`SELECT
@@ -191,7 +195,7 @@ export function createApp({
     group: row.pt_group ? { title: row.pt_title || '' } : null,
     url: row.type === 'report' ? '#/admin' : row.type === 'dm' || row.type === 'call' ? phoneUrl(row) : row.social_id ? `#/p/${row.social_id}`
       : row.type === 'message' ? `#/messages/${row.actor_id}` : row.type === 'connection' ? '#/nu'
-      : row.type === 'follow' && row.character_id ? `#/c/${row.character_id}`
+      : (row.type === 'follow' || row.type === 'followreq') && row.character_id ? `#/c/${row.character_id}`
       : row.type === 'added' && row.story_id ? `#/s/${row.story_id}`
       : row.story_id && row.channel_id ? `#/s/${row.story_id}/${row.channel_id}` : '#/notifications',
   });
@@ -236,7 +240,8 @@ export function createApp({
       socialtag: () => ({ title: 'Tagged on THE NU', body: text }),
       tag: () => ({ title: `${n.actor?.displayName} tagged you in a thread`, body: `${where} · ${n.story?.title}` }),
       dm: () => ({ title: ctx.textTitle(n), body: text }),
-      call: () => ({ title: `${n.to?.name ?? 'You'} missed a call`, body: `📞 ${n.from?.name ?? 'Someone'} called${n.group ? ` ${n.group.title || 'the group'}` : ''}` }),
+      call: () => ({ title: `${n.to?.name ?? 'You'} missed a ${text === 'facetime' ? 'FaceTime' : 'call'}`, body: `${n.from?.name ?? 'Someone'} called${n.group ? ` ${n.group.title || 'the group'}` : ''}` }),
+      followreq: () => ({ title: 'Follow request', body: text }),
       reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),
       message: () => ({ title: n.count > 1 ? `${n.count} messages from ${n.actor?.displayName}` : `Message from ${n.actor?.displayName}`, body: text }),
       connection: () => ({ title: 'Connection picked up', body: text }),
@@ -336,6 +341,16 @@ export function createApp({
   placeRoutes(router, ctx);
   planRoutes(router, ctx);
   socialStoryRoutes(router, ctx);
+
+  // The date in Ardell City (see clock.js): everyone can read it, admins set it.
+  router.get('/api/clock', () => ({ data: { clock: publicClock(ctx.clock()) } }));
+  router.put('/api/admin/clock', ({ user, body }) => {
+    requireAdmin(user);
+    let clock;
+    try { clock = writeClock(db, body || {}); } catch (err) { fail(err.status || 400, err.message); }
+    ctx.modLog(user.id, 'set-clock', clock.mode === 'real' ? 'real date' : `${clock.mode} ${clock.date}${clock.mode === 'timer' ? `, +1 day every ${clock.every} days` : ''}`);
+    return { data: { clock: publicClock(clock) } };
+  });
 
   // ---------- Live updates ----------
   function handleEvents(req, res, user, query) {

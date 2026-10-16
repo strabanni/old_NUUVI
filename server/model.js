@@ -28,7 +28,7 @@ export function toCharacter(r) {
     handle: r.handle ?? null, npc: !!r.npc, bot: r.bot ?? null,
     gradient: r.gradient ? r.gradient.split(',') : null, npcTags: splitTags(r.npc_tags),
     pronouns: r.pronouns ?? null, threadAvatar: r.thread_avatar ?? null,
-    status: r.status ?? null, brand: !!r.brand,
+    status: r.status ?? null, brand: !!r.brand, private: !!r.private,
   };
 }
 
@@ -184,6 +184,16 @@ export function uploadRef(db, value, userId) {
     fail(400, 'Upload the image first');
   }
   return value;
+}
+
+// Private accounts: who may see a character's posts and stories. SQL for a character aliased `c`
+// (with :viewer bound), and the same check in code. Their own writer and followers can.
+export const CAN_SEE_ACCOUNT = `(COALESCE(c.private, 0) = 0 OR c.user_id = :viewer OR EXISTS (SELECT 1 FROM character_follows cf
+  JOIN characters fc ON fc.id = cf.follower_id WHERE cf.followed_id = c.id AND fc.user_id = :viewer))`;
+export function canSeeAccount(db, character, viewerId) {
+  if (!character?.private || character.user_id === viewerId) return true;
+  return !!db.prepare(`SELECT 1 FROM character_follows cf JOIN characters fc ON fc.id = cf.follower_id
+    WHERE cf.followed_id = ? AND fc.user_id = ?`).get(character.id, viewerId);
 }
 
 export function isBlocked(db, blockerId, blockedId) {

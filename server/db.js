@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 25;
+const SCHEMA_VERSION = 26;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -617,6 +617,16 @@ export const MIGRATIONS = [
      seen_at   TEXT NOT NULL DEFAULT (datetime('now')),
      PRIMARY KEY (story_id, user_id)
    );`,
+  // v26: private accounts. Only followers see a private character's posts and stories; following
+  // one sends a request that the character's writer approves or declines.
+  `ALTER TABLE characters ADD COLUMN private INTEGER NOT NULL DEFAULT 0;
+   CREATE TABLE character_follow_requests (
+     follower_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     followed_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (follower_id, followed_id)
+   );
+   CREATE INDEX character_follow_requests_followed_idx ON character_follow_requests(followed_id);`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

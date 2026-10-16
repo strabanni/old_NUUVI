@@ -2,7 +2,7 @@
 // colour, and it shows at the top of the feed for 24 hours. Each writer's "seen" is remembered so
 // the ring goes grey once they've watched everything.
 import { fail, str, id, oneOf } from '../http.js';
-import { toCharacter, requireUser, isBlocked, uploadRef, requirePlayable } from '../model.js';
+import { toCharacter, requireUser, isBlocked, uploadRef, requirePlayable, CAN_SEE_ACCOUNT } from '../model.js';
 
 const LIVE = "datetime('now', '-24 hours')";
 const COLOR = /^#[0-9a-f]{6}$/i;
@@ -22,11 +22,11 @@ export function socialStoryRoutes(r, ctx) {
   // haven't watched yet (newest first), then the ones you've seen.
   r.get('/api/social-stories', ({ user }) => {
     requireUser(user);
-    const rows = db.prepare(`SELECT s.* FROM social_stories s
-      WHERE s.created_at > ${LIVE}
+    const rows = db.prepare(`SELECT s.* FROM social_stories s JOIN characters c ON c.id = s.character_id
+      WHERE s.created_at > ${LIVE} AND ${CAN_SEE_ACCOUNT}
         AND s.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = :u)
         AND s.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = :u)
-      ORDER BY s.id`).all({ u: user.id });
+      ORDER BY s.id`).all({ u: user.id, viewer: user.id });
     const groups = new Map();
     for (const s of rows) {
       if (!groups.has(s.character_id)) groups.set(s.character_id, []);

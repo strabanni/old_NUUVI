@@ -1,8 +1,8 @@
 // Admin panel: reports, people, invites, stories, moderation log.
 import { html, render, api, $, $$, bindForm, toast, avatar, confirmModal, promptModal, modal, timeAgo, formatPost, icons, uploadBanner, askImageLink } from '../lib.js';
-import { state, page, refreshHome, copyText, routeAlive, ensureAlive, loadHeaders , replaceHash } from '../main.js';
+import { state, page, refreshHome, copyText, routeAlive, ensureAlive, loadHeaders , replaceHash, loadClock, storyNow } from '../main.js';
 
-const TABS = [['reports', 'Reports'], ['users', 'People'], ['invites', 'Invites'], ['stories', 'Stories'], ['log', 'Log'], ['npcs', 'NPCs & bots'], ['headers', 'Headers']];
+const TABS = [['reports', 'Reports'], ['date', 'City date'], ['users', 'People'], ['invites', 'Invites'], ['stories', 'Stories'], ['log', 'Log'], ['npcs', 'NPCs & bots'], ['headers', 'Headers']];
 
 export async function viewAdmin() {
   const alive = routeAlive();
@@ -27,10 +27,62 @@ export async function viewAdmin() {
     const fresh = pane.cloneNode(false);
     pane.replaceWith(fresh);
     pane = fresh;
-    await ({ reports, users, invites, stories, log, npcs, headers })[k](pane);
+    await ({ reports, date: cityDate, users, invites, stories, log, npcs, headers })[k](pane);
   };
   $$('[data-tab]', body).forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   await show(tab);
+}
+
+// The date in Ardell City: the real date, a date you pick, or a date that moves on by itself (one
+// city day every N real days). Times of day always follow the real clock.
+const localDay = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+async function cityDate(pane) {
+  const c = await loadClock();
+  const pretty = (d) => d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const draw = (clock) => render(pane, html`
+    <section class="card">
+      <h3>Date in Ardell City</h3>
+      <p class="clock-now">Today in Ardell City: <b>${pretty(storyNow())}</b></p>
+      <form id="clock-form" class="stack">
+        <div class="post-cat clock-modes" role="radiogroup" aria-label="How the date works">
+          ${[['real', 'Real date'], ['fixed', 'Set a date'], ['timer', 'Set a date + timer']].map(([k, l]) => html`
+            <label><input type="radio" name="mode" value="${k}" ${clock.mode === k ? 'checked' : ''}><span>${l}</span></label>`)}
+        </div>
+        <div id="clock-date-row" ${clock.mode === 'real' ? 'hidden' : ''}>
+          <label for="clock-date">${clock.mode === 'timer' ? 'Start date' : 'Date'}</label>
+          <input id="clock-date" name="date" type="date" value="${clock.mode === 'real' ? localDay(storyNow()) : clock.today}">
+        </div>
+        <div id="clock-every-row" ${clock.mode === 'timer' ? '' : 'hidden'}>
+          <label for="clock-every">Move on one day every</label>
+          <div class="row-inline"><input id="clock-every" name="every" type="number" min="1" max="365" value="${clock.every || 2}"> <span>real days</span></div>
+        </div>
+        <p class="hint">Real date: Ardell City follows today's date. Set a date: the city stays on that date until you change it. Set a date + timer: the city starts on that date and moves on by one day every few real days (for example every 2 days).</p>
+        <p class="hint">The calendar, Home, birthdays, the weather, and the starting date for new posts, comments and texts all use this date. Posts already made keep their dates.</p>
+        <div class="error"></div>
+        <div class="actions"><button type="submit" class="primary">Save</button></div>
+      </form>
+    </section>`);
+  draw(c);
+  pane.addEventListener('change', (e) => {
+    if (e.target.name !== 'mode') return;
+    const mode = e.target.value;
+    $('#clock-date-row', pane).hidden = mode === 'real';
+    $('#clock-every-row', pane).hidden = mode !== 'timer';
+    $('#clock-date-row label', pane).textContent = mode === 'timer' ? 'Start date' : 'Date';
+  });
+  pane.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const err = $('.error', f);
+    err.textContent = '';
+    try {
+      await api('/api/admin/clock', { method: 'PUT', body: { mode: f.mode.value, date: f.date.value, every: Number(f.every.value) } });
+      const fresh = await loadClock();
+      await refreshHome();
+      draw(fresh);
+      toast('City date saved');
+    } catch (x) { err.textContent = x.message; }
+  });
 }
 
 async function reports(pane, status = 'open') {

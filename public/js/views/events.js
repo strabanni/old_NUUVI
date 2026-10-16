@@ -2,7 +2,7 @@
 // and an event's own page listing every thread and comms that's part of it.
 import { html, render, api, $, $$, toast, icons, modal, confirmModal, uploadImage, askImageLink, applyColors, menu, avatar } from '../lib.js';
 import { loadPlans, plansOn, planTime, kindIcon, whoOf, openPlanForm, showPlan } from './plans.js';
-import { state, page, routeAlive, ensureAlive, loadStory } from '../main.js';
+import { state, page, routeAlive, ensureAlive, loadStory, storyNow, storyToday } from '../main.js';
 import { feedCard, masonry, avatarStack, openThreadForm } from './threads.js';
 
 const fmtDay = (d) => d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -108,7 +108,7 @@ export async function viewEvents() {
   let plans = plansAll;
   ensureAlive(alive);
   let layout = sessionStorage.getItem('nuuvi:events-layout') || 'cards';
-  let month = (() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); })();
+  let month = (() => { const now = storyNow(); return new Date(now.getFullYear(), now.getMonth(), 1); })();
   const body = page({
     alive,
     title: 'Events',
@@ -138,7 +138,7 @@ export async function viewEvents() {
   };
   // Character plans in the next two weeks, day by day (repeating ones each time they come round).
   const planWeeks = () => {
-    const days = Array.from({ length: 14 }, (_, i) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i); return d; })
+    const days = Array.from({ length: 14 }, (_, i) => { const d = storyToday(); d.setDate(d.getDate() + i); return d; })
       .map((d) => [d, plansOn(plans, d)]).filter(([, l]) => l.length);
     return html`<h2 class="section-title">Character plans <small class="muted">next 2 weeks</small></h2>
       ${days.length ? html`<div class="plan-days">${days.map(([d, list]) => html`
@@ -168,7 +168,7 @@ export async function viewEvents() {
     for (let i = 0; i < startDay; i++) cells.push(null);
     for (let d = 1; d <= days; d++) cells.push(d);
     while (cells.length % 7) cells.push(null);
-    const today = new Date();
+    const today = storyNow();
     // An event shows on every day it runs.
     const onDay = (d) => events.filter((e) => {
       const day = new Date(first.getFullYear(), first.getMonth(), d);

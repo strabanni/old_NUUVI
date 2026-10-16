@@ -2,7 +2,7 @@
 // The home is a soft gradient header, a contact strip and a chat list; conversations look like
 // iMessage: blue and gray bubbles with tails, tapbacks, an emoji picker, calls and "Read".
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, promptModal, formatPost, uploadImage, askImageLink, plainText, applyColors, store, attachSheet, jumpToLatest } from '../lib.js';
-import { state, page, myCharacters, routeAlive, ensureAlive, onLeave, bus, loadStory, replaceHash, previousHash } from '../main.js';
+import { state, page, myCharacters, routeAlive, ensureAlive, onLeave, bus, loadStory, replaceHash, previousHash, storyNow } from '../main.js';
 
 const lastKey = 'nuuvi:phone';
 export const TAPBACKS = ['❤️', '👍', '👎', '😂', '‼️', '❓'];
@@ -199,7 +199,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
           <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="${phoneBase()}/${me.id}/t/${t.id}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
             <span class="ph-row-av">${t.group ? groupAvatar(t) : avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color })}</span>
             <span class="grow"><b>${t.name}</b><small>${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'No messages yet'}</small></span>
-            <span class="ph-meta">${t.lastAt ? html`<small>${shortWhen(t.lastAt)}</small>` : ''}${t.unread ? html`<span class="badge">${t.unread}</span>` : ''}</span>
+            <span class="ph-meta">${t.last?.at || t.lastAt ? html`<small>${shortWhen(t.last?.at || t.lastAt)}</small>` : ''}${t.unread ? html`<span class="badge">${t.unread}</span>` : ''}</span>
           </a>`) : html`<div class="ph-empty"><p>No messages yet.</p><p class="small">Tap <b>Add</b> to save someone's number, then tap them to text.</p></div>`}
       </section>`);
     applyColors(root);
@@ -291,6 +291,10 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
 // your last text, and calls as a line in the middle. Hold (or double-tap) a bubble to react,
 // reply, copy or delete.
 const at = (sql) => new Date(`${sql.replace(' ', 'T')}Z`);
+const pad2 = (n) => String(n).padStart(2, '0');
+const localValue = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+const whenLabel = (d) => d.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+const callLength = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} hr ${Math.round((s % 3600) / 60)} min` : s >= 60 ? `${Math.round(s / 60)} min` : `${s} sec`);
 function stamp(d) {
   const today = new Date();
   const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -310,6 +314,7 @@ export async function viewPhoneThread(cidStr, tidStr) {
   const me = thread.me;
   const byId = new Map(messages.map((m) => [m.id, m]));
   let replying = null;
+  let sendAt = null; // a time set for the next text (null: now in Ardell City)
   let attached = [];
   let showEmoji = false;
   const people = () => new Map(thread.members.map((c) => [c.id, c]));
@@ -340,7 +345,8 @@ export async function viewPhoneThread(cidStr, tidStr) {
       <form class="chatbar ph-compose" id="ph-compose">
         <button type="button" class="chatbar-plus" id="ph-attach" aria-label="Add a photo">${icons.plus}</button>
         <span class="ph-field">
-          <input name="body" id="ph-input" autocomplete="off" enterkeyhint="send" placeholder="${thread.group ? 'iMessage' : 'Text Message'}" aria-label="Message">
+          <textarea name="body" id="ph-input" rows="1" autocomplete="off" placeholder="${thread.group ? 'iMessage' : 'Text Message'}" aria-label="Message"></textarea>
+          <button type="button" class="ph-emoji-btn ph-when-btn" id="ph-when" aria-label="Set the time it's sent" title="Set the time it's sent">${icons.hourglass}</button>
           <button type="button" class="ph-emoji-btn" id="ph-emoji" aria-label="Emoji" aria-pressed="false">☺︎</button>
           <button type="submit" class="chatbar-send" aria-label="Send">${icons.send}</button>
         </span>
@@ -354,6 +360,9 @@ export async function viewPhoneThread(cidStr, tidStr) {
   }
   const list = $('#ph-msgs', body);
   jumpToLatest(list);
+  // Phones: a conversation fills the whole screen (the side menu steps aside), like iMessage.
+  document.body.classList.add('ph-full');
+  onLeave(() => document.body.classList.remove('ph-full'));
   const form = $('#ph-compose', body);
   const input = $('#ph-input', body);
   const extra = $('#ph-extra', body);
@@ -367,7 +376,8 @@ export async function viewPhoneThread(cidStr, tidStr) {
   };
 
   function draw(stick = true) {
-    const sorted = [...byId.values()].sort((a, b) => a.id - b.id);
+    // In time order (texts can be given a time of their own), then in the order they were written.
+    const sorted = [...byId.values()].sort((a, b) => (at(a.createdAt) - at(b.createdAt)) || (a.id - b.id));
     const items = [];
     if (hasMore) items.push(html`<button type="button" class="ph-more" id="ph-more">Earlier messages</button>`);
     // "Read" goes under your last text (one-to-one only).
@@ -380,7 +390,12 @@ export async function viewPhoneThread(cidStr, tidStr) {
       if (gap) items.push(html`<div class="ph-stamp">${stamp(d)}</div>`);
       if (m.kind === 'call') {
         const mineCall = m.characterId === me.id;
-        items.push(html`<div class="ph-call-line" data-id="${m.id}">${icons.phone}<span>${mineCall ? html`You called ${thread.group ? 'the group' : thread.name}` : html`Missed call from <b>${nameOf(m.characterId)}</b>`}</span><time>${clock(m.createdAt)}</time></div>`);
+        const c = m.call || { answered: false, video: false, duration: 0 };
+        const what = c.video ? 'FaceTime' : 'call';
+        const who = mineCall ? html`You called ${thread.group ? 'the group' : thread.name}` : html`<b>${nameOf(m.characterId)}</b> called`;
+        items.push(html`<div class="ph-call-line ${c.answered ? 'answered' : 'missed'}" data-id="${m.id}">${c.video ? icons.video : icons.phone}<span>${c.answered
+          ? html`${who} · ${c.video ? 'FaceTime' : 'Voice call'}, ${callLength(c.duration)}`
+          : mineCall ? html`${who} · no answer` : html`Missed ${what} from <b>${nameOf(m.characterId)}</b>`}</span><time>${clock(m.createdAt)}</time></div>`);
         return;
       }
       const mine = m.characterId === me.id;
@@ -416,16 +431,22 @@ export async function viewPhoneThread(cidStr, tidStr) {
   markRead();
 
   function drawExtra() {
-    extra.hidden = !replying && !attached.length && !showEmoji;
+    extra.hidden = !replying && !attached.length && !showEmoji && !sendAt;
+    $('#ph-when', body).classList.toggle('on', !!sendAt);
     $('#ph-emoji', body).setAttribute('aria-pressed', String(showEmoji));
     render(extra, html`
       ${replying ? html`<div class="reply-bar">${icons.reply}<span>Replying to <b>${replying.characterId === me.id ? 'yourself' : nameOf(replying.characterId)}</b><small>${plainText(replying.body) || 'Photo'}</small></span>
         <button type="button" class="icon-btn sm" id="ph-unreply" aria-label="Cancel reply">✕</button></div>` : ''}
       ${attached.length ? html`<div class="attach-row">${attached.map((u, i) => html`<span class="thumb"><img src="${u}" alt=""><button type="button" data-unattach="${i}" aria-label="Remove">✕</button></span>`)}</div>` : ''}
+      ${sendAt ? html`<div class="reply-bar ph-when-bar">${icons.hourglass}<span>Sends as <b>${whenLabel(sendAt)}</b><small>Each text after this one moves on a minute.</small></span>
+        <button type="button" class="icon-btn sm" data-when-edit aria-label="Change the time">✎</button>
+        <button type="button" class="icon-btn sm" id="ph-unwhen" aria-label="Send at the current time">✕</button></div>` : ''}
       ${showEmoji ? html`<div class="ph-emoji-panel">${emojiGrid()}</div>` : ''}`);
   }
   extra.addEventListener('click', (e) => {
     if (e.target.closest('#ph-unreply')) { replying = null; drawExtra(); return; }
+    if (e.target.closest('#ph-unwhen')) { sendAt = null; drawExtra(); return; }
+    if (e.target.closest('[data-when-edit]')) { pickTime(); return; }
     const rm = e.target.closest('[data-unattach]');
     if (rm) { attached.splice(Number(rm.dataset.unattach), 1); drawExtra(); return; }
     const em = e.target.closest('[data-emoji]');
@@ -546,12 +567,7 @@ export async function viewPhoneThread(cidStr, tidStr) {
   const headEl = $('#ph-head', body);
   headEl.addEventListener('click', async (e) => {
     if (e.target.closest('#ph-call')) {
-      if (!(await confirmModal(`Call ${thread.name}? 📞 Calls are just for the story: the call shows in this chat and ${thread.group ? 'everyone gets' : 'they get'} a missed call.`, { ok: 'Call' }))) return;
-      try {
-        const { message } = await api(`/api/phone/threads/${thread.id}/call`, { method: 'POST', body: { as: me.id } });
-        byId.set(message.id, message);
-        draw();
-      } catch (err) { toast(err.message); }
+      placeCall();
       return;
     }
     if (e.target.closest('[data-ginfo]')) { e.preventDefault(); groupInfo(); return; }
@@ -627,26 +643,120 @@ export async function viewPhoneThread(cidStr, tidStr) {
     });
   }
 
-  let sending = false;
-  form.addEventListener('input', () => form.classList.toggle('has-text', !!input.value.trim()));
-  form.addEventListener('submit', async (e) => {
+  // The message box grows with what you write (up to about six lines), like iMessage.
+  function fitInput() {
+    input.style.setProperty('height', 'auto');
+    input.style.setProperty('height', `${Math.min(input.scrollHeight, 140)}px`);
+  }
+  form.addEventListener('input', () => { form.classList.toggle('has-text', !!input.value.trim()); fitInput(); });
+  // Enter sends on a computer (Shift+Enter for a new line); on a phone the return key adds a line.
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !matchMedia('(pointer: coarse)').matches) { e.preventDefault(); form.requestSubmit(); }
+  });
+  $('#ph-when', body).addEventListener('click', () => pickTime());
+
+  // ---- Times: when a text or call happens in the story ----
+  // Suggests realistic gaps after the last text (a reply a minute later, half an hour, the next morning…).
+  function lastTime() {
+    const all = [...byId.values()];
+    return all.length ? new Date(Math.max(...all.map((m) => at(m.createdAt).getTime()))) : storyNow();
+  }
+  async function askTime(start, title) {
+    const base = lastTime();
+    const quick = [[1, 'a minute later'], [5, '5 min later'], [30, '30 min later'], [120, '2 hours later'], [60 * 9, 'next morning']];
+    return modal(html`
+      <form class="ph-time-form">
+        <h2>${title}</h2>
+        <p class="hint">The last text was ${whenLabel(base)}.</p>
+        <div class="chips ph-time-quick">${quick.map(([mins, label]) => html`<button type="button" class="chip-btn" data-plus="${mins}">${label}</button>`)}</div>
+        <label for="ph-time">Date and time</label>
+        <input id="ph-time" name="when" type="datetime-local" value="${localValue(start || base)}" required>
+        <div class="error"></div>
+        <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Use this time</button></div>
+      </form>`, {
+      init: (d) => {
+        d.addEventListener('click', (e) => {
+          const q = e.target.closest('[data-plus]');
+          if (!q) return;
+          let t = new Date(base.getTime() + Number(q.dataset.plus) * 60000);
+          // "Next morning": the next day at about 8–9.
+          if (q.dataset.plus === String(60 * 9)) { t = new Date(base); t.setDate(t.getDate() + 1); t.setHours(8, Math.floor(Math.random() * 50), 0, 0); }
+          $('#ph-time', d).value = localValue(t);
+        });
+      },
+      submit: async (data) => {
+        const t = new Date(data.when);
+        if (Number.isNaN(t.getTime())) throw new Error('Pick a date and time');
+        return t;
+      },
+    });
+  }
+  async function pickTime() {
+    const t = await askTime(sendAt, 'When is this sent?');
+    if (t) { sendAt = t; drawExtra(); }
+  }
+  async function placeCall() {
+    const res = await modal(html`
+      <form class="ph-call-form">
+        <h2>${thread.group ? 'Call the group' : `Call ${thread.name}`}</h2>
+        <div class="post-cat" role="radiogroup" aria-label="Kind of call">
+          <label><input type="radio" name="video" value="" checked><span>${icons.phone} Voice</span></label>
+          <label><input type="radio" name="video" value="1"><span>${icons.video} FaceTime</span></label>
+        </div>
+        <div class="post-cat" role="radiogroup" aria-label="Did they pick up?">
+          <label><input type="radio" name="answered" value="1" checked><span>Picked up</span></label>
+          <label><input type="radio" name="answered" value=""><span>No answer</span></label>
+        </div>
+        <div id="ph-call-len">
+          <label>How long was the call?</label>
+          <div class="row-inline"><input name="hours" type="number" min="0" max="23" value="0" aria-label="Hours"> <span>hr</span>
+            <input name="minutes" type="number" min="0" max="59" value="5" aria-label="Minutes"> <span>min</span>
+            <input name="seconds" type="number" min="0" max="59" value="0" aria-label="Seconds"> <span>sec</span></div>
+        </div>
+        <label for="ph-call-time">When</label>
+        <input id="ph-call-time" name="when" type="datetime-local" value="${localValue(sendAt || storyNow())}">
+        <p class="hint">Calls are just for the story. A call nobody picks up shows as a missed call for ${thread.group ? 'everyone' : thread.name}.</p>
+        <div class="error"></div>
+        <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Add call</button></div>
+      </form>`, {
+      init: (d) => d.addEventListener('change', () => { $('#ph-call-len', d).hidden = !d.querySelector('[name=answered]:checked').value; }),
+      submit: async (data) => {
+        const duration = (Number(data.hours) || 0) * 3600 + (Number(data.minutes) || 0) * 60 + (Number(data.seconds) || 0);
+        const answered = !!data.answered;
+        if (answered && duration <= 0) throw new Error('Give the call a length');
+        const when = data.when ? new Date(data.when) : null;
+        return (await api(`/api/phone/threads/${thread.id}/call`, { method: 'POST', body: { as: me.id, answered, video: !!data.video, duration, ...(when && !Number.isNaN(when.getTime()) ? { at: when.toISOString() } : {}) } })).message;
+      },
+    });
+    if (res) { byId.set(res.id, res); draw(); }
+  }
+  // Texts go out one after another, in the order written: the box empties straight away so the next
+  // one can be typed while the last is still sending (and comes back if sending fails).
+  let queue = Promise.resolve();
+  form.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if ((!text && !attached.length) || sending) return;
-    sending = true;
-    try {
-      const { message } = await api(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: me.id, body: text, media: attached, replyTo: replying?.id ?? null } });
-      byId.set(message.id, message);
-      input.value = '';
-      form.classList.remove('has-text');
-      attached = [];
-      replying = null;
-      drawExtra();
-      draw();
-    } catch (err) { toast(err.message); } finally {
-      sending = false;
-      if (!showEmoji) input.focus();
-    }
+    if (!text && !attached.length) return;
+    const payload = { as: me.id, body: text, media: attached, replyTo: replying?.id ?? null, ...(sendAt ? { at: sendAt.toISOString() } : {}) };
+    // A set time moves on a minute for the next text, so a run of texts reads naturally.
+    if (sendAt) sendAt = new Date(sendAt.getTime() + 60000);
+    input.value = '';
+    fitInput();
+    form.classList.remove('has-text');
+    attached = [];
+    replying = null;
+    drawExtra();
+    if (!showEmoji) input.focus();
+    queue = queue.then(async () => {
+      try {
+        const { message } = await api(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: payload });
+        byId.set(message.id, message);
+        draw();
+      } catch (err) {
+        toast(err.message);
+        if (!input.value) { input.value = text; fitInput(); form.classList.toggle('has-text', !!text); }
+      }
+    });
   });
 
   live('dm', (m) => {

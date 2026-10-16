@@ -1,5 +1,5 @@
 import { html, render, api, $, $$, bindForm, timeAgo, toast, uploadImage, avatar, icons, askImageLink, applyColors } from '../lib.js';
-import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive, greeting, replaceHash } from '../main.js';
+import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive, greeting, replaceHash, storyNow, storyToday } from '../main.js';
 import { feedCard, masonry } from './threads.js';
 import { forecast } from '../weather.js';
 
@@ -53,13 +53,13 @@ export async function viewHome() {
   }));
   const u = state.user;
   // "This week": yesterday + the next five days, with each day's events.
-  const weekDays = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i - 1); return d; });
+  const weekDays = Array.from({ length: 7 }, (_, i) => { const d = storyToday(); d.setDate(d.getDate() + i - 1); return d; });
   const eventsOn = (day) => cal.events.filter((e) => {
     const s = new Date(e.startsAt); s.setHours(0, 0, 0, 0);
     const end = new Date(e.endsAt || e.startsAt); end.setHours(0, 0, 0, 0);
     return day >= s && day <= end;
   });
-  const upcoming = cal.events.filter((e) => new Date(e.endsAt || e.startsAt) >= new Date()).slice(0, 3);
+  const upcoming = cal.events.filter((e) => new Date(e.endsAt || e.startsAt) >= storyNow()).slice(0, 3);
   // Characters' birthdays (from their profiles) on the calendar.
   const birthdays = (await api('/api/birthdays').catch(() => ({ birthdays: [] }))).birthdays;
   // Character plans (appointments, work shifts, dates…).
@@ -99,7 +99,7 @@ export async function viewHome() {
           </div>
         </div>
         <div class="bento-week card">
-          <div class="bw-head"><b>${new Date().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><a href="#/events" class="see-all">Calendar</a></div>
+          <div class="bw-head"><b>${storyNow().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><a href="#/events" class="see-all">Calendar</a></div>
           <div class="bw-weather" id="bw-weather"></div>
           <div class="bw-days no-swipe">${weekDays.map((d, i) => { const w = forecast(d); return html`<button type="button" class="bw-day ${i === 1 ? 'today' : ''} ${eventsOn(d).length || birthdaysOn(d).length || plansOn(plans, d).length ? 'has' : ''}" data-day="${i}" aria-pressed="${i === 1}">
             <small>${d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2)}</small><b>${d.getDate()}</b>

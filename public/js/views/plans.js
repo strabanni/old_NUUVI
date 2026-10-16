@@ -2,7 +2,7 @@
 // Just for fun and for building out characters' lives (separate from story events). Plans can repeat,
 // for things like work schedules. Shown on the Calendar page and Home's week.
 import { html, api, $, toast, modal, confirmModal, avatar, applyColors, formatPost } from '../lib.js';
-import { state, myCharacters } from '../main.js';
+import { state, myCharacters, storyNow } from '../main.js';
 
 export const PLAN_KINDS = [
   ['appointment', '📅', 'Appointment'], ['doctor', '🩺', 'Doctor'], ['fitting', '🪡', 'Fitting'], ['surgery', '🏥', 'Surgery'],
@@ -47,7 +47,7 @@ const localD = (iso) => localDT(iso).slice(0, 10);
 export async function openPlanForm({ plan = null, date = null } = {}) {
   const mine = await myCharacters(true);
   const p = plan || {};
-  const startDefault = (() => { const d = date ? new Date(date) : new Date(); if (!plan) d.setHours(date ? 12 : d.getHours() + 1, 0, 0, 0); return d.toISOString(); })();
+  const startDefault = (() => { const d = date ? new Date(date) : storyNow(); if (!plan) d.setHours(date ? 12 : d.getHours() + 1, 0, 0, 0); return d.toISOString(); })();
   return modal(html`
     <form class="plan-form">
       <h2>${plan ? 'Edit plan' : 'New plan'}</h2>

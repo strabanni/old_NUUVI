@@ -1,6 +1,6 @@
 // Character social media: posts (text, photo, video, voice note, stream), likes, comments.
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink, gradAttr, looksForeign, translateText } from '../lib.js';
-import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, bus, onLeave } from '../main.js';
+import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, bus, onLeave, storyNow } from '../main.js';
 import { fillLocations } from './threads.js';
 import { mentionPicker, aiEnabled, checkWriting, HANDLE_CHAR, mentionTokens, resolveMention } from '../lib.js';
 
@@ -378,7 +378,7 @@ const locationField = (v = '') => html`
 // Post or musing, the like and comment numbers, and the post's date and time: all in the composer
 // and the editor (no separate step).
 const localInput = (d) => {
-  const t = d ? new Date(String(d).includes('T') ? d : `${String(d).replace(' ', 'T')}Z`) : new Date();
+  const t = d ? new Date(String(d).includes('T') ? d : `${String(d).replace(' ', 'T')}Z`) : storyNow();
   const pad = (n) => String(n).padStart(2, '0');
   return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
 };

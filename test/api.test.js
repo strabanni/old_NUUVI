@@ -1238,3 +1238,86 @@ test('stories on THE NU: post a photo or text story, it shows for 24 hours, seen
   assert.equal((await a(`/api/social-stories/${s2.id}`, { method: 'DELETE' })).status, 200);
   assert.equal((await b('/api/social-stories')).data.groups.some((g) => g.character.id === mina.id), false);
 });
+
+test('Ardell City date: admins set a fixed date or a timer; new posts default to it', async () => {
+  const admin = app.admin;
+  const w = await app.signUp('clock_w');
+  assert.equal((await w('/api/admin/clock', { method: 'PUT', body: { mode: 'fixed', date: '2025-03-01' } })).status, 403);
+  assert.equal((await admin('/api/admin/clock', { method: 'PUT', body: { mode: 'fixed' } })).status, 400); // needs a date
+  const fixed = (await admin('/api/admin/clock', { method: 'PUT', body: { mode: 'fixed', date: '2025-03-01' } })).data.clock;
+  assert.equal(fixed.today, '2025-03-01');
+  assert.equal((await w('/api/clock')).data.clock.today, '2025-03-01');
+  const c = (await w('/api/characters', { method: 'POST', body: { name: 'Clock Kid' } })).data.character;
+  const p = (await w('/api/social', { method: 'POST', body: { characterId: c.id, kind: 'text', body: 'morning' } })).data.post;
+  assert.match(p.createdAt, /^2025-03-01 /);
+  // A timer: one city day every 2 real days. Pretend it was set 5 real days ago.
+  await admin('/api/admin/clock', { method: 'PUT', body: { mode: 'timer', date: '2025-03-01', every: 2 } });
+  const row = app.server.ctx.db.prepare("SELECT value FROM settings WHERE key = 'clock'").get();
+  const v = JSON.parse(row.value); v.anchor -= 5 * 86400000;
+  app.server.ctx.db.prepare("UPDATE settings SET value = ? WHERE key = 'clock'").run(JSON.stringify(v));
+  assert.equal((await w('/api/clock')).data.clock.today, '2025-03-03');
+  await admin('/api/admin/clock', { method: 'PUT', body: { mode: 'real' } });
+  assert.equal((await w('/api/clock')).data.clock.today, new Date().toISOString().slice(0, 10));
+});
+
+test('phone: texts and calls can be given a time; calls can be answered (with a length) or missed, voice or FaceTime', async () => {
+  const a = await app.signUp('callt_a');
+  const b = await app.signUp('callt_b');
+  const x = (await a('/api/characters', { method: 'POST', body: { name: 'Caller X' } })).data.character;
+  const y = (await b('/api/characters', { method: 'POST', body: { name: 'Callee Y' } })).data.character;
+  const t = (await a(`/api/phone/${x.id}/threads`, { method: 'POST', body: { withId: y.id } })).data.thread;
+  const later = (await a(`/api/phone/threads/${t.id}/messages`, { method: 'POST', body: { as: x.id, body: 'later', at: '2025-05-02T21:10:00.000Z' } })).data.message;
+  assert.equal(later.createdAt, '2025-05-02 21:10:00');
+  await a(`/api/phone/threads/${t.id}/messages`, { method: 'POST', body: { as: x.id, body: 'earlier', at: '2025-05-02T20:00:00.000Z' } });
+  assert.equal((await a(`/api/phone/${x.id}`)).data.threads[0].last.text, 'later'); // the latest by time
+  assert.equal((await a(`/api/phone/threads/${t.id}/messages`, { method: 'POST', body: { as: x.id, body: 'x', at: 'nope' } })).status, 400);
+  const answered = (await a(`/api/phone/threads/${t.id}/call`, { method: 'POST', body: { as: x.id, answered: true, video: true, duration: 754, at: '2025-05-02T22:00:00.000Z' } })).data.message;
+  assert.deepEqual(answered.call, { answered: true, video: true, duration: 754 });
+  assert.equal((await b('/api/notifications')).data.notifications.some((n) => n.type === 'call'), false); // answered: no missed call
+  assert.equal((await a(`/api/phone/${x.id}`)).data.threads[0].last.text, 'FaceTime · 13 min');
+  const missed = (await a(`/api/phone/threads/${t.id}/call`, { method: 'POST', body: { as: x.id, answered: false, at: '2025-05-02T23:00:00.000Z' } })).data.message;
+  assert.equal(missed.call.answered, false);
+  assert.ok((await b('/api/notifications')).data.notifications.some((n) => n.type === 'call'));
+  assert.equal((await a(`/api/phone/${x.id}`)).data.threads[0].last.text, 'Missed call');
+});
+
+test('private accounts: follow requests, approve or decline, and only followers see posts and stories', async () => {
+  const a = await app.signUp('priv_a');
+  const b = await app.signUp('priv_b');
+  const star = (await a('/api/characters', { method: 'POST', body: { name: 'Private Star', private: true } })).data.character;
+  assert.equal(star.private, true);
+  const fan = (await b('/api/characters', { method: 'POST', body: { name: 'Fan One' } })).data.character;
+  const fan2 = (await b('/api/characters', { method: 'POST', body: { name: 'Fan Two' } })).data.character;
+  const post = (await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'text', body: 'secret' } })).data.post;
+  await a('/api/social-stories', { method: 'POST', body: { characterId: star.id, kind: 'text', body: 'secret story' } });
+  // Locked for b.
+  let prof = (await b(`/api/characters/${star.id}`)).data;
+  assert.equal(prof.locked, true);
+  assert.equal((await b(`/api/social?character=${star.id}`)).data.posts.length, 0);
+  assert.equal((await b(`/api/social/${post.id}`)).status, 403);
+  assert.equal((await b('/api/social-stories')).data.groups.some((g) => g.character.id === star.id), false);
+  assert.equal((await a(`/api/social?character=${star.id}`)).data.posts.length, 1); // the writer still sees them
+  // Follow = request.
+  assert.equal((await b(`/api/characters/${star.id}/follow`, { method: 'POST', body: { asCharacterId: fan.id } })).data.requested, true);
+  await b(`/api/characters/${star.id}/follow`, { method: 'POST', body: { asCharacterId: fan2.id } });
+  prof = (await b(`/api/characters/${star.id}`)).data;
+  assert.deepEqual(prof.requested.sort(), [fan.id, fan2.id].sort());
+  assert.equal(prof.followedBy.length, 0);
+  assert.equal((await b(`/api/characters/${star.id}/requests`)).status, 404); // not yours
+  const reqs = (await a(`/api/characters/${star.id}/requests`)).data.requests;
+  assert.equal(reqs.length, 2);
+  assert.ok((await a('/api/notifications')).data.notifications.some((n) => n.type === 'followreq' && n.from.name === 'Fan One'));
+  await a(`/api/characters/${star.id}/requests/${fan.id}`, { method: 'POST', body: { approve: true } });
+  await a(`/api/characters/${star.id}/requests/${fan2.id}`, { method: 'POST', body: { approve: false } });
+  prof = (await b(`/api/characters/${star.id}`)).data;
+  assert.deepEqual(prof.followedBy, [fan.id]);
+  assert.deepEqual(prof.requested, []);
+  assert.equal(prof.locked, false);
+  assert.equal((await b(`/api/social?character=${star.id}`)).data.posts.length, 1);
+  assert.ok((await b('/api/social-stories')).data.groups.some((g) => g.character.id === star.id));
+  assert.ok((await b('/api/notifications')).data.notifications.some((n) => /accepted Fan One's follow request/.test(n.text)));
+  // Going public lets anyone still waiting in.
+  await b(`/api/characters/${star.id}/follow`, { method: 'POST', body: { asCharacterId: fan2.id } });
+  await a(`/api/characters/${star.id}`, { method: 'PUT', body: { private: false } });
+  assert.equal((await b(`/api/characters/${star.id}`)).data.followedBy.length, 2);
+});

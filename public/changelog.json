@@ -1,5 +1,20 @@
 [
   {
+    "code": "NV-54",
+    "date": "2026-10-16",
+    "title": "City date, timed texts & calls, private accounts",
+    "items": [
+      "Admins: Admin → City date sets the date in Ardell City. Keep the real date, set a date that stays put, or set a start date that moves on one day every few real days (for example every 2).",
+      "The calendar, Home, birthdays, the weather and the starting date for new posts, comments and texts all follow the city date.",
+      "Phone texts: tap the hourglass in the message box to pick when a text is sent. Quick buttons suggest a minute, 5 minutes, half an hour, 2 hours or the next morning after the last text. Each text after it moves on a minute.",
+      "Calls: choose Voice or FaceTime, whether they picked up, how long the call lasted and when it happened. Only calls nobody picks up show as missed.",
+      "Phone texts on computers: the message box grows as you write (Enter sends, Shift+Enter adds a line) and the contact sits in the middle of the top bar.",
+      "Phone texts on phones: a conversation now fills the whole screen, edge to edge.",
+      "Private accounts: tick Private account in a character’s editor. Only followers see their posts and stories. Others tap Follow to send a request, and you approve or decline it from Requests on the profile.",
+      "Directory on phones: swipe the list left or right to move between Me, By writer, All characters, NPCs, Brands and Locations. The tabs also scroll sideways."
+    ]
+  },
+  {
     "code": "NV-53",
     "date": "2026-10-15",
     "title": "Real stories, new icons & settings on your profile",

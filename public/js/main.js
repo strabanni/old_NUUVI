@@ -32,7 +32,30 @@ export const state = {
   characters: null,
   route: { storyId: null, channelId: null },
   online: [], // user ids with the app open right now
+  clock: null, // the date in Ardell City (set by an admin; see storyNow)
 };
+
+// ---------- The date in Ardell City ----------
+// An admin can keep the city on the real date, fix it to a date, or let it move on one day every N
+// real days. The time of day is always the real one. Calendars, Home, birthdays, the weather and
+// the starting date for new posts, comments and texts all use this.
+const DAY_MS = 86400000;
+export function storyDateString() {
+  const c = state.clock;
+  if (!c || c.mode === 'real' || !c.date) return null;
+  const start = Date.parse(`${c.date}T00:00:00Z`);
+  const days = c.mode === 'timer' ? Math.max(0, Math.floor((Date.now() - c.anchor) / (c.every * DAY_MS))) : 0;
+  return new Date(start + days * DAY_MS).toISOString().slice(0, 10);
+}
+export function storyNow() {
+  const day = storyDateString();
+  const now = new Date();
+  if (!day) return now;
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+}
+export const storyToday = () => { const d = storyNow(); d.setHours(0, 0, 0, 0); return d; };
+export const loadClock = () => api('/api/clock').then((r) => { state.clock = r.clock; return r.clock; }).catch(() => state.clock);
 
 // Views subscribe to live events through this bus.
 export const bus = new EventTarget();
@@ -56,7 +79,7 @@ export function ensureAlive(alive) {
 // ---------- Data ----------
 export async function refreshHome() {
   if (!state.user) return;
-  state.home = await api('/api/home');
+  [state.home] = await Promise.all([api('/api/home'), loadClock()]);
   renderUserbar();
   renderRail();
   renderSidebar();
@@ -998,7 +1021,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-53';
+export const APP_BUILD = 'NV-54';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

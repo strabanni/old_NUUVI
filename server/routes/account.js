@@ -408,6 +408,14 @@ export function accountRoutes(r, ctx) {
     if (threadAvatar !== undefined) db.prepare('UPDATE characters SET thread_avatar = ? WHERE id = ?').run(threadAvatar, characterId);
     // A brand account (a shop, label, café, magazine…): posts on THE NU as a business, not a person.
     if (body.brand !== undefined) db.prepare('UPDATE characters SET brand = ? WHERE id = ?').run(body.brand ? 1 : 0, characterId);
+    // Private account (only followers see posts and stories). Going public lets everyone waiting in.
+    if (body.private !== undefined) {
+      db.prepare('UPDATE characters SET private = ? WHERE id = ?').run(body.private ? 1 : 0, characterId);
+      if (!body.private) {
+        db.prepare('INSERT OR IGNORE INTO character_follows (follower_id, followed_id) SELECT follower_id, followed_id FROM character_follow_requests WHERE followed_id = ?').run(characterId);
+        db.prepare('DELETE FROM character_follow_requests WHERE followed_id = ?').run(characterId);
+      }
+    }
     // Deceased / missing in action (empty: playable again).
     if (body.status !== undefined) {
       const status = body.status ? oneOf(body.status, 'Status', CHARACTER_STATUSES) : null;

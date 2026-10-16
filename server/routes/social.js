@@ -2,7 +2,7 @@
 import { fail, id, str, oneOf } from '../http.js';
 import { mentionTokens, resolveMention, HANDLE_CHAR } from '../names.js';
 import { setBuzz, buzzTarget, autoLikes, autoCommentLikes, RELATIONSHIPS } from '../buzz.js';
-import { toCharacter, requireUser, isBlocked, imageLink, adminCanSee, requirePlayable } from '../model.js';
+import { toCharacter, requireUser, isBlocked, imageLink, adminCanSee, requirePlayable, CAN_SEE_ACCOUNT, canSeeAccount } from '../model.js';
 
 export function socialRoutes(r, ctx) {
   const { db } = ctx;
@@ -53,6 +53,12 @@ export function socialRoutes(r, ctx) {
       ? db.prepare(`SELECT f.follower_id FROM character_follows f JOIN characters c ON c.id = f.follower_id
           WHERE f.followed_id = ? AND c.user_id = ?`).all(row.id, user.id).map((f) => f.follower_id)
       : [];
+    // Private accounts: which of the viewer's characters have asked to follow, whether the viewer
+    // can see the posts, and (for its writer) how many requests are waiting.
+    const requested = user ? db.prepare(`SELECT r.follower_id FROM character_follow_requests r JOIN characters c ON c.id = r.follower_id
+      WHERE r.followed_id = ? AND c.user_id = ?`).all(row.id, user.id).map((x) => x.follower_id) : [];
+    const locked = !canSeeAccount(db, row, user?.id ?? 0);
+    const requestCount = user && row.user_id === user.id ? db.prepare('SELECT COUNT(*) AS n FROM character_follow_requests WHERE followed_id = ?').get(row.id).n : 0;
     return {
       data: {
         character: {
@@ -64,6 +70,7 @@ export function socialRoutes(r, ctx) {
         stats: shownStats(row, user?.id),
         threads,
         followedBy, // which of the viewer's characters follow this one
+        requested, locked, requestCount,
       },
     };
   });
@@ -83,6 +90,12 @@ export function socialRoutes(r, ctx) {
     const me = requirePlayable(ownCharacter(body.asCharacterId, user.id));
     if (me.id === target.id) fail(400, "A character can't follow themselves");
     if (isBlocked(db, target.user_id, user.id)) fail(403, "You can't follow this character");
+    // A private account: ask first (their writer approves). Your own characters just follow.
+    if (target.private && target.user_id !== user.id && !db.prepare('SELECT 1 FROM character_follows WHERE follower_id = ? AND followed_id = ?').get(me.id, target.id)) {
+      const asked = db.prepare('INSERT OR IGNORE INTO character_follow_requests (follower_id, followed_id) VALUES (?, ?)').run(me.id, target.id).changes;
+      if (asked) ctx.notify({ userId: target.user_id, type: 'followreq', actorId: user.id, characterId: target.id, fromCharacterId: me.id, text: `${me.name} asked to follow ${target.name}` });
+      return { data: { stats: shownStats(target, user.id), requested: true } };
+    }
     const { changes } = db.prepare('INSERT OR IGNORE INTO character_follows (follower_id, followed_id) VALUES (?, ?)').run(me.id, target.id);
     if (changes && target.user_id !== user.id) {
       ctx.notify({ userId: target.user_id, type: 'follow', actorId: user.id, characterId: me.id, text: `${me.name} followed ${target.name}` });
@@ -94,8 +107,38 @@ export function socialRoutes(r, ctx) {
     requireUser(user);
     const me = ownCharacter(body.asCharacterId, user.id);
     db.prepare('DELETE FROM character_follows WHERE follower_id = ? AND followed_id = ?').run(me.id, params.id);
+    db.prepare('DELETE FROM character_follow_requests WHERE follower_id = ? AND followed_id = ?').run(me.id, params.id);
     const target = db.prepare('SELECT * FROM characters WHERE id = ?').get(params.id) ?? fail(404, 'Character not found');
     return { data: { stats: shownStats(target, user.id) } };
+  });
+
+  // Follow requests to one of your private characters: see them, approve or decline.
+  const ownedTarget = (cid, user) => {
+    const c = db.prepare('SELECT * FROM characters WHERE id = ?').get(cid);
+    if (!c || c.user_id !== user.id) fail(404, 'Character not found');
+    return c;
+  };
+  r.get('/api/characters/:id/requests', ({ user, params }) => {
+    requireUser(user);
+    const target = ownedTarget(params.id, user);
+    const rows = db.prepare(`SELECT c.*, r.created_at AS asked_at FROM character_follow_requests r JOIN characters c ON c.id = r.follower_id
+      WHERE r.followed_id = ? ORDER BY r.created_at DESC`).all(target.id);
+    return { data: { requests: rows.map((c) => ({ ...toCharacter(c), askedAt: c.asked_at })) } };
+  });
+  r.post('/api/characters/:id/requests/:fid', ({ user, params, body }) => {
+    requireUser(user);
+    const target = ownedTarget(params.id, user);
+    const req = db.prepare('SELECT * FROM character_follow_requests WHERE follower_id = ? AND followed_id = ?').get(params.fid, target.id);
+    if (!req) fail(404, 'That request is gone');
+    db.prepare('DELETE FROM character_follow_requests WHERE follower_id = ? AND followed_id = ?').run(params.fid, target.id);
+    if (body.approve) {
+      db.prepare('INSERT OR IGNORE INTO character_follows (follower_id, followed_id) VALUES (?, ?)').run(params.fid, target.id);
+      const fan = db.prepare('SELECT * FROM characters WHERE id = ?').get(params.fid);
+      if (fan && fan.user_id !== user.id) ctx.notify({ userId: fan.user_id, type: 'follow', actorId: user.id, characterId: target.id, text: `${target.name} accepted ${fan.name}'s follow request` });
+    }
+    // Clear the "asked to follow" notification once it's been answered.
+    db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type = 'followreq' AND character_id = ? AND from_character_id = ? AND read_at IS NULL").run(user.id, target.id, params.fid);
+    return { data: { ok: true, stats: shownStats(target, user.id) } };
   });
 
   // Characters you might tag in a thread: everyone's characters in a story.
@@ -185,7 +228,8 @@ export function socialPostRoutes(r, ctx) {
     AND p.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = :viewer)`;
 
   ctx.socialFeed = ({ viewerId, q = '', limit = 60, characterId = null, before = null, category = null, taggedId = null }) => {
-    const where = [NOT_BLOCKED];
+    // Private accounts' posts only for their followers (and their own writer).
+    const where = [NOT_BLOCKED, CAN_SEE_ACCOUNT];
     const args = { viewer: viewerId, limit };
     // A profile's "Tagged" tab: other characters' posts that tag them on a photo or @mention them.
     if (taggedId) {
@@ -222,6 +266,7 @@ export function socialPostRoutes(r, ctx) {
   const load = (postId, user) => {
     const row = db.prepare(`${SELECT} WHERE p.id = ?`).get(postId);
     if (!row || isBlocked(db, row.user_id, user.id) || isBlocked(db, user.id, row.user_id)) fail(404, 'Post not found');
+    if (!user.isAdmin && !canSeeAccount(db, db.prepare('SELECT id, user_id, private FROM characters WHERE id = ?').get(row.character_id), user.id)) fail(403, 'This account is private');
     return row;
   };
   const ownCharacter = (characterId, userId) => {
@@ -443,7 +488,8 @@ export function socialPostRoutes(r, ctx) {
     const category = oneOf(body.category, 'Category', ['post', 'musing']) ?? 'post';
     const likesShown = countInput(body.likesDisplay, 'Likes');
     const commentsShown = countInput(body.commentsDisplay, 'Comments');
-    const postedAt = whenInput(body.postedAt) ?? null;
+    // No date given: now in Ardell City (an admin may have set the city's date).
+    const postedAt = whenInput(body.postedAt) ?? ctx.storyNow();
     const photoTags = photoTagsInput(body.photoTags, kind, media, user);
     const { lastInsertRowid } = db.prepare(`INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta, location, category, likes_display, comments_display, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`)
@@ -580,7 +626,7 @@ export function socialPostRoutes(r, ctx) {
       parentId = parent.parent_id ?? parent.id;
     }
     // A comment can be dated (to sit with a back-dated post).
-    const postedAt = whenInput(body.postedAt) ?? null;
+    const postedAt = whenInput(body.postedAt) ?? ctx.storyNow();
     db.prepare(`INSERT INTO social_comments (post_id, character_id, user_id, body, parent_id, created_at)
       VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`).run(row.id, me.id, user.id, text, parentId, postedAt);
     if (row.user_id !== user.id) {

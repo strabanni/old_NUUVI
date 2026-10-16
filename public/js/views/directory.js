@@ -33,7 +33,7 @@ export async function viewDirectory() {
     body: html`
       <div class="dir-tools">
         <input type="search" class="search" id="dir-q" placeholder="Search names, usernames, taglines…" aria-label="Search the directory">
-        <div class="seg" role="group" aria-label="Show">
+        <div class="seg dir-tabs no-swipe" role="group" aria-label="Show">
           <button type="button" data-view="me">Me</button>
           <button type="button" data-view="writers">By writer</button>
           <button type="button" data-view="characters">All characters</button>
@@ -42,7 +42,7 @@ export async function viewDirectory() {
           <button type="button" data-view="places">Locations</button>
         </div>
       </div>
-      <div id="dir-list"></div>`,
+      <div id="dir-list" class="no-swipe"></div>`,
   });
   const list = $('#dir-list', body);
   const match = (...fields) => !q || fields.some((f) => (f || '').toLowerCase().includes(q));
@@ -220,6 +220,32 @@ export async function viewDirectory() {
     draw();
   });
   $('#dir-q', body).addEventListener('input', (e) => { q = e.target.value.trim().toLowerCase(); draw(); });
+  // Phones: swipe the list left or right to go to the next or previous tab (Me, By writer, All
+  // characters, NPCs, Brands, Locations). Swiping right on the first tab still opens the menu.
+  // The map has its own dragging, so swipes on it are left alone.
+  const order = $$('[data-view]', body).map((b) => b.dataset.view);
+  let touch = null;
+  list.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1 || e.target.closest('.maplibregl-map, #city-map-box, input, textarea')) { touch = null; return; }
+    touch = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+  }, { passive: true });
+  list.addEventListener('touchend', (e) => {
+    if (!touch) return;
+    const p = e.changedTouches[0];
+    const dx = p.clientX - touch.x;
+    const dy = p.clientY - touch.y;
+    const quick = Date.now() - touch.t < 600;
+    touch = null;
+    if (!quick || Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+    const i = order.indexOf(view);
+    if (dx > 0 && i === 0) { document.body.classList.add('drawer-open'); return; }
+    const next = order[Math.min(order.length - 1, Math.max(0, i + (dx < 0 ? 1 : -1)))];
+    if (next === view) return;
+    view = next;
+    if (view !== 'places') sessionStorage.setItem('nuuvi:dir-view', view);
+    draw();
+    $(`[data-view="${view}"]`, body)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, { passive: true });
 }
 
 // ---------- Locations ----------

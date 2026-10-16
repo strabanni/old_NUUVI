@@ -2,7 +2,7 @@
 // newest first, in the order they were made. Character posts, open episodes, self paras, events
 // and connections (muse ideas anyone can pick up) all share the same post shape.
 import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost, timeAgo, applyColors, gradAttr, userGrad, uploadImage, askImageLink, logoMark } from '../lib.js';
-import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, kindIcon, previousHash } from '../main.js';
+import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, kindIcon, previousHash, storyNow } from '../main.js';
 import { socialCard, bindSocial, openSocialComposer, styleBars, handleOf, nameBadge, agoShort } from './social.js';
 import { mountStoryStrip } from './stories.js';
 
@@ -64,7 +64,7 @@ const BDAY_LINES = [
   'Make a wish (and make it dramatic).',
 ];
 function birthdayPost(b) {
-  const line = BDAY_LINES[(b.id + new Date().getFullYear()) % BDAY_LINES.length];
+  const line = BDAY_LINES[(b.id + storyNow().getFullYear()) % BDAY_LINES.length];
   return html`
     <article class="np np-bday" data-color="${b.color}"${gradAttr(b)}>
       <header class="np-head">
@@ -248,7 +248,7 @@ export async function viewNu(tagStr = null) {
     mountStoryStrip($('#nu-stories', body)).catch(() => {});
     // Birthdays today: a post from NUUVI Official, pinned to the top for the whole day.
     birthdays ??= (await api('/api/birthdays').catch(() => ({ birthdays: [] }))).birthdays;
-    const now = new Date();
+    const now = storyNow();
     const today = tag || filter === 'connection' || filter === 'event' ? [] : birthdays.filter((b) => b.month === now.getMonth() + 1 && b.day === now.getDate());
     render(list, items.length || today.length ? html`${today.map(birthdayPost)}${items.map((it) => (it.type === 'social' ? socialCard(it) : it.type === 'event' ? eventPost(it) : it.type === 'connection' ? connectionPost(it) : threadPost(it)))}`
       : html`<div class="empty"><p>Nothing on THE NU yet.</p><p class="small">Make a post, put out a connection, or start an episode.</p></div>`);
