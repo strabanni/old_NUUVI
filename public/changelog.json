@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-57",
+    "date": "2026-10-16",
+    "title": "iOS-style icons",
+    "items": [
+      "Every icon in NUUVI now uses an iOS style, drawn to match the icons on iPhone (house, bell, paper plane, person, ellipsis and the rest).",
+      "They come from Framework7 Icons, a free set made to look like Apple's own. Apple's icons themselves aren't allowed on websites."
+    ]
+  },
+  {
     "code": "NV-56",
     "date": "2026-10-16",
     "title": "Family trees & timeline dates",

@@ -140,7 +140,7 @@ export async function viewSettings() {
             <button type="button" data-ui-size="${k}" aria-pressed="${document.documentElement.dataset.ui === k}">${label}</button>`)}</div>
           <p class="hint">Makes the whole app smaller or bigger on this device: buttons, text and pictures together.</p>
           <p class="hint">Light and Dark use pink (#EE719E) only for highlights. Auto follows your device's light or dark setting.</p>
-          <p class="hint">Icons: <a href="https://phosphoricons.com" target="_blank" rel="noopener noreferrer">Phosphor</a> (Light).</p>
+          <p class="hint">Icons: <a href="https://framework7.io/icons/" target="_blank" rel="noopener noreferrer">Framework7 Icons</a> (iOS style, MIT licence).</p>
           <p class="hint">You're on update <b>${APP_BUILD}</b>. <button type="button" class="link" id="whats-new">What's new?</button></p>
         </section>
 
