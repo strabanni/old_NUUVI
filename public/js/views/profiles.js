@@ -1,5 +1,5 @@
 // Character profiles: every character on NUUVI, NPCs included, can have a detailed profile (quick
-// facts, personality, history, relationships, a gallery and a playlist), shown in the About tab on
+// facts, personality, history, a gallery and a playlist), shown in the About tab on
 // their page. Everyone reads them; the writer (or an admin) edits.
 import { html, render, api, $, $$, toast, icons, modal, formatPost, gradAttr, attachSheet, formattingGuide } from '../lib.js';
 import { replaceHash } from '../main.js';
@@ -10,9 +10,10 @@ const FACT_LABELS = [
   ['hometown', 'Hometown'], ['residence', 'Lives in'], ['occupation', 'Occupation'], ['affiliation', 'Affiliation'],
   ['relationship', 'Relationship'], ['faceclaim', 'Face claim'],
 ];
+// Relationships live in the Ties tab now (the web, the family tree and the relationship notes).
 const SECTION_LABELS = [
   ['personality', 'Personality'], ['appearance', 'Appearance'], ['history', 'History'],
-  ['relationships', 'Relationships'], ['goals', 'Goals & fears'], ['trivia', 'Trivia'],
+  ['goals', 'Goals & fears'], ['trivia', 'Trivia'],
 ];
 
 // Profiles live in the About tab on each character's page now; the old Profiles pages lead there.
@@ -125,7 +126,8 @@ export async function editDossier(c, d) {
           tagline: f.tagline.value, quote: f.quote.value, likes: f.likes.value, dislikes: f.dislikes.value, cover,
           traits: f.traits.value.split(',').map((t) => t.trim()).filter(Boolean),
           facts: Object.fromEntries(FACT_LABELS.map(([k]) => [k, f[`f_${k}`].value])),
-          sections: Object.fromEntries(SECTION_LABELS.map(([k]) => [k, f[`s_${k}`].value])),
+          // Relationship notes are edited in the Ties tab; keep them as they are.
+          sections: { ...Object.fromEntries(SECTION_LABELS.map(([k]) => [k, f[`s_${k}`].value])), relationships: d.sections?.relationships || '' },
           gallery, playlist: playlist.filter((t) => t.title.trim() || t.url.trim()).map((t) => ({ title: t.title, artist: t.artist, link: t.url.trim() })),
         };
         try {

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 27;
+const SCHEMA_VERSION = 28;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -646,6 +646,14 @@ export const MIGRATIONS = [
      choice       INTEGER NOT NULL,
      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
      PRIMARY KEY (post_id, character_id)
+   );`,
+  // v28: dates a writer set by hand on a character's timeline (for things with no date of their own
+  // to change, like joining an episode or arriving in the city).
+  `CREATE TABLE timeline_dates (
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     item         TEXT NOT NULL,
+     at           TEXT NOT NULL,
+     PRIMARY KEY (character_id, item)
    );`,
 ];
 

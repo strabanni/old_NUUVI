@@ -14,7 +14,6 @@ import { viewNu } from './views/nu.js';
 import { viewMessages } from './views/messages.js';
 import { viewEvents, viewEvent } from './views/events.js';
 import { viewDirectory } from './views/directory.js';
-import { viewDaily } from './views/world.js';
 import { viewPhone, viewPhoneThread } from './views/phone.js';
 import { viewLore } from './views/overview.js';
 import { viewArchive } from './views/archive.js';
@@ -370,7 +369,6 @@ function renderSidebar() {
         ${link('#/phone', 'Phone', icons.smartphone)}
         <span class="desk-only-block">${link('#/messages', 'Messages', icons.chat, state.home.messagesUnread)}</span>
         ${link('#/directory', 'Directory', icons.users)}
-        ${link('#/daily', 'The Ardell Daily', icons.newspaper)}
         ${link('#/archive', 'Archive', icons.archive)}
         ${link('#/lore', 'Lore', icons.book)}
         ${link('#/discover', 'Discover', icons.compass)}
@@ -931,7 +929,6 @@ const routes = [
   [/^#\/notifications$/, viewNotifications, true],
   [/^#\/characters$/, viewCharacters, true],
   [/^#\/directory$/, viewDirectory, true],
-  [/^#\/daily(?:\/(\d{4}-\d{2}-\d{2}))?$/, viewDaily, true],
   [/^#\/npcs$/, viewNpcs, true],
   [/^#\/locations$/, viewLocations, true],
   [/^#\/lore$/, viewLore, true],
@@ -1024,7 +1021,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-55';
+export const APP_BUILD = 'NV-56';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

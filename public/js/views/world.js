@@ -1,19 +1,28 @@
-// Ties (who a character is to whom), a character's Timeline, and The Ardell Daily (the city's paper).
-import { html, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal } from '../lib.js';
-import { page, routeAlive, ensureAlive } from '../main.js';
-import { compact } from './social.js';
+// Ties (who a character is to whom, drawn as a web or a family tree) and a character's Timeline.
+import { html, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost } from '../lib.js';
 
-export const TIE_NAMES = {
-  partner: 'Partner', crush: 'Crush', ex: 'Ex', bestfriend: 'Best friend', friend: 'Friend', sibling: 'Sibling',
-  family: 'Family', parent: 'Parent', child: 'Child', rival: 'Rival', enemy: 'Enemy', coworker: 'Coworker',
-  roommate: 'Roommate', mentor: 'Mentor', complicated: "It's complicated", other: 'Other',
-};
-// One colour per kind, so the web reads at a glance.
+// The kinds of tie, in groups for the picker.
+const TIE_GROUPS = [
+  ['Love', [['partner', 'Partner'], ['spouse', 'Husband or wife'], ['crush', 'Crush'], ['ex', 'Ex'], ['complicated', "It's complicated"]]],
+  ['Family', [['parent', 'Parent'], ['stepparent', 'Stepparent'], ['child', 'Child'], ['stepchild', 'Stepchild'],
+    ['sibling', 'Sibling'], ['halfsibling', 'Half-sibling'], ['stepsibling', 'Stepsibling'], ['grandparent', 'Grandparent'],
+    ['grandchild', 'Grandchild'], ['auntuncle', 'Aunt or uncle'], ['nibling', 'Niece or nephew'], ['cousin', 'Cousin'],
+    ['inlaw', 'In-law'], ['family', 'Other family']]],
+  ['Everyone else', [['bestfriend', 'Best friend'], ['friend', 'Friend'], ['rival', 'Rival'], ['enemy', 'Enemy'],
+    ['coworker', 'Coworker'], ['roommate', 'Roommate'], ['mentor', 'Mentor'], ['other', 'Other']]],
+];
+export const TIE_NAMES = Object.fromEntries(TIE_GROUPS.flatMap(([, kinds]) => kinds));
+const FAMILY = new Set(TIE_GROUPS[1][1].map(([k]) => k));
+// One colour per kind, so the web reads at a glance (family in greens).
 const TIE_COLORS = {
-  partner: '#E0446A', crush: '#F07AA0', ex: '#8A8F98', bestfriend: '#F2A93B', friend: '#4FA3E0', sibling: '#3DBE8B',
-  family: '#2E9E6E', parent: '#2E9E6E', child: '#2E9E6E', rival: '#E07B39', enemy: '#C8382F', coworker: '#7C8794',
-  roommate: '#56B6C2', mentor: '#9C7AE0', complicated: '#B5655A', other: '#9AA0A6',
+  partner: '#E0446A', spouse: '#C92F5A', crush: '#F07AA0', ex: '#8A8F98', complicated: '#B5655A',
+  bestfriend: '#F2A93B', friend: '#4FA3E0', rival: '#E07B39', enemy: '#C8382F', coworker: '#7C8794',
+  roommate: '#56B6C2', mentor: '#9C7AE0', other: '#9AA0A6',
 };
+for (const k of FAMILY) TIE_COLORS[k] = '#2E9E6E';
+// When the other writer named the tie, flip it round: they call us their child, so they're our parent.
+const FLIP = { parent: 'child', child: 'parent', stepparent: 'stepchild', stepchild: 'stepparent', grandparent: 'grandchild',
+  grandchild: 'grandparent', auntuncle: 'nibling', nibling: 'auntuncle', mentor: 'other' };
 const tieName = (t) => t.label || TIE_NAMES[t.kind] || t.kind;
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const niceDate = (d) => { const [y, m, day] = d.slice(0, 10).split('-').map(Number); return `${MONTHS[m - 1]} ${day}, ${y}`; };
@@ -55,7 +64,8 @@ async function tieForm(c, tie = null) {
         <input type="search" class="search" id="tf-q" placeholder="Search characters…" autocomplete="off">
         <div class="pc-list tf-list" id="tf-list"></div>`}
       <label for="tf-kind">They are ${c.name}'s</label>
-      <select id="tf-kind" name="kind">${Object.entries(TIE_NAMES).map(([k, v]) => html`<option value="${k}" ${(tie?.kind ?? 'friend') === k ? 'selected' : ''}>${v}</option>`)}</select>
+      <select id="tf-kind" name="kind">${TIE_GROUPS.map(([g, kinds]) => html`<optgroup label="${g}">${kinds.map(([k, v]) => html`<option value="${k}" ${(tie?.kind ?? 'friend') === k ? 'selected' : ''}>${v}</option>`)}</optgroup>`)}</select>
+      <p class="hint">Family ties also build ${c.name}'s family tree.</p>
       <label for="tf-label">Your own word for it <span class="muted small">(optional)</span></label>
       <input id="tf-label" name="label" maxlength="40" value="${tie?.label ?? ''}" placeholder="e.g. ride or die, the one that got away">
       <label for="tf-since">Since <span class="muted small">(optional)</span></label>
@@ -92,16 +102,101 @@ async function tieForm(c, tie = null) {
   });
 }
 
+// The family tree: one row per generation, oldest at the top, with lines drawn between relatives.
+function familyTree(fam) {
+  const rows = new Map();
+  for (const m of fam.members) { if (!rows.has(m.gen)) rows.set(m.gen, []); rows.get(m.gen).push(m); }
+  const relName = (m) => {
+    if (!m.relation) return '';
+    if (m.relation.label && !m.relation.theirs) return m.relation.label;
+    const k = m.relation.theirs ? (FLIP[m.relation.kind] || m.relation.kind) : m.relation.kind;
+    return TIE_NAMES[k] || k;
+  };
+  const GEN = { '-3': 'Great-grandparents', '-2': 'Grandparents', '-1': 'Parents', 0: '', 1: 'Children', 2: 'Grandchildren', 3: 'Great-grandchildren' };
+  const order = (list, gen) => {
+    const byName = (a, b) => a.character.name.localeCompare(b.character.name);
+    if (gen !== 0) return [...list].sort(byName);
+    // The middle row: siblings and cousins on the left, the character, then their partner.
+    const love = (m) => ['partner', 'spouse'].includes(m.relation?.kind);
+    const center = list.filter((m) => m.character.id === fam.center);
+    return [...list.filter((m) => m.character.id !== fam.center && !love(m)).sort(byName), ...center, ...list.filter(love).sort(byName)];
+  };
+  return html`<div class="ftree" data-links="${JSON.stringify(fam.links)}">
+    <svg class="ftree-lines" aria-hidden="true"></svg>
+    ${[...rows.keys()].sort((a, b) => a - b).map((g) => html`<div class="ftree-row">
+      ${GEN[g] !== undefined && GEN[g] ? html`<span class="ftree-gen">${GEN[g]}</span>` : ''}
+      <div class="ftree-people">${order(rows.get(g), g).map((m) => html`
+        <a class="ftree-node ${m.character.id === fam.center ? 'center' : ''}" href="#/c/${m.character.id}" data-fid="${m.character.id}">
+          ${avatar({ name: m.character.name, src: m.character.avatar, color: m.character.color, size: m.character.id === fam.center ? 'lg' : '' })}
+          <b>${m.character.name}</b>${relName(m) ? html`<small>${relName(m)}</small>` : ''}
+        </a>`)}</div></div>`)}
+  </div>`;
+}
+
+// Lines between relatives, measured once the people are on screen (and again if it changes size).
+function layoutTree(tree) {
+  if (!tree) return;
+  const links = JSON.parse(tree.dataset.links || '[]');
+  const draw = () => {
+    const box = tree.getBoundingClientRect();
+    const z = Number(getComputedStyle(document.documentElement).zoom) || 1;
+    const at = (id) => {
+      const node = tree.querySelector(`[data-fid="${id}"]`);
+      const a = node?.querySelector('.avatar');
+      if (!a) return null;
+      const r = a.getBoundingClientRect();
+      const n = node.getBoundingClientRect();
+      return { row: node.closest('.ftree-row'), x: (r.left + r.width / 2 - box.left) / z, top: (r.top - box.top) / z, bottom: (n.bottom - box.top + 4) / z, mid: (r.top + r.height / 2 - box.top) / z, half: r.width / 2 / z };
+    };
+    const svg = tree.querySelector('.ftree-lines');
+    svg.setAttribute('viewBox', `0 0 ${box.width / z} ${box.height / z}`);
+    svg.innerHTML = links.map((l) => {
+      let a = at(l.from), b = at(l.to);
+      if (!a || !b) return '';
+      const color = TIE_COLORS[l.kind] || '#2E9E6E';
+      if (a.row === b.row) {
+        // Same row: partners side by side get a straight line; siblings and cousins a bracket above.
+        const [left, right] = a.x < b.x ? [a, b] : [b, a];
+        if (['partner', 'spouse', 'inlaw'].includes(l.kind)) return `<line x1="${left.x + left.half}" y1="${right.mid}" x2="${right.x - right.half}" y2="${right.mid}" stroke="${color}" stroke-width="2.5"/>`;
+        const y = Math.min(left.top, right.top) - 10;
+        return `<path d="M${left.x} ${left.top} V${y} H${right.x} V${right.top}" fill="none" stroke="${color}" stroke-width="1.6" stroke-dasharray="4 3"/>`;
+      }
+      if (a.mid > b.mid) [a, b] = [b, a];
+      const midY = (a.bottom + b.top) / 2;
+      const far = b.top - a.bottom > 150;
+      return `<path d="M${a.x} ${a.bottom} V${midY} H${b.x} V${b.top}" fill="none" stroke="${color}" stroke-width="2" ${far ? 'stroke-dasharray="5 4"' : ''}/>`;
+    }).join('');
+  };
+  draw();
+  new ResizeObserver(draw).observe(tree);
+}
+
+let tieView = 'web';
+try { tieView = sessionStorage.getItem('nuuvi:tie-view') || 'web'; } catch { /* ignore */ }
+
 export function drawTies(pane, c, { own, isAlive = () => true }) {
   render(pane, html`<p class="muted small ig-loading">Loading…</p>`);
   const load = async () => {
-    let r;
-    try { r = await api(`/api/characters/${c.id}/ties`); } catch (err) { if (isAlive()) render(pane, html`<div class="empty"><p>${err.message}</p></div>`); return; }
+    let r, fam, prof;
+    try {
+      [r, fam, prof] = await Promise.all([api(`/api/characters/${c.id}/ties`), api(`/api/characters/${c.id}/family`), api(`/api/profiles/${c.id}`).catch(() => null)]);
+    } catch (err) { if (isAlive()) render(pane, html`<div class="empty"><p>${err.message}</p></div>`); return; }
     if (!isAlive()) return;
     const { ties, incoming } = r;
+    const notes = prof?.dossier?.sections?.relationships || '';
+    const family = fam.members.length > 1;
+    const view = tieView === 'tree' ? 'tree' : 'web';
     render(pane, html`
-      ${own ? html`<div class="tie-bar"><button class="primary" id="tie-add">${icons.plus} Add a tie</button></div>` : ''}
-      ${ties.length ? tieWeb(c, ties) : html`<div class="empty"><p>No ties yet.</p><p class="small muted">${own ? `Add the people who matter to ${c.name}: best friends, exes, rivals, family.` : `${c.name}'s writer hasn't added anyone yet.`}</p></div>`}
+      <div class="tie-bar">
+        <div class="seg" role="tablist" aria-label="Show ties as">
+          <button type="button" class="chip ${view === 'web' ? 'on' : ''}" data-tie-view="web" aria-pressed="${view === 'web'}">${icons.ties} Web</button>
+          <button type="button" class="chip ${view === 'tree' ? 'on' : ''}" data-tie-view="tree" aria-pressed="${view === 'tree'}">${icons.users} Family tree</button>
+        </div>
+        ${own ? html`<button class="primary" id="tie-add">${icons.plus} Add a tie</button>` : ''}
+      </div>
+      ${view === 'tree'
+        ? (family ? familyTree(fam) : html`<div class="empty"><p>No family yet.</p><p class="small muted">${own ? `Add a tie and pick a family kind (parent, sibling, cousin…) to start ${c.name}'s family tree.` : `${c.name}'s writer hasn't added any family yet.`}</p></div>`)
+        : ties.length ? tieWeb(c, ties) : html`<div class="empty"><p>No ties yet.</p><p class="small muted">${own ? `Add the people who matter to ${c.name}: best friends, exes, rivals, family.` : `${c.name}'s writer hasn't added anyone yet.`}</p></div>`}
       ${ties.length ? html`<ul class="tie-list">${ties.map((t, i) => html`
         <li class="tie-row">
           <a href="#/c/${t.other.id}">${avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color, size: 'sm' })}</a>
@@ -120,7 +215,30 @@ export function drawTies(pane, c, { own, isAlive = () => true }) {
           <div class="grow"><a class="tie-who" href="#/c/${t.from.id}"><b>${t.from.name}</b></a>
             <div class="tie-what"><span class="small muted">calls ${c.name} their</span> <span class="tie-chip" data-tie="${t.kind}">${tieName(t)}</span></div></div>
           ${own ? html`<button class="ghost small-btn" data-tie-back="${t.from.id}">Add back</button>` : ''}
-        </li>`)}</ul>` : ''}`);
+        </li>`)}</ul>` : ''}
+      ${notes || own ? html`<section class="tie-notes">
+        <div class="tie-notes-head"><h3 class="tie-h">Relationship notes</h3>${own ? html`<button type="button" class="sm" id="tie-notes-edit">${icons.quill} ${notes ? 'Edit' : 'Write notes'}</button>` : ''}</div>
+        ${notes ? html`<div class="body prose">${formatPost(notes)}</div>` : html`<p class="small muted">Anything the ties don't say: history, how they met, what's unresolved. Formatting works here.</p>`}
+      </section>` : ''}`);
+    if (view === 'tree' && family) layoutTree($('.ftree', pane));
+    $$('[data-tie-view]', pane).forEach((b) => b.addEventListener('click', () => {
+      tieView = b.dataset.tieView;
+      try { sessionStorage.setItem('nuuvi:tie-view', tieView); } catch { /* ignore */ }
+      load();
+    }));
+    $('#tie-notes-edit', pane)?.addEventListener('click', async () => {
+      const text = await modal(html`<form>
+        <h2>${c.name}: relationship notes</h2>
+        <textarea name="notes" rows="10" maxlength="20000" placeholder="Formatting works here (bold, colors, centering…)">${notes}</textarea>
+        <div class="error"></div>
+        <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Save</button></div>
+      </form>`, { submit: async ({ notes: v }) => {
+        const dossier = { ...(prof?.dossier || {}), sections: { ...(prof?.dossier?.sections || {}), relationships: v } };
+        await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier } });
+        return true;
+      } });
+      if (text) { toast('Saved'); load(); }
+    });
     // Node spots and chip colours come from data attributes (no inline styles allowed).
     $$('.tie-node', pane).forEach((n) => { n.style.setProperty('left', `${n.dataset.x}%`); n.style.setProperty('top', `${n.dataset.y}%`); });
     $$('[data-tie]', pane).forEach((n) => n.style.setProperty('--tc', TIE_COLORS[n.dataset.tie] || '#999'));
@@ -152,14 +270,41 @@ function tlLine(it) {
     case 'episode': return html`Joined <b>${it.text}</b>`;
     case 'finished': return html`Finished <b>${it.text}</b>`;
     case 'plan': return html`<b>${it.text}</b>`;
-    case 'tie': return html`Became ${it.label ? html`<b>${it.label}</b> with` : html`<b>${(TIE_NAMES[it.kind] || it.kind).toLowerCase()}</b>${['ex', 'crush', 'complicated'].includes(it.kind) ? ' with' : 's with'}`} <b>${it.text}</b>`;
+    case 'tie': return html`<b>${it.text}</b> <span class="tie-chip" data-tie="${it.kind}">${it.label || TIE_NAMES[it.kind] || it.kind}</span>`;
     default: return html`Arrived in Ardell City`;
   }
 }
 
+// Pick a new date for something on the timeline.
+async function editDate(c, it) {
+  const own = ['episode', 'finished', 'arrived'].includes(it.type);
+  const what = { post: 'This post moves to that day (its comments move with it).', musing: 'This musing moves to that day (its comments move with it).',
+    tie: 'This changes the "since" date on the tie too.', plan: 'The plan moves to that day, at the same time.' }[it.type]
+    || 'This only changes the date on the timeline.';
+  return modal(html`<form>
+    <h2>Change the date</h2>
+    <p class="small muted">${what}</p>
+    <label for="tl-date">Date</label>
+    <input id="tl-date" name="date" type="date" required value="${it.at.slice(0, 10)}">
+    <div class="error"></div>
+    <div class="actions end">
+      ${own && it.edited ? html`<button type="button" id="tl-reset">Use the real date</button><span class="grow"></span>` : ''}
+      <button type="button" data-close>Cancel</button><button type="submit" class="primary">Save</button>
+    </div>
+  </form>`, {
+    init: (d, close) => {
+      $('#tl-reset', d)?.addEventListener('click', async () => {
+        try { await api(`/api/characters/${c.id}/timeline`, { method: 'PUT', body: { item: it.key, date: it.at.slice(0, 10), reset: true } }); close(true); } catch (err) { toast(err.message); }
+      });
+    },
+    submit: async ({ date }) => { await api(`/api/characters/${c.id}/timeline`, { method: 'PUT', body: { item: it.key, date } }); return true; },
+  });
+}
+
 export function drawTimeline(pane, c, { isAlive = () => true } = {}) {
   render(pane, html`<p class="muted small ig-loading">Loading…</p>`);
-  api(`/api/characters/${c.id}/timeline`).then(({ items, locked }) => {
+  const redraw = () => drawTimeline(pane, c, { isAlive });
+  api(`/api/characters/${c.id}/timeline`).then(({ items, locked, canEdit }) => {
     if (!isAlive()) return;
     // Group by month, newest first.
     const groups = [];
@@ -177,69 +322,14 @@ export function drawTimeline(pane, c, { isAlive = () => true } = {}) {
             const inner = html`<span class="tl-dot">${TL_ICON[it.type] || icons.star}</span>
               <span class="grow"><span class="tl-line">${tlLine(it)}</span>
                 ${it.type === 'post' || it.type === 'musing' ? (it.text ? html`<span class="tl-text">${it.text}</span>` : '') : it.sub ? html`<span class="tl-text muted">${it.sub}</span>` : ''}
-                <small class="muted">${niceDate(it.at)}</small></span>
+                <small class="muted">${niceDate(it.at)}${it.edited ? ' · date set by hand' : ''}</small></span>
               ${it.picture ? html`<img class="tl-pic" src="${it.picture}" alt="" loading="lazy">` : ''}`;
-            return html`<li class="tl-item tl-${it.type}">${it.link ? html`<a href="${it.link}">${inner}</a>` : html`<div>${inner}</div>`}</li>`;
+            return html`<li class="tl-item tl-${it.type}">${it.link ? html`<a href="${it.link}">${inner}</a>` : html`<div>${inner}</div>`}
+              ${canEdit ? html`<button type="button" class="icon-btn sm tl-edit" data-tl="${items.indexOf(it)}" aria-label="Change the date">${icons.pencil}</button>` : ''}</li>`;
           })}</ol></li>`)}</ol>`);
+    $$('[data-tie]', pane).forEach((n) => n.style.setProperty('--tc', TIE_COLORS[n.dataset.tie] || '#999'));
+    $$('[data-tl]', pane).forEach((b) => b.addEventListener('click', async () => {
+      if (await editDate(c, items[Number(b.dataset.tl)])) { toast('Date changed'); redraw(); }
+    }));
   }).catch((err) => { if (isAlive()) render(pane, html`<div class="empty"><p>${err.message}</p></div>`); });
-}
-
-// ---------- The Ardell Daily ----------
-const shiftDay = (day, n) => new Date(Date.parse(`${day}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-export async function viewDaily(date) {
-  const alive = routeAlive();
-  const d = await api(`/api/daily${date ? `?date=${encodeURIComponent(date)}` : ''}`);
-  ensureAlive(alive);
-  const [lead, ...more] = d.stories;
-  const weekday = WEEKDAYS[new Date(`${d.day}T12:00:00Z`).getUTCDay()];
-  const quiet = !d.stories.length && !d.ties.length && !d.follows.length && !d.episodes.length && !d.birthdays.length && !d.plans.length && !d.gossip.length;
-  const who = (x) => html`<a href="#/c/${x.id}">${x.name}</a>`;
-  const story = (p, big = false) => html`
-    <a class="dl-story ${big ? 'lead' : ''} ${p.picture ? 'has-pic' : ''}" href="#/p/${p.id}">
-      ${p.picture ? html`<img src="${p.picture}" alt="" loading="lazy">` : ''}
-      <span class="dl-copy">
-        <span class="dl-kicker">${p.character.name}${p.location ? ` · ${p.location}` : ''}</span>
-        <span class="dl-head">${p.text || 'A new post'}</span>
-        <small class="muted">${compact(p.score)} likes</small>
-      </span>
-    </a>`;
-  const body = page({
-    alive,
-    title: 'The Ardell Daily',
-    className: 'daily-page',
-    body: html`
-      <article class="daily">
-        <header class="dl-mast">
-          <nav class="dl-nav">
-            <a class="icon-btn" href="#/daily/${shiftDay(d.day, -1)}" aria-label="The day before">${icons.caretLeft}</a>
-            <span class="dl-date">${weekday}, ${niceDate(d.day)}${d.day === d.today ? ' · Today' : ''}</span>
-            ${d.day < d.today ? html`<a class="icon-btn" href="#/daily/${shiftDay(d.day, 1)}" aria-label="The next day">${icons.caretRight}</a>` : html`<span class="dl-nav-gap" aria-hidden="true"></span>`}
-          </nav>
-          <h1 class="dl-title">The Ardell Daily</h1>
-          <p class="dl-stats">${d.stats.posts} posts · ${d.stats.comments} comments · ${d.stats.texts} texts sent · ${d.stats.calls} calls made</p>
-        </header>
-        ${quiet ? html`<div class="empty"><p><b>A quiet day in Ardell City.</b></p><p class="small muted">Nothing made the paper. Try the day before, or post something.</p></div>` : ''}
-        ${lead ? html`<section class="dl-front">${story(lead, true)}</section>` : ''}
-        <div class="dl-cols">
-          <div class="dl-main">
-            ${more.length ? html`<section><h2 class="dl-h">Also in the feed</h2><div class="dl-more">${more.slice(0, 9).map((p) => story(p))}</div></section>` : ''}
-            ${d.episodes.length ? html`<section><h2 class="dl-h">Episodes</h2><ul class="dl-list">${d.episodes.map((e) => html`
-              <li><a href="#/s/${e.storyId}/${e.id}"><b>${e.name}</b></a> <span class="dl-tag">${({ new: 'New', active: 'Ongoing', finished: 'Finished' })[e.what]}</span>
-                <small class="muted">${e.storyTitle}</small>${e.summary ? html`<p class="small">${e.summary}</p>` : ''}</li>`)}</ul></section>` : ''}
-          </div>
-          <aside class="dl-side">
-            ${d.birthdays.length ? html`<section><h2 class="dl-h">Birthdays</h2><ul class="dl-list">${d.birthdays.map((b) => html`<li class="dl-person">${avatar({ name: b.name, src: b.avatar, color: b.color, size: 'xs' })} ${who(b)}</li>`)}</ul></section>` : ''}
-            ${d.ties.length || d.follows.length ? html`<section><h2 class="dl-h">Spotted</h2><ul class="dl-list">
-              ${d.ties.map((t) => html`<li>${who(t.from)} and ${who(t.to)}: <b>${t.label || (TIE_NAMES[t.kind] || t.kind).toLowerCase()}</b></li>`)}
-              ${d.follows.map((f) => html`<li>${who(f.from)} followed ${who(f.to)}</li>`)}</ul></section>` : ''}
-            ${d.plans.length ? html`<section><h2 class="dl-h">Around town</h2><ul class="dl-list">${d.plans.map((p) => html`
-              <li><b>${p.title}</b> <small class="muted">${who(p.character)}${p.location ? ` · ${p.location}` : ''}${p.allDay ? '' : ` · ${p.at.slice(11, 16)}`}</small></li>`)}</ul></section>` : ''}
-            ${d.gossip.length ? html`<section class="dl-gossip"><h2 class="dl-h">The gossip column</h2>${d.gossip.slice(0, 4).map((g) => html`<a href="#/p/${g.id}"><p>${g.text}</p></a>`)}</section>` : ''}
-          </aside>
-        </div>
-      </article>`,
-  });
-  return body;
 }

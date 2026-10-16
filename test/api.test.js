@@ -1345,12 +1345,32 @@ test('ties, timelines, the Ardell Daily and polls', async () => {
   const tl = (await b(`/api/characters/${mina.id}/timeline`)).data;
   assert.deepEqual(tl.items.map((i) => i.type).filter((t) => t !== 'arrived').slice(0, 2), ['post', 'tie']);
   assert.deepEqual(tl.birthday, { month: 3, day: 3 });
-  // The Daily for 2025-06-01: the post is the headline.
-  const daily = (await b('/api/daily?date=2025-06-01')).data;
-  assert.equal(daily.day, '2025-06-01');
-  assert.match(daily.stories[0].text, /brunch/);
-  assert.equal((await b('/api/daily?date=2024-09-01')).data.ties.length, 1); // "spotted" on the day they became best friends
-  assert.equal((await b('/api/daily?date=2025-03-03')).data.birthdays[0].name, 'Mina World');
+  // Changing dates on the timeline: a post moves (with its comments), a tie's "since" changes,
+  // arriving keeps a date just for the timeline. Only the writer can.
+  const tl1 = (await a(`/api/characters/${mina.id}/timeline`)).data;
+  assert.equal(tl1.canEdit, true);
+  assert.equal((await b(`/api/characters/${mina.id}/timeline`)).data.canEdit, false);
+  const postItem = tl1.items.find((i) => i.type === 'post');
+  assert.equal((await b(`/api/characters/${mina.id}/timeline`, { method: 'PUT', body: { item: postItem.key, date: '2025-01-01' } })).status, 404);
+  assert.equal((await a(`/api/characters/${mina.id}/timeline`, { method: 'PUT', body: { item: postItem.key, date: 'soon' } })).status, 400);
+  await a(`/api/characters/${mina.id}/timeline`, { method: 'PUT', body: { item: postItem.key, date: '2025-07-04' } });
+  await a(`/api/characters/${mina.id}/timeline`, { method: 'PUT', body: { item: `tie:${ivy.id}`, date: '2020-05-05' } });
+  await a(`/api/characters/${mina.id}/timeline`, { method: 'PUT', body: { item: 'arrived', date: '2019-01-02' } });
+  const tl2 = (await a(`/api/characters/${mina.id}/timeline`)).data.items;
+  assert.match(tl2.find((i) => i.type === 'post').at, /^2025-07-04 10:00/);
+  assert.match(tl2.find((i) => i.type === 'tie').at, /^2020-05-05/);
+  assert.deepEqual([tl2.at(-1).type, tl2.at(-1).at.slice(0, 10), tl2.at(-1).edited], ['arrived', '2019-01-02', true]);
+  assert.equal((await a(`/api/characters/${mina.id}/ties`)).data.ties[0].since, '2020-05-05');
+  // Family tree: Mina's mum, and the mum's own mother, sit on the rows above; a best friend isn't family.
+  const mum = await mk(a, 'Ruth World');
+  const gran = await mk(b, 'Esther World');
+  await a(`/api/characters/${mina.id}/ties/${mum.id}`, { method: 'PUT', body: { kind: 'parent', label: 'mum' } });
+  await b(`/api/characters/${gran.id}/ties/${mum.id}`, { method: 'PUT', body: { kind: 'child' } });
+  const fam = (await b(`/api/characters/${mina.id}/family`)).data;
+  const gens = Object.fromEntries(fam.members.map((m) => [m.character.name, m.gen]));
+  assert.deepEqual(gens, { 'Mina World': 0, 'Ruth World': -1, 'Esther World': -2 });
+  assert.equal(fam.members.find((m) => m.character.id === mum.id).relation.label, 'mum');
+  assert.equal(fam.links.length, 2);
   // Polls: 2–4 choices; characters vote once each (again to change); fans can vote too.
   assert.equal((await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'q', poll: { question: 'q?', options: ['only one'] } } })).status, 400);
   const p = (await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'which bag?', likesDisplay: 100, poll: { question: 'Which bag?', options: ['Black', 'Red', 'Both'], crowd: true } } })).data.post;
@@ -1367,5 +1387,5 @@ test('ties, timelines, the Ardell Daily and polls', async () => {
   assert.equal((await b(`/api/social/${p.id}/vote`, { method: 'POST', body: { characterId: ivy.id, choice: 7 } })).status, 400);
   // Removing a tie.
   await a(`/api/characters/${mina.id}/ties/${ivy.id}`, { method: 'DELETE' });
-  assert.equal((await a(`/api/characters/${mina.id}/ties`)).data.ties.length, 0);
+  assert.equal((await a(`/api/characters/${mina.id}/ties`)).data.ties.map((t) => t.other.name).join(), 'Ruth World');
 });
