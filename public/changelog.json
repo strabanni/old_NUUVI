@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-63",
+    "date": "2026-10-16",
+    "title": "Story pictures fixed, NUUVI strip removed",
+    "items": [
+      "Fixed: adding a picture to a story did nothing. The picture menu was opening behind the story window. It now opens on top, there and in every other window with a picture button (profile gallery, group photo, episode banner).",
+      "The NUUVI strip on character pages (the handle, new follower and mentions row) is gone."
+    ]
+  },
+  {
     "code": "NV-62",
     "date": "2026-10-16",
     "title": "Song players and a new profile order",

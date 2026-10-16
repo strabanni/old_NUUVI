@@ -4008,3 +4008,5 @@ button.bp-headline:hover { text-decoration-color: var(--muted); }
   .bp-music.has-soundcloud { min-height: 166px; }
   .bp-music.has-youtube { min-height: 0; aspect-ratio: 16 / 9; }
 }
+/* Menus shown on the top layer (so they open above windows): undo the browser's popover centring. */
+.popover[popover] { inset: auto; margin: 0; width: max-content; height: auto; overflow: visible; color: inherit; }

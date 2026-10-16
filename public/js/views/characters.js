@@ -337,11 +337,6 @@ export async function viewCharacter(id) {
           <h1 class="bp-title">${own ? html`<button type="button" class="bp-headline" id="bp-headline" title="Change this line">${headline}</button>` : html`<span class="bp-headline">${headline}</span>`}<span class="bp-comma">,</span> <span class="bp-name">${firstName}</span> <span class="bp-bang">!</span></h1>
         </header>
         ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
-        <section class="bp-strip">
-          <div class="bp-brand"><i></i><span><b>NUUVI</b><small>@${c.handle}${c.verified ? html` <span class="verified" title="Verified">${icons.verified}</span>` : ''}${c.private ? html` <span class="ig-lock" title="Private account">${icons.lock}</span>` : ''}</small></span></div>
-          <div class="bp-follower" id="bp-follower"><span class="bp-fav"></span><span class="grow"><b>${compact(stats.followers)} followers</b><small>No followers yet</small></span><span class="bp-dial" aria-hidden="true"></span></div>
-          <div class="bp-mentions" id="bp-mentions"></div>
-        </section>
         <div class="bp-info">
           <div class="ig-stats">
             <button type="button" id="bp-all-posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
@@ -514,21 +509,6 @@ export async function viewCharacter(id) {
       if (v === null) return;
       try { await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, song: v.trim() || null } } }); reload(); } catch (err) { toast(err.message); }
     });
-    // The strip at the bottom: their newest follower, and the newest posts that mention them.
-    api(`/api/characters/${c.id}/followers`).then(({ characters: fs }) => {
-      const f = fs[0];
-      const box = $('#bp-follower', body);
-      if (!f || !box) return;
-      render(box, html`<a class="bp-fav" href="#/c/${f.id}">${avatar({ name: f.name, src: f.avatar, color: f.color, size: 'sm' })}</a>
-        <a class="grow" href="#/c/${f.id}"><b>${f.handle || f.name}</b><small>New follower!</small></a>
-        <button type="button" class="bp-dial" data-list="followers" aria-label="All ${stats.followers} followers"><b>${compact(stats.followers)}</b></button>`);
-      $('[data-list]', box).addEventListener('click', () => showPeople(`Following ${c.name}`, `/api/characters/${c.id}/followers`));
-    }).catch(() => {});
-    api(`/api/social?tagged=${c.id}`).then(({ posts: ms }) => {
-      const box = $('#bp-mentions', body);
-      if (!box) return;
-      render(box, html`${ms.slice(0, 2).map((p) => html`<a class="bp-mention" href="#/p/${p.id}"><span><b>${p.character.name}</b><small>mentioned you!</small></span><i>${icons.check}</i></a>`)}`);
-    }).catch(() => {});
   }
   // Your own character: tap the profile picture or the banner to change it right here.
   const changePic = (field, label) => attachSheet({

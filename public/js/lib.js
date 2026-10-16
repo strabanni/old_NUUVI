@@ -517,7 +517,10 @@ export function menu(anchor, items) {
   pop.className = 'popover';
   pop.setAttribute('role', 'menu');
   render(pop, html`${items.filter(Boolean).map((it, i) => html`<button type="button" role="menuitem" data-i="${i}" class="${it.danger ? 'danger' : ''}">${it.label}</button>`)}`);
-  document.body.append(pop);
+  // Over an open window (a <dialog>) the menu goes inside it (everything outside a window can't be
+  // tapped while it's open) and on the top layer, so it shows above the window instead of behind.
+  (anchor.closest?.('dialog[open]') || document.body).append(pop);
+  if (pop.showPopover) { pop.popover = 'manual'; pop.showPopover(); }
   // Positions are measured on screen, then divided by the interface zoom (Settings → Interface size).
   const z = Number(getComputedStyle(document.documentElement).zoom) || 1;
   const r = anchor.getBoundingClientRect();
@@ -636,7 +639,7 @@ export function attachSheet({ max = 10, onPictures, extras = [], anchor = null, 
     // Kept in the page (hidden) until a picture is chosen: iPhones can drop a file box that isn't.
     document.querySelectorAll('input.pick-file').forEach((x) => x.remove());
     const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: max > 1, className: 'pick-file', hidden: true });
-    document.body.append(input);
+    (at.closest?.('dialog[open]') || document.body).append(input); // inside an open window, or it can't open
     input.addEventListener('change', async () => {
       const files = [...input.files].slice(0, max);
       input.remove();
