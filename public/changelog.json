@@ -1,5 +1,17 @@
 [
   {
+    "code": "NV-55",
+    "date": "2026-10-16",
+    "title": "Ties, timelines, The Ardell Daily & polls",
+    "items": [
+      "Ties: every character page has a Ties tab. Add the people who matter (partner, ex, best friend, rival, family and more) with your own word for it, a date and a note. They show as a web around the character.",
+      "When both writers add each other, the line is solid and says both ways. When only one has, it's dashed. You get a notification when someone adds your character, with a button to add them back.",
+      "Timeline: a new tab on every character page shows their life in order, month by month: posts, episodes they joined or finished, plans, ties and the day they arrived.",
+      "The Ardell Daily: a newspaper for the city, made from what happened that day. The most liked post leads, with episodes, birthdays, who got together, plans around town and the gossip column. Find it in the menu and on Home. Use the arrows to read earlier days.",
+      "Polls: tap Add a poll when making a post on THE NU. Ask a question with 2 to 4 choices. Characters vote by tapping a choice, and fans can vote too."
+    ]
+  },
+  {
     "code": "NV-54",
     "date": "2026-10-16",
     "title": "City date, timed texts & calls, private accounts",

@@ -3667,3 +3667,102 @@ body.sv-open { overflow: hidden; }
 .ig-private { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 30px 16px; }
 .ig-private > svg { width: 40px; height: 40px; opacity: .8; }
 .follow-reqs .pc-item { gap: 8px; }
+
+/* ---------- v55: ties, timeline, The Ardell Daily, polls ---------- */
+/* Profile tabs: six now, so they slide sideways on narrow screens. */
+.ig-tabs { overflow-x: auto; scrollbar-width: none; }
+.ig-tabs::-webkit-scrollbar { display: none; }
+.ig-tabs button { min-width: 64px; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; }
+.ig-tabs button span { font-size: .72rem; }
+
+/* Ties: the web, then the list. */
+.tie-bar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.tie-stage { position: relative; width: min(100%, 360px); aspect-ratio: 1; margin: 4px auto 18px; }
+.tie-web { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tie-node { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 3px; color: var(--text); max-width: 92px; text-align: center; }
+.tie-node:hover { text-decoration: none; }
+.tie-node .avatar { box-shadow: 0 0 0 3px var(--base, #fff); }
+.tie-node.center .avatar { width: 64px; height: 64px; }
+.tie-node small { font-size: .64rem; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--tc); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 92px; }
+.tie-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.tie-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--glass-border); }
+.tie-row .grow { min-width: 0; }
+.tie-who { color: var(--text); }
+.tie-what { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
+.tie-chip { font-size: .72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; color: var(--tc); border: 1px solid var(--tc); }
+.tie-note { margin: 4px 0 0; color: var(--muted); }
+.tie-h { font-size: .9rem; margin: 20px 0 4px; }
+.tf-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; margin-bottom: 8px; }
+
+/* Timeline: months down the left, one line per thing that happened. */
+.timeline, .timeline ol { list-style: none; margin: 0; padding: 0; }
+.tl-month h3 { font-size: .8rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 18px 0 6px; }
+.tl-month:first-child h3 { margin-top: 0; }
+.tl-item > a, .tl-item > div { display: flex; align-items: flex-start; gap: 12px; padding: 8px 4px; color: var(--text); position: relative; }
+.tl-item > a:hover { text-decoration: none; background: var(--glass-2); border-radius: 12px; }
+.tl-item:not(:last-child) > :first-child::before { content: ''; position: absolute; left: 19px; top: 40px; bottom: -8px; width: 1px; background: var(--glass-border); }
+.tl-dot { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--glass-2); color: var(--accent-fg); }
+.tl-dot svg { width: 16px; height: 16px; }
+.tl-item .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tl-text { font-size: .86rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.tl-pic { flex: none; width: 48px; height: 48px; object-fit: cover; border-radius: 8px; }
+.tl-locked { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; }
+.tl-locked svg { width: 14px; height: 14px; }
+
+/* The Ardell Daily: a front page. */
+.daily { max-width: 980px; margin: 0 auto; }
+.dl-mast { text-align: center; border-bottom: 3px double var(--text); padding-bottom: 10px; margin-bottom: 18px; }
+.dl-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--glass-border); padding-bottom: 6px; }
+.dl-date { font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.dl-title { font-size: clamp(2rem, 7vw, 3.6rem); font-weight: 900; letter-spacing: -.02em; line-height: 1; margin: 14px 0 6px; text-transform: uppercase; }
+.dl-stats { margin: 0; font-size: .78rem; color: var(--muted); }
+.dl-h { font-size: .74rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; border-top: 2px solid var(--text); padding-top: 6px; margin: 0 0 10px; }
+.dl-story { display: flex; flex-direction: column; gap: 8px; color: var(--text); }
+.dl-story:hover { text-decoration: none; }
+.dl-story:hover .dl-head { text-decoration: underline; }
+.dl-story img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; }
+.dl-copy { display: flex; flex-direction: column; gap: 4px; }
+.dl-kicker { font-size: .7rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--accent-fg); }
+.dl-head { font-weight: 800; font-size: 1.02rem; line-height: 1.25; }
+.dl-front { margin-bottom: 22px; }
+.dl-story.lead { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.dl-story.lead .dl-head { font-size: clamp(1.3rem, 3.6vw, 2rem); line-height: 1.15; }
+.dl-story.lead img { aspect-ratio: 16 / 9; }
+@media (min-width: 760px) { .dl-story.lead.has-pic { grid-template-columns: 3fr 2fr; align-items: center; } }
+.dl-cols { display: grid; grid-template-columns: 1fr; gap: 24px; }
+@media (min-width: 900px) { .dl-cols { grid-template-columns: 2fr 1fr; } .dl-side { border-left: 1px solid var(--glass-border); padding-left: 20px; } }
+.dl-main section, .dl-side section { margin-bottom: 22px; }
+.dl-more { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+.dl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: .9rem; }
+.dl-list p { margin: 4px 0 0; color: var(--muted); }
+.dl-list small { display: block; }
+.dl-person { display: flex; align-items: center; gap: 8px; }
+.dl-tag { font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 1px 6px; border: 1px solid currentColor; border-radius: 4px; color: var(--muted); }
+.dl-gossip a { color: var(--text); display: block; padding: 8px 0; border-bottom: 1px dashed var(--glass-border); }
+.dl-gossip p { margin: 0; font-size: .9rem; }
+.bw-paper { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 4px 0 8px; border-radius: 14px; background: var(--glass-2); color: var(--text); }
+.bw-paper:hover { text-decoration: none; }
+.bw-paper .grow { display: flex; flex-direction: column; min-width: 0; }
+.bw-paper small { color: var(--muted); font-size: .74rem; }
+.bw-paper > svg { width: 20px; height: 20px; flex: none; }
+
+/* Polls on posts. */
+.poll { padding: 10px 14px 4px; display: flex; flex-direction: column; gap: 8px; }
+.poll-q { margin: 0; font-weight: 700; }
+.poll-opt { position: relative; overflow: hidden; display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--glass-border); background: transparent; color: var(--text); text-align: left; }
+.poll-fill { position: absolute; inset: 0 auto 0 0; width: var(--pct, 0%); background: var(--glass-2); transition: width .3s var(--ease, ease); }
+.poll-opt.mine { border-color: var(--accent); }
+.poll-opt.mine .poll-fill { background: var(--accent-soft, var(--glass-2)); }
+.poll-text, .poll-pct, .poll-check { position: relative; }
+.poll-text { flex: 1; min-width: 0; }
+.poll-check svg { width: 14px; height: 14px; color: var(--accent-fg); }
+.poll-total { margin: 0; }
+.poll-fields { margin-top: 12px; border: 1px solid var(--glass-border); border-radius: 16px; padding: 4px 12px; }
+.poll-fields[open] { padding-bottom: 12px; }
+.poll-fields summary { display: flex; align-items: center; gap: 8px; padding: 8px 0; cursor: pointer; font-weight: 600; list-style: none; }
+.poll-fields summary::-webkit-details-marker { display: none; }
+.poll-fields summary svg { width: 16px; height: 16px; color: var(--accent-fg); }
+.poll-fields input[name^=pollO] { margin-bottom: 6px; }
+.poll-fields .check-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-weight: 400; }
+.poll-fields .check-row input { width: auto; margin: 0; }
+.dl-nav-gap { width: 40px; height: 40px; flex: none; }

@@ -26,6 +26,7 @@ import { placeRoutes } from './routes/places.js';
 import { planRoutes } from './routes/plans.js';
 import { socialStoryRoutes } from './routes/social-stories.js';
 import { readClock, writeClock, storyNowSql, publicClock } from './clock.js';
+import { worldRoutes } from './routes/world.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
 import { createBots } from './bots.js';
@@ -195,7 +196,7 @@ export function createApp({
     group: row.pt_group ? { title: row.pt_title || '' } : null,
     url: row.type === 'report' ? '#/admin' : row.type === 'dm' || row.type === 'call' ? phoneUrl(row) : row.social_id ? `#/p/${row.social_id}`
       : row.type === 'message' ? `#/messages/${row.actor_id}` : row.type === 'connection' ? '#/nu'
-      : (row.type === 'follow' || row.type === 'followreq') && row.character_id ? `#/c/${row.character_id}`
+      : ['follow', 'followreq', 'tie'].includes(row.type) && row.character_id ? `#/c/${row.character_id}`
       : row.type === 'added' && row.story_id ? `#/s/${row.story_id}`
       : row.story_id && row.channel_id ? `#/s/${row.story_id}/${row.channel_id}` : '#/notifications',
   });
@@ -242,6 +243,7 @@ export function createApp({
       dm: () => ({ title: ctx.textTitle(n), body: text }),
       call: () => ({ title: `${n.to?.name ?? 'You'} missed a ${text === 'facetime' ? 'FaceTime' : 'call'}`, body: `${n.from?.name ?? 'Someone'} called${n.group ? ` ${n.group.title || 'the group'}` : ''}` }),
       followreq: () => ({ title: 'Follow request', body: text }),
+      tie: () => ({ title: 'New tie', body: text }),
       reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),
       message: () => ({ title: n.count > 1 ? `${n.count} messages from ${n.actor?.displayName}` : `Message from ${n.actor?.displayName}`, body: text }),
       connection: () => ({ title: 'Connection picked up', body: text }),
@@ -341,6 +343,7 @@ export function createApp({
   placeRoutes(router, ctx);
   planRoutes(router, ctx);
   socialStoryRoutes(router, ctx);
+  worldRoutes(router, ctx);
 
   // The date in Ardell City (see clock.js): everyone can read it, admins set it.
   router.get('/api/clock', () => ({ data: { clock: publicClock(ctx.clock()) } }));

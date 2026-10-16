@@ -1321,3 +1321,51 @@ test('private accounts: follow requests, approve or decline, and only followers 
   await a(`/api/characters/${star.id}`, { method: 'PUT', body: { private: false } });
   assert.equal((await b(`/api/characters/${star.id}`)).data.followedBy.length, 2);
 });
+
+test('ties, timelines, the Ardell Daily and polls', async () => {
+  const a = await app.signUp('world_a');
+  const b = await app.signUp('world_b');
+  const mk = async (who, name, extra = {}) => (await who('/api/characters', { method: 'POST', body: { name, ...extra } })).data.character;
+  const mina = await mk(a, 'Mina World');
+  await a(`/api/profiles/${mina.id}`, { method: 'PUT', body: { dossier: { facts: { birthday: 'March 3' } } } });
+  const ivy = await mk(b, 'Ivy World');
+  // Ties: Mina calls Ivy her best friend; Ivy hasn't said back yet.
+  assert.equal((await b(`/api/characters/${mina.id}/ties/${ivy.id}`, { method: 'PUT', body: { kind: 'friend' } })).status, 404); // not b's
+  assert.equal((await a(`/api/characters/${mina.id}/ties/${ivy.id}`, { method: 'PUT', body: { kind: 'wizard' } })).status, 400);
+  await a(`/api/characters/${mina.id}/ties/${ivy.id}`, { method: 'PUT', body: { kind: 'bestfriend', label: 'ride or die', note: 'since college', since: '2024-09-01' } });
+  let ties = (await b(`/api/characters/${ivy.id}/ties`)).data;
+  assert.equal(ties.ties.length, 0);
+  assert.equal(ties.incoming[0].from.name, 'Mina World');
+  assert.ok((await b('/api/notifications')).data.notifications.some((n) => n.type === 'tie' && n.from.name === 'Mina World'));
+  await b(`/api/characters/${ivy.id}/ties/${mina.id}`, { method: 'PUT', body: { kind: 'bestfriend' } });
+  ties = (await a(`/api/characters/${mina.id}/ties`)).data.ties;
+  assert.deepEqual([ties[0].other.name, ties[0].label, ties[0].mutual.kind], ['Ivy World', 'ride or die', 'bestfriend']);
+  // Timeline: posts, the tie and arriving, newest first.
+  await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'brunch with @' + ivy.handle, postedAt: '2025-06-01T10:00:00Z' } });
+  const tl = (await b(`/api/characters/${mina.id}/timeline`)).data;
+  assert.deepEqual(tl.items.map((i) => i.type).filter((t) => t !== 'arrived').slice(0, 2), ['post', 'tie']);
+  assert.deepEqual(tl.birthday, { month: 3, day: 3 });
+  // The Daily for 2025-06-01: the post is the headline.
+  const daily = (await b('/api/daily?date=2025-06-01')).data;
+  assert.equal(daily.day, '2025-06-01');
+  assert.match(daily.stories[0].text, /brunch/);
+  assert.equal((await b('/api/daily?date=2024-09-01')).data.ties.length, 1); // "spotted" on the day they became best friends
+  assert.equal((await b('/api/daily?date=2025-03-03')).data.birthdays[0].name, 'Mina World');
+  // Polls: 2–4 choices; characters vote once each (again to change); fans can vote too.
+  assert.equal((await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'q', poll: { question: 'q?', options: ['only one'] } } })).status, 400);
+  const p = (await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'which bag?', likesDisplay: 100, poll: { question: 'Which bag?', options: ['Black', 'Red', 'Both'], crowd: true } } })).data.post;
+  assert.equal(p.poll.options.length, 3);
+  assert.equal(p.poll.total, 40); // 4 in 10 of the likes vote
+  let poll = (await b(`/api/social/${p.id}/vote`, { method: 'POST', body: { characterId: ivy.id, choice: 1 } })).data.poll;
+  assert.equal(poll.total, 41);
+  assert.equal(poll.mine[ivy.id], 1);
+  poll = (await b(`/api/social/${p.id}/vote`, { method: 'POST', body: { characterId: ivy.id, choice: 2 } })).data.poll;
+  assert.equal(poll.total, 41);
+  assert.equal(poll.mine[ivy.id], 2);
+  poll = (await b(`/api/social/${p.id}/vote`, { method: 'POST', body: { characterId: ivy.id, choice: 2 } })).data.poll;
+  assert.equal(poll.total, 40); // same choice again takes the vote back
+  assert.equal((await b(`/api/social/${p.id}/vote`, { method: 'POST', body: { characterId: ivy.id, choice: 7 } })).status, 400);
+  // Removing a tie.
+  await a(`/api/characters/${mina.id}/ties/${ivy.id}`, { method: 'DELETE' });
+  assert.equal((await a(`/api/characters/${mina.id}/ties`)).data.ties.length, 0);
+});

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const SCHEMA_VERSION = 26;
+const SCHEMA_VERSION = 27;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -627,6 +627,26 @@ export const MIGRATIONS = [
      PRIMARY KEY (follower_id, followed_id)
    );
    CREATE INDEX character_follow_requests_followed_idx ON character_follow_requests(followed_id);`,
+  // v27: ties (how one character relates to another: best friend, ex, rival…) for the relationship
+  // web and timelines; and votes on polls in THE NU posts.
+  `CREATE TABLE character_ties (
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     other_id     INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     kind         TEXT NOT NULL DEFAULT 'friend',
+     label        TEXT NOT NULL DEFAULT '',
+     note         TEXT NOT NULL DEFAULT '',
+     since        TEXT,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (character_id, other_id)
+   );
+   CREATE INDEX character_ties_other_idx ON character_ties(other_id);
+   CREATE TABLE social_poll_votes (
+     post_id      INTEGER NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     choice       INTEGER NOT NULL,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     PRIMARY KEY (post_id, character_id)
+   );`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

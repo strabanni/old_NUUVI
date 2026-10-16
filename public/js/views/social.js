@@ -130,6 +130,22 @@ export async function showPeople(title, url, { note = '' } = {}) {
 }
 
 // A post as shown on THE NU and on profiles — laid out like an Instagram post.
+// A poll under the post: tap a choice to vote as one of your characters. Results show once you've
+// voted (or for the person who posted it).
+function pollHtml(p) {
+  const { question, options, total, mine } = p.poll;
+  const voted = Object.values(mine);
+  const show = voted.length > 0 || p.userId === state.user?.id;
+  return html`<div class="poll ${show ? 'show' : ''}">
+    ${question ? html`<p class="poll-q">${question}</p>` : ''}
+    ${options.map((o, i) => { const pct = total ? Math.round((o.votes / total) * 100) : 0; return html`
+      <button type="button" class="poll-opt ${voted.includes(i) ? 'mine' : ''}" data-poll="${i}" data-pct="${show ? pct : 0}" aria-pressed="${voted.includes(i)}">
+        <span class="poll-fill" aria-hidden="true"></span><span class="poll-text">${o.text}</span>${voted.includes(i) ? html`<span class="poll-check">${icons.check}</span>` : ''}${show ? html`<b class="poll-pct">${pct}%</b>` : ''}
+      </button>`; })}
+    <p class="poll-total small muted">${compact(total)} ${total === 1 ? 'vote' : 'votes'}${voted.length ? ' · tap your choice again to take it back' : ''}</p>
+  </div>`;
+}
+
 export function socialCard(p, { full = false } = {}) {
   const ch = p.character;
   const liked = p.likedBy.length > 0;
@@ -147,6 +163,7 @@ export function socialCard(p, { full = false } = {}) {
         <button class="icon-btn sm np-more" data-sm="more" aria-label="Post options">${icons.more}</button>
       </header>
       ${p.kind === 'text' ? html`<div class="np-textpost" data-sm="dbl"><div class="body">${formatPost(p.body)}</div><span class="np-burst" aria-hidden="true">${icons.heartFill}</span></div>` : mediaHtml(p, { full })}
+      ${p.poll ? pollHtml(p) : ''}
       <div class="np-actions">
         <button type="button" class="np-act like ${liked ? 'on' : ''}" data-sm="like" aria-pressed="${liked}" aria-label="${liked ? 'Unlike' : 'Like'}">${liked ? icons.heartFill : icons.heart}</button>
         <a class="np-act" href="#/p/${p.id}" aria-label="Comments">${icons.chat}</a>
@@ -206,6 +223,7 @@ function moveCarousel(car, step) {
 
 export function styleBars(root) {
   for (const i of root.querySelectorAll('.vn-bars i')) i.style.height = `${i.dataset.h}%`;
+  for (const b of root.querySelectorAll('.poll-opt[data-pct]')) b.style.setProperty('--pct', `${b.dataset.pct}%`);
   for (const t of root.querySelectorAll('.ptag[data-x]')) { t.style.setProperty('--x', `${Number(t.dataset.x) * 100}%`); t.style.setProperty('--y', `${Number(t.dataset.y) * 100}%`); }
 }
 
@@ -261,6 +279,11 @@ export function bindSocial(root, posts, redraw) {
       const p = posts.get(Number(likers.dataset.likers));
       const fans = Math.max(0, p.likes - (p.likers || []).length);
       return showPeople('Liked by', `/api/social/${p.id}/likers`, { note: fans ? 'Everyone else who liked it is a fan.' : '' });
+    }
+    const opt = e.target.closest('[data-poll]');
+    if (opt) {
+      const p = posts.get(Number(opt.closest('[data-social]').dataset.social));
+      return votePoll(p, Number(opt.dataset.poll), opt, redraw);
     }
     const arrow = e.target.closest('[data-car]');
     if (arrow) {
@@ -353,6 +376,20 @@ async function toggleLike(p, anchor, redraw, { quick = false } = {}) {
     return act(mine.find((c) => c.id === last) || mine[0]);
   }
   menu(anchor, mine.map((c) => ({ label: `${p.likedBy.includes(c.id) ? '♥ Unlike as' : '♡ Like as'} ${c.name}`, action: () => act(c) })));
+}
+
+// Vote as one of your characters (with several, pick which).
+async function votePoll(p, choice, anchor, redraw) {
+  const mine = await playableCharacters();
+  if (!mine.length) return toast('Create a character first');
+  const act = async (c) => {
+    try {
+      const { poll } = await api(`/api/social/${p.id}/vote`, { method: 'POST', body: { characterId: c.id, choice } });
+      redraw({ ...p, poll });
+    } catch (err) { toast(err.message); }
+  };
+  if (mine.length === 1) return act(mine[0]);
+  menu(anchor, mine.map((c) => ({ label: `${p.poll.mine[c.id] === choice ? 'Take back vote as' : 'Vote as'} ${c.name}`, action: () => act(c) })));
 }
 
 async function updatePost(p, body, redraw) {
@@ -626,6 +663,15 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       <label for="s-body" id="s-body-label">What's happening?</label>
       <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work">${edit?.body || ''}</textarea>${checkBtn('s-body')}
       <div class="people-box" id="s-people" hidden></div>
+      <details class="poll-fields" id="s-poll" ${edit?.poll ? 'open' : ''}>
+        <summary>${icons.poll} Add a poll</summary>
+        <label for="s-pq">Question</label>
+        <input id="s-pq" name="pollQ" maxlength="140" placeholder="e.g. which dress for tonight?" value="${edit?.poll?.question || ''}">
+        <label>Choices <span class="muted small">(2 to 4)</span></label>
+        ${[0, 1, 2, 3].map((i) => html`<input name="pollO${i}" maxlength="60" aria-label="Choice ${i + 1}" placeholder="${i < 2 ? `Choice ${i + 1}` : `Choice ${i + 1} (optional)`}" value="${edit?.poll?.options[i]?.text || ''}">`)}
+        <label class="check-row"><input type="checkbox" name="pollCrowd" ${edit?.poll ? (edit.poll.crowd ? 'checked' : '') : 'checked'}><span>Fans vote too <span class="muted small">(about 4 in 10 of the likes)</span></span></label>
+        <button type="button" class="ghost sm" id="s-poll-off" ${edit?.poll ? '' : 'hidden'}>Remove the poll</button>
+      </details>
       <label for="s-ctx">Behind the post <span class="muted small">(only you see this)</span></label>
       <textarea id="s-ctx" name="context" rows="2" maxlength="600" placeholder="What's going on? e.g. first date at the pier, she's nervous but happy">${edit?.meta?.context || ''}</textarea>
       <p class="hint">Fan comments read this so they fit the moment. It's never shown on the post.</p>
@@ -744,6 +790,9 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       mentionPicker(form.body);
       peopleOf = wirePeople($('#s-people', d), form.body, edit);
       wireCheck(d);
+      const pollBox = $('#s-poll', d);
+      pollBox.addEventListener('toggle', () => { $('#s-poll-off', d).hidden = !pollBox.open; });
+      $('#s-poll-off', d).addEventListener('click', () => { pollBox.open = false; });
       form.body.focus();
     },
     submit: async (data) => {
@@ -755,6 +804,13 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       }
       const music = songFrom(data);
       if (music || edit) payload.music = music;
+      // The poll: only when its box is open and has choices; closing it on an edit takes it off.
+      const pollOn = document.querySelector('#s-poll')?.open;
+      const options = [0, 1, 2, 3].map((i) => (data[`pollO${i}`] || '').trim()).filter(Boolean);
+      if (pollOn && (options.length || data.pollQ)) {
+        if (options.length < 2) throw new Error('A poll needs at least 2 choices');
+        payload.poll = { question: (data.pollQ || '').trim(), options, crowd: !!data.pollCrowd };
+      } else if (edit?.poll) payload.poll = null;
       if (kind === 'stream') {
         payload.title = data.title;
         payload.meta = { viewers: Number(String(data.viewers || '0').replace(/[,\s]/g, '')) || 0, live: true };

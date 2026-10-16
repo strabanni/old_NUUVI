@@ -1,11 +1,11 @@
 // Service worker: caches the app shell so NUUVI opens instantly as an installed app,
 // and shows push notifications (new posts, @mentions, your turn) when the app is closed.
-const CACHE = 'nuuvi-shell-v56';
+const CACHE = 'nuuvi-shell-v57';
 const SHELL = [
   '/', '/index.html', '/styles.css', '/icon.svg', '/manifest.webmanifest',
   '/js/main.js', '/js/lib.js', '/js/theme.js',
   '/js/views/auth.js', '/js/views/home.js', '/js/views/channel.js', '/js/views/story-settings.js',
-  '/js/views/characters.js', '/js/views/people.js', '/js/views/notifications.js', '/js/views/admin.js', '/js/views/threads.js', '/js/views/social.js', '/js/views/directory.js', '/js/views/events.js', '/js/views/phone.js', '/js/views/overview.js', '/js/views/npcs.js', '/js/views/map.js', '/js/views/nu.js', '/js/views/messages.js', '/js/views/archive.js', '/js/views/profiles.js', '/js/views/stories.js', '/js/lore-preset.js', '/js/weather.js', '/js/citymap.js',
+  '/js/views/characters.js', '/js/views/people.js', '/js/views/notifications.js', '/js/views/admin.js', '/js/views/threads.js', '/js/views/social.js', '/js/views/directory.js', '/js/views/events.js', '/js/views/phone.js', '/js/views/overview.js', '/js/views/npcs.js', '/js/views/map.js', '/js/views/nu.js', '/js/views/messages.js', '/js/views/archive.js', '/js/views/profiles.js', '/js/views/stories.js', '/js/views/world.js', '/js/lore-preset.js', '/js/weather.js', '/js/citymap.js',
 ];
 
 self.addEventListener('install', (event) => {

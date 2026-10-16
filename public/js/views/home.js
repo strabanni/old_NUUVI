@@ -100,6 +100,7 @@ export async function viewHome() {
         </div>
         <div class="bento-week card">
           <div class="bw-head"><b>${storyNow().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><a href="#/events" class="see-all">Calendar</a></div>
+          <a class="bw-paper" href="#/daily">${icons.newspaper}<span class="grow"><b>The Ardell Daily</b><small>Today's paper: what happened in the city</small></span>${icons.chevron}</a>
           <div class="bw-weather" id="bw-weather"></div>
           <div class="bw-days no-swipe">${weekDays.map((d, i) => { const w = forecast(d); return html`<button type="button" class="bw-day ${i === 1 ? 'today' : ''} ${eventsOn(d).length || birthdaysOn(d).length || plansOn(plans, d).length ? 'has' : ''}" data-day="${i}" aria-pressed="${i === 1}">
             <small>${d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2)}</small><b>${d.getDate()}</b>

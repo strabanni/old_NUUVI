@@ -214,8 +214,48 @@ export function socialPostRoutes(r, ctx) {
       buzz: buzz.map((b) => ({ id: b.id, handle: b.handle, body: b.body, likes: b.likes, createdAt: b.created_at })),
       // People tagged on the photos themselves (Instagram-style), with where on the photo.
       photoTags: photoTagRows(row.id).map((t) => ({ characterId: t.character_id, name: t.name, handle: t.handle, mediaIndex: t.media_index, x: t.x, y: t.y })),
+      poll: pollResults(row, viewerId),
     };
   }
+  // Polls: the question and choices live in the post's meta; votes in social_poll_votes. With
+  // "fans vote too", a crowd of fans (about 4 in 10 of the likes) is added, split the same way each time.
+  function pollResults(row, viewerId) {
+    const poll = JSON.parse(row.meta || '{}').poll;
+    if (!poll || !Array.isArray(poll.options)) return null;
+    const real = poll.options.map(() => 0);
+    for (const v of db.prepare('SELECT choice, COUNT(*) AS n FROM social_poll_votes WHERE post_id = ? GROUP BY choice').all(row.id)) if (real[v.choice] !== undefined) real[v.choice] = v.n;
+    let crowd = poll.options.map(() => 0);
+    if (poll.crowd) {
+      const likes = (row.likes_display ?? autoLikes(row.c_followers, row.id)) || 0;
+      const total = Math.round(likes * 0.4);
+      const weights = poll.options.map((_, i) => 0.6 + (((row.id * 9301 + (i + 1) * 49297) % 233280) / 233280) * 2.4);
+      const sum = weights.reduce((a, b) => a + b, 0);
+      crowd = weights.map((w) => Math.floor((total * w) / sum));
+      crowd[0] += total - crowd.reduce((a, b) => a + b, 0);
+    }
+    const votes = poll.options.map((_, i) => real[i] + crowd[i]);
+    const mine = viewerId ? db.prepare(`SELECT v.character_id, v.choice FROM social_poll_votes v JOIN characters c ON c.id = v.character_id
+      WHERE v.post_id = ? AND c.user_id = ?`).all(row.id, viewerId) : [];
+    return { question: poll.question, options: poll.options.map((text, i) => ({ text, votes: votes[i] })), total: votes.reduce((a, b) => a + b, 0),
+      crowd: !!poll.crowd, mine: Object.fromEntries(mine.map((m) => [m.character_id, m.choice])) };
+  }
+  // A poll from the composer: a question, 2–4 choices, and whether fans vote too. undefined = keep, null = remove.
+  function pollInput(v) {
+    if (v === undefined) return undefined;
+    if (v === null || v === false) return null;
+    if (typeof v !== 'object') fail(400, 'Poll must be an object');
+    const question = (str(v.question, 'Poll question', { max: 140 }) ?? '').trim();
+    const options = (Array.isArray(v.options) ? v.options : []).map((o) => String(o ?? '').trim().slice(0, 60)).filter(Boolean);
+    if (!options.length && !question) return null;
+    if (options.length < 2 || options.length > 4) fail(400, 'A poll needs 2 to 4 choices');
+    return { question, options, crowd: v.crowd !== false };
+  }
+  const withPoll = (meta, poll) => {
+    if (poll === undefined) return meta;
+    const { poll: _old, ...rest } = meta;
+    return poll ? { ...rest, poll } : rest;
+  };
+
   const photoTagUsers = (postId) => photoTagRows(postId).map((t) => t.user_id);
   function photoTagRows(postId) {
     return db.prepare(`SELECT t.*, c.name, c.handle, c.user_id FROM social_photo_tags t JOIN characters c ON c.id = t.character_id
@@ -493,7 +533,7 @@ export function socialPostRoutes(r, ctx) {
     const photoTags = photoTagsInput(body.photoTags, kind, media, user);
     const { lastInsertRowid } = db.prepare(`INSERT INTO social_posts (character_id, user_id, kind, body, title, media, meta, location, category, likes_display, comments_display, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`)
-      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withMusic(withPeople(withTagged(metaInput(kind, body.meta), body.taggedIn), body.people, body.context), musicInput(body.music))), location,
+      .run(c.id, user.id, kind, text, title, JSON.stringify(media), JSON.stringify(withPoll(withMusic(withPeople(withTagged(metaInput(kind, body.meta), body.taggedIn), body.people, body.context), musicInput(body.music)), pollInput(body.poll))), location,
         category, likesShown ?? null, commentsShown ?? null, postedAt);
     savePhotoTags(Number(lastInsertRowid), photoTags, user, c);
     syncPhotoPeople(Number(lastInsertRowid));
@@ -527,9 +567,9 @@ export function socialPostRoutes(r, ctx) {
     const tagsBefore = JSON.stringify(photoTagRows(row.id).map((t) => [t.character_id, t.media_index, t.x, t.y]));
     // Meta that belongs to the post rather than its type (song, tags, what the pictures look like) carries over.
     const prev = JSON.parse(row.meta);
-    const keep = Object.fromEntries(['music', 'tagged', 'people', 'context', ...(mediaChanged ? [] : ['seen', 'look'])].filter((k) => prev[k] !== undefined).map((k) => [k, prev[k]]));
+    const keep = Object.fromEntries(['music', 'tagged', 'people', 'context', 'poll', ...(mediaChanged ? [] : ['seen', 'look'])].filter((k) => prev[k] !== undefined).map((k) => [k, prev[k]]));
     const base = body.meta === undefined ? (mediaChanged ? keep : prev) : { ...keep, ...metaInput(kind, body.meta) };
-    const metaIn = JSON.stringify(withMusic(withPeople(withTagged(base, body.taggedIn), body.people, body.context), musicInput(body.music)));
+    const metaIn = JSON.stringify(withPoll(withMusic(withPeople(withTagged(base, body.taggedIn), body.people, body.context), musicInput(body.music)), pollInput(body.poll)));
     const count = (v, field, old) => (v === undefined ? old ?? null : countInput(v, field));
     const likesShown = count(body.likesDisplay, 'Likes', row.likes_display);
     const commentsShown = count(body.commentsDisplay, 'Comments', row.comments_display);
@@ -593,6 +633,22 @@ export function socialPostRoutes(r, ctx) {
     db.prepare('DELETE FROM social_posts WHERE id = ?').run(row.id);
     if (row.user_id !== user.id) ctx.modLog(user.id, 'delete-social-post', `#${row.id}`);
     return { data: { ok: true } };
+  });
+
+  // Vote in a post's poll as one of your characters (vote again to change; the same choice again takes it back).
+  r.post('/api/social/:id/vote', ({ user, body, params }) => {
+    requireUser(user);
+    const row = load(params.id, user);
+    const poll = JSON.parse(row.meta || '{}').poll;
+    if (!poll) fail(400, 'This post has no poll');
+    const me = requirePlayable(ownCharacter(body.characterId, user.id));
+    const choice = Number(body.choice);
+    if (!Number.isInteger(choice) || choice < 0 || choice >= poll.options.length) fail(400, 'Pick one of the choices');
+    const had = db.prepare('SELECT choice FROM social_poll_votes WHERE post_id = ? AND character_id = ?').get(row.id, me.id);
+    if (had?.choice === choice) db.prepare('DELETE FROM social_poll_votes WHERE post_id = ? AND character_id = ?').run(row.id, me.id);
+    else db.prepare(`INSERT INTO social_poll_votes (post_id, character_id, choice) VALUES (?, ?, ?)
+      ON CONFLICT(post_id, character_id) DO UPDATE SET choice = excluded.choice, created_at = datetime('now')`).run(row.id, me.id, choice);
+    return { data: { poll: pollResults(load(row.id, user), user.id) } };
   });
 
   r.post('/api/social/:id/like', ({ user, body, params }) => {

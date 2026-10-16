@@ -4,6 +4,7 @@ import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
 import { dossierAbout, editDossier, wireGallery } from './profiles.js';
 import { loadStoryGroups, openStoryViewer, openStoryComposer } from './stories.js';
+import { drawTies, drawTimeline } from './world.js';
 
 const DETAIL_SUGGESTIONS = ['Age', 'Pronouns', 'Face claim', 'Occupation', 'Species', 'Height', 'Birthday', 'Alignment'];
 
@@ -316,6 +317,8 @@ export async function viewCharacter(id) {
           <button role="tab" data-tab="posts">${icons.grid}<span>Posts</span></button>
           <button role="tab" data-tab="tagged">${icons.user}<span>Tagged</span></button>
           <button role="tab" data-tab="threads">${icons.episode}<span>Episodes</span></button>
+          <button role="tab" data-tab="ties">${icons.ties}<span>Ties</span></button>
+          <button role="tab" data-tab="timeline">${icons.timeline}<span>Timeline</span></button>
           <button role="tab" data-tab="about">${icons.profile}<span>About</span></button>
         </nav>
         <section id="ig-pane"></section>
@@ -352,6 +355,10 @@ export async function viewCharacter(id) {
       }
       render(pane, tagged.length ? html`<div class="ig-grid">${tagged.map((p) => html`<div class="ig-tagged">${thumb(p)}<a class="ig-by" href="#/c/${p.character.id}">${avatar({ name: p.character.name, src: p.character.avatar, color: p.character.color, size: 'xs' })}</a></div>`)}</div>`
         : html`<div class="empty"><p>No tagged posts yet.</p><p class="small muted">When someone tags ${c.name} on a photo or @mentions them in a post, it shows here.</p></div>`);
+    } else if (tab === 'ties') {
+      drawTies(pane, c, { own, isAlive: () => tab === 'ties' && pane.isConnected });
+    } else if (tab === 'timeline') {
+      drawTimeline(pane, c, { isAlive: () => tab === 'timeline' && pane.isConnected });
     } else if (tab === 'threads') {
       render(pane, threads.length ? html`<div class="sp-threads">${threads.map((t) => html`
         <a class="sp-thread status-${t.status}" href="#/s/${t.storyId}/${t.id}">
