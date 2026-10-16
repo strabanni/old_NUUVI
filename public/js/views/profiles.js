@@ -124,6 +124,7 @@ export async function editDossier(c, d) {
         e.stopImmediatePropagation();
         const f = e.target;
         const dossier = {
+          bento: d.bento || {}, // which post is in which profile box (set on the profile itself)
           headline: f.headline.value, tagline: f.tagline.value, quote: f.quote.value, likes: f.likes.value, dislikes: f.dislikes.value, cover,
           traits: f.traits.value.split(',').map((t) => t.trim()).filter(Boolean),
           facts: Object.fromEntries(FACT_LABELS.map(([k]) => [k, f[`f_${k}`].value])),

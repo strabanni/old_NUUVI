@@ -1,5 +1,5 @@
-import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, attachSheet, BRAND_GRADIENT, GRADIENT_PRESETS, akaHtml, promptModal, openLightbox } from '../lib.js';
-import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHash, applyTheme } from '../main.js';
+import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, attachSheet, BRAND_GRADIENT, GRADIENT_PRESETS, akaHtml, promptModal } from '../lib.js';
+import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHash } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
 import { dossierAbout, editDossier, wireGallery } from './profiles.js';
@@ -279,25 +279,37 @@ export async function viewCharacter(id) {
   const pic = c.portrait || c.avatar;
   const following = followedBy.length > 0;
   const followable = mine.filter((m) => m.id !== c.id && !m.status);
-  let tab = sessionStorage.getItem('nuuvi:char-tab') || 'posts';
+  // Their posts live in the boxes at the top now, so the tabs start on Tagged.
+  let tab = sessionStorage.getItem('nuuvi:char-tab') || 'tagged';
+  if (tab === 'posts') tab = 'tagged';
   // ---- The bento profile: a big hello, a grid of their pictures, their song, and what's new ----
   const dossier = prof0?.dossier || {};
-  const dark = document.documentElement.dataset.theme === 'dark';
   const headline = (dossier.headline || "IT'S").trim();
   const firstName = c.name.split(/\s+/)[0];
-  // Pictures: their gallery first, then their portrait and banner, then photos from their posts.
-  const seen = new Set();
-  const photos = [];
-  const addPic = (src, link = null) => { if (src && !seen.has(src)) { seen.add(src); photos.push({ src, link }); } };
-  for (const u of dossier.gallery || []) addPic(u);
-  addPic(c.portrait); addPic(c.banner);
-  if (!locked) for (const p of posts) if (p.kind === 'photo') for (const u of p.media) addPic(u, `#/p/${p.id}`);
+  // The boxes show their posts: the ones the writer put in a box first, then the rest newest
+  // first (pinned posts lead, like on their old grid).
   const SLOTS = ['main', 'tall', 'a', 'b', 'r', 's1', 's2', 's3', 'w1', 'w2'];
+  const chosen = dossier.bento || {};
+  const shown = locked ? [] : posts;
+  const byId = new Map(shown.map((p) => [p.id, p]));
+  const slotPost = {};
+  const used = new Set();
+  for (const k of SLOTS) { const p = byId.get(chosen[k]); if (p && !used.has(p.id)) { slotPost[k] = p; used.add(p.id); } }
+  const rest = shown.filter((p) => !used.has(p.id));
+  for (const k of SLOTS) if (!slotPost[k]) slotPost[k] = rest.shift();
+  // What a post looks like in a box: its picture or video, or its words.
+  const face = (p) => {
+    const m = p.media?.[0];
+    if ((p.kind === 'photo' || p.kind === 'stream') && m) return html`<img src="${m}" alt="" loading="lazy">${p.media.length > 1 ? html`<span class="bp-multi">${icons.grid}</span>` : ''}`;
+    if (p.kind === 'video' && m) return html`<video src="${m}" muted playsinline preload="metadata"></video><span class="bp-multi">${icons.play}</span>`;
+    return html`<span class="bp-words">${p.kind === 'voice' ? html`${icons.mic} ` : ''}${(p.body || p.title || 'Voice note').slice(0, 220)}</span>`;
+  };
   const tile = (k, extra = '') => {
-    const ph = photos[SLOTS.indexOf(k)];
-    const inner = html`${ph ? html`<img src="${ph.src}" alt="" loading="lazy">` : html`<span class="bp-empty" aria-hidden="true"></span>`}${extra}`;
-    return ph?.link ? html`<a class="bp-tile" data-area="${k}" href="${ph.link}">${inner}</a>`
-      : html`<div class="bp-tile ${ph ? 'zoom' : 'blank'}" data-area="${k}" ${ph ? html`data-pic="${SLOTS.indexOf(k)}"` : ''}>${inner}</div>`;
+    const p = slotPost[k];
+    const inner = html`${p ? face(p) : html`<span class="bp-empty" aria-hidden="true"></span>`}${extra}
+      ${own ? html`<span class="bp-pick" aria-hidden="true">${chosen[k] && p?.id === chosen[k] ? 'Chosen' : 'Auto'} · tap to change</span>` : ''}`;
+    return p ? html`<a class="bp-tile ${p.kind === 'text' || p.kind === 'voice' || !p.media?.length ? 'words' : ''}" data-area="${k}" data-slot="${k}" href="#/p/${p.id}">${inner}</a>`
+      : html`<div class="bp-tile blank" data-area="${k}" data-slot="${k}">${inner}</div>`;
   };
   // When they were last active: their newest post.
   const newest = posts.reduce((m, p) => (p.createdAt > m ? p.createdAt : m), '');
@@ -316,25 +328,12 @@ export async function viewCharacter(id) {
   const body = page({
     alive,
     title: c.name,
-    subtitle: c.tagline,
     actions: html`<button class="icon-btn" id="char-more" aria-label="More">${icons.more}</button>`,
     body: html`
       <article class="bp ig-profile ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
         <header class="bp-head">
-          <div class="bp-side">
-            <button type="button" class="bp-mode" id="bp-theme" aria-label="Switch light or dark mode"><span><b>${dark ? 'DARK' : 'LIGHT'}</b><small>mode</small></span><i class="bp-switch ${dark ? 'on' : ''}" aria-hidden="true"></i></button>
-            <button type="button" class="bp-drop" id="bp-more"><span><i></i>more<br>click to drop</span>${icons.chevron}</button>
-          </div>
-          <div class="bp-hello">
-            ${own ? html`<button type="button" class="bp-av own ${storyGroup ? `has-story ${storyGroup.allSeen ? 'seen' : ''}` : ''}" id="pic-avatar" aria-label="Change the profile picture">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'lg' })}</button>`
-              : storyGroup ? html`<button type="button" class="bp-av has-story ${storyGroup.allSeen ? 'seen' : ''}" id="watch-story" aria-label="Watch ${c.name}'s story">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'lg' })}</button>`
-              : html`<span class="bp-av">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'lg' })}</span>`}
-            <h1 class="bp-title">${own ? html`<button type="button" class="bp-headline" id="bp-headline" title="Change this line">${headline}</button>` : html`<span class="bp-headline">${headline}</span>`}<span class="bp-comma">,</span> <span class="bp-name">${firstName}</span> <span class="bp-bang">!</span></h1>
-          </div>
-          <div class="bp-side end">
-            <a class="bp-notes" href="#/notifications">Notifications</a>
-            <a class="bp-me" href="#/u/${state.user?.id}" aria-label="Your profile">${state.user ? avatar({ name: state.user.displayName, src: state.user.avatar, color: '#EE719E', size: 'sm' }) : ''}</a>
-          </div>
+          <h1 class="bp-title">${own ? html`<button type="button" class="bp-headline" id="bp-headline" title="Change this line">${headline}</button>` : html`<span class="bp-headline">${headline}</span>`}<span class="bp-comma">,</span> <span class="bp-name">${firstName}</span> <span class="bp-bang">!</span></h1>
+          ${c.tagline ? html`<p class="bp-tagline">${c.tagline}</p>` : ''}
         </header>
         ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
         <section class="bp-grid">
@@ -342,9 +341,9 @@ export async function viewCharacter(id) {
           ${tile('main', html`
             ${storyGroup ? html`<button type="button" class="bp-ring" id="bp-story" aria-label="Watch ${c.name}'s story"><i></i></button>`
               : own && !c.status ? html`<button type="button" class="bp-ring add" id="bp-story" aria-label="Add to ${c.name}'s story"><i></i></button>` : ''}
+            ${locked ? html`<span class="bp-locked">${icons.lock}<b>This account is private</b><small>${requested.length ? 'Your follow request is waiting for an answer.' : `Follow ${c.name} to see their posts.`}</small></span>` : ''}
             <span class="bp-tag"><b>${c.handle}</b><small class="${active === 'now' ? 'live' : ''}">${active === 'now' ? 'active now' : active ? `active ${active}` : 'new in town'}</small></span>`)}
           ${['tall', 'a', 'b', 'r'].map((k) => tile(k))}
-          <button type="button" class="bp-rail" id="bp-rail" aria-label="More">${'⋮'}<i></i></button>
           ${tile('w1')}${tile('w2')}
           <div class="bp-music" data-area="music">${musicCard()}</div>
         </section>
@@ -355,18 +354,18 @@ export async function viewCharacter(id) {
         </section>
         <div class="bp-info">
           <div class="ig-stats">
-            <button type="button" data-tab-go="posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
+            <button type="button" id="bp-all-posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
             <button type="button" data-list="followers"><b>${compact(stats.followers)}</b><span>Followers</span></button>
             <button type="button" data-list="following"><b>${compact(stats.following)}</b><span>Following</span></button>
             <button type="button" data-tab-go="threads"><b>${compact(stats.threads)}</b><span>Threads</span></button>
           </div>
           <div class="ig-id">
             <h2 class="ig-name">${handleOf(c)}${npcBadges(c)}</h2>
-            ${c.tagline ? html`<p class="ig-tagline">${c.tagline}</p>` : ''}
             ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
           </div>
           <div class="ig-actions">
             ${own ? html`<button id="edit">Edit profile</button>${c.status ? '' : html`<button class="primary" id="new-post">${icons.plus} New post</button>`}
+                ${posts.length > 1 ? html`<button id="bp-arrange" aria-pressed="false">${icons.grid} Arrange boxes</button>` : ''}
                 ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}
                 ${c.private ? html`<button id="follow-requests">${icons.users} Requests${requestCount ? html` <span class="badge">${requestCount}</span>` : ''}</button>` : ''}`
               : html`<button class="${following || requested.length ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : requested.length ? html`${icons.hourglass} Requested` : html`${icons.userAdd} Follow`}</button>
@@ -374,7 +373,6 @@ export async function viewCharacter(id) {
           </div>
         </div>
         <nav class="ig-tabs" role="tablist">
-          <button role="tab" data-tab="posts">${icons.grid}<span>Posts</span></button>
           <button role="tab" data-tab="tagged">${icons.user}<span>Tagged</span></button>
           <button role="tab" data-tab="threads">${icons.episode}<span>Episodes</span></button>
           <button role="tab" data-tab="ties">${icons.ties}<span>Ties</span></button>
@@ -400,14 +398,7 @@ export async function viewCharacter(id) {
     </a>`;
   const draw = () => {
     $$('[data-tab]', body).forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-    if (tab === 'posts' && locked) {
-      // A private account you don't follow (yet).
-      render(pane, html`<div class="empty ig-private">${icons.lock}<p><b>This account is private</b></p><p class="small muted">${requested.length ? 'Your follow request is waiting for an answer.' : `Follow ${c.name} to see their posts and stories.`}</p></div>`);
-    } else if (tab === 'posts') {
-      render(pane, posts.length ? html`<div class="ig-grid">${posts.map(thumb)}</div>`
-        : html`<div class="empty"><p>No posts yet.</p>${own && !c.status ? html`<p><button class="primary" id="first-post">Make ${c.name}'s first post</button></p>` : ''}</div>`);
-      $('#first-post', pane)?.addEventListener('click', newPost);
-    } else if (tab === 'tagged') {
+    if (tab === 'tagged') {
       // Posts by others that tag this character on a photo or @mention them (like Instagram's Tagged).
       if (!tagged) {
         render(pane, html`<p class="muted small ig-loading">Loading…</p>`);
@@ -461,14 +452,6 @@ export async function viewCharacter(id) {
   const reload = () => viewCharacter(id);
   function wireBento() {
     applyColors(body);
-    $('#bp-theme', body)?.addEventListener('click', (e) => {
-      const toDark = document.documentElement.dataset.theme !== 'dark';
-      applyTheme(toDark ? 'dark' : 'light');
-      const b = e.currentTarget;
-      $('b', b).textContent = toDark ? 'DARK' : 'LIGHT';
-      $('.bp-switch', b).classList.toggle('on', toDark);
-    });
-    for (const sel of ['#bp-more', '#bp-rail']) $(sel, body)?.addEventListener('click', () => $('#main #char-more')?.click());
     $('#bp-headline', body)?.addEventListener('click', async () => {
       const v = await promptModal('The line before their name', { value: dossier.headline || '', placeholder: "OHH SHIT IT'S", maxlength: 40, required: false, label: `It shows as: "YOUR LINE, ${firstName.toUpperCase()}!"` });
       if (v === null) return;
@@ -478,10 +461,44 @@ export async function viewCharacter(id) {
       if (storyGroup) openStoryViewer([storyGroup], 0, { onClose: reload });
       else if (await openStoryComposer({ characterId: c.id })) reload();
     });
-    body.addEventListener('click', (e) => {
-      const t = e.target.closest('.bp-tile[data-pic]');
-      if (t && !e.target.closest('button')) openLightbox(photos.map((x) => x.src), Number(t.dataset.pic));
+    // Every post, in a grid (the Posts number).
+    $('#bp-all-posts', body)?.addEventListener('click', () => modal(html`<div class="bp-all">
+      <h2>${c.name}'s posts</h2>
+      ${locked ? html`<p class="muted">This account is private.</p>` : posts.length ? html`<div class="ig-grid">${posts.map(thumb)}</div>` : html`<p class="muted">No posts yet.</p>`}
+      <div class="actions end"><button type="button" data-close>Close</button></div></div>`, { init: (d) => d.addEventListener('click', (e) => { if (e.target.closest('a')) d.querySelector('[data-close]').click(); }) }));
+    // Arrange boxes: tap a box, then pick which post goes in it.
+    let arranging = false;
+    $('#bp-arrange', body)?.addEventListener('click', (e) => {
+      arranging = !arranging;
+      $('.bp-grid', body).classList.toggle('arranging', arranging);
+      e.currentTarget.setAttribute('aria-pressed', String(arranging));
+      render(e.currentTarget, arranging ? html`${icons.check} Done` : html`${icons.grid} Arrange boxes`);
+      if (arranging) toast('Tap a box to choose which post goes in it');
     });
+    $('.bp-grid', body).addEventListener('click', async (e) => {
+      const box = e.target.closest('[data-slot]');
+      if (!arranging || !box || e.target.closest('.bp-ring')) return;
+      e.preventDefault();
+      const k = box.dataset.slot;
+      const pick = await modal(html`<div class="bp-picker">
+        <h2>Which post goes in this box?</h2>
+        <button type="button" class="bp-auto ${chosen[k] ? '' : 'on'}" data-choose="0">Automatic (their newest posts fill the boxes)</button>
+        <div class="ig-grid">${posts.map((p) => html`<button type="button" class="bp-choice ${chosen[k] === p.id ? 'on' : ''}" data-choose="${p.id}">${face(p)}</button>`)}</div>
+        <div class="actions end"><button type="button" data-close>Cancel</button></div></div>`, {
+        init: (d, close) => d.addEventListener('click', (ev) => { const b = ev.target.closest('[data-choose]'); if (b) close(Number(b.dataset.choose)); }),
+      });
+      if (pick === null || pick === undefined) return;
+      const next = { ...chosen };
+      // A post can sit in one box only: take it out of any other box first.
+      for (const key of Object.keys(next)) if (next[key] === pick) delete next[key];
+      if (pick) next[k] = pick; else delete next[k];
+      try {
+        await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, bento: next } } });
+        sessionStorage.setItem('nuuvi:bp-arranging', '1');
+        reload();
+      } catch (err) { toast(err.message); }
+    }, true);
+    if (sessionStorage.getItem('nuuvi:bp-arranging')) { sessionStorage.removeItem('nuuvi:bp-arranging'); $('#bp-arrange', body)?.click(); }
     $('#bp-play', body)?.addEventListener('click', () => {
       const box = $('.bp-music', body);
       render(box, html`<iframe class="bp-player" src="${songs[0].link.embed}" title="${songs[0].title}" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>`);
@@ -517,7 +534,7 @@ export async function viewCharacter(id) {
   });
   $('#pic-avatar', body)?.addEventListener('click', () => changePic('avatar', 'Profile picture'));
   $('#pic-banner', body)?.addEventListener('click', () => changePic('banner', 'Banner'));
-  async function newPost() { if (await openSocialComposer({ characterId: c.id })) { tab = 'posts'; reload(); } }
+  async function newPost() { if (await openSocialComposer({ characterId: c.id })) reload(); }
   $('#new-post', body)?.addEventListener('click', newPost);
   $('#edit', body)?.addEventListener('click', async () => { if (await editCharacter(c)) { state.characters = null; reload(); } });
   $('#start-thread', body)?.addEventListener('click', () => openThreadForm({ tag: [c.id] }));

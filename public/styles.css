@@ -3955,3 +3955,33 @@ button.bp-headline:hover { text-decoration-color: var(--muted); }
 }
 .bp-info .ig-actions { flex-wrap: wrap; }
 .bp-info .ig-actions button { flex: 1 1 auto; min-width: 0; white-space: nowrap; }
+/* v60: the hello line alone, centred on every screen; posts in the boxes; arranging them. */
+.bp-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; margin: 4px auto 20px; max-width: 900px; }
+.bp-title { font-size: clamp(1.3rem, 3.2vw, 2.2rem); text-wrap: balance; }
+.bp-tagline { margin: 0; color: var(--muted); font-size: .95rem; text-wrap: balance; }
+.bp-grid { grid-template-areas:
+    "s1 main tall a r" "s1 main tall a r" "s2 main tall a r" "s2 main tall b r" "s3 main tall b r" "s3 main tall b r"
+    "w1 w1 w2 music music" "w1 w1 w2 music music"; }
+.bp-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bp-tile.words { display: flex; align-items: center; justify-content: center; padding: 14px; color: var(--text); text-decoration: none;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--c) 26%, var(--glass-2)), var(--glass-2)); }
+.bp-words { position: relative; font-size: .86rem; font-weight: 600; line-height: 1.3; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 7; line-clamp: 7; -webkit-box-orient: vertical; }
+.bp-words svg { width: 14px; height: 14px; vertical-align: -2px; }
+.bp-multi { position: absolute; top: 10px; right: 10px; color: #fff; filter: drop-shadow(0 1px 3px rgb(0 0 0 / .5)); }
+.bp-multi svg { width: 16px; height: 16px; }
+.bp-locked { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 20px; text-align: center; color: var(--text); }
+.bp-locked svg { width: 26px; height: 26px; margin-bottom: 4px; }
+.bp-locked small { color: var(--muted); }
+.bp-pick { display: none; }
+.bp-grid.arranging .bp-tile { outline: 2px dashed var(--accent); outline-offset: -2px; cursor: pointer; }
+.bp-grid.arranging .bp-pick { position: absolute; left: 8px; right: 8px; top: 8px; display: block; padding: 4px 8px; border-radius: 999px; background: rgb(0 0 0 / .6); color: #fff; font-size: .66rem; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-picker .ig-grid, .bp-all .ig-grid { max-height: 56vh; overflow-y: auto; }
+.bp-auto { width: 100%; margin-bottom: 10px; }
+.bp-auto.on, .bp-choice.on { outline: 3px solid var(--accent); outline-offset: -3px; }
+.bp-choice { position: relative; aspect-ratio: 1; overflow: hidden; padding: 0; border: 0; border-radius: 10px; background: var(--glass-2); display: grid; place-items: center; color: var(--text); }
+.bp-choice img, .bp-choice video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bp-choice .bp-words { font-size: .72rem; padding: 6px; -webkit-line-clamp: 5; line-clamp: 5; }
+@media (max-width: 899px) {
+  .bp-head { margin-bottom: 14px; }
+  .bp-grid { grid-template-areas: "main main main" "main main main" "tall a r" "tall b r" "s1 s2 s3" "w1 w1 w2" "music music music"; }
+}

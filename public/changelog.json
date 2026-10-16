@@ -1,5 +1,17 @@
 [
   {
+    "code": "NV-60",
+    "date": "2026-10-16",
+    "title": "Profile boxes show posts",
+    "items": [
+      "The boxes at the top of a character page now show their newest posts: photos, videos, and text posts as words. Tap a box to open the post.",
+      "On your own character, tap Arrange boxes, then tap any box to choose which post goes in it (or set it back to Automatic). Tap Done when you're finished.",
+      "The posts grid under the profile is gone. Tap the Posts number to see every post at once.",
+      "The hello line and the tagline under it are centred on every screen.",
+      "Removed: the light/dark switch, \"more, click to drop\", the small picture beside the hello line, Notifications and your picture at the top right, and the bar at the bottom left."
+    ]
+  },
+  {
     "code": "NV-59",
     "date": "2026-10-16",
     "title": "New look for every character profile",

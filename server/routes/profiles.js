@@ -7,6 +7,7 @@ import { toCharacter, toUser, requireUser, uploadRef } from '../model.js';
 export const FACTS = ['fullName', 'nicknames', 'age', 'birthday', 'zodiac', 'pronouns', 'gender', 'sexuality', 'height',
   'nationality', 'hometown', 'residence', 'occupation', 'affiliation', 'relationship', 'faceclaim'];
 // Long sections, in the order they're shown.
+export const BENTO_SLOTS = ['main', 'tall', 'a', 'b', 'r', 's1', 's2', 's3', 'w1', 'w2'];
 export const SECTIONS = ['personality', 'appearance', 'history', 'relationships', 'goals', 'trivia'];
 
 // A playlist link from Spotify, Apple Music, YouTube (or YouTube Music) or SoundCloud → the player
@@ -117,6 +118,10 @@ export function profileRoutes(r, ctx) {
       quote: text(d.quote, 'Quote', 300),
       // The big line at the top of the profile, before their name ("OHH SHIT IT'S", then ", AEDAN!").
       headline: text(d.headline, 'Headline', 40),
+      // Which post sits in which box of the profile grid (the writer's choice; the rest fill with
+      // their newest posts).
+      bento: Object.fromEntries(Object.entries(d.bento && typeof d.bento === 'object' ? d.bento : {})
+        .filter(([k, v]) => BENTO_SLOTS.includes(k) && Number.isInteger(v) && v > 0)),
       tagline: text(d.tagline, 'Tagline', 160),
       cover: d.cover ? (d.cover === old.cover ? old.cover : uploadRef(db, d.cover, user.id) ?? fail(400, 'Cover picture missing')) : null,
       facts, sections,
