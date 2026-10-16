@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-62",
+    "date": "2026-10-16",
+    "title": "Song players and a new profile order",
+    "items": [
+      "Character pages now go: the headline, the NUUVI strip, their numbers and buttons, then the box grid, then the Tagged, Episodes, Ties, Timeline and About tabs.",
+      "The song box now plays the real thing. On your own character, tap the box (or the pencil on it) and paste a share link, or the Embed code from the Share menu, from Spotify, Apple Music, YouTube or SoundCloud. It shows that service's own player, sized to fit on phones and computers."
+    ]
+  },
+  {
     "code": "NV-61",
     "date": "2026-10-16",
     "title": "Headlines that change, taglines off profiles",

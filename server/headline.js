@@ -9,7 +9,7 @@ const ENERGIES = {
     'THE ONE AND ONLY', "OF COURSE IT'S", 'LOOK WHO SHOWED UP'],
   warm: ["HEY IT'S", "HI THERE IT'S", "OH HELLO IT'S", 'SAY HI TO', "LOOK IT'S", "AWW IT'S", "HEY HEY IT'S", 'WELCOME BACK'],
   dark: ["DON'T LOOK NOW IT'S", "QUIET IT'S", 'SPEAK OF THE DEVIL', "BEHIND YOU IT'S", 'IT WAS ALWAYS', "SHH IT'S", 'BEWARE'],
-  plain: ["IT'S", 'THIS IS', 'MEET', "HERE'S", 'INTRODUCING', 'PRESENTING', "YEP IT'S"],
+  plain: ["IT'S", 'THIS IS', 'MEET', 'INTRODUCING', 'PRESENTING', "YEP IT'S"],
 };
 const MOODS = [
   ['hype', /\b(shit|damn|fuck|hell|holy|omg|ayo+|yo+|bro|no way|wtf|lets go|let's go|stop)\b|!{1,}/i],

@@ -1416,3 +1416,23 @@ test('profile headlines rotate through lines with the same energy', async () => 
   d = (await a(`/api/profiles/${c.id}`)).data.dossier;
   assert.ok(d.headlines.includes('WELL WELL WELL IT\'S') && !d.headlines.includes('AYO IT\'S')); // smug stays smug
 });
+
+test('profile song: share links and embed codes from every service', async () => {
+  const a = await app.signUp('song_a');
+  const c = (await a('/api/characters', { method: 'POST', body: { name: 'Song Head' } })).data.character;
+  const put = async (song) => a(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { song } } });
+  const got = async () => (await a(`/api/profiles/${c.id}`)).data.dossier.song;
+  await put('https://open.spotify.com/track/2Kerz9H9IejzeIpjhDJoYG?si=abc');
+  assert.deepEqual([(await got()).service, (await got()).embed], ['spotify', 'https://open.spotify.com/embed/track/2Kerz9H9IejzeIpjhDJoYG']);
+  await put('<iframe style="border-radius:12px" src="https://open.spotify.com/embed/album/1DFixLWuPkv3KT3TnV35m3?utm_source=generator" width="100%" height="352" frameBorder="0"></iframe>');
+  assert.equal((await got()).embed, 'https://open.spotify.com/embed/album/1DFixLWuPkv3KT3TnV35m3');
+  await put('<iframe width="560" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ?si=x" title="YouTube video player"></iframe>');
+  assert.equal((await got()).embed, 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+  await put('<iframe width="100%" height="166" src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/artist/track-name&amp;color=%23ff5500"></iframe>');
+  assert.equal((await got()).service, 'soundcloud');
+  await put('https://music.apple.com/us/album/bleach/1234567890?i=1234567891');
+  assert.equal((await got()).service, 'apple');
+  assert.equal((await put('https://example.com/song')).status, 400);
+  await put(null);
+  assert.equal(await got(), null);
+});

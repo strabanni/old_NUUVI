@@ -14,6 +14,11 @@ export const SECTIONS = ['personality', 'appearance', 'history', 'relationships'
 // A playlist link from Spotify, Apple Music, YouTube (or YouTube Music) or SoundCloud → the player
 // that can be shown on the profile. { url, embed, service, size } — size picks the player's height.
 export function playlistEmbed(link) {
+  // The Share → Embed code from Spotify, Apple Music, YouTube or SoundCloud works too: use its link.
+  const code = String(link).match(/<iframe[^>]*\ssrc=["']([^"']+)["']/i);
+  if (code) link = code[1].replace(/&amp;/g, '&');
+  // SoundCloud's embed code points at its player; the track's own link is inside it.
+  try { const p = new URL(String(link).trim()); if (p.hostname === 'w.soundcloud.com' && p.searchParams.get('url')) link = p.searchParams.get('url'); } catch { /* checked below */ }
   let u;
   try { u = new URL(String(link).trim()); } catch { fail(400, 'That playlist link doesn’t look right'); }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') fail(400, 'That playlist link doesn’t look right');
@@ -29,9 +34,12 @@ export function playlistEmbed(link) {
     const short = /\/song\//.test(u.pathname) || u.searchParams.has('i');
     return { url, service: 'apple', size: short ? 'short' : 'tall', embed: `https://embed.music.apple.com${u.pathname}${u.search}` };
   }
-  if (['youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be'].includes(host)) {
+  if (['youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be', 'youtube-nocookie.com'].includes(host)) {
     const list = u.searchParams.get('list');
     const video = host === 'youtu.be' ? u.pathname.slice(1) : u.searchParams.get('v');
+    // youtube.com/embed/ID (from YouTube's embed code)
+    const embedded = u.pathname.match(/^\/embed\/([\w-]{6,20})/)?.[1];
+    if (embedded && embedded !== 'videoseries') return { url, service: 'youtube', size: 'video', embed: `https://www.youtube-nocookie.com/embed/${embedded}` };
     if (list && /^[\w-]+$/.test(list)) return { url, service: 'youtube', size: 'video', embed: `https://www.youtube-nocookie.com/embed/videoseries?list=${list}` };
     if (video && /^[\w-]{6,20}$/.test(video)) return { url, service: 'youtube', size: 'video', embed: `https://www.youtube-nocookie.com/embed/${video}` };
     fail(400, 'Use a YouTube playlist or video link');
@@ -122,6 +130,8 @@ export function profileRoutes(r, ctx) {
       quote: text(d.quote, 'Quote', 300),
       // The big line at the top of the profile, before their name ("OHH SHIT IT'S", then ", AEDAN!").
       headline: text(d.headline, 'Headline', 40),
+      // The song on their profile: a share link (or embed code) shown as that service's own player.
+      song: d.song ? (typeof d.song === 'object' && d.song.url === old.song?.url ? old.song : playlistEmbed(typeof d.song === 'string' ? d.song : d.song.url)) : null,
       // Lines with the same energy that it rotates through; rewritten when the headline changes.
       headlines: text(d.headline, 'Headline', 40).toUpperCase() === (old.headline || '').toUpperCase() && Array.isArray(old.headlines) ? old.headlines : headlineSet(text(d.headline, 'Headline', 40)),
       // Which post sits in which box of the profile grid (the writer's choice; the rest fill with

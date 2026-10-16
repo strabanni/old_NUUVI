@@ -3988,3 +3988,23 @@ button.bp-headline:hover { text-decoration-color: var(--muted); }
 .bp-headline.swap { animation: bp-swap .5s var(--ease, ease); }
 @keyframes bp-swap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .bp-headline.swap { animation: none; } }
+/* v62: the grid sits under the hello, strip and details; the song box is the service's own player. */
+.bp .bp-grid { margin-top: 22px; grid-template-rows: repeat(6, clamp(34px, 4vw, 54px)) repeat(2, 88px); }
+.bp .ig-tabs { margin-top: 22px; }
+.bp-music.has-spotify, .bp-music.has-apple, .bp-music.has-youtube, .bp-music.has-soundcloud { padding: 0; background: transparent; border: 0; overflow: hidden; border-radius: 16px; }
+.bp-music .bp-player { display: block; width: 100%; height: 100%; min-height: 0; border: 0; border-radius: 16px; background: transparent; }
+.bp-music.has-youtube .bp-player { background: #000; }
+.bp-song-edit { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: rgb(0 0 0 / .55); color: #fff; opacity: .85; }
+.bp-song-edit svg { width: 15px; height: 15px; }
+.bp-music.empty { padding: 0; }
+.bp-song-add { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 14px; border: 1px dashed var(--glass-border); border-radius: 22px; background: transparent; color: var(--text); text-align: center; }
+.bp-song-add svg { width: 22px; height: 22px; color: #1DB954; }
+.bp-song-add small { color: var(--muted); font-size: .72rem; }
+@media (max-width: 899px) {
+  .bp .bp-grid { grid-template-rows: repeat(2, 120px) repeat(2, 84px) 96px 110px auto; }
+  .bp-music { min-height: 132px; }
+  .bp-music.has-spotify { min-height: 152px; }
+  .bp-music.has-apple { min-height: 175px; }
+  .bp-music.has-soundcloud { min-height: 166px; }
+  .bp-music.has-youtube { min-height: 0; aspect-ratio: 16 / 9; }
+}

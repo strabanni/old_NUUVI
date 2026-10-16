@@ -318,17 +318,15 @@ export async function viewCharacter(id) {
   // When they were last active: their newest post.
   const newest = posts.reduce((m, p) => (p.createdAt > m ? p.createdAt : m), '');
   const active = newest ? (Date.now() - Date.parse(`${newest.replace(' ', 'T')}${newest.includes('Z') ? '' : 'Z'}`) < 15 * 60000 ? 'now' : timeAgo(newest)) : '';
-  // Their song: the first song on their profile playlist, and the one after it.
-  const songs = dossier.playlist || [];
-  const musicCard = () => (songs.length ? html`
-    <div class="bp-cover" id="bp-cover">${c.portrait || c.avatar ? html`<img src="${c.portrait || c.avatar}" alt="">` : html`<span class="bp-empty"></span>`}</div>
-    <div class="bp-song">
-      <b class="bp-st">${songs[0].title || 'Untitled'}</b><small>${songs[0].artist || ''}</small>
-      ${songs[1] ? html`<span class="bp-next">Next Up</span><small>${songs[1].title}</small><small>${songs[1].artist || ''}</small>` : ''}
-    </div>
-    <span class="bp-svc ${songs[0].link?.service || ''}" aria-hidden="true">${icons.music}</span>
-    ${songs[0].link?.embed ? html`<button type="button" class="bp-play" id="bp-play" aria-label="Play ${songs[0].title}">${icons.play}</button>` : ''}`
-    : html`<div class="bp-song none"><b>No song yet</b><small>${own ? 'Add songs to their profile and the first one plays here.' : 'Nothing playing.'}</small>${own ? html`<button type="button" class="sm" id="bp-add-song">Add songs</button>` : ''}</div>`);
+  // Their song: a share link shown as that service's own player (Spotify, Apple Music, YouTube or
+  // SoundCloud), sized for whichever it is. Falls back to the first song on their playlist with a link.
+  const song = dossier.song || (dossier.playlist || []).find((t) => t.link?.embed)?.link || null;
+  const musicCard = () => (song ? html`
+    <iframe class="bp-player svc-${song.service} size-${song.size}" src="${song.embed}" title="Their song" loading="lazy"
+      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    ${own ? html`<button type="button" class="bp-song-edit" id="bp-song" aria-label="Change the song">${icons.pencil}</button>` : ''}`
+    : own ? html`<button type="button" class="bp-song-add" id="bp-song">${icons.music}<b>Add a song</b><small>Paste a share link from Spotify, Apple Music, YouTube or SoundCloud</small></button>`
+    : html`<span class="bp-empty" aria-hidden="true"></span>`);
   const body = page({
     alive,
     title: c.name,
@@ -339,17 +337,6 @@ export async function viewCharacter(id) {
           <h1 class="bp-title">${own ? html`<button type="button" class="bp-headline" id="bp-headline" title="Change this line">${headline}</button>` : html`<span class="bp-headline">${headline}</span>`}<span class="bp-comma">,</span> <span class="bp-name">${firstName}</span> <span class="bp-bang">!</span></h1>
         </header>
         ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
-        <section class="bp-grid">
-          ${['s1', 's2', 's3'].map((k) => tile(k))}
-          ${tile('main', html`
-            ${storyGroup ? html`<button type="button" class="bp-ring" id="bp-story" aria-label="Watch ${c.name}'s story"><i></i></button>`
-              : own && !c.status ? html`<button type="button" class="bp-ring add" id="bp-story" aria-label="Add to ${c.name}'s story"><i></i></button>` : ''}
-            ${locked ? html`<span class="bp-locked">${icons.lock}<b>This account is private</b><small>${requested.length ? 'Your follow request is waiting for an answer.' : `Follow ${c.name} to see their posts.`}</small></span>` : ''}
-            <span class="bp-tag"><b>${c.handle}</b><small class="${active === 'now' ? 'live' : ''}">${active === 'now' ? 'active now' : active ? `active ${active}` : 'new in town'}</small></span>`)}
-          ${['tall', 'a', 'b', 'r'].map((k) => tile(k))}
-          ${tile('w1')}${tile('w2')}
-          <div class="bp-music" data-area="music">${musicCard()}</div>
-        </section>
         <section class="bp-strip">
           <div class="bp-brand"><i></i><span><b>NUUVI</b><small>@${c.handle}${c.verified ? html` <span class="verified" title="Verified">${icons.verified}</span>` : ''}${c.private ? html` <span class="ig-lock" title="Private account">${icons.lock}</span>` : ''}</small></span></div>
           <div class="bp-follower" id="bp-follower"><span class="bp-fav"></span><span class="grow"><b>${compact(stats.followers)} followers</b><small>No followers yet</small></span><span class="bp-dial" aria-hidden="true"></span></div>
@@ -375,6 +362,17 @@ export async function viewCharacter(id) {
                 <button id="start-thread">${icons.episode} Start an episode</button>`}
           </div>
         </div>
+        <section class="bp-grid">
+          ${['s1', 's2', 's3'].map((k) => tile(k))}
+          ${tile('main', html`
+            ${storyGroup ? html`<button type="button" class="bp-ring" id="bp-story" aria-label="Watch ${c.name}'s story"><i></i></button>`
+              : own && !c.status ? html`<button type="button" class="bp-ring add" id="bp-story" aria-label="Add to ${c.name}'s story"><i></i></button>` : ''}
+            ${locked ? html`<span class="bp-locked">${icons.lock}<b>This account is private</b><small>${requested.length ? 'Your follow request is waiting for an answer.' : `Follow ${c.name} to see their posts.`}</small></span>` : ''}
+            <span class="bp-tag"><b>${c.handle}</b><small class="${active === 'now' ? 'live' : ''}">${active === 'now' ? 'active now' : active ? `active ${active}` : 'new in town'}</small></span>`)}
+          ${['tall', 'a', 'b', 'r'].map((k) => tile(k))}
+          ${tile('w1')}${tile('w2')}
+          <div class="bp-music ${song ? `has-${song.service} size-${song.size}` : 'empty'}" data-area="music">${musicCard()}</div>
+        </section>
         <nav class="ig-tabs" role="tablist">
           <button role="tab" data-tab="tagged">${icons.user}<span>Tagged</span></button>
           <button role="tab" data-tab="threads">${icons.episode}<span>Episodes</span></button>
@@ -508,11 +506,14 @@ export async function viewCharacter(id) {
       } catch (err) { toast(err.message); }
     }, true);
     if (sessionStorage.getItem('nuuvi:bp-arranging')) { sessionStorage.removeItem('nuuvi:bp-arranging'); $('#bp-arrange', body)?.click(); }
-    $('#bp-play', body)?.addEventListener('click', () => {
-      const box = $('.bp-music', body);
-      render(box, html`<iframe class="bp-player" src="${songs[0].link.embed}" title="${songs[0].title}" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>`);
+    $('#bp-song', body)?.addEventListener('click', async () => {
+      const v = await promptModal('Their song', {
+        value: dossier.song?.url || '', placeholder: 'https://open.spotify.com/track/…', maxlength: 2000, required: false, multiline: true,
+        label: 'Paste a share link (or the Embed code) from Spotify, Apple Music, YouTube or SoundCloud. Leave it empty to remove the song.',
+      });
+      if (v === null) return;
+      try { await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, song: v.trim() || null } } }); reload(); } catch (err) { toast(err.message); }
     });
-    $('#bp-add-song', body)?.addEventListener('click', async () => { if (await editDossier(c, dossier)) reload(); });
     // The strip at the bottom: their newest follower, and the newest posts that mention them.
     api(`/api/characters/${c.id}/followers`).then(({ characters: fs }) => {
       const f = fs[0];
