@@ -3985,3 +3985,6 @@ button.bp-headline:hover { text-decoration-color: var(--muted); }
   .bp-head { margin-bottom: 14px; }
   .bp-grid { grid-template-areas: "main main main" "main main main" "tall a r" "tall b r" "s1 s2 s3" "w1 w1 w2" "music music music"; }
 }
+.bp-headline.swap { animation: bp-swap .5s var(--ease, ease); }
+@keyframes bp-swap { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .bp-headline.swap { animation: none; } }

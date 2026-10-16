@@ -31,8 +31,7 @@ export function dossierAbout(c, d, { canEdit = false } = {}) {
   const empty = !facts.length && !sections.length && !d.quote && !d.gallery?.length && !d.traits?.length && !d.likes && !d.dislikes && !d.playlist?.length;
   return html`<div class="dossier about-dossier" data-color="${c.color}"${gradAttr(c)}>
     ${canEdit ? html`<div class="about-edit"><button type="button" class="sm" id="about-edit">${icons.quill} ${empty ? 'Fill in the profile' : 'Edit profile details'}</button></div>` : ''}
-    ${d.quote || d.traits?.length || d.tagline ? html`<section class="ds-card ds-intro">
-      ${d.tagline ? html`<p class="ds-tagline">${d.tagline}</p>` : ''}
+    ${d.quote || d.traits?.length ? html`<section class="ds-card ds-intro">
       ${d.quote ? html`<blockquote class="ds-quote">${d.quote}</blockquote>` : ''}
       ${d.traits?.length ? html`<div class="ds-traits">${d.traits.map((t) => html`<span>${t}</span>`)}</div>` : ''}
     </section>` : ''}
@@ -74,8 +73,7 @@ export async function editDossier(c, d) {
     <nav class="ds-tabs" role="tablist">${[['id', 'Identity'], ['facts', 'Facts'], ['story', 'Story'], ['extras', 'Gallery & music']].map(([k, l], i) => html`
       <button type="button" class="chip ${i ? '' : 'on'}" data-tab="${k}">${l}</button>`)}</nav>
     <div data-pane="id">
-      <label>Headline <small class="muted">(the big line at the top of their page, before their name)</small></label><input name="headline" maxlength="40" value="${d.headline || ''}" placeholder="OHH SHIT IT'S">
-      <label>Tagline</label><input name="tagline" maxlength="160" value="${d.tagline || ''}" placeholder="A line under their name">
+      <label>Headline <small class="muted">(the big line at the top of their page, before their name; it changes every few minutes to lines with the same energy)</small></label><input name="headline" maxlength="40" value="${d.headline || ''}" placeholder="OHH SHIT IT'S">
       <label>Signature quote</label><input name="quote" maxlength="300" value="${d.quote || ''}" placeholder="Something they'd say">
       <label>Traits <small class="muted">(comma separated)</small></label><input name="traits" value="${(d.traits || []).join(', ')}" placeholder="loyal, reckless, night owl">
       <label>Loves</label><textarea name="likes" rows="2" maxlength="1000">${d.likes || ''}</textarea>
@@ -125,7 +123,7 @@ export async function editDossier(c, d) {
         const f = e.target;
         const dossier = {
           bento: d.bento || {}, // which post is in which profile box (set on the profile itself)
-          headline: f.headline.value, tagline: f.tagline.value, quote: f.quote.value, likes: f.likes.value, dislikes: f.dislikes.value, cover,
+          headline: f.headline.value, quote: f.quote.value, likes: f.likes.value, dislikes: f.dislikes.value, cover,
           traits: f.traits.value.split(',').map((t) => t.trim()).filter(Boolean),
           facts: Object.fromEntries(FACT_LABELS.map(([k]) => [k, f[`f_${k}`].value])),
           // Relationship notes are edited in the Ties tab; keep them as they are.

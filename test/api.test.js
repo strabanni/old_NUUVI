@@ -1402,3 +1402,17 @@ test('notifications: opening the tab clears the badge; answering clears the high
   await a(`/api/characters/${mia.id}/ties/${kai.id}`, { method: 'PUT', body: { kind: 'friend' } }); // adding them back answers the tie
   assert.deepEqual(await unread(), []);
 });
+
+test('profile headlines rotate through lines with the same energy', async () => {
+  const a = await app.signUp('head_a');
+  const c = (await a('/api/characters', { method: 'POST', body: { name: 'Aedan Head' } })).data.character;
+  let d = (await a(`/api/profiles/${c.id}`)).data.dossier;
+  assert.equal(d.headlines[0], "IT'S"); // nothing set yet: plain lines
+  await a(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...d, headline: "ohh shit it's" } } });
+  d = (await a(`/api/profiles/${c.id}`)).data.dossier;
+  assert.equal(d.headlines[0], "OHH SHIT IT'S");
+  assert.ok(d.headlines.includes('AYO IT\'S') && d.headlines.length >= 8); // hyped stays hyped
+  await a(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...d, headline: 'look who it is' } } });
+  d = (await a(`/api/profiles/${c.id}`)).data.dossier;
+  assert.ok(d.headlines.includes('WELL WELL WELL IT\'S') && !d.headlines.includes('AYO IT\'S')); // smug stays smug
+});

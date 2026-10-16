@@ -2,6 +2,7 @@
 // read them; the character's writer (or an admin) edits them.
 import { fail, str } from '../http.js';
 import { toCharacter, toUser, requireUser, uploadRef } from '../model.js';
+import { headlineSet } from '../headline.js';
 
 // Quick facts, in the order they're shown.
 export const FACTS = ['fullName', 'nicknames', 'age', 'birthday', 'zodiac', 'pronouns', 'gender', 'sexuality', 'height',
@@ -98,7 +99,10 @@ export function profileRoutes(r, ctx) {
     const row = db.prepare('SELECT * FROM characters WHERE id = ?').get(params.id);
     if (!row || (row.bot === 'gossip' && row.user_id !== user.id)) fail(404, 'Character not found');
     const owner = db.prepare('SELECT * FROM users WHERE id = ?').get(row.user_id);
-    return { data: { character: toCharacter(row), dossier: parse(row.dossier), owner: toUser(owner), canEdit: canEdit(row, user) } };
+    const dossier = parse(row.dossier);
+    // The lines their headline rotates through (Claude's, if it wrote some; or the built-in set).
+    if (!dossier.headlines?.length) dossier.headlines = headlineSet(dossier.headline);
+    return { data: { character: toCharacter(row), dossier, owner: toUser(owner), canEdit: canEdit(row, user) } };
   });
 
   r.put('/api/profiles/:id', ({ user, params, body }) => {
@@ -118,11 +122,12 @@ export function profileRoutes(r, ctx) {
       quote: text(d.quote, 'Quote', 300),
       // The big line at the top of the profile, before their name ("OHH SHIT IT'S", then ", AEDAN!").
       headline: text(d.headline, 'Headline', 40),
+      // Lines with the same energy that it rotates through; rewritten when the headline changes.
+      headlines: text(d.headline, 'Headline', 40).toUpperCase() === (old.headline || '').toUpperCase() && Array.isArray(old.headlines) ? old.headlines : headlineSet(text(d.headline, 'Headline', 40)),
       // Which post sits in which box of the profile grid (the writer's choice; the rest fill with
       // their newest posts).
       bento: Object.fromEntries(Object.entries(d.bento && typeof d.bento === 'object' ? d.bento : {})
         .filter(([k, v]) => BENTO_SLOTS.includes(k) && Number.isInteger(v) && v > 0)),
-      tagline: text(d.tagline, 'Tagline', 160),
       cover: d.cover ? (d.cover === old.cover ? old.cover : uploadRef(db, d.cover, user.id) ?? fail(400, 'Cover picture missing')) : null,
       facts, sections,
       traits: (Array.isArray(d.traits) ? d.traits : []).map((t) => String(t).trim().slice(0, 30)).filter(Boolean).slice(0, 12),
@@ -140,6 +145,22 @@ export function profileRoutes(r, ctx) {
     const json = JSON.stringify(dossier);
     if (json.length > 120000) fail(413, 'That profile is too long');
     db.prepare('UPDATE characters SET dossier = ?, pronouns = ? WHERE id = ?').run(json, facts.pronouns || null, row.id);
+    // A new headline: Claude (when it's on) writes more lines in the same voice, in the background.
+    if (dossier.headline && dossier.headline.toUpperCase() !== (old.headline || '').toUpperCase() && ctx.ai?.enabled) {
+      ctx.ai.ask({
+        system: 'You write the big greeting line shown before a roleplay character\'s first name on their profile, like "OHH SHIT IT\'S" before ", AEDAN!". Given the writer\'s line, write 9 more lines with exactly the same energy, slang and attitude (same swearing level, same mood), each one ending so the name reads naturally after a comma. Keep each under 30 characters, all caps, no name, no emoji, no commas, no trailing punctuation.',
+        content: dossier.headline,
+        schema: { type: 'object', properties: { lines: { type: 'array', items: { type: 'string' } } }, required: ['lines'], additionalProperties: false },
+        effort: 'low',
+      }).then(({ lines }) => {
+        const now = db.prepare('SELECT dossier FROM characters WHERE id = ?').get(row.id);
+        const cur = parse(now?.dossier);
+        if (!now || cur.headline !== dossier.headline) return; // changed again since
+        const clean = lines.map((l) => String(l).trim().toUpperCase().replace(/,/g, '').replace(/[.!]+$/, '').slice(0, 40)).filter(Boolean);
+        cur.headlines = [...new Set([dossier.headline.trim().toUpperCase(), ...clean])].slice(0, 10);
+        db.prepare('UPDATE characters SET dossier = ? WHERE id = ?').run(JSON.stringify(cur), row.id);
+      }).catch(() => {});
+    }
     return { data: { dossier, character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(row.id)) } };
   });
 }

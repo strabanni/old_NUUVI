@@ -284,7 +284,11 @@ export async function viewCharacter(id) {
   if (tab === 'posts') tab = 'tagged';
   // ---- The bento profile: a big hello, a grid of their pictures, their song, and what's new ----
   const dossier = prof0?.dossier || {};
-  const headline = (dossier.headline || "IT'S").trim();
+  // The headline changes every few minutes, through lines with the same energy as the writer's.
+  const headlines = dossier.headlines?.length ? dossier.headlines : [(dossier.headline || "IT'S").trim()];
+  const HEADLINE_EVERY = 4 * 60 * 1000;
+  const headlineNow = () => headlines[Math.floor(Date.now() / HEADLINE_EVERY) % headlines.length];
+  const headline = headlineNow();
   const firstName = c.name.split(/\s+/)[0];
   // The boxes show their posts: the ones the writer put in a box first, then the rest newest
   // first (pinned posts lead, like on their old grid).
@@ -333,7 +337,6 @@ export async function viewCharacter(id) {
       <article class="bp ig-profile ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
         <header class="bp-head">
           <h1 class="bp-title">${own ? html`<button type="button" class="bp-headline" id="bp-headline" title="Change this line">${headline}</button>` : html`<span class="bp-headline">${headline}</span>`}<span class="bp-comma">,</span> <span class="bp-name">${firstName}</span> <span class="bp-bang">!</span></h1>
-          ${c.tagline ? html`<p class="bp-tagline">${c.tagline}</p>` : ''}
         </header>
         ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
         <section class="bp-grid">
@@ -452,8 +455,14 @@ export async function viewCharacter(id) {
   const reload = () => viewCharacter(id);
   function wireBento() {
     applyColors(body);
+    const rotate = setInterval(() => {
+      const el = $('.bp-headline', body);
+      if (!el?.isConnected) return clearInterval(rotate);
+      const next = headlineNow();
+      if (el.textContent !== next) { el.classList.remove('swap'); void el.offsetWidth; el.textContent = next; el.classList.add('swap'); }
+    }, 20000);
     $('#bp-headline', body)?.addEventListener('click', async () => {
-      const v = await promptModal('The line before their name', { value: dossier.headline || '', placeholder: "OHH SHIT IT'S", maxlength: 40, required: false, label: `It shows as: "YOUR LINE, ${firstName.toUpperCase()}!"` });
+      const v = await promptModal('The line before their name', { value: dossier.headline || '', placeholder: "OHH SHIT IT'S", maxlength: 40, required: false, label: `It shows as "YOUR LINE, ${firstName.toUpperCase()}!" and changes every few minutes to lines with the same energy.` });
       if (v === null) return;
       try { await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, headline: v } } }); reload(); } catch (err) { toast(err.message); }
     });

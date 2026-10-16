@@ -1,5 +1,16 @@
 [
   {
+    "code": "NV-61",
+    "date": "2026-10-16",
+    "title": "Headlines that change, taglines off profiles",
+    "items": [
+      "Taglines no longer show on character profiles. The headline at the top is the only line now.",
+      "The headline changes every few minutes, keeping the same energy as the one the writer chose. \"OHH SHIT IT'S\" might become \"AYO IT'S\" or \"NO WAY IT'S\"; \"LOOK WHO IT IS\" might become \"WELL WELL WELL IT'S\".",
+      "When the site's Claude writing tools are switched on, Claude writes the extra lines in the writer's own style whenever the headline changes.",
+      "The Tagline box in Edit profile details is gone; Headline is still there."
+    ]
+  },
+  {
     "code": "NV-60",
     "date": "2026-10-16",
     "title": "Profile boxes show posts",
