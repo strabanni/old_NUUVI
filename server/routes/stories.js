@@ -69,7 +69,8 @@ export function storyRoutes(r, ctx) {
       FROM stories s JOIN users u ON u.id = s.owner_id
       JOIN story_members me ON me.story_id = s.id AND me.user_id = :u
       ORDER BY me.rail_pos IS NOT NULL, me.rail_pos, s.updated_at DESC, s.id DESC`).all({ u: user.id });
-    const notificationsUnread = db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL').get(user.id).n;
+    // The badge: new since the Notifications tab was last opened (and not already answered).
+    const notificationsUnread = db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND seen_at IS NULL').get(user.id).n;
     const reportsOpen = user.isAdmin ? db.prepare("SELECT COUNT(*) AS n FROM reports WHERE status = 'open'").get().n : 0;
     return {
       data: {

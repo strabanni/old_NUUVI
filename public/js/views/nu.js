@@ -1,7 +1,7 @@
 // THE NU — everything happening in NUUVI, laid out like an Instagram feed: one column of posts,
 // newest first, in the order they were made. Character posts, open episodes, self paras, events
 // and connections (muse ideas anyone can pick up) all share the same post shape.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost, timeAgo, applyColors, gradAttr, userGrad, uploadImage, askImageLink, logoMark } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost, timeAgo, applyColors, gradAttr, userGrad, uploadImage, askImageLink, logoMark, backToTop } from '../lib.js';
 import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, kindIcon, previousHash, storyNow } from '../main.js';
 import { socialCard, bindSocial, openSocialComposer, styleBars, handleOf, nameBadge, agoShort } from './social.js';
 import { mountStoryStrip } from './stories.js';
@@ -293,12 +293,13 @@ export async function viewNu(tagStr = null) {
     const made = what === 'connection' ? await openConnectionComposer() : await openSocialComposer({ category: what === 'musing' ? 'musing' : 'post' });
     if (made) load();
   };
+  backToTop(body);
   // Phones: a refresh button to pull in the newest posts.
   $('#main #nu-refresh')?.addEventListener('click', async (e) => {
     const b = e.currentTarget;
     if (b.classList.contains('spin')) return;
     b.classList.add('spin');
-    try { await load(); window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (err) { toast(err.message); } finally { b.classList.remove('spin'); }
+    try { await load(); body.scrollTo({ top: 0, behavior: 'smooth' }); } catch (err) { toast(err.message); } finally { b.classList.remove('spin'); }
   });
   $('#main #nu-new').addEventListener('click', (e) => menu(e.currentTarget, [
     { label: 'New post', action: () => create('post') },

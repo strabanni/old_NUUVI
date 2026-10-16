@@ -8,6 +8,7 @@ import { toUser, toCharacter, requireUser, uploadRef, gradientInput, CHARACTER_S
 import { validateSubscription } from '../push.js';
 import { profileInput, detailsInput, parseProfile } from '../profile.js';
 import { transaction, makeHandle } from '../db.js';
+import { capitalizeName } from '../text.js';
 import { validUsername, validDisplayName, nameKey, validHandle } from '../names.js';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -291,6 +292,14 @@ export function accountRoutes(r, ctx) {
     return { data: { notifications: rows.map(ctx.toNotification), unread } };
   });
 
+  // Opening the Notifications tab: the badge clears, but each one stays highlighted until it's
+  // tapped, answered, or marked read.
+  r.post('/api/notifications/seen', ({ user }) => {
+    requireUser(user);
+    db.prepare("UPDATE notifications SET seen_at = datetime('now') WHERE user_id = ? AND seen_at IS NULL").run(user.id);
+    return { data: { ok: true } };
+  });
+
   r.post('/api/notifications/read', ({ user, body }) => {
     requireUser(user);
     if (Array.isArray(body.ids)) {
@@ -456,7 +465,7 @@ export function accountRoutes(r, ctx) {
   }
 
   const characterFields = (body, existing = {}) => ({
-    name: str(body.name, 'Name', { min: 1, max: 60, required: !existing.name }) ?? existing.name,
+    name: capitalizeName(str(body.name, 'Name', { min: 1, max: 60, required: !existing.name }) ?? existing.name),
     tagline: str(body.tagline, 'Tagline', { max: 140 }) ?? existing.tagline ?? '',
     bio: str(body.bio, 'Bio', { max: 20000 }) ?? existing.bio ?? '',
     color: color(body.color) ?? existing.color ?? '#EE719E',

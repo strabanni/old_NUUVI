@@ -509,9 +509,13 @@ export function socialPostRoutes(r, ctx) {
     if (meta !== row.meta) db.prepare('UPDATE social_posts SET meta = ? WHERE id = ?').run(meta, postId);
   };
 
+  // Answering a notification about a post (opening the post, or commenting on it) marks it read.
+  const answered = (userId, postId) => db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND social_id = ? AND read_at IS NULL").run(userId, postId);
   r.get('/api/social/:id', ({ user, params }) => {
     requireUser(user);
-    return { data: { post: toSocial(load(params.id, user), user.id, { allComments: true }) } };
+    const post = toSocial(load(params.id, user), user.id, { allComments: true });
+    answered(user.id, post.id);
+    return { data: { post } };
   });
 
   r.post('/api/social', ({ user, body }) => {
@@ -673,6 +677,7 @@ export function socialPostRoutes(r, ctx) {
   r.post('/api/social/:id/comments', ({ user, body, params }) => {
     requireUser(user);
     const row = load(params.id, user);
+    answered(user.id, row.id);
     const me = requirePlayable(ownCharacter(body.characterId, user.id));
     const text = str(body.body, 'Comment', { min: 1, max: 2000, required: true });
     // A reply hangs under a comment on the same post (replies to replies go under the same comment).

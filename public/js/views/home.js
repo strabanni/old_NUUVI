@@ -245,7 +245,7 @@ export function bindIconUpload(form) {
     const file = e.target.files[0];
     if (!file) return;
     try {
-      form[field].value = await uploadImage(file, size);
+      form[field].value = await uploadImage(file, size, { square: field === 'icon' });
       toast(`${label} uploaded`);
     } catch (err) { toast(err.message); }
   });

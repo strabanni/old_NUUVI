@@ -1,5 +1,5 @@
 // Ties (who a character is to whom, drawn as a web or a family tree) and a character's Timeline.
-import { html, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost } from '../lib.js';
+import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost } from '../lib.js';
 
 // The kinds of tie, in groups for the picker.
 const TIE_GROUPS = [
@@ -28,25 +28,8 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 const niceDate = (d) => { const [y, m, day] = d.slice(0, 10).split('-').map(Number); return `${MONTHS[m - 1]} ${day}, ${y}`; };
 
 // ---------- Ties ----------
-// The web: the character in the middle, everyone they're tied to around them.
-function tieWeb(c, ties) {
-  const W = 320, R = 118, mid = W / 2;
-  const n = ties.length;
-  const spots = ties.map((t, i) => {
-    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
-    return { t, x: mid + Math.cos(a) * R, y: mid + Math.sin(a) * R };
-  });
-  const svg = `<svg class="tie-web" viewBox="0 0 ${W} ${W}" role="img" aria-label="${c.name.replace(/"/g, '')}'s ties">
-    ${spots.map((s) => `<line x1="${mid}" y1="${mid}" x2="${s.x.toFixed(1)}" y2="${s.y.toFixed(1)}" stroke="${TIE_COLORS[s.t.kind] || '#999'}" stroke-width="${s.t.mutual ? 3 : 1.6}" ${s.t.mutual ? '' : 'stroke-dasharray="5 4"'}/>`).join('')}
-  </svg>`;
-  return html`<div class="tie-stage">
-    ${raw(svg)}
-    <span class="tie-node center" data-x="50" data-y="50">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'lg' })}</span>
-    ${spots.map((s) => html`<a class="tie-node" href="#/c/${s.t.other.id}" data-x="${(s.x / W * 100).toFixed(2)}" data-y="${(s.y / W * 100).toFixed(2)}" title="${s.t.other.name}">
-      ${avatar({ name: s.t.other.name, src: s.t.other.avatar, color: s.t.other.color, size: 'sm' })}
-      <small data-tie="${s.t.kind}">${tieName(s.t)}</small></a>`)}
-  </div>`;
-}
+// Each person's picture is the icon they use in threads (or their profile picture if they have none).
+const iconOf = (x) => avatar({ name: x.name, src: x.threadAvatar || x.avatar, color: x.color, size: 'sm' });
 
 async function tieForm(c, tie = null) {
   let pick = tie?.other ?? null;
@@ -65,7 +48,6 @@ async function tieForm(c, tie = null) {
         <div class="pc-list tf-list" id="tf-list"></div>`}
       <label for="tf-kind">They are ${c.name}'s</label>
       <select id="tf-kind" name="kind">${TIE_GROUPS.map(([g, kinds]) => html`<optgroup label="${g}">${kinds.map(([k, v]) => html`<option value="${k}" ${(tie?.kind ?? 'friend') === k ? 'selected' : ''}>${v}</option>`)}</optgroup>`)}</select>
-      <p class="hint">Family ties also build ${c.name}'s family tree.</p>
       <label for="tf-label">Your own word for it <span class="muted small">(optional)</span></label>
       <input id="tf-label" name="label" maxlength="40" value="${tie?.label ?? ''}" placeholder="e.g. ride or die, the one that got away">
       <label for="tf-since">Since <span class="muted small">(optional)</span></label>
@@ -102,34 +84,45 @@ async function tieForm(c, tie = null) {
   });
 }
 
-// The family tree: one row per generation, oldest at the top, with lines drawn between relatives.
-function familyTree(fam) {
+// Everyone in one chart, laid out like a family tree: a row per generation (oldest at the top),
+// the character in the middle row with their siblings and partner, then children, and last a row
+// for everyone else they're tied to (friends, exes, rivals…), joined to the character by a line.
+function tieChart(c, fam, ties, incoming) {
+  const inTree = new Set(fam.members.map((m) => m.character.id));
+  const circle = [
+    ...ties.filter((t) => !inTree.has(t.other.id)).map((t) => ({ character: t.other, kind: t.kind, label: t.label, oneWay: !t.mutual })),
+    ...incoming.filter((t) => !inTree.has(t.from.id)).map((t) => ({ character: t.from, kind: FLIP[t.kind] || t.kind, label: '', oneWay: true, theirs: true })),
+  ];
+  const links = [...fam.links, ...circle.map((m) => ({ from: fam.center, to: m.character.id, kind: m.kind, oneWay: m.oneWay, circle: true }))];
   const rows = new Map();
   for (const m of fam.members) { if (!rows.has(m.gen)) rows.set(m.gen, []); rows.get(m.gen).push(m); }
-  const relName = (m) => {
-    if (!m.relation) return '';
-    if (m.relation.label && !m.relation.theirs) return m.relation.label;
-    const k = m.relation.theirs ? (FLIP[m.relation.kind] || m.relation.kind) : m.relation.kind;
-    return TIE_NAMES[k] || k;
+  const relOf = (m) => {
+    if (!m.relation) return null;
+    const kind = m.relation.theirs ? (FLIP[m.relation.kind] || m.relation.kind) : m.relation.kind;
+    return { kind, name: (!m.relation.theirs && m.relation.label) || TIE_NAMES[kind] || kind };
   };
-  const GEN = { '-3': 'Great-grandparents', '-2': 'Grandparents', '-1': 'Parents', 0: '', 1: 'Children', 2: 'Grandchildren', 3: 'Great-grandchildren' };
+  const GEN = { '-3': 'Great-grandparents', '-2': 'Grandparents', '-1': 'Parents', 1: 'Children', 2: 'Grandchildren', 3: 'Great-grandchildren' };
   const order = (list, gen) => {
-    const byName = (a, b) => a.character.name.localeCompare(b.character.name);
+    const byName = (x, y) => x.character.name.localeCompare(y.character.name);
     if (gen !== 0) return [...list].sort(byName);
     // The middle row: siblings and cousins on the left, the character, then their partner.
-    const love = (m) => ['partner', 'spouse'].includes(m.relation?.kind);
+    const love = (m) => ['partner', 'spouse'].includes(relOf(m)?.kind);
     const center = list.filter((m) => m.character.id === fam.center);
     return [...list.filter((m) => m.character.id !== fam.center && !love(m)).sort(byName), ...center, ...list.filter(love).sort(byName)];
   };
-  return html`<div class="ftree" data-links="${JSON.stringify(fam.links)}">
+  const node = (x, rel, { center = false, oneWay = false } = {}) => html`
+    <a class="ftree-node ${center ? 'center' : ''} ${oneWay ? 'one-way' : ''}" href="#/c/${x.id}" data-fid="${x.id}" title="${x.name}">
+      ${avatar({ name: x.name, src: x.threadAvatar || x.avatar, color: x.color, size: center ? 'lg' : '' })}
+      <b>${x.name}</b>${rel ? html`<span class="tie-chip" data-tie="${rel.kind}">${rel.name}</span>` : ''}
+    </a>`;
+  return html`<div class="ftree" data-links="${JSON.stringify(links)}">
     <svg class="ftree-lines" aria-hidden="true"></svg>
-    ${[...rows.keys()].sort((a, b) => a - b).map((g) => html`<div class="ftree-row">
-      ${GEN[g] !== undefined && GEN[g] ? html`<span class="ftree-gen">${GEN[g]}</span>` : ''}
-      <div class="ftree-people">${order(rows.get(g), g).map((m) => html`
-        <a class="ftree-node ${m.character.id === fam.center ? 'center' : ''}" href="#/c/${m.character.id}" data-fid="${m.character.id}">
-          ${avatar({ name: m.character.name, src: m.character.avatar, color: m.character.color, size: m.character.id === fam.center ? 'lg' : '' })}
-          <b>${m.character.name}</b>${relName(m) ? html`<small>${relName(m)}</small>` : ''}
-        </a>`)}</div></div>`)}
+    ${[...rows.keys()].sort((x, y) => x - y).map((g) => html`<div class="ftree-row">
+      ${GEN[g] ? html`<span class="ftree-gen">${GEN[g]}</span>` : ''}
+      <div class="ftree-people">${order(rows.get(g), g).map((m) => node(m.character, relOf(m), { center: m.character.id === fam.center }))}</div></div>`)}
+    ${circle.length ? html`<div class="ftree-row ftree-circle">
+      <span class="ftree-gen">Friends, loves &amp; rivals</span>
+      <div class="ftree-people">${circle.sort((x, y) => x.character.name.localeCompare(y.character.name)).map((m) => node(m.character, { kind: m.kind, name: m.label || TIE_NAMES[m.kind] || m.kind }, { oneWay: m.oneWay }))}</div></div>` : ''}
   </div>`;
 }
 
@@ -162,73 +155,102 @@ function layoutTree(tree) {
         return `<path d="M${left.x} ${left.top} V${y} H${right.x} V${right.top}" fill="none" stroke="${color}" stroke-width="1.6" stroke-dasharray="4 3"/>`;
       }
       if (a.mid > b.mid) [a, b] = [b, a];
-      const midY = (a.bottom + b.top) / 2;
-      const far = b.top - a.bottom > 150;
-      return `<path d="M${a.x} ${a.bottom} V${midY} H${b.x} V${b.top}" fill="none" stroke="${color}" stroke-width="2" ${far ? 'stroke-dasharray="5 4"' : ''}/>`;
+      // Friends and the rest hang off a rail just above their row; family lines meet halfway.
+      const midY = l.circle ? b.top - 26 : (a.bottom + b.top) / 2;
+      const dashed = l.oneWay || (!l.circle && b.top - a.bottom > 150);
+      return `<path d="M${a.x} ${a.bottom} V${midY} H${b.x} V${b.top}" fill="none" stroke="${color}" stroke-width="${l.circle ? 1.6 : 2}" ${dashed ? 'stroke-dasharray="5 4"' : ''} ${l.circle ? 'opacity=".75"' : ''}/>`;
     }).join('');
   };
   draw();
   new ResizeObserver(draw).observe(tree);
 }
 
-let tieView = 'web';
-try { tieView = sessionStorage.getItem('nuuvi:tie-view') || 'web'; } catch { /* ignore */ }
+// Character names in the relationship notes become links to their pages.
+function linkNames(root, people) {
+  const named = [...new Map(people.filter((p) => p.name?.trim().length > 1).map((p) => [p.name.toLowerCase(), p])).values()]
+    .sort((x, y) => y.name.length - x.name.length);
+  if (!root || !named.length) return;
+  const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(^|[^\\p{L}\\p{N}])(${named.map((p) => esc(p.name)).join('|')})(?![\\p{L}\\p{N}])`, 'giu');
+  const byName = new Map(named.map((p) => [p.name.toLowerCase(), p]));
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.parentElement.closest('a') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+  const texts = [];
+  while (walker.nextNode()) texts.push(walker.currentNode);
+  for (const t of texts) {
+    const text = t.nodeValue;
+    re.lastIndex = 0;
+    if (!re.test(text)) continue;
+    re.lastIndex = 0;
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    for (const m of text.matchAll(re)) {
+      const start = m.index + m[1].length;
+      frag.append(text.slice(last, start));
+      const a = document.createElement('a');
+      a.href = `#/c/${byName.get(m[2].toLowerCase()).id}`;
+      a.className = 'name-link';
+      a.textContent = m[2];
+      frag.append(a);
+      last = start + m[2].length;
+    }
+    frag.append(text.slice(last));
+    t.replaceWith(frag);
+  }
+}
 
 export function drawTies(pane, c, { own, isAlive = () => true }) {
   render(pane, html`<p class="muted small ig-loading">Loading…</p>`);
   const load = async () => {
-    let r, fam, prof;
+    let r, fam, prof, dir;
     try {
-      [r, fam, prof] = await Promise.all([api(`/api/characters/${c.id}/ties`), api(`/api/characters/${c.id}/family`), api(`/api/profiles/${c.id}`).catch(() => null)]);
+      [r, fam, prof, dir] = await Promise.all([api(`/api/characters/${c.id}/ties`), api(`/api/characters/${c.id}/family`),
+        api(`/api/profiles/${c.id}`).catch(() => null), api('/api/directory').catch(() => ({ writers: [] }))]);
     } catch (err) { if (isAlive()) render(pane, html`<div class="empty"><p>${err.message}</p></div>`); return; }
     if (!isAlive()) return;
     const { ties, incoming } = r;
     const notes = prof?.dossier?.sections?.relationships || '';
-    const family = fam.members.length > 1;
-    const view = tieView === 'tree' ? 'tree' : 'web';
+    const anyone = ties.length || incoming.length || fam.members.length > 1;
     render(pane, html`
-      <div class="tie-bar">
-        <div class="seg" role="tablist" aria-label="Show ties as">
-          <button type="button" class="chip ${view === 'web' ? 'on' : ''}" data-tie-view="web" aria-pressed="${view === 'web'}">${icons.ties} Web</button>
-          <button type="button" class="chip ${view === 'tree' ? 'on' : ''}" data-tie-view="tree" aria-pressed="${view === 'tree'}">${icons.users} Family tree</button>
-        </div>
-        ${own ? html`<button class="primary" id="tie-add">${icons.plus} Add a tie</button>` : ''}
-      </div>
-      ${view === 'tree'
-        ? (family ? familyTree(fam) : html`<div class="empty"><p>No family yet.</p><p class="small muted">${own ? `Add a tie and pick a family kind (parent, sibling, cousin…) to start ${c.name}'s family tree.` : `${c.name}'s writer hasn't added any family yet.`}</p></div>`)
-        : ties.length ? tieWeb(c, ties) : html`<div class="empty"><p>No ties yet.</p><p class="small muted">${own ? `Add the people who matter to ${c.name}: best friends, exes, rivals, family.` : `${c.name}'s writer hasn't added anyone yet.`}</p></div>`}
-      ${ties.length ? html`<ul class="tie-list">${ties.map((t, i) => html`
-        <li class="tie-row">
-          <a href="#/c/${t.other.id}">${avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color, size: 'sm' })}</a>
-          <div class="grow">
-            <a class="tie-who" href="#/c/${t.other.id}"><b>${t.other.name}</b></a>
-            <div class="tie-what"><span class="tie-chip" data-tie="${t.kind}">${tieName(t)}</span>
-              ${t.mutual ? html`<span class="small muted">${t.mutual.kind === t.kind && !t.mutual.label ? 'both ways' : `they say: ${tieName(t.mutual)}`}</span>` : html`<span class="small muted">one way</span>`}
-              ${t.since ? html`<span class="small muted">· since ${niceDate(t.since)}</span>` : ''}</div>
-            ${t.note ? html`<p class="small tie-note">${t.note}</p>` : ''}
-          </div>
-          ${own ? html`<button class="icon-btn" data-tie-more="${i}" aria-label="Change this tie">${icons.more}</button>` : ''}
-        </li>`)}</ul>` : ''}
-      ${incoming.length ? html`<h3 class="tie-h">Also tied to ${c.name}</h3>
-        <ul class="tie-list">${incoming.map((t) => html`<li class="tie-row">
-          <a href="#/c/${t.from.id}">${avatar({ name: t.from.name, src: t.from.avatar, color: t.from.color, size: 'sm' })}</a>
-          <div class="grow"><a class="tie-who" href="#/c/${t.from.id}"><b>${t.from.name}</b></a>
-            <div class="tie-what"><span class="small muted">calls ${c.name} their</span> <span class="tie-chip" data-tie="${t.kind}">${tieName(t)}</span></div></div>
-          ${own ? html`<button class="ghost small-btn" data-tie-back="${t.from.id}">Add back</button>` : ''}
-        </li>`)}</ul>` : ''}
+      ${own ? html`<div class="tie-bar"><span></span><button class="primary" id="tie-add">${icons.plus} Add a tie</button></div>` : ''}
+      ${anyone ? tieChart(c, fam, ties, incoming)
+        : html`<div class="empty"><p>No ties yet.</p><p class="small muted">${own ? `Add the people who matter to ${c.name}: family, best friends, exes, rivals.` : `${c.name}'s writer hasn't added anyone yet.`}</p></div>`}
+      ${anyone ? html`<p class="small muted tie-key">Solid line: both writers agree. Dashed: only one side has said so far.</p>` : ''}
       ${notes || own ? html`<section class="tie-notes">
         <div class="tie-notes-head"><h3 class="tie-h">Relationship notes</h3>${own ? html`<button type="button" class="sm" id="tie-notes-edit">${icons.quill} ${notes ? 'Edit' : 'Write notes'}</button>` : ''}</div>
-        ${notes ? html`<div class="body prose">${formatPost(notes)}</div>` : html`<p class="small muted">Anything the ties don't say: history, how they met, what's unresolved. Formatting works here.</p>`}
-      </section>` : ''}`);
-    if (view === 'tree' && family) layoutTree($('.ftree', pane));
-    $$('[data-tie-view]', pane).forEach((b) => b.addEventListener('click', () => {
-      tieView = b.dataset.tieView;
-      try { sessionStorage.setItem('nuuvi:tie-view', tieView); } catch { /* ignore */ }
-      load();
-    }));
+        ${notes ? html`<div class="body prose" id="tie-notes-body">${formatPost(notes)}</div>` : html`<p class="small muted">Anything the ties don't say: history, how they met, what's unresolved. Write a character's name and it links to their page.</p>`}
+      </section>` : ''}
+      ${ties.length || incoming.length ? html`<details class="tie-manage" ${own ? '' : ''}>
+        <summary>${own ? 'Change or remove ties' : 'Every tie, with notes'} <span class="muted">(${ties.length + incoming.length})</span></summary>
+        <ul class="tie-list">${ties.map((t, i) => html`
+          <li class="tie-row">
+            <a href="#/c/${t.other.id}">${iconOf(t.other)}</a>
+            <div class="grow">
+              <a class="tie-who" href="#/c/${t.other.id}"><b>${t.other.name}</b></a>
+              <div class="tie-what"><span class="tie-chip" data-tie="${t.kind}">${tieName(t)}</span>
+                ${t.mutual ? html`<span class="small muted">${t.mutual.kind === t.kind && !t.mutual.label ? 'both ways' : `they say: ${tieName(t.mutual)}`}</span>` : html`<span class="small muted">one way</span>`}
+                ${t.since ? html`<span class="small muted">· since ${niceDate(t.since)}</span>` : ''}</div>
+              ${t.note ? html`<p class="small tie-note">${t.note}</p>` : ''}
+            </div>
+            ${own ? html`<button class="icon-btn" data-tie-more="${i}" aria-label="Change this tie">${icons.more}</button>` : ''}
+          </li>`)}
+          ${incoming.map((t) => html`<li class="tie-row">
+            <a href="#/c/${t.from.id}">${iconOf(t.from)}</a>
+            <div class="grow"><a class="tie-who" href="#/c/${t.from.id}"><b>${t.from.name}</b></a>
+              <div class="tie-what"><span class="small muted">calls ${c.name} their</span> <span class="tie-chip" data-tie="${t.kind}">${tieName(t)}</span></div></div>
+            ${own ? html`<button class="ghost small-btn" data-tie-back="${t.from.id}">Add back</button>` : ''}
+          </li>`)}</ul>
+      </details>` : ''}`);
+    layoutTree($('.ftree', pane));
+    // Names in the notes link to those characters (everyone on NUUVI, plus first names of people in the chart).
+    const everyone = dir.writers.flatMap((w) => w.characters);
+    const close = [...fam.members.map((m) => m.character), ...ties.map((t) => t.other), ...incoming.map((t) => t.from)];
+    const firsts = close.map((x) => ({ id: x.id, name: x.name.split(/\s+/)[0] }))
+      .filter((x, _, all) => x.name.length > 2 && all.filter((y) => y.name.toLowerCase() === x.name.toLowerCase() && y.id !== x.id).length === 0);
+    linkNames($('#tie-notes-body', pane), [...everyone, ...close, ...firsts]);
     $('#tie-notes-edit', pane)?.addEventListener('click', async () => {
       const text = await modal(html`<form>
         <h2>${c.name}: relationship notes</h2>
+        <p class="hint">Write a character's name and it links to their page.</p>
         <textarea name="notes" rows="10" maxlength="20000" placeholder="Formatting works here (bold, colors, centering…)">${notes}</textarea>
         <div class="error"></div>
         <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Save</button></div>
@@ -239,8 +261,7 @@ export function drawTies(pane, c, { own, isAlive = () => true }) {
       } });
       if (text) { toast('Saved'); load(); }
     });
-    // Node spots and chip colours come from data attributes (no inline styles allowed).
-    $$('.tie-node', pane).forEach((n) => { n.style.setProperty('left', `${n.dataset.x}%`); n.style.setProperty('top', `${n.dataset.y}%`); });
+    // Chip colours come from data attributes (no inline styles allowed).
     $$('[data-tie]', pane).forEach((n) => n.style.setProperty('--tc', TIE_COLORS[n.dataset.tie] || '#999'));
     $('#tie-add', pane)?.addEventListener('click', async () => { if (await tieForm(c)) { toast('Tie added'); load(); } });
     $$('[data-tie-more]', pane).forEach((b) => b.addEventListener('click', () => {
@@ -255,81 +276,68 @@ export function drawTies(pane, c, { own, isAlive = () => true }) {
     }));
     $$('[data-tie-back]', pane).forEach((b) => b.addEventListener('click', async () => {
       const t = incoming.find((x) => x.from.id === Number(b.dataset.tieBack));
-      if (await tieForm(c, { other: t.from, kind: t.kind, label: '', note: '', since: t.since })) { toast('Tie added'); load(); }
+      if (await tieForm(c, { other: t.from, kind: FLIP[t.kind] || t.kind, label: '', note: '', since: t.since })) { toast('Tie added'); load(); }
     }));
   };
   load();
 }
 
 // ---------- Timeline ----------
-const TL_ICON = { post: icons.image, musing: icons.quill, episode: icons.episode, finished: icons.check, plan: icons.calendar, tie: icons.ties, arrived: icons.star };
-function tlLine(it) {
-  switch (it.type) {
-    case 'post': return html`Posted${it.location ? html` at <b>${it.location}</b>` : ''}`;
-    case 'musing': return 'Wrote a musing';
-    case 'episode': return html`Joined <b>${it.text}</b>`;
-    case 'finished': return html`Finished <b>${it.text}</b>`;
-    case 'plan': return html`<b>${it.text}</b>`;
-    case 'tie': return html`<b>${it.text}</b> <span class="tie-chip" data-tie="${it.kind}">${it.label || TIE_NAMES[it.kind] || it.kind}</span>`;
-    default: return html`Arrived in Ardell City`;
-  }
-}
-
-// Pick a new date for something on the timeline.
-async function editDate(c, it) {
-  const own = ['episode', 'finished', 'arrived'].includes(it.type);
-  const what = { post: 'This post moves to that day (its comments move with it).', musing: 'This musing moves to that day (its comments move with it).',
-    tie: 'This changes the "since" date on the tie too.', plan: 'The plan moves to that day, at the same time.' }[it.type]
-    || 'This only changes the date on the timeline.';
-  return modal(html`<form>
-    <h2>Change the date</h2>
-    <p class="small muted">${what}</p>
-    <label for="tl-date">Date</label>
-    <input id="tl-date" name="date" type="date" required value="${it.at.slice(0, 10)}">
+// The important things that happened to a character, added by their writer, oldest first.
+function eventForm(c, ev = null) {
+  return modal(html`<form class="tl-form">
+    <h2>${ev ? 'Change this event' : `Add to ${c.name}'s timeline`}</h2>
+    <label for="tl-date">When</label>
+    <input id="tl-date" name="date" type="date" required value="${ev?.date ?? ''}">
+    <label for="tl-title">What happened</label>
+    <input id="tl-title" name="title" maxlength="140" required value="${ev?.title ?? ''}" placeholder="e.g. Moved to Ardell City, met Jun, lost the election">
+    <label for="tl-note">More about it <span class="muted small">(optional)</span></label>
+    <textarea id="tl-note" name="note" rows="4" maxlength="2000" placeholder="Anything worth remembering">${ev?.note ?? ''}</textarea>
     <div class="error"></div>
     <div class="actions end">
-      ${own && it.edited ? html`<button type="button" id="tl-reset">Use the real date</button><span class="grow"></span>` : ''}
-      <button type="button" data-close>Cancel</button><button type="submit" class="primary">Save</button>
+      ${ev ? html`<button type="button" class="danger" id="tl-del">Delete</button><span class="grow"></span>` : ''}
+      <button type="button" data-close>Cancel</button><button type="submit" class="primary">${ev ? 'Save' : 'Add'}</button>
     </div>
   </form>`, {
     init: (d, close) => {
-      $('#tl-reset', d)?.addEventListener('click', async () => {
-        try { await api(`/api/characters/${c.id}/timeline`, { method: 'PUT', body: { item: it.key, date: it.at.slice(0, 10), reset: true } }); close(true); } catch (err) { toast(err.message); }
+      $('#tl-del', d)?.addEventListener('click', async () => {
+        try { await api(`/api/characters/${c.id}/timeline/${ev.id}`, { method: 'DELETE' }); close('deleted'); } catch (err) { toast(err.message); }
       });
     },
-    submit: async ({ date }) => { await api(`/api/characters/${c.id}/timeline`, { method: 'PUT', body: { item: it.key, date } }); return true; },
+    submit: async (data) => {
+      const body = { date: data.date, title: data.title, note: data.note };
+      if (ev) await api(`/api/characters/${c.id}/timeline/${ev.id}`, { method: 'PUT', body });
+      else await api(`/api/characters/${c.id}/timeline`, { method: 'POST', body });
+      return 'saved';
+    },
   });
 }
 
 export function drawTimeline(pane, c, { isAlive = () => true } = {}) {
   render(pane, html`<p class="muted small ig-loading">Loading…</p>`);
   const redraw = () => drawTimeline(pane, c, { isAlive });
-  api(`/api/characters/${c.id}/timeline`).then(({ items, locked, canEdit }) => {
+  api(`/api/characters/${c.id}/timeline`).then(({ events, canEdit }) => {
     if (!isAlive()) return;
-    // Group by month, newest first.
-    const groups = [];
-    for (const it of items) {
-      const key = it.at.slice(0, 7);
-      if (groups.at(-1)?.key !== key) groups.push({ key, items: [] });
-      groups.at(-1).items.push(it);
+    const years = [];
+    for (const e of events) {
+      const y = e.date.slice(0, 4);
+      if (years.at(-1)?.y !== y) years.push({ y, events: [] });
+      years.at(-1).events.push(e);
     }
-    const monthName = (k) => { const [y, m] = k.split('-').map(Number); return `${MONTHS[m - 1]} ${y}`; };
     render(pane, html`
-      ${locked ? html`<p class="small muted tl-locked">${icons.lock} Posts are hidden: this account is private.</p>` : ''}
-      <ol class="timeline">${groups.map((g) => html`
-        <li class="tl-month"><h3>${monthName(g.key)}</h3>
-          <ol>${g.items.map((it) => {
-            const inner = html`<span class="tl-dot">${TL_ICON[it.type] || icons.star}</span>
-              <span class="grow"><span class="tl-line">${tlLine(it)}</span>
-                ${it.type === 'post' || it.type === 'musing' ? (it.text ? html`<span class="tl-text">${it.text}</span>` : '') : it.sub ? html`<span class="tl-text muted">${it.sub}</span>` : ''}
-                <small class="muted">${niceDate(it.at)}${it.edited ? ' · date set by hand' : ''}</small></span>
-              ${it.picture ? html`<img class="tl-pic" src="${it.picture}" alt="" loading="lazy">` : ''}`;
-            return html`<li class="tl-item tl-${it.type}">${it.link ? html`<a href="${it.link}">${inner}</a>` : html`<div>${inner}</div>`}
-              ${canEdit ? html`<button type="button" class="icon-btn sm tl-edit" data-tl="${items.indexOf(it)}" aria-label="Change the date">${icons.pencil}</button>` : ''}</li>`;
-          })}</ol></li>`)}</ol>`);
-    $$('[data-tie]', pane).forEach((n) => n.style.setProperty('--tc', TIE_COLORS[n.dataset.tie] || '#999'));
-    $$('[data-tl]', pane).forEach((b) => b.addEventListener('click', async () => {
-      if (await editDate(c, items[Number(b.dataset.tl)])) { toast('Date changed'); redraw(); }
+      ${canEdit ? html`<div class="tie-bar"><span></span><button class="primary" id="tl-add">${icons.plus} Add an event</button></div>` : ''}
+      ${events.length ? html`<ol class="timeline">${years.map((g) => html`
+        <li class="tl-month"><h3>${g.y}</h3>
+          <ol>${g.events.map((e) => html`<li class="tl-item">
+            <div><span class="tl-dot">${icons.star}</span>
+              <span class="grow"><b class="tl-line">${e.title}</b>${e.note ? html`<span class="tl-text">${e.note}</span>` : ''}<small class="muted">${niceDate(e.date)}</small></span></div>
+            ${canEdit ? html`<button type="button" class="icon-btn sm tl-edit" data-ev="${e.id}" aria-label="Change this event">${icons.pencil}</button>` : ''}
+          </li>`)}</ol></li>`)}</ol>`
+        : html`<div class="empty"><p>No events yet.</p><p class="small muted">${canEdit ? `Add the moments that shaped ${c.name}: where they grew up, big wins, losses, turning points.` : `${c.name}'s writer hasn't added any events yet.`}</p></div>`}`);
+    $('#tl-add', pane)?.addEventListener('click', async () => { if (await eventForm(c)) { toast('Added'); redraw(); } });
+    $$('[data-ev]', pane).forEach((b) => b.addEventListener('click', async () => {
+      const r = await eventForm(c, events.find((e) => e.id === Number(b.dataset.ev)));
+      if (r) { toast(r === 'deleted' ? 'Deleted' : 'Saved'); redraw(); }
     }));
   }).catch((err) => { if (isAlive()) render(pane, html`<div class="empty"><p>${err.message}</p></div>`); });
 }

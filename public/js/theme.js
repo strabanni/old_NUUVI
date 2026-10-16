@@ -62,7 +62,10 @@
     var follow = function () {
       raf = 0;
       if (!lastH) { root.style.removeProperty('--vv-top'); return; }
-      var top = Math.max(0, vv.offsetTop + (window.scrollY || 0));
+      // The app is pinned (position: fixed) while the keyboard is up, so only how far the visible
+      // area has slid inside the screen counts. Adding the page's scroll too pushed the app down
+      // twice on newer iPhones, leaving an empty band above the chat.
+      var top = Math.max(0, vv.offsetTop);
       root.style.setProperty('--vv-top', (top / zoom()) + 'px');
     };
     var schedule = function () { if (!raf) raf = requestAnimationFrame(follow); };

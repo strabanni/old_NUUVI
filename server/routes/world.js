@@ -1,12 +1,9 @@
 // The world around the characters:
-// - Ties: how one character relates to another (best friend, ex, rival, family…), drawn as a web
-//   and as a family tree on profiles.
-// - Timeline: a character's life in story order (posts, episodes, plans, ties). Their writer can
-//   change the date of anything on it.
+// - Ties: how one character relates to another (best friend, ex, rival, family…), drawn as one
+//   family-tree-style chart on profiles.
+// - Timeline: the important events in a character's life, added by their writer.
 import { fail, str, oneOf } from '../http.js';
-import { toCharacter, requireUser, isBlocked, canSeeAccount } from '../model.js';
-import { parseBirthday } from './profiles.js';
-import { plainText } from '../text.js';
+import { toCharacter, requireUser, isBlocked } from '../model.js';
 
 export const TIE_KINDS = ['partner', 'spouse', 'crush', 'ex', 'bestfriend', 'friend',
   'parent', 'stepparent', 'child', 'stepchild', 'sibling', 'halfsibling', 'stepsibling', 'grandparent', 'grandchild',
@@ -19,7 +16,6 @@ export const FAMILY_GEN = {
   sibling: 0, halfsibling: 0, stepsibling: 0, cousin: 0, spouse: 0, partner: 0, inlaw: 0, family: 0,
 };
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const parse = (json) => { try { return JSON.parse(json || '{}') || {}; } catch { return {}; } };
 
 export function worldRoutes(r, ctx) {
   const { db } = ctx;
@@ -68,6 +64,9 @@ export function worldRoutes(r, ctx) {
     db.prepare(`INSERT INTO character_ties (character_id, other_id, kind, label, note, since, created_at) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))
       ON CONFLICT(character_id, other_id) DO UPDATE SET kind = excluded.kind, label = excluded.label, note = excluded.note, since = excluded.since`)
       .run(c.id, other.id, kind, label, note, since, ctx.storyNow());
+    // Adding them back answers their "added you to their ties" notification.
+    db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type = 'tie' AND character_id = ? AND from_character_id = ? AND read_at IS NULL")
+      .run(user.id, c.id, other.id);
     if (!had && other.user_id !== user.id) {
       ctx.notify({ userId: other.user_id, type: 'tie', actorId: user.id, characterId: other.id, fromCharacterId: c.id,
         text: `${c.name} added ${other.name} to their ties`, });
@@ -84,47 +83,54 @@ export function worldRoutes(r, ctx) {
   });
 
   // ---------- Timeline ----------
-  // Everything in a character's life, newest first, by in-story date.
+  // The important things that happened to a character, added by their writer: a date, what
+  // happened, and a note. Oldest first, so it reads like their story.
+  const toEvent = (e) => ({ id: e.id, date: e.date, title: e.title, note: e.note });
+  const eventInput = (body) => {
+    const date = String(body.date || '');
+    if (!DATE.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) fail(400, 'Pick a date');
+    const title = (str(body.title, 'What happened', { min: 1, max: 140, required: true }) ?? '').trim();
+    if (!title) fail(400, 'Say what happened');
+    const note = (str(body.note, 'Note', { max: 2000 }) ?? '').trim();
+    return { date, title, note };
+  };
+  const ownCharacter = (id, user) => {
+    const c = character(id);
+    if (!c || (c.user_id !== user.id && !user.isAdmin)) fail(404, 'Character not found');
+    return c;
+  };
+
   r.get('/api/characters/:id/timeline', ({ user, params }) => {
     requireUser(user);
     const c = character(params.id) ?? fail(404, 'Character not found');
     if (blockedEither(user.id, c.user_id)) fail(404, 'Character not found');
-    const items = [];
-    const seePosts = user.isAdmin || canSeeAccount(db, c, user.id);
-    if (seePosts) {
-      for (const p of db.prepare('SELECT * FROM social_posts WHERE character_id = ? ORDER BY created_at DESC LIMIT 120').all(c.id)) {
-        const media = JSON.parse(p.media || '[]');
-        items.push({ type: p.category === 'musing' ? 'musing' : 'post', key: `post:${p.id}`, at: p.created_at, text: plainText(p.body, 160) || p.title || '',
-          picture: p.kind === 'photo' || p.kind === 'stream' ? media[0] ?? null : null, location: p.location ?? null, link: `#/p/${p.id}` });
-      }
-    }
-    // Episodes they're in (in stories the viewer can see): when they first wrote in it, and if it ended.
-    for (const e of db.prepare(`SELECT ch.id, ch.name, ch.story_id, ch.status, ch.created_at, ch.last_post_at, s.title AS story_title,
-        (SELECT MIN(p.created_at) FROM posts p WHERE p.channel_id = ch.id AND p.character_id = :c) AS first_at
-      FROM channel_characters cc JOIN channels ch ON ch.id = cc.channel_id JOIN stories s ON s.id = ch.story_id
-      WHERE cc.character_id = :c AND ch.kind != 'ooc' AND ${VISIBLE}`).all({ c: c.id, viewer: user.id })) {
-      items.push({ type: 'episode', key: `episode:${e.id}`, at: e.first_at || e.created_at, text: e.name, sub: e.story_title, link: `#/s/${e.story_id}/${e.id}` });
-      if (e.status === 'complete' && e.last_post_at) items.push({ type: 'finished', key: `finished:${e.id}`, at: e.last_post_at, text: e.name, sub: e.story_title, link: `#/s/${e.story_id}/${e.id}` });
-    }
-    // Plans on the calendar (private ones only for their writer).
-    for (const p of db.prepare('SELECT * FROM plans WHERE character_id = ? AND (private = 0 OR user_id = ?) ORDER BY starts_at DESC LIMIT 80').all(c.id, user.id)) {
-      items.push({ type: 'plan', key: `plan:${p.id}`, at: p.starts_at.replace('T', ' ').slice(0, 19), text: p.title, sub: [p.location, p.kind].filter(Boolean).join(' · ') });
-    }
-    // Ties: when they became someone's best friend, ex, rival…
-    for (const t of db.prepare('SELECT * FROM character_ties WHERE character_id = ?').all(c.id)) {
-      const other = character(t.other_id);
-      if (!other || blockedEither(user.id, other.user_id)) continue;
-      items.push({ type: 'tie', key: `tie:${t.other_id}`, at: t.since ? `${t.since} 12:00:00` : t.created_at, text: other.name, kind: t.kind, label: t.label, link: `#/c/${other.id}` });
-    }
-    items.push({ type: 'arrived', key: 'arrived', at: c.created_at, text: c.name });
-    // Dates the writer set by hand.
-    const set = new Map(db.prepare('SELECT item, at FROM timeline_dates WHERE character_id = ?').all(c.id).map((x) => [x.item, x.at]));
-    for (const it of items) if (set.has(it.key)) { it.at = set.get(it.key); it.edited = true; }
-    // Dates come as "2026-10-16 09:00:00" or "2026-10-16T09:00:00.000Z": compare them the same way.
-    const key = (at) => String(at).replace('T', ' ').slice(0, 19);
-    items.sort((a, b) => (key(a.at) < key(b.at) ? 1 : key(a.at) > key(b.at) ? -1 : 0));
-    const b = parseBirthday(parse(c.dossier).facts?.birthday);
-    return { data: { items, birthday: b, locked: !seePosts, canEdit: c.user_id === user.id || !!user.isAdmin } };
+    const events = db.prepare('SELECT * FROM timeline_events WHERE character_id = ? ORDER BY date, id').all(c.id).map(toEvent);
+    return { data: { events, canEdit: c.user_id === user.id || !!user.isAdmin } };
+  });
+
+  r.post('/api/characters/:id/timeline', ({ user, params, body }) => {
+    requireUser(user);
+    const c = ownCharacter(params.id, user);
+    if (db.prepare('SELECT COUNT(*) AS n FROM timeline_events WHERE character_id = ?').get(c.id).n >= 300) fail(400, 'That timeline is full');
+    const e = eventInput(body);
+    const { lastInsertRowid } = db.prepare('INSERT INTO timeline_events (character_id, date, title, note) VALUES (?, ?, ?, ?)').run(c.id, e.date, e.title, e.note);
+    return { status: 201, data: { event: toEvent(db.prepare('SELECT * FROM timeline_events WHERE id = ?').get(lastInsertRowid)) } };
+  });
+
+  r.put('/api/characters/:id/timeline/:eventId', ({ user, params, body }) => {
+    requireUser(user);
+    const c = ownCharacter(params.id, user);
+    const e = eventInput(body);
+    const res = db.prepare('UPDATE timeline_events SET date = ?, title = ?, note = ? WHERE id = ? AND character_id = ?').run(e.date, e.title, e.note, params.eventId, c.id);
+    if (!res.changes) fail(404, 'Event not found');
+    return { data: { event: toEvent(db.prepare('SELECT * FROM timeline_events WHERE id = ?').get(params.eventId)) } };
+  });
+
+  r.delete('/api/characters/:id/timeline/:eventId', ({ user, params }) => {
+    requireUser(user);
+    const c = ownCharacter(params.id, user);
+    db.prepare('DELETE FROM timeline_events WHERE id = ? AND character_id = ?').run(params.eventId, c.id);
+    return { data: { ok: true } };
   });
 
   // ---------- Family tree ----------
@@ -171,42 +177,5 @@ export function worldRoutes(r, ctx) {
     }
     const members = [...people.values()].map((p) => ({ character: toCharacter(p), gen: gen.get(p.id), relation: direct.get(p.id) ?? null }));
     return { data: { center: c.id, members, links: [...links.values()].filter((l) => people.has(l.from) && people.has(l.to)) } };
-  });
-
-  // ---------- Changing a date on the timeline ----------
-  // item is what the timeline gave it: post:ID, tie:OTHER_ID, plan:ID, episode:ID, finished:ID or
-  // arrived. Posts, ties and plans get their own date changed (so it's the same everywhere);
-  // the rest keep the date the writer set just for the timeline.
-  r.put('/api/characters/:id/timeline', ({ user, params, body }) => {
-    requireUser(user);
-    const c = character(params.id);
-    if (!c || (c.user_id !== user.id && !user.isAdmin)) fail(404, 'Character not found');
-    const date = String(body.date || '');
-    if (!DATE.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) fail(400, "That date doesn't look right");
-    const item = String(body.item || '');
-    const [type, rawId] = item.split(':');
-    const id = Number(rawId);
-    const days = (from) => Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${String(from).slice(0, 10)}T00:00:00Z`)) / 86400000);
-    if (type === 'post') {
-      const p = db.prepare('SELECT * FROM social_posts WHERE id = ? AND character_id = ?').get(id, c.id) ?? fail(404, 'Post not found');
-      const d = days(p.created_at);
-      // The post moves to that day (same time of day); its comments move with it.
-      db.prepare("UPDATE social_posts SET created_at = ? || substr(created_at, 11) WHERE id = ?").run(date, p.id);
-      if (d) db.prepare("UPDATE social_comments SET created_at = datetime(created_at, ? || ' days') WHERE post_id = ?").run(String(d), p.id);
-    } else if (type === 'tie') {
-      const t = db.prepare('UPDATE character_ties SET since = ? WHERE character_id = ? AND other_id = ?').run(date, c.id, id);
-      if (!t.changes) fail(404, 'Tie not found');
-    } else if (type === 'plan') {
-      const p = db.prepare('SELECT * FROM plans WHERE id = ? AND character_id = ?').get(id, c.id) ?? fail(404, 'Plan not found');
-      if (p.user_id !== user.id && !user.isAdmin) fail(404, 'Plan not found');
-      const d = days(p.starts_at);
-      const shift = (v) => (v ? new Date(Date.parse(v.length > 16 ? v : `${v}Z`) + d * 86400000).toISOString().slice(0, v.length) : v);
-      db.prepare('UPDATE plans SET starts_at = ?, ends_at = ? WHERE id = ?').run(date + p.starts_at.slice(10), shift(p.ends_at), p.id);
-    } else if (['episode', 'finished'].includes(type) || item === 'arrived') {
-      if (body.reset) db.prepare('DELETE FROM timeline_dates WHERE character_id = ? AND item = ?').run(c.id, item);
-      else db.prepare(`INSERT INTO timeline_dates (character_id, item, at) VALUES (?, ?, ?)
-        ON CONFLICT(character_id, item) DO UPDATE SET at = excluded.at`).run(c.id, item, `${date} 12:00:00`);
-    } else fail(400, "That can't be changed");
-    return { data: { ok: true } };
   });
 }

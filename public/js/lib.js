@@ -115,7 +115,9 @@ function drawSharp(bitmap, sx, sy, sw, sh, w, h) {
   return out;
 }
 
-export async function uploadImage(file, maxSize = 640) {
+// square: crop to a centred square first (profile pictures and icons), so the picture is the shape
+// of the spot it goes in.
+export async function uploadImage(file, maxSize = 640, { square = false } = {}) {
   if (!file.type.startsWith('image/')) throw new Error('Please choose an image');
   // GIFs go up as they are, so they keep moving (resizing would flatten them to one frame).
   if (file.type === 'image/gif') {
@@ -124,8 +126,13 @@ export async function uploadImage(file, maxSize = 640) {
   }
   const bitmap = await createImageBitmap(file);
   const target = sharpSize(maxSize);
+  if (square && bitmap.width !== bitmap.height) {
+    const side = Math.min(bitmap.width, bitmap.height);
+    const out = Math.min(side, target);
+    const canvas = drawSharp(bitmap, Math.round((bitmap.width - side) / 2), Math.round((bitmap.height - side) / 2), side, side, out, out);
+    return uploadFile(await encode(canvas));
+  }
   const longest = Math.max(bitmap.width, bitmap.height);
-  if (longest < Math.min(600, maxSize)) toast(`Heads-up: this picture is small (${bitmap.width} × ${bitmap.height}), so it may look soft when shown big.`);
   // Already the right size, in a format browsers show everywhere: send it as it is (no re-saving).
   if (longest <= target && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type) && file.size <= 7.5 * 1024 * 1024) return uploadFile(file);
   const scale = Math.min(1, target / longest);
@@ -618,91 +625,35 @@ export const icons = {
   edit: raw('<svg class="fi i-edit" viewBox="0 0 56 56" aria-hidden="true"><path d="M 48.7772 9.9766 L 50.4649 8.2422 C 51.2852 7.4219 51.2852 6.2734 50.4880 5.5000 L 49.9489 4.9375 C 49.2227 4.2109 48.0740 4.3047 47.3008 5.0547 L 45.5897 6.7422 Z M 21.8007 34.3516 L 26.3710 32.3594 L 47.0665 11.6875 L 43.8554 8.5234 L 23.1835 29.1953 L 21.0741 33.6016 C 20.8866 34.0000 21.3554 34.5391 21.8007 34.3516 Z M 12.0741 51.7891 L 39.5897 51.7891 C 43.8085 51.7891 46.2460 49.3516 46.2460 44.5234 L 46.2460 18.4375 L 42.4726 22.2109 L 42.4726 44.3360 C 42.4726 46.7734 41.1601 48.0156 39.5429 48.0156 L 12.1444 48.0156 C 9.8007 48.0156 8.4882 46.7734 8.4882 44.3360 L 8.4882 17.7344 C 8.4882 15.2969 9.8007 14.0312 12.1444 14.0312 L 32.4179 14.0312 L 36.1913 10.2578 L 12.0741 10.2578 C 7.1992 10.2578 4.7148 12.6953 4.7148 17.5234 L 4.7148 44.5234 C 4.7148 49.3750 7.1992 51.7891 12.0741 51.7891 Z"/></svg>'),
 };
 
-// The picture panel behind every + that adds pictures (Discord-style): it slides up from the
-// bottom with Camera and Photos tiles, then your recent NUUVI pictures (tap to pick, then Add), and
-// a bar of buttons underneath: Photos, Link / GIF, plus anything the chat box adds (content
-// warning, formatting…). Camera and Photos open the phone's own camera and photo library (iPhones
-// may ask for permission the first time). Websites can't show the whole camera roll inside the
-// page, so the grid below shows pictures you've already put on NUUVI.
-let sheetSeq = 0;
-export function attachSheet({ max = 10, onPictures, extras = [] } = {}) {
-  document.querySelector('dialog.sheet')?.remove();
-  document.activeElement?.blur?.(); // put the keyboard away first, or it hides the panel
-  const n = ++sheetSeq;
-  const d = document.createElement('dialog');
-  d.className = 'sheet';
-  // Real file inputs, opened by <label>s: the dependable way to reach the photo library on iPhones.
-  const lib = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: true, id: `sheet-lib-${n}`, className: 'sheet-file' });
-  const cam = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', id: `sheet-cam-${n}`, className: 'sheet-file' });
-  cam.setAttribute('capture', 'environment');
-  const panel = document.createElement('div');
-  panel.className = 'sheet-panel';
-  d.append(lib, cam, panel);
-  document.body.append(d);
-  let recent = null;
-  const chosen = [];
-  const close = () => { d.classList.add('closing'); setTimeout(() => { if (d.open) d.close(); d.remove(); }, 180); };
-  const takeFiles = async (input) => {
-    const files = [...input.files].slice(0, max);
-    close();
-    if (!files.length) return;
-    toast(files.length > 1 ? `Uploading ${files.length} pictures…` : 'Uploading…');
-    const urls = [];
-    for (const file of files) { try { urls.push(await uploadImage(file, 1600)); } catch (err) { toast(err.message); } }
-    if (urls.length) onPictures(urls);
+// Adding pictures: the + opens a small menu by the button you tapped, with "Upload pictures…"
+// (your phone's own photo picker, which also offers the camera), "Picture or GIF link…", and any
+// extra options for that screen (a content warning, episode details…).
+let lastTap = null;
+if (typeof document !== 'undefined') document.addEventListener('pointerdown', (e) => { lastTap = e.target.closest?.('button, label, a, [role=button]') || null; }, true);
+export function attachSheet({ max = 10, onPictures, extras = [], anchor = null, square = false } = {}) {
+  const at = anchor || (lastTap?.isConnected ? lastTap : null) || document.activeElement || document.body;
+  const pick = () => {
+    // Kept in the page (hidden) until a picture is chosen: iPhones can drop a file box that isn't.
+    document.querySelectorAll('input.pick-file').forEach((x) => x.remove());
+    const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: max > 1, className: 'pick-file', hidden: true });
+    document.body.append(input);
+    input.addEventListener('change', async () => {
+      const files = [...input.files].slice(0, max);
+      input.remove();
+      if (!files.length) return;
+      toast(files.length > 1 ? `Uploading ${files.length} pictures…` : 'Uploading…');
+      const urls = [];
+      for (const file of files) { try { urls.push(await uploadImage(file, square ? 640 : 1600, { square })); } catch (err) { toast(err.message); } }
+      if (urls.length) onPictures(urls);
+    });
+    input.click();
   };
-  lib.addEventListener('change', () => takeFiles(lib));
-  cam.addEventListener('change', () => takeFiles(cam));
-  const list = extras.filter(Boolean);
-  const draw = () => {
-    render(panel, html`
-      <div class="sheet-grip" aria-hidden="true"></div>
-      <div class="sheet-head"><b>${chosen.length ? `${chosen.length} picked` : 'Add pictures'}</b>
-        ${chosen.length ? html`<button type="button" class="primary sm" data-add>Add ${chosen.length}</button>` : html`<button type="button" class="icon-btn sm" data-x aria-label="Close">✕</button>`}</div>
-      <div class="sheet-grid">
-        <label class="sheet-tile sheet-big" for="sheet-cam-${n}">${icons.camera}<span>Camera</span></label>
-        <label class="sheet-tile sheet-big" for="sheet-lib-${n}">${icons.image}<span>Photos</span></label>
-        ${recent === null ? [0, 1, 2, 3, 4, 5].map(() => html`<span class="sheet-tile sheet-wait"></span>`)
-          : recent.map((u) => { const i = chosen.indexOf(u) + 1; return html`<button type="button" class="sheet-tile sheet-pic ${i ? 'on' : ''}" data-pic="${u}" aria-pressed="${!!i}"><img src="${u}" alt="" loading="lazy"><span class="sheet-check">${i || ''}</span></button>`; })}
-        ${recent && !recent.length ? html`<p class="sheet-empty">Tap <b>Photos</b> to pick from your phone or computer. Pictures you've put on NUUVI also show up here.</p>` : ''}
-      </div>
-      <nav class="sheet-bar">
-        <label for="sheet-lib-${n}">${icons.image}<span>Photos</span></label>
-        <button type="button" data-link>${icons.link}<span>Link / GIF</span></button>
-        ${list.map((x, i) => html`<button type="button" data-extra="${i}">${x.icon || icons.more}<span>${x.label}</span></button>`)}
-      </nav>`);
-  };
-  // Size it from the visible screen (minus the interface zoom), so it never runs off the bottom.
-  const fit = () => {
-    const z = Number(getComputedStyle(document.documentElement).zoom) || 1;
-    const h = (window.visualViewport?.height ?? window.innerHeight) / z;
-    d.style.setProperty('--sheet-h', `${Math.round(Math.min(h * 0.74, 660))}px`);
-  };
-  fit();
-  window.visualViewport?.addEventListener('resize', fit);
-  d.addEventListener('close', () => window.visualViewport?.removeEventListener('resize', fit));
-  draw();
-  d.showModal();
-  api('/api/uploads/recent').then((r) => { recent = r.pictures; if (d.isConnected) draw(); }).catch(() => { recent = []; if (d.isConnected) draw(); });
-  d.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
-  d.addEventListener('click', async (e) => {
-    if (e.target === d || e.target.closest('[data-x]')) return close();
-    const pic = e.target.closest('[data-pic]');
-    if (pic) {
-      const i = chosen.indexOf(pic.dataset.pic);
-      if (i >= 0) chosen.splice(i, 1); else if (chosen.length < max) chosen.push(pic.dataset.pic); else toast(`Up to ${max} pictures`);
-      return draw();
-    }
-    if (e.target.closest('[data-add]')) { const urls = [...chosen]; close(); return onPictures(urls); }
-    if (e.target.closest('[data-link]')) { close(); const u = await askImageLink(); if (u) onPictures([u]); return; }
-    const x = e.target.closest('[data-extra]');
-    if (x) { close(); list[Number(x.dataset.extra)].action(); }
-  });
-  // Swipe the panel down to close it.
-  let y0 = null;
-  d.addEventListener('touchstart', (e) => { y0 = e.target.closest('.sheet-grip, .sheet-head') ? e.touches[0].clientY : null; }, { passive: true });
-  d.addEventListener('touchmove', (e) => { if (y0 !== null && e.touches[0].clientY - y0 > 70) { y0 = null; close(); } }, { passive: true });
-  return { close };
+  menu(at, [
+    max > 0 && { label: max > 1 ? 'Upload pictures…' : 'Upload a picture…', action: pick },
+    max > 0 && { label: 'Picture or GIF link…', action: async () => { const u = await askImageLink(); if (u) onPictures([u]); } },
+    ...extras.filter(Boolean).map((x) => ({ label: x.label, action: x.action, danger: x.danger })),
+  ]);
+  return { close: () => document.querySelector('.popover')?.remove() };
 }
 
 // A small "Jump to latest" button that appears when you've scrolled up a chat, and takes you
@@ -719,6 +670,21 @@ export function jumpToLatest(scroller, { label = 'Jump to latest' } = {}) {
   btn.addEventListener('click', () => { scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' }); });
   check();
   return check;
+}
+
+// A round "back to the top" button for long pages: it shows once you've scrolled down a screen or so.
+export function backToTop(scroller) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'to-top';
+  btn.hidden = true;
+  btn.setAttribute('aria-label', 'Back to the top');
+  render(btn, html`${icons.chevron}<span>Top</span>`);
+  scroller.parentElement.append(btn);
+  const check = () => { btn.hidden = scroller.scrollTop < Math.max(500, scroller.clientHeight * 0.8); };
+  scroller.addEventListener('scroll', check, { passive: true });
+  btn.addEventListener('click', () => scroller.scrollTo({ top: 0, behavior: 'smooth' }));
+  check();
 }
 
 // The formatting guide: every code with a Copy button (and Insert, when there's a box to put it in).

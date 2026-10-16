@@ -256,7 +256,7 @@ export async function viewSettings() {
     const file = e.target.files[0];
     if (!file) return;
     try {
-      profile.avatar.value = await uploadImage(file, 512);
+      profile.avatar.value = await uploadImage(file, 512, { square: true });
       render($('#me-pic', body), avatar({ name: u.displayName, src: profile.avatar.value, size: 'xl square' }));
     } catch (err) { toast(err.message); }
   });

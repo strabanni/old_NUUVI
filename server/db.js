@@ -1,8 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { capitalizeName } from './text.js';
 
-const SCHEMA_VERSION = 28;
+const SCHEMA_VERSION = 29;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -655,6 +656,22 @@ export const MIGRATIONS = [
      at           TEXT NOT NULL,
      PRIMARY KEY (character_id, item)
    );`,
+  // v29: the timeline is the important events a writer adds by hand (not every post), so the
+  // hand-set dates for the old automatic timeline go.
+  `CREATE TABLE timeline_events (
+     id           INTEGER PRIMARY KEY,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     date         TEXT NOT NULL,
+     title        TEXT NOT NULL,
+     note         TEXT NOT NULL DEFAULT '',
+     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX timeline_events_character_idx ON timeline_events(character_id, date);
+   DROP TABLE timeline_dates;
+   -- Notifications: "seen" (opened the Notifications tab, so the badge clears) apart from "read"
+   -- (tapped, answered, or Mark all read, so it stops being highlighted).
+   ALTER TABLE notifications ADD COLUMN seen_at TEXT;
+   UPDATE notifications SET seen_at = read_at;`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.
@@ -668,6 +685,11 @@ export function makeHandle(db, name, exceptId = 0) {
 
 // Fill-ins that need code rather than SQL (safe to run on every start).
 function backfill(db) {
+  // Names written before names were capitalized.
+  for (const c of db.prepare('SELECT id, name FROM characters').all()) {
+    const fixed = capitalizeName(c.name);
+    if (fixed !== c.name) db.prepare('UPDATE characters SET name = ? WHERE id = ?').run(fixed, c.id);
+  }
   for (const c of db.prepare('SELECT id, name FROM characters WHERE handle IS NULL').all()) {
     db.prepare('UPDATE characters SET handle = ? WHERE id = ?').run(makeHandle(db, c.name, c.id), c.id);
   }

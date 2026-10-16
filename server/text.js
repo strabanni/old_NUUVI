@@ -11,3 +11,9 @@ export function plainText(body = '', max = 140) {
     .trim();
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
+
+// Character names start every word with a capital ("mina park" → "Mina Park", "mary-jane" →
+// "Mary-Jane"). Only first letters change, so "McKay" or "DeLuca" stay as typed.
+export function capitalizeName(name = '') {
+  return String(name).replace(/(^|[\s\-])(\p{Ll})/gu, (_, gap, ch) => gap + ch.toLocaleUpperCase());
+}

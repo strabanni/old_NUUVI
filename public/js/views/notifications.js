@@ -65,6 +65,9 @@ export async function viewNotifications() {
         <div id="notif-list"></div>
       </div>`,
   });
+  // Opening this tab clears the badge; each notification stays highlighted here until it's tapped,
+  // answered (a reply, opening the post…) or Mark all read is pressed.
+  if (notifications.some((n) => !n.read)) api('/api/notifications/seen', { method: 'POST', body: {} }).then(refreshHome).catch(() => {});
   const list = $('#notif-list', body);
   const ink = $('.notif-tab-ink', body);
   function draw() {

@@ -201,7 +201,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
       $('#t-icon-file', d).addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        try { setIcon(await uploadImage(file, 256)); } catch (err) { toast(err.message); }
+        try { setIcon(await uploadImage(file, 256, { square: true })); } catch (err) { toast(err.message); }
       });
       // Episode picture (tap to change; long-press-free so it works the same on phones).
       const drawBanner = () => render($('#t-banner', d), form.banner.value ? html`<img src="${form.banner.value}" alt=""><button type="button" class="t-banner-x" aria-label="Remove picture">✕</button>` : html`<span>${icons.image} Add a picture</span>`);

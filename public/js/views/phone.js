@@ -173,10 +173,85 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
   const me = data.character;
   let q = '';
   let unread = {};
+  // Two tabs at the bottom, like an iPhone: Messages, and Contacts (with a card for each person).
+  let view = sessionStorage.getItem('nuuvi:ph-view') === 'contacts' ? 'contacts' : 'messages';
+  let card = null; // the contact whose card is open
+  const setView = (v) => { view = v; card = null; q = ''; try { sessionStorage.setItem('nuuvi:ph-view', v); } catch { /* ignore */ } draw(); };
   // Do this writer's other phones have texts waiting? (a dot on the switch button)
   const otherUnread = () => mine.some((m) => m.id !== cid && unread[m.id]);
 
+  // iPhone sorts contacts by last name and shows it in bold: "Mina **Park**".
+  const parts = (name) => { const w = name.trim().split(/\s+/); return w.length > 1 ? { first: w.slice(0, -1).join(' '), last: w.at(-1) } : { first: '', last: w[0] || '' }; };
+  const letterOf = (name) => { const ch = parts(name).last.normalize('NFD')[0]?.toUpperCase() || '#'; return /[A-Z]/.test(ch) ? ch : '#'; };
+  const sortKey = (name) => { const p = parts(name); return `${p.last} ${p.first}`.toLowerCase(); };
+  const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
+  const tabBar = () => html`<nav class="ph-tabbar" aria-label="Phone">
+      <button type="button" data-view="messages" aria-pressed="${view === 'messages'}">${icons.chat}<span>Messages</span></button>
+      <button type="button" data-view="contacts" aria-pressed="${view === 'contacts'}">${icons.profile}<span>Contacts</span></button>
+    </nav>`;
+  const picOf = (c, size = '') => avatar({ name: c.name, src: c.character.avatar, color: c.character.color, size });
+
+  function drawCard() {
+    const c = data.contacts.find((x) => x.id === card);
+    if (!c) { card = null; return draw(); }
+    const real = c.character.name !== c.name ? c.character.name : '';
+    render(root, html`<section class="ct-card">
+      <header class="ct-bar"><button type="button" class="ct-back" data-card-back>${icons.back}<span>Contacts</span></button><button type="button" class="ct-link" data-card-edit>Edit</button></header>
+      <div class="ct-hero">
+        <span class="ct-pic">${picOf(c, 'xxl')}</span>
+        <h2>${c.name}</h2>
+        ${real ? html`<p class="ct-sub">${real}</p>` : ''}
+        <div class="ct-actions">
+          <button type="button" data-card-act="text">${icons.chat}<span>message</span></button>
+          <button type="button" data-card-act="call">${icons.phone}<span>call</span></button>
+          <button type="button" data-card-act="video">${icons.video}<span>FaceTime</span></button>
+          <button type="button" data-card-act="profile">${icons.user}<span>profile</span></button>
+        </div>
+      </div>
+      <div class="ct-group">
+        <div class="ct-field"><small>username</small><span>@${c.character.handle}</span></div>
+        ${c.character.tagline ? html`<div class="ct-field"><small>about</small><span>${c.character.tagline}</span></div>` : ''}
+      </div>
+      <div class="ct-group">
+        <button type="button" class="ct-row" data-card-act="text">Send Message</button>
+        <button type="button" class="ct-row" data-card-act="profile">View Profile</button>
+      </div>
+      <div class="ct-group"><button type="button" class="ct-row danger" data-card-act="remove">Delete Contact</button></div>
+    </section>${tabBar()}`);
+    applyColors(root);
+  }
+
+  function drawContacts() {
+    const list = data.contacts.filter((c) => !q || `${c.name} ${c.character.name} ${c.character.handle}`.toLowerCase().includes(q))
+      .sort((a, b) => sortKey(a.name).localeCompare(sortKey(b.name)));
+    const sections = [];
+    for (const c of list) {
+      const l = letterOf(c.name);
+      if (sections.at(-1)?.l !== l) sections.push({ l, people: [] });
+      sections.at(-1).people.push(c);
+    }
+    // "#" goes last, like on iPhone.
+    sections.sort((a, b) => (a.l === '#') - (b.l === '#') || a.l.localeCompare(b.l));
+    render(root, html`<section class="ct-app">
+      <div class="ct-scroll" id="ct-scroll">
+        <header class="ct-top">
+          <button type="button" class="ph-switch ${otherUnread() ? 'has-dot' : ''}" id="ph-switch" aria-label="Switch phone" title="Switch phone">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'xs' })}${icons.chevron}<i class="ph-dot" aria-hidden="true"></i></button>
+          <button type="button" class="ct-plus" id="ph-add" aria-label="Add contacts">${icons.plus}</button>
+        </header>
+        <h1 class="ct-title">Contacts</h1>
+        <label class="ct-search">${icons.search}<input type="search" id="ph-q" placeholder="Search" value="${q}" aria-label="Search contacts"></label>
+        ${q ? '' : html`<a class="ct-me" href="#/c/${me.id}">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'lg' })}<span class="grow"><b>${me.name}</b><small>My Card</small></span></a>`}
+        ${sections.map((sec) => html`<div class="ct-sec" data-letter="${sec.l}"><h3>${sec.l}</h3>
+          ${sec.people.map((c) => { const p = parts(c.name); return html`<button type="button" class="ct-person" data-card="${c.id}">${p.first ? html`${p.first} ` : ''}<b>${p.last}</b></button>`; })}</div>`)}
+        ${list.length ? html`<p class="ct-count">${list.length} ${list.length === 1 ? 'Contact' : 'Contacts'}</p>`
+          : html`<div class="ph-empty"><p>${q ? 'No results' : 'No contacts yet.'}</p>${q ? '' : html`<p class="small">Tap <b>+</b> to save someone's number.</p>`}</div>`}
+      </div>
+      ${list.length > 6 ? html`<nav class="ct-index" aria-label="Jump to letter">${LETTERS.map((l) => html`<button type="button" data-jump="${l}">${l}</button>`)}</nav>` : ''}
+    </section>${tabBar()}`);
+  }
+
   function draw() {
+    if (view === 'contacts') return card ? drawCard() : drawContacts();
     const contacts = data.contacts.filter((c) => !q || c.name.toLowerCase().includes(q));
     // The conversation that's open beside the list has just been read.
     const threads = data.threads.map((t) => (t.id === activeTid ? { ...t, unread: 0 } : t)).filter((t) => !q || t.name.toLowerCase().includes(q) || (t.last?.text || '').toLowerCase().includes(q));
@@ -186,13 +261,9 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
           <label class="ph-search">${icons.search}<input type="search" id="ph-q" placeholder="Search…" value="${q}" aria-label="Search contacts and messages"></label>
           <button type="button" class="ph-switch ${otherUnread() ? 'has-dot' : ''}" id="ph-switch" aria-label="Switch phone${otherUnread() ? ' (another phone has new texts)' : ''}" title="Switch phone">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'xs' })}${icons.chevron}<i class="ph-dot" aria-hidden="true"></i></button>
         </div>
-        <h1>Messages</h1>
-        <div class="ph-contacts no-swipe">
-          <button type="button" class="ph-contact add" id="ph-add"><span class="ph-av">${icons.plus}</span><span>Add</span></button>
-          <button type="button" class="ph-contact add" id="ph-group"><span class="ph-av">${icons.users}</span><span>Group</span></button>
-          ${contacts.map((c) => html`
-            <button type="button" class="ph-contact" data-open="${c.id}" title="${c.name}"><span class="ph-av">${avatar({ name: c.character.name, src: c.character.avatar, color: c.character.color })}</span><span>${c.name}</span></button>`)}
-        </div>
+        <div class="ph-title-row"><h1>Messages</h1><button type="button" class="ph-compose-btn" id="ph-compose" aria-label="New message" title="New message">${icons.edit}</button></div>
+        ${q && contacts.length ? html`<div class="ph-contacts no-swipe">${contacts.map((c) => html`
+            <button type="button" class="ph-contact" data-open="${c.id}" title="${c.name}"><span class="ph-av">${avatar({ name: c.character.name, src: c.character.avatar, color: c.character.color })}</span><span>${c.name}</span></button>`)}</div>` : ''}
       </section>
       <section class="ph-list">
         ${threads.length ? threads.map((t) => html`
@@ -200,8 +271,8 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
             <span class="ph-row-av">${t.group ? groupAvatar(t) : avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color })}</span>
             <span class="grow"><b>${t.name}</b><small>${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'No messages yet'}</small></span>
             <span class="ph-meta">${t.last?.at || t.lastAt ? html`<small>${shortWhen(t.last?.at || t.lastAt)}</small>` : ''}${t.unread ? html`<span class="badge">${t.unread}</span>` : ''}</span>
-          </a>`) : html`<div class="ph-empty"><p>No messages yet.</p><p class="small">Tap <b>Add</b> to save someone's number, then tap them to text.</p></div>`}
-      </section>`);
+          </a>`) : html`<div class="ph-empty"><p>No messages yet.</p><p class="small">Tap the pencil to text one of your contacts, or open <b>Contacts</b> to save someone's number.</p></div>`}
+      </section>${tabBar()}`);
     applyColors(root);
   }
   draw();
@@ -223,6 +294,49 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     input.setSelectionRange(pos, pos);
   });
   root.addEventListener('click', async (e) => {
+    const tab = e.target.closest('[data-view]');
+    if (tab) { setView(tab.dataset.view); return; }
+    const person = e.target.closest('[data-card]');
+    if (person) { card = Number(person.dataset.card); draw(); root.scrollTop = 0; return; }
+    if (e.target.closest('[data-card-back]')) { card = null; draw(); return; }
+    if (e.target.closest('[data-card-edit]')) { contactMenu(e.target.closest('[data-card-edit]'), card, { edit: true }); return; }
+    const act = e.target.closest('[data-card-act]');
+    if (act) {
+      const id = card;
+      const what = act.dataset.cardAct;
+      if (what === 'profile') { location.hash = `#/c/${id}`; return; }
+      if (what === 'remove') {
+        const who = data.contacts.find((x) => x.id === id);
+        if (await confirmModal(`Delete ${who?.name ?? 'this contact'} from ${me.name}'s contacts?`, { ok: 'Delete Contact', danger: true })) {
+          await api(`/api/phone/${cid}/contacts/${id}`, { method: 'DELETE' }); card = null; reload();
+        }
+        return;
+      }
+      if (what === 'call' || what === 'video') { try { sessionStorage.setItem('nuuvi:ph-autocall', what === 'video' ? 'video' : 'voice'); } catch { /* ignore */ } }
+      open(id);
+      return;
+    }
+    const jump = e.target.closest('[data-jump]');
+    if (jump) {
+      const want = LETTERS.indexOf(jump.dataset.jump);
+      const secs = $$('.ct-sec', root);
+      const target = secs.find((x) => LETTERS.indexOf(x.dataset.letter) >= want) || secs.at(-1);
+      target?.scrollIntoView({ block: 'start' });
+      return;
+    }
+    if (e.target.closest('#ph-compose')) {
+      // New message: pick one of your contacts, or start a group.
+      const btn = e.target.closest('#ph-compose');
+      menu(btn, [
+        ...[...data.contacts].sort((a, b) => a.name.localeCompare(b.name)).slice(0, 30).map((x) => ({ label: `Text ${x.name}`, action: () => open(x.id) })),
+        { label: 'New group…', action: async () => { const g = await newGroup(me, data.contacts); if (g) location.hash = `${phoneBase()}/${cid}/t/${g.id}`; } },
+        { label: 'Save a new contact…', action: async () => {
+          const added = await pickContact(me, new Set(data.contacts.map((x) => x.id)));
+          if (added?.length) { toast(added.length === 1 ? `${added[0].name} saved to contacts` : `${added.length} contacts saved`); reload(); }
+        } },
+      ]);
+      return;
+    }
     const c = e.target.closest('[data-open]');
     if (c) { open(Number(c.dataset.open)); return; }
     if (e.target.closest('#ph-group')) {
@@ -246,32 +360,32 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     }
   });
   root.addEventListener('contextmenu', async (e) => {
-    const c = e.target.closest('[data-open]');
+    const c = e.target.closest('[data-open], [data-card]');
     if (!c) return;
     e.preventDefault();
-    contactMenu(c, Number(c.dataset.open));
+    contactMenu(c, Number(c.dataset.open || c.dataset.card));
   });
-  async function contactMenu(anchor, id) {
+  async function contactMenu(anchor, id, { edit = false } = {}) {
     const contact = data.contacts.find((x) => x.id === id)
       || (() => { const t = data.threads.find((x) => x.other?.id === id); return t && { id, name: t.name, character: t.other }; })();
     if (!contact) return;
     // Pictures and names saved here are this phone's own: the character's writer still sees theirs.
     const savePic = async (avatar) => { await api(`/api/phone/${cid}/contacts`, { method: 'POST', body: { contactId: id, avatar } }); reload(); toast('Contact picture changed'); };
     menu(anchor, [
-      { label: 'Text', action: () => open(id) },
+      !edit && { label: 'Text', action: () => open(id) },
       { label: 'Rename contact', action: async () => {
         const name = await promptModal('Save them as', { value: contact.name, required: false, maxlength: 60 });
         if (name !== null) { await api(`/api/phone/${cid}/contacts`, { method: 'POST', body: { contactId: id, name } }); reload(); }
       } },
       { label: 'Change contact picture', action: () => {
         const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*';
-        f.onchange = async () => { try { await savePic(await uploadImage(f.files[0], 400)); } catch (err) { toast(err.message); } };
+        f.onchange = async () => { try { await savePic(await uploadImage(f.files[0], 400, { square: true })); } catch (err) { toast(err.message); } };
         f.click();
       } },
       { label: 'Use a picture link', action: async () => { const u = await askImageLink('Contact picture'); if (u) savePic(u); } },
       contact.customAvatar && { label: 'Back to their own picture', action: () => savePic('') },
-      { label: 'View profile', action: () => { location.hash = `#/c/${id}`; } },
-      { label: 'Remove contact', danger: true, action: async () => { await api(`/api/phone/${cid}/contacts/${id}`, { method: 'DELETE' }); reload(); } },
+      !edit && { label: 'View profile', action: () => { location.hash = `#/c/${id}`; } },
+      !edit && { label: 'Remove contact', danger: true, action: async () => { await api(`/api/phone/${cid}/contacts/${id}`, { method: 'DELETE' }); reload(); } },
     ]);
   }
   // Long-press on phones is turned into a right-click app-wide (main.js), so these menus open either way.
@@ -563,6 +677,10 @@ export async function viewPhoneThread(cidStr, tidStr) {
     onPictures: (urls) => { attached.push(...urls.slice(0, 10 - attached.length)); drawExtra(); },
   }));
 
+  // Opened from a contact card's Call or FaceTime button: start that call straight away.
+  const autoCall = sessionStorage.getItem('nuuvi:ph-autocall');
+  if (autoCall) { sessionStorage.removeItem('nuuvi:ph-autocall'); setTimeout(() => placeCall(autoCall === 'video'), 50); }
+
   // ---- Header: call, group details, back ----
   const headEl = $('#ph-head', body);
   headEl.addEventListener('click', async (e) => {
@@ -695,13 +813,13 @@ export async function viewPhoneThread(cidStr, tidStr) {
     const t = await askTime(sendAt, 'When is this sent?');
     if (t) { sendAt = t; drawExtra(); }
   }
-  async function placeCall() {
+  async function placeCall(video = false) {
     const res = await modal(html`
       <form class="ph-call-form">
         <h2>${thread.group ? 'Call the group' : `Call ${thread.name}`}</h2>
         <div class="post-cat" role="radiogroup" aria-label="Kind of call">
-          <label><input type="radio" name="video" value="" checked><span>${icons.phone} Voice</span></label>
-          <label><input type="radio" name="video" value="1"><span>${icons.video} FaceTime</span></label>
+          <label><input type="radio" name="video" value="" ${video ? '' : 'checked'}><span>${icons.phone} Voice</span></label>
+          <label><input type="radio" name="video" value="1" ${video ? 'checked' : ''}><span>${icons.video} FaceTime</span></label>
         </div>
         <div class="post-cat" role="radiogroup" aria-label="Did they pick up?">
           <label><input type="radio" name="answered" value="1" checked><span>Picked up</span></label>

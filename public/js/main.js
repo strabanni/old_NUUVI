@@ -420,7 +420,7 @@ async function changeStoryPicture(id, field, anchor) {
     menu(anchor && anchor.isConnected ? anchor : $('#main .main-head') || document.body, [
       { label: field === 'banner' ? 'Upload a header picture' : 'Upload an icon', action: () => {
         const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*';
-        f.onchange = async () => { try { resolve(field === 'banner' ? await uploadBanner(f.files[0]) : await uploadImage(f.files[0], 400)); } catch (err) { toast(err.message); resolve(null); } };
+        f.onchange = async () => { try { resolve(field === 'banner' ? await uploadBanner(f.files[0]) : await uploadImage(f.files[0], 400, { square: true })); } catch (err) { toast(err.message); resolve(null); } };
         f.click();
       } },
       { label: 'Use a picture link', action: async () => resolve(await askImageLink(field === 'banner' ? 'Header picture link' : 'Icon link')) },
@@ -1021,7 +1021,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-57';
+export const APP_BUILD = 'NV-58';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);

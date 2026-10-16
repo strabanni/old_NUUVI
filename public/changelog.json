@@ -1,5 +1,23 @@
 [
   {
+    "code": "NV-58",
+    "date": "2026-10-16",
+    "title": "iPhone Contacts, one Ties chart, a real timeline",
+    "items": [
+      "Phone: a Messages and Contacts bar at the bottom, like an iPhone. Contacts is sorted A to Z by last name with My Card at the top, letter headings and a letter index down the side. Tap someone for their card: message, call, FaceTime or open their profile, plus Edit and Delete Contact.",
+      "Messages: the pencil at the top starts a new text, a group, or saves a new contact.",
+      "Typing a reply on iPhone no longer pushes the conversation down the screen.",
+      "THE NU: a Top button appears once you scroll down, to jump back to the newest posts.",
+      "Character names always start each word with a capital letter, including names saved before.",
+      "Profile pictures and icons are cropped to a square when uploaded, so they fit their circle. Character banners on phones no longer run past the edge of the screen.",
+      "The + for adding pictures opens the small menu again (Upload pictures, Picture or GIF link and the rest) instead of the big panel.",
+      "Timeline: now only the important events you add yourself. Tap Add an event, pick the date and say what happened. Tap the pencil to change or delete one.",
+      "Ties: the web and the family tree are now one chart. Family sits in rows by generation, and friends, loves and rivals hang below. Each person shows their thread icon.",
+      "Relationship notes: write a character's name and it becomes a link to their page.",
+      "Notifications: opening the tab clears the red badge. Each notification stays highlighted in the tab until you tap it, answer it (reply, open the post, add a tie back) or press Mark all read."
+    ]
+  },
+  {
     "code": "NV-57",
     "date": "2026-10-16",
     "title": "iOS-style icons",

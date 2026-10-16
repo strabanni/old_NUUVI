@@ -134,7 +134,7 @@ export function editCharacter(c = {}) {
       const upload = (id, size, done) => $(id, d).addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        try { done(await uploadImage(file, size)); } catch (err) { toast(err.message); }
+        try { done(await uploadImage(file, size, { square: id === '#pic-file' || id === '#thread-file' })); } catch (err) { toast(err.message); }
       });
       const set = {
         avatar: (url) => { form.avatar.value = url; showPic(); },
@@ -401,6 +401,7 @@ export async function viewCharacter(id) {
   // Your own character: tap the profile picture or the banner to change it right here.
   const changePic = (field, label) => attachSheet({
     max: 1,
+    square: field === 'avatar',
     onPictures: async ([url]) => {
       if (!url) return;
       try { await api(`/api/characters/${c.id}`, { method: 'PUT', body: { [field]: url } }); toast(`${label} updated`); reload(); } catch (err) { toast(err.message); }
