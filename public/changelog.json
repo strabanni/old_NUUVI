@@ -1,5 +1,18 @@
 [
   {
+    "code": "NV-59",
+    "date": "2026-10-16",
+    "title": "New look for every character profile",
+    "items": [
+      "Character pages have a new layout: a big hello at the top (\"IT'S, AEDAN!\"), a grid of their pictures, the song they're playing, their newest follower and who mentioned them.",
+      "The big line before their name is yours to write. Tap it on your own character (or use Edit profile details → Headline). For example \"OHH SHIT IT'S\".",
+      "The picture grid fills itself from the profile gallery, then the portrait and banner, then their photo posts. Tap a picture to see it big.",
+      "The circle on the main picture plays their story (or adds one, on your own character). Under their name it says if they're active now.",
+      "The song card shows the first two songs of their profile playlist. Tap play to listen.",
+      "Posts, Tagged, Episodes, Ties, Timeline and About are still underneath, as before."
+    ]
+  },
+  {
     "code": "NV-58",
     "date": "2026-10-16",
     "title": "iPhone Contacts, one Ties chart, a real timeline",

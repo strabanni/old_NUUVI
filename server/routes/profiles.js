@@ -115,6 +115,8 @@ export function profileRoutes(r, ctx) {
     const pic = (v) => (keep.has(v) ? v : uploadRef(db, v, user.id));
     const dossier = {
       quote: text(d.quote, 'Quote', 300),
+      // The big line at the top of the profile, before their name ("OHH SHIT IT'S", then ", AEDAN!").
+      headline: text(d.headline, 'Headline', 40),
       tagline: text(d.tagline, 'Tagline', 160),
       cover: d.cover ? (d.cover === old.cover ? old.cover : uploadRef(db, d.cover, user.id) ?? fail(400, 'Cover picture missing')) : null,
       facts, sections,

@@ -1,5 +1,5 @@
-import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, attachSheet, BRAND_GRADIENT, GRADIENT_PRESETS, akaHtml } from '../lib.js';
-import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHash } from '../main.js';
+import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, attachSheet, BRAND_GRADIENT, GRADIENT_PRESETS, akaHtml, promptModal, openLightbox } from '../lib.js';
+import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHash, applyTheme } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
 import { dossierAbout, editDossier, wireGallery } from './profiles.js';
@@ -265,11 +265,12 @@ export function viewCharacters() {
 // Instagram-style profile: header (picture, counts, what the owner wrote), then Posts / Threads / About tabs.
 export async function viewCharacter(id) {
   const alive = routeAlive();
-  const [{ character: c, stats, threads, followedBy, requested = [], locked = false, requestCount = 0 }, mine, { posts }, storyGroups] = await Promise.all([
+  const [{ character: c, stats, threads, followedBy, requested = [], locked = false, requestCount = 0 }, mine, { posts }, storyGroups, prof0] = await Promise.all([
     api(`/api/characters/${id}`),
     state.user ? myCharacters() : [],
     api(`/api/social?character=${id}`),
     loadStoryGroups(),
+    api(`/api/profiles/${id}`).catch(() => null),
   ]);
   // Their story, if they have one up: a ring round the picture (tap it to watch).
   const storyGroup = storyGroups.find((g) => g.character.id === Number(id));
@@ -279,39 +280,98 @@ export async function viewCharacter(id) {
   const following = followedBy.length > 0;
   const followable = mine.filter((m) => m.id !== c.id && !m.status);
   let tab = sessionStorage.getItem('nuuvi:char-tab') || 'posts';
+  // ---- The bento profile: a big hello, a grid of their pictures, their song, and what's new ----
+  const dossier = prof0?.dossier || {};
+  const dark = document.documentElement.dataset.theme === 'dark';
+  const headline = (dossier.headline || "IT'S").trim();
+  const firstName = c.name.split(/\s+/)[0];
+  // Pictures: their gallery first, then their portrait and banner, then photos from their posts.
+  const seen = new Set();
+  const photos = [];
+  const addPic = (src, link = null) => { if (src && !seen.has(src)) { seen.add(src); photos.push({ src, link }); } };
+  for (const u of dossier.gallery || []) addPic(u);
+  addPic(c.portrait); addPic(c.banner);
+  if (!locked) for (const p of posts) if (p.kind === 'photo') for (const u of p.media) addPic(u, `#/p/${p.id}`);
+  const SLOTS = ['main', 'tall', 'a', 'b', 'r', 's1', 's2', 's3', 'w1', 'w2'];
+  const tile = (k, extra = '') => {
+    const ph = photos[SLOTS.indexOf(k)];
+    const inner = html`${ph ? html`<img src="${ph.src}" alt="" loading="lazy">` : html`<span class="bp-empty" aria-hidden="true"></span>`}${extra}`;
+    return ph?.link ? html`<a class="bp-tile" data-area="${k}" href="${ph.link}">${inner}</a>`
+      : html`<div class="bp-tile ${ph ? 'zoom' : 'blank'}" data-area="${k}" ${ph ? html`data-pic="${SLOTS.indexOf(k)}"` : ''}>${inner}</div>`;
+  };
+  // When they were last active: their newest post.
+  const newest = posts.reduce((m, p) => (p.createdAt > m ? p.createdAt : m), '');
+  const active = newest ? (Date.now() - Date.parse(`${newest.replace(' ', 'T')}${newest.includes('Z') ? '' : 'Z'}`) < 15 * 60000 ? 'now' : timeAgo(newest)) : '';
+  // Their song: the first song on their profile playlist, and the one after it.
+  const songs = dossier.playlist || [];
+  const musicCard = () => (songs.length ? html`
+    <div class="bp-cover" id="bp-cover">${c.portrait || c.avatar ? html`<img src="${c.portrait || c.avatar}" alt="">` : html`<span class="bp-empty"></span>`}</div>
+    <div class="bp-song">
+      <b class="bp-st">${songs[0].title || 'Untitled'}</b><small>${songs[0].artist || ''}</small>
+      ${songs[1] ? html`<span class="bp-next">Next Up</span><small>${songs[1].title}</small><small>${songs[1].artist || ''}</small>` : ''}
+    </div>
+    <span class="bp-svc ${songs[0].link?.service || ''}" aria-hidden="true">${icons.music}</span>
+    ${songs[0].link?.embed ? html`<button type="button" class="bp-play" id="bp-play" aria-label="Play ${songs[0].title}">${icons.play}</button>` : ''}`
+    : html`<div class="bp-song none"><b>No song yet</b><small>${own ? 'Add songs to their profile and the first one plays here.' : 'Nothing playing.'}</small>${own ? html`<button type="button" class="sm" id="bp-add-song">Add songs</button>` : ''}</div>`);
   const body = page({
     alive,
     title: c.name,
     subtitle: c.tagline,
     actions: html`<button class="icon-btn" id="char-more" aria-label="More">${icons.more}</button>`,
     body: html`
-      ${own ? html`<button type="button" class="ig-banner own ${c.banner ? '' : 'empty'} ${c.status ? 'gone' : ''}" id="pic-banner" aria-label="${c.banner ? 'Change the banner' : 'Add a banner'}">
-          ${c.banner ? html`<img src="${c.banner}" alt="">` : ''}<span class="ig-cam">${icons.camera}<span>${c.banner ? 'Change banner' : 'Add a banner'}</span></span></button>`
-        : c.banner ? html`<div class="ig-banner ${c.status ? 'gone' : ''}"><img src="${c.banner}" alt=""></div>` : ''}
-      <article class="ig-profile ${c.banner ? 'has-banner' : ''} ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
-        <header class="ig-head">
-          ${own ? html`<button type="button" class="ig-avatar own ${storyGroup ? `has-story ${storyGroup.allSeen ? 'seen' : ''}` : ''}" id="pic-avatar" aria-label="Change the profile picture">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}<span class="ig-cam">${icons.camera}</span></button>`
-            : storyGroup ? html`<button type="button" class="ig-avatar has-story ${storyGroup.allSeen ? 'seen' : ''}" id="watch-story" aria-label="Watch ${c.name}'s story">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</button>`
-            : html`<span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>`}
+      <article class="bp ig-profile ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
+        <header class="bp-head">
+          <div class="bp-side">
+            <button type="button" class="bp-mode" id="bp-theme" aria-label="Switch light or dark mode"><span><b>${dark ? 'DARK' : 'LIGHT'}</b><small>mode</small></span><i class="bp-switch ${dark ? 'on' : ''}" aria-hidden="true"></i></button>
+            <button type="button" class="bp-drop" id="bp-more"><span><i></i>more<br>click to drop</span>${icons.chevron}</button>
+          </div>
+          <div class="bp-hello">
+            ${own ? html`<button type="button" class="bp-av own ${storyGroup ? `has-story ${storyGroup.allSeen ? 'seen' : ''}` : ''}" id="pic-avatar" aria-label="Change the profile picture">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'lg' })}</button>`
+              : storyGroup ? html`<button type="button" class="bp-av has-story ${storyGroup.allSeen ? 'seen' : ''}" id="watch-story" aria-label="Watch ${c.name}'s story">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'lg' })}</button>`
+              : html`<span class="bp-av">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'lg' })}</span>`}
+            <h1 class="bp-title">${own ? html`<button type="button" class="bp-headline" id="bp-headline" title="Change this line">${headline}</button>` : html`<span class="bp-headline">${headline}</span>`}<span class="bp-comma">,</span> <span class="bp-name">${firstName}</span> <span class="bp-bang">!</span></h1>
+          </div>
+          <div class="bp-side end">
+            <a class="bp-notes" href="#/notifications">Notifications</a>
+            <a class="bp-me" href="#/u/${state.user?.id}" aria-label="Your profile">${state.user ? avatar({ name: state.user.displayName, src: state.user.avatar, color: '#EE719E', size: 'sm' }) : ''}</a>
+          </div>
+        </header>
+        ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
+        <section class="bp-grid">
+          ${['s1', 's2', 's3'].map((k) => tile(k))}
+          ${tile('main', html`
+            ${storyGroup ? html`<button type="button" class="bp-ring" id="bp-story" aria-label="Watch ${c.name}'s story"><i></i></button>`
+              : own && !c.status ? html`<button type="button" class="bp-ring add" id="bp-story" aria-label="Add to ${c.name}'s story"><i></i></button>` : ''}
+            <span class="bp-tag"><b>${c.handle}</b><small class="${active === 'now' ? 'live' : ''}">${active === 'now' ? 'active now' : active ? `active ${active}` : 'new in town'}</small></span>`)}
+          ${['tall', 'a', 'b', 'r'].map((k) => tile(k))}
+          <button type="button" class="bp-rail" id="bp-rail" aria-label="More">${'⋮'}<i></i></button>
+          ${tile('w1')}${tile('w2')}
+          <div class="bp-music" data-area="music">${musicCard()}</div>
+        </section>
+        <section class="bp-strip">
+          <div class="bp-brand"><i></i><span><b>NUUVI</b><small>@${c.handle}${c.verified ? html` <span class="verified" title="Verified">${icons.verified}</span>` : ''}${c.private ? html` <span class="ig-lock" title="Private account">${icons.lock}</span>` : ''}</small></span></div>
+          <div class="bp-follower" id="bp-follower"><span class="bp-fav"></span><span class="grow"><b>${compact(stats.followers)} followers</b><small>No followers yet</small></span><span class="bp-dial" aria-hidden="true"></span></div>
+          <div class="bp-mentions" id="bp-mentions"></div>
+        </section>
+        <div class="bp-info">
           <div class="ig-stats">
             <button type="button" data-tab-go="posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
             <button type="button" data-list="followers"><b>${compact(stats.followers)}</b><span>Followers</span></button>
             <button type="button" data-list="following"><b>${compact(stats.following)}</b><span>Following</span></button>
             <button type="button" data-tab-go="threads"><b>${compact(stats.threads)}</b><span>Threads</span></button>
           </div>
-        </header>
-        ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
-        <div class="ig-id">
-          <h1 class="ig-name">${c.private ? html`<span class="ig-lock" title="Private account" aria-label="Private account">${icons.lock}</span>` : ''}${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(c)}</h1>
-          ${c.tagline ? html`<p class="ig-tagline">${c.tagline}</p>` : ''}
-          ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
-        </div>
-        <div class="ig-actions">
-          ${own ? html`<button id="edit">Edit profile</button>${c.status ? '' : html`<button class="primary" id="new-post">${icons.plus} New post</button>`}
-              ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}
-              ${c.private ? html`<button id="follow-requests">${icons.users} Requests${requestCount ? html` <span class="badge">${requestCount}</span>` : ''}</button>` : ''}`
-            : html`<button class="${following || requested.length ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : requested.length ? html`${icons.hourglass} Requested` : html`${icons.userAdd} Follow`}</button>
-              <button id="start-thread">${icons.episode} Start an episode</button>`}
+          <div class="ig-id">
+            <h2 class="ig-name">${handleOf(c)}${npcBadges(c)}</h2>
+            ${c.tagline ? html`<p class="ig-tagline">${c.tagline}</p>` : ''}
+            ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
+          </div>
+          <div class="ig-actions">
+            ${own ? html`<button id="edit">Edit profile</button>${c.status ? '' : html`<button class="primary" id="new-post">${icons.plus} New post</button>`}
+                ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}
+                ${c.private ? html`<button id="follow-requests">${icons.users} Requests${requestCount ? html` <span class="badge">${requestCount}</span>` : ''}</button>` : ''}`
+              : html`<button class="${following || requested.length ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : requested.length ? html`${icons.hourglass} Requested` : html`${icons.userAdd} Follow`}</button>
+                <button id="start-thread">${icons.episode} Start an episode</button>`}
+          </div>
         </div>
         <nav class="ig-tabs" role="tablist">
           <button role="tab" data-tab="posts">${icons.grid}<span>Posts</span></button>
@@ -325,7 +385,8 @@ export async function viewCharacter(id) {
       </article>`,
   });
   const pane = $('#ig-pane', body);
-  let profile = null;
+  let profile = prof0;
+  wireBento();
   let tagged = null; // other characters' posts this character is tagged in (loaded when the tab opens)
   const thumb = (p) => html`
     <a class="ig-tile kind-${p.kind}" href="#/p/${p.id}">
@@ -398,6 +459,50 @@ export async function viewCharacter(id) {
     b.dataset.list === 'followers' ? `Following ${c.name}` : `${c.name} follows`, `/api/characters/${c.id}/${b.dataset.list}`,
   )));
   const reload = () => viewCharacter(id);
+  function wireBento() {
+    applyColors(body);
+    $('#bp-theme', body)?.addEventListener('click', (e) => {
+      const toDark = document.documentElement.dataset.theme !== 'dark';
+      applyTheme(toDark ? 'dark' : 'light');
+      const b = e.currentTarget;
+      $('b', b).textContent = toDark ? 'DARK' : 'LIGHT';
+      $('.bp-switch', b).classList.toggle('on', toDark);
+    });
+    for (const sel of ['#bp-more', '#bp-rail']) $(sel, body)?.addEventListener('click', () => $('#main #char-more')?.click());
+    $('#bp-headline', body)?.addEventListener('click', async () => {
+      const v = await promptModal('The line before their name', { value: dossier.headline || '', placeholder: "OHH SHIT IT'S", maxlength: 40, required: false, label: `It shows as: "YOUR LINE, ${firstName.toUpperCase()}!"` });
+      if (v === null) return;
+      try { await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, headline: v } } }); reload(); } catch (err) { toast(err.message); }
+    });
+    $('#bp-story', body)?.addEventListener('click', async () => {
+      if (storyGroup) openStoryViewer([storyGroup], 0, { onClose: reload });
+      else if (await openStoryComposer({ characterId: c.id })) reload();
+    });
+    body.addEventListener('click', (e) => {
+      const t = e.target.closest('.bp-tile[data-pic]');
+      if (t && !e.target.closest('button')) openLightbox(photos.map((x) => x.src), Number(t.dataset.pic));
+    });
+    $('#bp-play', body)?.addEventListener('click', () => {
+      const box = $('.bp-music', body);
+      render(box, html`<iframe class="bp-player" src="${songs[0].link.embed}" title="${songs[0].title}" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>`);
+    });
+    $('#bp-add-song', body)?.addEventListener('click', async () => { if (await editDossier(c, dossier)) reload(); });
+    // The strip at the bottom: their newest follower, and the newest posts that mention them.
+    api(`/api/characters/${c.id}/followers`).then(({ characters: fs }) => {
+      const f = fs[0];
+      const box = $('#bp-follower', body);
+      if (!f || !box) return;
+      render(box, html`<a class="bp-fav" href="#/c/${f.id}">${avatar({ name: f.name, src: f.avatar, color: f.color, size: 'sm' })}</a>
+        <a class="grow" href="#/c/${f.id}"><b>${f.handle || f.name}</b><small>New follower!</small></a>
+        <button type="button" class="bp-dial" data-list="followers" aria-label="All ${stats.followers} followers"><b>${compact(stats.followers)}</b></button>`);
+      $('[data-list]', box).addEventListener('click', () => showPeople(`Following ${c.name}`, `/api/characters/${c.id}/followers`));
+    }).catch(() => {});
+    api(`/api/social?tagged=${c.id}`).then(({ posts: ms }) => {
+      const box = $('#bp-mentions', body);
+      if (!box) return;
+      render(box, html`${ms.slice(0, 2).map((p) => html`<a class="bp-mention" href="#/p/${p.id}"><span><b>${p.character.name}</b><small>mentioned you!</small></span><i>${icons.check}</i></a>`)}`);
+    }).catch(() => {});
+  }
   // Your own character: tap the profile picture or the banner to change it right here.
   const changePic = (field, label) => attachSheet({
     max: 1,

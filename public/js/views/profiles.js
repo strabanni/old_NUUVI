@@ -74,6 +74,7 @@ export async function editDossier(c, d) {
     <nav class="ds-tabs" role="tablist">${[['id', 'Identity'], ['facts', 'Facts'], ['story', 'Story'], ['extras', 'Gallery & music']].map(([k, l], i) => html`
       <button type="button" class="chip ${i ? '' : 'on'}" data-tab="${k}">${l}</button>`)}</nav>
     <div data-pane="id">
+      <label>Headline <small class="muted">(the big line at the top of their page, before their name)</small></label><input name="headline" maxlength="40" value="${d.headline || ''}" placeholder="OHH SHIT IT'S">
       <label>Tagline</label><input name="tagline" maxlength="160" value="${d.tagline || ''}" placeholder="A line under their name">
       <label>Signature quote</label><input name="quote" maxlength="300" value="${d.quote || ''}" placeholder="Something they'd say">
       <label>Traits <small class="muted">(comma separated)</small></label><input name="traits" value="${(d.traits || []).join(', ')}" placeholder="loyal, reckless, night owl">
@@ -123,7 +124,7 @@ export async function editDossier(c, d) {
         e.stopImmediatePropagation();
         const f = e.target;
         const dossier = {
-          tagline: f.tagline.value, quote: f.quote.value, likes: f.likes.value, dislikes: f.dislikes.value, cover,
+          headline: f.headline.value, tagline: f.tagline.value, quote: f.quote.value, likes: f.likes.value, dislikes: f.dislikes.value, cover,
           traits: f.traits.value.split(',').map((t) => t.trim()).filter(Boolean),
           facts: Object.fromEntries(FACT_LABELS.map(([k]) => [k, f[`f_${k}`].value])),
           // Relationship notes are edited in the Ties tab; keep them as they are.
