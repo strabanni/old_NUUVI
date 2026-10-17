@@ -357,7 +357,7 @@ export async function viewCharacter(id) {
                 <button id="start-thread">${icons.episode} Start an episode</button>`}
           </div>
         </div>
-        <section class="bp-grid">
+        <section class="bp-grid ${song ? `song-${song.service}` : ''}">
           ${['s1', 's2', 's3'].map((k) => tile(k))}
           ${tile('main', html`
             ${storyGroup ? html`<button type="button" class="bp-ring" id="bp-story" aria-label="Watch ${c.name}'s story"><i></i></button>`

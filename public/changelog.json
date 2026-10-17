@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-64",
+    "date": "2026-10-17",
+    "title": "Song player fits its box",
+    "items": [
+      "The song player on profiles now fills its box on phones, iPhones and computers. Each player gets the exact height it's made for (Spotify, Apple Music, SoundCloud), and YouTube gets a video shape."
+    ]
+  },
+  {
     "code": "NV-63",
     "date": "2026-10-16",
     "title": "Story pictures fixed, NUUVI strip removed",
