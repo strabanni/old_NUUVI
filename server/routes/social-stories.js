@@ -11,22 +11,35 @@ export function socialStoryRoutes(r, ctx) {
   const { db } = ctx;
 
   const toStory = (s, viewerId) => ({
-    id: s.id, characterId: s.character_id, kind: s.kind, media: s.media, body: s.body, bg: s.bg, createdAt: s.created_at,
+    id: s.id,
+    characterId: s.character_id,
+    kind: s.kind,
+    media: s.media,
+    body: s.body,
+    bg: s.bg,
+    createdAt: s.created_at,
     seen: !!db.prepare('SELECT 1 FROM social_story_views WHERE story_id = ? AND user_id = ?').get(s.id, viewerId),
     mine: s.user_id === viewerId,
     // Only the writer who posted it sees how many people watched.
-    views: s.user_id === viewerId ? db.prepare('SELECT COUNT(*) AS n FROM social_story_views WHERE story_id = ? AND user_id != ?').get(s.id, viewerId).n : undefined,
+    views:
+      s.user_id === viewerId
+        ? db.prepare('SELECT COUNT(*) AS n FROM social_story_views WHERE story_id = ? AND user_id != ?').get(s.id, viewerId).n
+        : undefined,
   });
 
   // Everyone with a story up right now, grouped by character: your own first, then the ones you
   // haven't watched yet (newest first), then the ones you've seen.
   r.get('/api/social-stories', ({ user }) => {
     requireUser(user);
-    const rows = db.prepare(`SELECT s.* FROM social_stories s JOIN characters c ON c.id = s.character_id
+    const rows = db
+      .prepare(
+        `SELECT s.* FROM social_stories s JOIN characters c ON c.id = s.character_id
       WHERE s.created_at > ${LIVE} AND ${CAN_SEE_ACCOUNT}
         AND s.user_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = :u)
         AND s.user_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = :u)
-      ORDER BY s.id`).all({ u: user.id, viewer: user.id });
+      ORDER BY s.id`,
+      )
+      .all({ u: user.id, viewer: user.id });
     const groups = new Map();
     for (const s of rows) {
       if (!groups.has(s.character_id)) groups.set(s.character_id, []);
@@ -34,9 +47,15 @@ export function socialStoryRoutes(r, ctx) {
     }
     const out = [...groups].map(([cid, stories]) => {
       const c = db.prepare('SELECT * FROM characters WHERE id = ?').get(cid);
-      return { character: toCharacter(c), stories, allSeen: stories.every((x) => x.seen), mine: c.user_id === user.id, latest: stories.at(-1).id };
+      return {
+        character: toCharacter(c),
+        stories,
+        allSeen: stories.every((x) => x.seen),
+        mine: c.user_id === user.id,
+        latest: stories.at(-1).id,
+      };
     });
-    out.sort((a, b) => (b.mine - a.mine) || (a.allSeen - b.allSeen) || (b.latest - a.latest));
+    out.sort((a, b) => b.mine - a.mine || a.allSeen - b.allSeen || b.latest - a.latest);
     return { data: { groups: out } };
   });
 
@@ -51,16 +70,21 @@ export function socialStoryRoutes(r, ctx) {
     if (kind === 'photo') media = uploadRef(db, body.media, user.id) ?? fail(400, 'Add a photo first');
     if (kind === 'video') {
       const m = typeof body.media === 'string' && body.media.match(/^\/uploads\/([\w-]+\.(?:mp4|webm|mov))$/);
-      if (!m || !db.prepare('SELECT 1 FROM uploads WHERE name = ? AND user_id = ?').get(m[1], user.id)) fail(400, 'Upload the video first');
+      if (!m || !db.prepare('SELECT 1 FROM uploads WHERE name = ? AND user_id = ?').get(m[1], user.id))
+        fail(400, 'Upload the video first');
       media = body.media;
     }
     if (kind === 'text' && !text.trim()) fail(400, 'Write something first');
     const bg = typeof body.bg === 'string' && COLOR.test(body.bg) ? body.bg : null;
-    const { lastInsertRowid } = db.prepare('INSERT INTO social_stories (character_id, user_id, kind, media, body, bg) VALUES (?, ?, ?, ?, ?, ?)')
+    const { lastInsertRowid } = db
+      .prepare('INSERT INTO social_stories (character_id, user_id, kind, media, body, bg) VALUES (?, ?, ?, ?, ?, ?)')
       .run(c.id, user.id, kind, media, text, bg);
     // Your own story counts as seen by you.
     db.prepare('INSERT OR IGNORE INTO social_story_views (story_id, user_id) VALUES (?, ?)').run(lastInsertRowid, user.id);
-    return { status: 201, data: { story: toStory(db.prepare('SELECT * FROM social_stories WHERE id = ?').get(lastInsertRowid), user.id) } };
+    return {
+      status: 201,
+      data: { story: toStory(db.prepare('SELECT * FROM social_stories WHERE id = ?').get(lastInsertRowid), user.id) },
+    };
   });
 
   r.post('/api/social-stories/:id/seen', ({ user, params }) => {

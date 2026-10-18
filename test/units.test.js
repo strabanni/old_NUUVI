@@ -17,7 +17,9 @@ test('push: aes128gcm payload decrypts with the subscriber keys', () => {
   const asPublic = enc.subarray(21, 21 + idlen);
   const ciphertext = enc.subarray(21 + idlen);
   const shared = ua.computeSecret(asPublic);
-  const ikm = Buffer.from(hkdfSync('sha256', shared, auth, Buffer.concat([Buffer.from('WebPush: info\0'), uaPublic, asPublic]), 32));
+  const ikm = Buffer.from(
+    hkdfSync('sha256', shared, auth, Buffer.concat([Buffer.from('WebPush: info\0'), uaPublic, asPublic]), 32),
+  );
   const cek = Buffer.from(hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16));
   const nonce = Buffer.from(hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: nonce\0'), 12));
   const decipher = createDecipheriv('aes-128-gcm', cek, nonce);
@@ -35,7 +37,20 @@ test('push: VAPID keys are a 65-byte public key and 32-byte private key', () => 
 
 test('usernames: anything goes except spaces and inappropriate words', async () => {
   const { validUsername, isInappropriate, nameKey } = await import('../server/names.js');
-  for (const ok of ['r', 'rosé', 'ᴿᴼˢᴱ', '✿yoonoh✿', 'x'.repeat(100), '로즈', 'a.b-c!?', 'Ashitaka', 'Cassandra', 'Dickens', 'Semenov', 'therapist']) {
+  for (const ok of [
+    'r',
+    'rosé',
+    'ᴿᴼˢᴱ',
+    '✿yoonoh✿',
+    'x'.repeat(100),
+    '로즈',
+    'a.b-c!?',
+    'Ashitaka',
+    'Cassandra',
+    'Dickens',
+    'Semenov',
+    'therapist',
+  ]) {
     assert.equal(validUsername(ok), ok.normalize('NFC'), ok);
   }
   for (const bad of ['two words', 'x'.repeat(101), '', '   ', 'tab\there', 'n1gg3r', 'FuckYou', 'big_dick', 'xX_sh1t_Xx']) {
@@ -57,7 +72,9 @@ test('formatting: Discord and forum codes, and nothing unsafe gets through', asy
   assert.match(f('https://giphy.com/gifs/cat-JIX9t2j0ZTN9S'), /src="https:\/\/media.giphy.com\/media\/JIX9t2j0ZTN9S\/giphy.gif"/);
   assert.match(f('"see https://x.com/a." ok'), /<a href="https:\/\/x.com\/a"[^>]*>https:\/\/x.com\/a<\/a>\.&quot;/);
   // Nothing escapes: tags stay text, javascript: links and quote-breaking links are refused.
-  const evil = f('<img src=x onerror=1> [url=javascript:alert(1)]x[/url] [link](javascript:alert(1)) https://x.com/a"onmouseover=1 [font=x" onclick="1]t[/font] [color=red;x]c[/color]');
+  const evil = f(
+    '<img src=x onerror=1> [url=javascript:alert(1)]x[/url] [link](javascript:alert(1)) https://x.com/a"onmouseover=1 [font=x" onclick="1]t[/font] [color=red;x]c[/color]',
+  );
   assert.doesNotMatch(evil, /<img|href="javascript|onmouseover="|onclick=/);
 });
 

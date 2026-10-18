@@ -1,13 +1,50 @@
 // User profiles and your own settings (profile, password, notifications, blocked people).
-import { html, render, api, $, $$, bindForm, toast, avatar, icons, confirmModal, promptModal, uploadImage, formatPost, timeAgo, askImageLink, userGrad, applyColors, BRAND_GRADIENT, GRADIENT_PRESETS } from '../lib.js';
-import { state, page, refreshBlocks, signedOut, router, applyTheme, currentThemePick, THEMES, routeAlive, ensureAlive, APP_BUILD, showWhatsNew } from '../main.js';
+import {
+  html,
+  render,
+  api,
+  $,
+  $$,
+  bindForm,
+  toast,
+  avatar,
+  icons,
+  confirmModal,
+  promptModal,
+  uploadImage,
+  formatPost,
+  timeAgo,
+  askImageLink,
+  userGrad,
+  applyColors,
+  BRAND_GRADIENT,
+  GRADIENT_PRESETS,
+} from '../lib.js';
+import {
+  state,
+  page,
+  refreshBlocks,
+  signedOut,
+  router,
+  applyTheme,
+  currentThemePick,
+  THEMES,
+  routeAlive,
+  ensureAlive,
+  APP_BUILD,
+  showWhatsNew,
+} from '../main.js';
 import { characterCard } from './characters.js';
 
 const ACTIVITY = { active: 'Very active', moderate: 'Moderately active', low: 'Low activity', hiatus: 'On hiatus' };
 const PLOTS = { open: 'Accepting plots', selective: 'Selective', closed: 'Not accepting plots' };
 export const STYLE_LABELS = [
-  ['communication', 'Communication'], ['oneLiners', 'One-liners'], ['rapidFire', 'Rapid fire'],
-  ['longThreads', 'Long threads'], ['development', 'Development'], ['plottingFirst', 'Plotting first'],
+  ['communication', 'Communication'],
+  ['oneLiners', 'One-liners'],
+  ['rapidFire', 'Rapid fire'],
+  ['longThreads', 'Long threads'],
+  ['development', 'Development'],
+  ['plottingFirst', 'Plotting first'],
 ];
 const fmt = (n) => Number(n || 0).toLocaleString();
 
@@ -18,17 +55,26 @@ export async function viewUser(id) {
   const me = u.id === state.user?.id;
   const p = u.profile || {};
   const info = [
-    ['Pronouns', p.pronouns], ['Age', p.age], ['Time zone', p.timezone],
-    ['Activity', ACTIVITY[p.activity]], ['Seeking plots', PLOTS[p.plots]], ['Status', p.status],
+    ['Pronouns', p.pronouns],
+    ['Age', p.age],
+    ['Time zone', p.timezone],
+    ['Activity', ACTIVITY[p.activity]],
+    ['Seeking plots', PLOTS[p.plots]],
+    ['Status', p.status],
   ].filter(([, v]) => v);
   const styles = STYLE_LABELS.filter(([k]) => p.styles?.[k] !== undefined);
   page({
     alive,
     title: 'Profile',
-    actions: !me && state.user ? html`
+    actions:
+      !me && state.user
+        ? html`
       <a class="btn sm primary" href="#/messages/${u.id}">${icons.chat}<span class="lbl">Message</span></a>
       <button class="sm" id="block">${blocked ? 'Unblock' : 'Block'}</button>
-      <button class="sm" id="report">Report</button>` : me ? html`<a class="btn sm" id="open-settings" href="#/settings" aria-label="Settings">${icons.gear}<span class="lbl">Settings</span></a>` : '',
+      <button class="sm" id="report">Report</button>`
+        : me
+          ? html`<a class="btn sm" id="open-settings" href="#/settings" aria-label="Settings">${icons.gear}<span class="lbl">Settings</span></a>`
+          : '',
     body: html`
       <section class="profile-hero ${u.banner ? '' : 'no-img'}">
         ${u.banner ? html`<img class="hero-img" src="${u.banner}" alt="">` : ''}
@@ -49,34 +95,67 @@ export async function viewUser(id) {
       </div>
       ${info.length ? html`<div class="info-grid">${info.map(([k, v]) => html`<div class="info"><span class="eyebrow">${k}</span><div>${v}</div></div>`)}</div>` : ''}
       <div class="profile-cols">
-        ${u.showAbout !== false || p.lookingFor ? html`<section class="card">
-          ${u.showAbout !== false ? html`<span class="eyebrow">About</span>
-          ${u.bio ? html`<div class="prose spaced">${formatPost(u.bio)}</div>` : html`<p class="muted spaced"><em>No information</em></p>`}` : ''}
+        ${
+          u.showAbout !== false || p.lookingFor
+            ? html`<section class="card">
+          ${
+            u.showAbout !== false
+              ? html`<span class="eyebrow">About</span>
+          ${u.bio ? html`<div class="prose spaced">${formatPost(u.bio)}</div>` : html`<p class="muted spaced"><em>No information</em></p>`}`
+              : ''
+          }
           ${p.lookingFor ? html`<span class="eyebrow ${u.showAbout !== false ? 'block-gap' : ''}">Looking for</span><div class="prose">${formatPost(p.lookingFor)}</div>` : ''}
-        </section>` : ''}
-        ${styles.length ? html`<section class="card"${userGrad(u)}>
+        </section>`
+            : ''
+        }
+        ${
+          styles.length
+            ? html`<section class="card"${userGrad(u)}>
           <span class="eyebrow">Writing style</span>
-          <div class="spaced">${styles.map(([k, label]) => html`
+          <div class="spaced">${styles.map(
+            ([k, label]) => html`
             <div class="meter"><div class="meter-head"><span>${label}</span><span>${p.styles[k]}%</span></div>
-              <div class="meter-track"><div class="meter-fill" data-w="${p.styles[k]}"></div></div></div>`)}</div>
-        </section>` : ''}
+              <div class="meter-track"><div class="meter-fill" data-w="${p.styles[k]}"></div></div></div>`,
+          )}</div>
+        </section>`
+            : ''
+        }
       </div>
       ${p.limits ? html`<div class="limits-box"><div><h3><span class="grad-text">Not</span> ( interested )</h3><div class="prose">${formatPost(p.limits)}</div></div></div>` : ''}
-      ${characters.length ? html`
+      ${
+        characters.length
+          ? html`
         <h2 class="section-title">Characters</h2>
-        <div class="char-grid">${characters.map((c) => characterCard(c))}</div>` : ''}`,
+        <div class="char-grid">${characters.map((c) => characterCard(c))}</div>`
+          : ''
+      }`,
   });
   for (const el of document.querySelectorAll('#main .meter-fill')) el.style.setProperty('--w', `${el.dataset.w}%`);
   applyColors($('#main'));
   $('#main #block')?.addEventListener('click', async () => {
-    if (!blocked && !(await confirmModal(`Block ${u.displayName}? Their posts will be hidden for you, they can't notify you, and they can't join stories you own.`, { ok: 'Block', danger: true }))) return;
-    await api(blocked ? `/api/blocks/${u.id}` : '/api/blocks', { method: blocked ? 'DELETE' : 'POST', body: blocked ? undefined : { userId: u.id } });
+    if (
+      !blocked &&
+      !(await confirmModal(
+        `Block ${u.displayName}? Their posts will be hidden for you, they can't notify you, and they can't join stories you own.`,
+        { ok: 'Block', danger: true },
+      ))
+    )
+      return;
+    await api(blocked ? `/api/blocks/${u.id}` : '/api/blocks', {
+      method: blocked ? 'DELETE' : 'POST',
+      body: blocked ? undefined : { userId: u.id },
+    });
     await refreshBlocks();
     toast(blocked ? 'Unblocked' : 'Blocked');
     viewUser(id);
   });
   $('#main #report')?.addEventListener('click', async () => {
-    const reason = await promptModal(`Report ${u.displayName}`, { label: 'What happened? Only admins will see this.', multiline: true, ok: 'Send report', maxlength: 1000 });
+    const reason = await promptModal(`Report ${u.displayName}`, {
+      label: 'What happened? Only admins will see this.',
+      multiline: true,
+      ok: 'Send report',
+      maxlength: 1000,
+    });
     if (!reason) return;
     await api(`/api/users/${u.id}/report`, { method: 'POST', body: { reason } });
     toast('Report sent to the admins');
@@ -94,9 +173,12 @@ async function currentSubscription() {
 }
 
 export async function enablePush() {
-  if (!pushSupported()) throw new Error(isIos() && !isStandalone()
-    ? 'On iPhone/iPad, first add NUUVI to your Home Screen (Share → Add to Home Screen), then open it from there.'
-    : "This browser doesn't support notifications.");
+  if (!pushSupported())
+    throw new Error(
+      isIos() && !isStandalone()
+        ? 'On iPhone/iPad, first add NUUVI to your Home Screen (Share → Add to Home Screen), then open it from there.'
+        : "This browser doesn't support notifications.",
+    );
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') throw new Error('Notifications were not allowed. You can change this in your browser settings.');
   const { publicKey } = await api('/api/push/key');
@@ -108,7 +190,8 @@ export async function enablePush() {
 // When the username can next be changed (once every 3 hours).
 function usernameHint(u) {
   const at = u.usernameChangedAt ? new Date(`${u.usernameChangedAt.replace(' ', 'T')}Z`).getTime() + 3 * 3600000 : 0;
-  if (at > Date.now()) return `You changed it recently. You can change it again at ${new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+  if (at > Date.now())
+    return `You changed it recently. You can change it again at ${new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
   return 'No spaces. You can change it once every 3 hours. Old @mentions keep the old name.';
 }
 
@@ -126,18 +209,39 @@ export async function viewSettings() {
         <section class="card">
           <h2>Appearance</h2>
           <p class="muted small">Saved on this device.</p>
-          <div class="theme-swatches">${THEMES.map(([k, label]) => html`
-            <button type="button" class="swatch" data-theme-pick="${k}" aria-pressed="${currentThemePick() === k}"><i></i>${label}</button>`)}</div>
+          <div class="theme-swatches">${THEMES.map(
+            ([k, label]) => html`
+            <button type="button" class="swatch" data-theme-pick="${k}" aria-pressed="${currentThemePick() === k}"><i></i>${label}</button>`,
+          )}</div>
           <label>Text size</label>
-          <div class="seg" role="group" aria-label="Text size">${[['', 'Default'], ['large', 'Large'], ['larger', 'Larger']].map(([k, label]) => html`
-            <button type="button" data-text-size="${k}" aria-pressed="${(document.documentElement.dataset.text || '') === k}">${label}</button>`)}</div>
+          <div class="seg" role="group" aria-label="Text size">${[
+            ['', 'Default'],
+            ['large', 'Large'],
+            ['larger', 'Larger'],
+          ].map(
+            ([k, label]) => html`
+            <button type="button" data-text-size="${k}" aria-pressed="${(document.documentElement.dataset.text || '') === k}">${label}</button>`,
+          )}</div>
           <label>Character names in episodes</label>
-          <div class="seg" role="group" aria-label="Character names in episodes">${[['', 'Character colors'], ['theme', 'Match my theme']].map(([k, label]) => html`
-            <button type="button" data-names="${k}" aria-pressed="${(document.documentElement.dataset.names || '') === k}">${label}</button>`)}</div>
+          <div class="seg" role="group" aria-label="Character names in episodes">${[
+            ['', 'Character colors'],
+            ['theme', 'Match my theme'],
+          ].map(
+            ([k, label]) => html`
+            <button type="button" data-names="${k}" aria-pressed="${(document.documentElement.dataset.names || '') === k}">${label}</button>`,
+          )}</div>
           <p class="hint">Match my theme shows every character's name in plain black (Light) or white (Dark) instead of their color or gradient.</p>
           <label>Interface size</label>
-          <div class="seg scale-seg" role="group" aria-label="Interface size">${[['xsmall', 'Smallest'], ['compact', 'Small'], ['standard', 'Standard'], ['large', 'Large'], ['xlarge', 'Largest']].map(([k, label]) => html`
-            <button type="button" data-ui-size="${k}" aria-pressed="${document.documentElement.dataset.ui === k}">${label}</button>`)}</div>
+          <div class="seg scale-seg" role="group" aria-label="Interface size">${[
+            ['xsmall', 'Smallest'],
+            ['compact', 'Small'],
+            ['standard', 'Standard'],
+            ['large', 'Large'],
+            ['xlarge', 'Largest'],
+          ].map(
+            ([k, label]) => html`
+            <button type="button" data-ui-size="${k}" aria-pressed="${document.documentElement.dataset.ui === k}">${label}</button>`,
+          )}</div>
           <p class="hint">Makes the whole app smaller or bigger on this device: buttons, text and pictures together.</p>
           <p class="hint">Light and Dark use pink (#EE719E) only for highlights. Auto follows your device's light or dark setting.</p>
           <p class="hint">Icons: <a href="https://framework7.io/icons/" target="_blank" rel="noopener noreferrer">Framework7 Icons</a> (iOS style, MIT licence).</p>
@@ -181,10 +285,21 @@ export async function viewSettings() {
             </div>
             <div class="row">
               <div><label for="p-activity">Activity</label><select id="p-activity" name="activity">
-                ${[['', 'Not set'], ['active', 'Very active'], ['moderate', 'Moderately active'], ['low', 'Low activity'], ['hiatus', 'On hiatus']].map(([v, l]) => html`<option value="${v}" ${pr.activity === v ? 'selected' : ''}>${l}</option>`)}
+                ${[
+                  ['', 'Not set'],
+                  ['active', 'Very active'],
+                  ['moderate', 'Moderately active'],
+                  ['low', 'Low activity'],
+                  ['hiatus', 'On hiatus'],
+                ].map(([v, l]) => html`<option value="${v}" ${pr.activity === v ? 'selected' : ''}>${l}</option>`)}
               </select></div>
               <div><label for="p-plots">Seeking plots</label><select id="p-plots" name="plots">
-                ${[['', 'Not set'], ['open', 'Accepting plots'], ['selective', 'Selective'], ['closed', 'Not accepting']].map(([v, l]) => html`<option value="${v}" ${pr.plots === v ? 'selected' : ''}>${l}</option>`)}
+                ${[
+                  ['', 'Not set'],
+                  ['open', 'Accepting plots'],
+                  ['selective', 'Selective'],
+                  ['closed', 'Not accepting'],
+                ].map(([v, l]) => html`<option value="${v}" ${pr.plots === v ? 'selected' : ''}>${l}</option>`)}
               </select></div>
             </div>
             <label for="p-status">Status</label>
@@ -193,9 +308,11 @@ export async function viewSettings() {
             <textarea id="p-bio" name="bio" maxlength="2000" rows="4" placeholder="Writing style, favourite genres, reply speed…">${u.bio}</textarea>
             <label class="check toggle-row"><input type="checkbox" name="showAbout" ${u.showAbout !== false ? 'checked' : ''}> Show “About” on my profile</label>
             <label>Writing style</label>
-            ${STYLE_LABELS.map(([k, label]) => html`
+            ${STYLE_LABELS.map(
+              ([k, label]) => html`
               <div class="meter"><div class="meter-head"><span>${label}</span><span id="v-${k}">${pr.styles?.[k] ?? 'Not set'}${pr.styles?.[k] !== undefined ? '%' : ''}</span></div>
-                <input type="range" min="0" max="100" step="5" name="style-${k}" value="${pr.styles?.[k] ?? 50}" data-set="${pr.styles?.[k] !== undefined ? '1' : ''}" aria-label="${label}"></div>`)}
+                <input type="range" min="0" max="100" step="5" name="style-${k}" value="${pr.styles?.[k] ?? 50}" data-set="${pr.styles?.[k] !== undefined ? '1' : ''}" aria-label="${label}"></div>`,
+            )}
             <label for="p-looking">Looking for</label>
             <textarea id="p-looking" name="lookingFor" maxlength="4000" rows="3" placeholder="Genres, pairings, plot ideas…">${pr.lookingFor || ''}</textarea>
             <label for="p-limits">Limits (not interested in)</label>
@@ -231,10 +348,15 @@ export async function viewSettings() {
 
         <section class="card">
           <h2>Blocked people</h2>
-          ${blockedUsers.length ? html`<div class="stack">${blockedUsers.map((b) => html`
+          ${
+            blockedUsers.length
+              ? html`<div class="stack">${blockedUsers.map(
+                  (b) => html`
             <div class="row-item">${avatar({ name: b.displayName, src: b.avatar })}<div class="grow">${b.displayName} <span class="small muted">@${b.username}</span></div>
-              <button class="sm" data-unblock="${b.id}">Unblock</button></div>`)}</div>`
-            : html`<p class="muted small">You haven't blocked anyone. You can block someone from their profile or from any of their posts.</p>`}
+              <button class="sm" data-unblock="${b.id}">Unblock</button></div>`,
+                )}</div>`
+              : html`<p class="muted small">You haven't blocked anyone. You can block someone from their profile or from any of their posts.</p>`
+          }
         </section>
 
         <section class="card">
@@ -258,7 +380,9 @@ export async function viewSettings() {
     try {
       profile.avatar.value = await uploadImage(file, 512, { square: true });
       render($('#me-pic', body), avatar({ name: u.displayName, src: profile.avatar.value, size: 'xl square' }));
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   });
   $('#banner-file', body).addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -266,7 +390,9 @@ export async function viewSettings() {
     try {
       profile.banner.value = await uploadImage(file, 1600);
       $('#banner-state', body).textContent = 'Banner set ✓';
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   });
   profile.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-link]');
@@ -279,7 +405,10 @@ export async function viewSettings() {
   });
   // Your colors: presets, 2 or 3 stops, and a live preview.
   const gbox = $('.me-grad', body);
-  const stops = () => $$('[data-stop]', gbox).filter((x) => x.dataset.stop !== '2' || $('#g-three', gbox).checked).map((x) => x.value);
+  const stops = () =>
+    $$('[data-stop]', gbox)
+      .filter((x) => x.dataset.stop !== '2' || $('#g-three', gbox).checked)
+      .map((x) => x.value);
   const drawGrad = () => {
     $('[data-stop="2"]', gbox).hidden = !$('#g-three', gbox).checked;
     gbox.dataset.grad = stops().join(',');
@@ -292,39 +421,64 @@ export async function viewSettings() {
     const p = e.target.closest('[data-preset]');
     if (!p) return;
     const g = GRADIENT_PRESETS[Number(p.dataset.preset)];
-    $$('[data-stop]', gbox).forEach((x, i) => { if (g[i]) x.value = g[i]; });
+    $$('[data-stop]', gbox).forEach((x, i) => {
+      if (g[i]) x.value = g[i];
+    });
     $('#g-three', gbox).checked = g.length > 2;
     drawGrad();
   });
   drawGrad();
   for (const r of profile.querySelectorAll('input[type=range]')) {
-    r.addEventListener('input', () => { r.dataset.set = '1'; $(`#v-${r.name.slice(6)}`, body).textContent = `${r.value}%`; });
+    r.addEventListener('input', () => {
+      r.dataset.set = '1';
+      $(`#v-${r.name.slice(6)}`, body).textContent = `${r.value}%`;
+    });
   }
   body.addEventListener('click', (e) => {
     const ts = e.target.closest('[data-text-size]');
     if (ts) {
       const v = ts.dataset.textSize;
-      if (v) document.documentElement.dataset.text = v; else delete document.documentElement.dataset.text;
-      try { if (v) localStorage.setItem('nuuvi:text', v); else localStorage.removeItem('nuuvi:text'); } catch { /* ignore */ }
+      if (v) document.documentElement.dataset.text = v;
+      else delete document.documentElement.dataset.text;
+      try {
+        if (v) localStorage.setItem('nuuvi:text', v);
+        else localStorage.removeItem('nuuvi:text');
+      } catch {
+        /* ignore */
+      }
       body.querySelectorAll('[data-text-size]').forEach((b) => b.setAttribute('aria-pressed', String(b === ts)));
       return;
     }
     const nm = e.target.closest('[data-names]');
     if (nm) {
       const v = nm.dataset.names;
-      if (v) document.documentElement.dataset.names = v; else delete document.documentElement.dataset.names;
-      try { if (v) localStorage.setItem('nuuvi:names', v); else localStorage.removeItem('nuuvi:names'); } catch { /* ignore */ }
+      if (v) document.documentElement.dataset.names = v;
+      else delete document.documentElement.dataset.names;
+      try {
+        if (v) localStorage.setItem('nuuvi:names', v);
+        else localStorage.removeItem('nuuvi:names');
+      } catch {
+        /* ignore */
+      }
       body.querySelectorAll('[data-names]').forEach((b) => b.setAttribute('aria-pressed', String(b === nm)));
       return;
     }
     const us = e.target.closest('[data-ui-size]');
     if (us) {
       if (us.dataset.uiSize === document.documentElement.dataset.ui) return;
-      try { localStorage.setItem('nuuvi:ui', us.dataset.uiSize); } catch { /* ignore */ }
+      try {
+        localStorage.setItem('nuuvi:ui', us.dataset.uiSize);
+      } catch {
+        /* ignore */
+      }
       body.querySelectorAll('[data-ui-size]').forEach((b) => b.setAttribute('aria-pressed', String(b === us)));
       // Phones and tablets (the home-screen app especially) don't fully re-measure the screen when
       // the size changes, so parts of the page kept the old size. Reloading starts fresh at the new size.
-      if (window.nuuviScale?.touch) { toast('Changing the size…'); setTimeout(() => location.reload(), 250); return; }
+      if (window.nuuviScale?.touch) {
+        toast('Changing the size…');
+        setTimeout(() => location.reload(), 250);
+        return;
+      }
       window.nuuviScale?.apply(us.dataset.uiSize);
       return;
     }
@@ -341,9 +495,17 @@ export async function viewSettings() {
     for (const r of profile.querySelectorAll('input[type=range]')) if (r.dataset.set) styles[r.name.slice(6)] = Number(r.value);
     const { displayName, bio, avatar: av, banner, username, ...rest } = data;
     const fields = {};
-    for (const k of ['pronouns', 'age', 'timezone', 'status', 'activity', 'plots', 'lookingFor', 'limits']) fields[k] = rest[k] ?? '';
-    const payload = { displayName, bio, profile: { ...fields, styles }, gradient: stops(), showAbout: !!$('[name=showAbout]', body).checked };
-    if (username && username.trim().replace(/^@/, '') !== state.user.username) payload.username = username.trim().replace(/^@/, '');
+    for (const k of ['pronouns', 'age', 'timezone', 'status', 'activity', 'plots', 'lookingFor', 'limits'])
+      fields[k] = rest[k] ?? '';
+    const payload = {
+      displayName,
+      bio,
+      profile: { ...fields, styles },
+      gradient: stops(),
+      showAbout: !!$('[name=showAbout]', body).checked,
+    };
+    if (username && username.trim().replace(/^@/, '') !== state.user.username)
+      payload.username = username.trim().replace(/^@/, '');
     if (av) payload.avatar = av;
     if (banner) payload.banner = banner;
     state.user = (await api('/api/me', { method: 'PUT', body: payload })).user;
@@ -356,7 +518,13 @@ export async function viewSettings() {
     toast('Password changed');
   });
   $('#push-on', body)?.addEventListener('click', async () => {
-    try { await enablePush(); toast('Notifications are on'); viewSettings(); } catch (err) { toast(err.message); }
+    try {
+      await enablePush();
+      toast('Notifications are on');
+      viewSettings();
+    } catch (err) {
+      toast(err.message);
+    }
   });
   $('#push-off', body)?.addEventListener('click', async () => {
     const s = await currentSubscription();

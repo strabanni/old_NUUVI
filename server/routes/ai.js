@@ -17,7 +17,11 @@ const CHECK_SCHEMA = {
   type: 'object',
   properties: {
     text: { type: 'string', description: 'The corrected text.' },
-    changes: { type: 'array', items: { type: 'string' }, description: 'Up to 8 very short, plain notes on what was fixed (e.g. "their → there").' },
+    changes: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Up to 8 very short, plain notes on what was fixed (e.g. "their → there").',
+    },
   },
   required: ['text', 'changes'],
   additionalProperties: false,
@@ -57,12 +61,12 @@ export function aiRoutes(r, ctx) {
   const allow = createRateLimiter({ limit: 60, windowMs: 60 * 60 * 1000 });
   const ready = (user) => {
     requireUser(user);
-    if (!ctx.ai?.enabled) fail(503, 'Writing tools aren\'t switched on for this site');
-    if (!allow(user.id)) fail(429, 'You\'ve used the writing tools a lot this hour. Try again a bit later.');
+    if (!ctx.ai?.enabled) fail(503, "Writing tools aren't switched on for this site");
+    if (!allow(user.id)) fail(429, "You've used the writing tools a lot this hour. Try again a bit later.");
   };
   const failed = (err) => {
     console.error('AI request failed:', err.message);
-    fail(502, 'Claude couldn\'t be reached just now. Try again in a moment.');
+    fail(502, "Claude couldn't be reached just now. Try again in a moment.");
   };
 
   r.get('/api/ai/status', ({ user }) => {
@@ -82,7 +86,9 @@ export function aiRoutes(r, ctx) {
     ready(user);
     const text = str(body.text, 'Text', { max: 5000 }) ?? '';
     if (!text.trim()) fail(400, 'Nothing to translate');
-    const out = await ctx.ai.ask({ system: TRANSLATE_SYSTEM, schema: TRANSLATE_SCHEMA, effort: 'low', content: text }).catch(failed);
+    const out = await ctx.ai
+      .ask({ system: TRANSLATE_SYSTEM, schema: TRANSLATE_SCHEMA, effort: 'low', content: text })
+      .catch(failed);
     return { data: { text: out.text, language: out.language } };
   });
 
@@ -90,9 +96,13 @@ export function aiRoutes(r, ctx) {
   r.post('/api/channels/:id/recap', async ({ user, params }) => {
     requireUser(user);
     const { channel } = channelAccess(db, params.id, user);
-    const posts = db.prepare(`SELECT p.id, p.kind, p.body, c.name AS character_name, u.display_name
+    const posts = db
+      .prepare(
+        `SELECT p.id, p.kind, p.body, c.name AS character_name, u.display_name
       FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters c ON c.id = p.character_id
-      WHERE p.channel_id = ? AND p.kind != 'ooc' ORDER BY p.id`).all(channel.id);
+      WHERE p.channel_id = ? AND p.kind != 'ooc' ORDER BY p.id`,
+      )
+      .all(channel.id);
     if (posts.length < RECAP_MIN_POSTS) fail(400, 'This episode is still short. Recaps start once it has a few more posts.');
     const last = posts.at(-1).id;
     const saved = db.prepare('SELECT * FROM channel_recaps WHERE channel_id = ?').get(channel.id);
@@ -111,9 +121,10 @@ export function aiRoutes(r, ctx) {
     }
     const content = `Episode: ${channel.name}\n${parts.length < posts.length ? '(Only the most recent part of a long episode.)\n' : ''}\n${parts.join('\n\n')}`;
     const out = await ctx.ai.ask({ system: RECAP_SYSTEM, schema: RECAP_SCHEMA, content }).catch(failed);
-    db.prepare(`INSERT INTO channel_recaps (channel_id, last_post_id, body) VALUES (?, ?, ?)
-      ON CONFLICT(channel_id) DO UPDATE SET last_post_id = excluded.last_post_id, body = excluded.body, created_at = datetime('now')`)
-      .run(channel.id, last, out.recap);
+    db.prepare(
+      `INSERT INTO channel_recaps (channel_id, last_post_id, body) VALUES (?, ?, ?)
+      ON CONFLICT(channel_id) DO UPDATE SET last_post_id = excluded.last_post_id, body = excluded.body, created_at = datetime('now')`,
+    ).run(channel.id, last, out.recap);
     return { data: { recap: out.recap, createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ') } };
   });
 }

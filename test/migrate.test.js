@@ -36,7 +36,8 @@ test('upgrading to v24 keeps every text, read marker and contact when the phone 
   for (const m of MIGRATIONS.slice(0, 22)) old.exec(m);
   old.exec('PRAGMA user_version = 23');
   old.prepare("INSERT INTO users (username, display_name, password_hash) VALUES ('w', 'W', 'x')").run();
-  for (const name of ['Ann', 'Bo', 'Cy']) old.prepare("INSERT INTO characters (user_id, name, handle) VALUES (1, ?, lower(?))").run(name, name);
+  for (const name of ['Ann', 'Bo', 'Cy'])
+    old.prepare('INSERT INTO characters (user_id, name, handle) VALUES (1, ?, lower(?))').run(name, name);
   old.prepare('INSERT INTO phone_threads (a_id, b_id) VALUES (1, 2)').run();
   old.prepare('INSERT INTO phone_threads (a_id, b_id) VALUES (2, 3)').run();
   old.prepare("INSERT INTO phone_messages (thread_id, character_id, user_id, body) VALUES (1, 1, 1, 'hi')").run();
@@ -49,11 +50,31 @@ test('upgrading to v24 keeps every text, read marker and contact when the phone 
   const db = openDb(path);
   assert.equal(db.prepare('PRAGMA user_version').get().user_version, 29);
   assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
-  assert.deepEqual(db.prepare('SELECT thread_id, body, reply_to, kind FROM phone_messages ORDER BY id').all().map((r) => ({ ...r })),
-    [{ thread_id: 1, body: 'hi', reply_to: null, kind: 'text' }, { thread_id: 1, body: 'hey', reply_to: 1, kind: 'text' }, { thread_id: 2, body: 'yo', reply_to: null, kind: 'text' }]);
+  assert.deepEqual(
+    db
+      .prepare('SELECT thread_id, body, reply_to, kind FROM phone_messages ORDER BY id')
+      .all()
+      .map((r) => ({ ...r })),
+    [
+      { thread_id: 1, body: 'hi', reply_to: null, kind: 'text' },
+      { thread_id: 1, body: 'hey', reply_to: 1, kind: 'text' },
+      { thread_id: 2, body: 'yo', reply_to: null, kind: 'text' },
+    ],
+  );
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM phone_reads').get().n, 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM phone_contacts').get().n, 1);
-  assert.deepEqual(db.prepare('SELECT thread_id, character_id FROM phone_members ORDER BY thread_id, character_id').all().map((r) => [r.thread_id, r.character_id]), [[1, 1], [1, 2], [2, 2], [2, 3]]);
+  assert.deepEqual(
+    db
+      .prepare('SELECT thread_id, character_id FROM phone_members ORDER BY thread_id, character_id')
+      .all()
+      .map((r) => [r.thread_id, r.character_id]),
+    [
+      [1, 1],
+      [1, 2],
+      [2, 2],
+      [2, 3],
+    ],
+  );
   assert.equal(db.prepare('PRAGMA foreign_key_check').all().length, 0);
   // Pairs stay unique; groups don't need a pair; deleting a conversation still removes its texts.
   assert.throws(() => db.prepare('INSERT INTO phone_threads (a_id, b_id) VALUES (1, 2)').run());

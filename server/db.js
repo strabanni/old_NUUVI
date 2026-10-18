@@ -1,3 +1,5 @@
+// The database: its tables (SCHEMA), every change to them over time (MIGRATIONS, applied in order on
+// start-up) and small start-up fixes (backfill). SCHEMA_VERSION is the number of the latest change.
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -676,7 +678,13 @@ export const MIGRATIONS = [
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.
 export function makeHandle(db, name, exceptId = 0) {
-  const base = (String(name).normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9._]+/g, '').slice(0, 24)) || 'character';
+  const base =
+    String(name)
+      .normalize('NFKD')
+      .replace(/\p{M}/gu, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9._]+/g, '')
+      .slice(0, 24) || 'character';
   for (let n = 0; ; n++) {
     const h = n ? `${base}${n + 1}` : base;
     if (!db.prepare('SELECT 1 FROM characters WHERE handle = ? COLLATE NOCASE AND id != ?').get(h, exceptId)) return h;
@@ -707,7 +715,10 @@ function migrate(db, steps) {
       const before = db.prepare('PRAGMA foreign_key_check').all().length;
       for (const m of steps) db.exec(m);
       const broken = db.prepare('PRAGMA foreign_key_check').all();
-      if (broken.length > before) throw new Error(`Database upgrade stopped: it would break ${broken.length - before} link(s), first in ${broken[0].table}`);
+      if (broken.length > before)
+        throw new Error(
+          `Database upgrade stopped: it would break ${broken.length - before} link(s), first in ${broken[0].table}`,
+        );
       db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
       db.exec('COMMIT');
     } catch (err) {
@@ -726,7 +737,9 @@ export function openDb(path) {
   const version = db.prepare('PRAGMA user_version').get().user_version;
   if (version === 0) {
     if (db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'users'").get()) {
-      throw new Error(`${path} was created by an early preview build of NUUVI. Delete it and restart to create a fresh database.`);
+      throw new Error(
+        `${path} was created by an early preview build of NUUVI. Delete it and restart to create a fresh database.`,
+      );
     }
     migrate(db, [SCHEMA, ...MIGRATIONS]);
   } else if (version < SCHEMA_VERSION) {

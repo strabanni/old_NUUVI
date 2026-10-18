@@ -9,57 +9,106 @@
 const NPC_SYSTEM = `You write social media posts and comments for an NPC (a non-player character) on THE NU, the Instagram-style feed inside NUUVI, a private roleplay writing community set in Ardell City (its version of New York). Write in the NPC's own voice, matching their writer's example lines: their tone, slang, length and habits. Write something new rather than copying an example. Keep it short like a real post or comment, react to what you're given, and never be cruel, hateful or sexual. Plain text; emojis are fine.`;
 const NPC_SCHEMA = { type: 'object', properties: { text: { type: 'string' } }, required: ['text'], additionalProperties: false };
 
-export const DEFAULT_SETTINGS = { enabled: true, commentChance: 0.35, maxCommentsPerPost: 2, postEveryHours: 12, gossipAboutThreads: true };
+export const DEFAULT_SETTINGS = {
+  enabled: true,
+  commentChance: 0.35,
+  maxCommentsPerPost: 2,
+  postEveryHours: 12,
+  gossipAboutThreads: true,
+};
 
-export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeout(fn, 20000 + random() * 100000).unref?.() } = {}) {
+export function createBots(
+  ctx,
+  { random = Math.random, delay = (fn) => setTimeout(fn, 20000 + random() * 100000).unref?.() } = {},
+) {
   const { db } = ctx;
   const pick = (list) => list[Math.floor(random() * list.length)];
-  const fill = (line, vars) => line.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? m));
-  const linesOf = (c) => { try { return JSON.parse(c.bot_lines || '{}'); } catch { return {}; } };
+  const fill = (line, vars) => line.replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m);
+  const linesOf = (c) => {
+    try {
+      return JSON.parse(c.bot_lines || '{}');
+    } catch {
+      return {};
+    }
+  };
 
   const settings = () => {
     const row = db.prepare("SELECT value FROM settings WHERE key = 'bots'").get();
     return { ...DEFAULT_SETTINGS, ...(row ? JSON.parse(row.value) : {}) };
   };
-  const saveSettings = (s) => db.prepare(`INSERT INTO settings (key, value) VALUES ('bots', ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(JSON.stringify(s));
+  const saveSettings = (s) =>
+    db
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES ('bots', ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      )
+      .run(JSON.stringify(s));
 
   const automatic = (kind) => db.prepare('SELECT * FROM characters WHERE bot = ? AND status IS NULL').all(kind);
 
   // Gets a line for an NPC and hands it to `use`: written by Claude when it's on (a moment later),
   // otherwise the picked line, straight away.
   function withLine(b, task, picked, use) {
-    if (!ctx.ai?.enabled) { use(picked); return; }
+    if (!ctx.ai?.enabled) {
+      use(picked);
+      return;
+    }
     const lines = linesOf(b);
-    const examples = [...(lines.posts || []), ...(lines.comments || []), ...(lines.tips || []), ...(lines.finished || [])].slice(0, 12);
+    const examples = [...(lines.posts || []), ...(lines.comments || []), ...(lines.tips || []), ...(lines.finished || [])].slice(
+      0,
+      12,
+    );
     const about = [
       `NPC: ${b.name}${b.handle ? ` (@${b.handle})` : ''}${b.bot === 'gossip' ? ', an anonymous gossip account' : ''}.`,
       b.tagline ? `About them: ${b.tagline}` : '',
       b.pronouns ? `Pronouns: ${b.pronouns}` : '',
       examples.length ? `Their writer's example lines:\n${examples.map((l) => `- ${l}`).join('\n')}` : '',
       `Task: ${task}`,
-    ].filter(Boolean).join('\n\n');
-    ctx.ai.ask({ system: NPC_SYSTEM, schema: NPC_SCHEMA, effort: 'low', content: about })
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    ctx.ai
+      .ask({ system: NPC_SYSTEM, schema: NPC_SCHEMA, effort: 'low', content: about })
       .then((r) => String(r.text || '').trim() || picked)
       .catch(() => picked)
       .then(use);
   }
   const writing = new Set(); // NPCs whose next post Claude is still writing
-  const recentFeed = () => db.prepare(`SELECT c.name, p.body FROM social_posts p JOIN characters c ON c.id = p.character_id
-    WHERE c.bot IS NULL AND p.body != '' ORDER BY p.id DESC LIMIT 8`).all().map((r) => `${r.name}: ${r.body.slice(0, 200)}`).join('\n');
+  const recentFeed = () =>
+    db
+      .prepare(
+        `SELECT c.name, p.body FROM social_posts p JOIN characters c ON c.id = p.character_id
+    WHERE c.bot IS NULL AND p.body != '' ORDER BY p.id DESC LIMIT 8`,
+      )
+      .all()
+      .map((r) => `${r.name}: ${r.body.slice(0, 200)}`)
+      .join('\n');
 
   function post(c, body) {
     if (!body) return null;
-    const { lastInsertRowid } = db.prepare("INSERT INTO social_posts (character_id, user_id, kind, body) VALUES (?, ?, 'text', ?)")
+    const { lastInsertRowid } = db
+      .prepare("INSERT INTO social_posts (character_id, user_id, kind, body) VALUES (?, ?, 'text', ?)")
       .run(c.id, c.user_id, body.slice(0, 5000));
     return Number(lastInsertRowid);
   }
 
   function comment(c, postRow, body) {
     if (!db.prepare('SELECT 1 FROM social_posts WHERE id = ?').get(postRow.id)) return; // deleted meanwhile
-    db.prepare('INSERT INTO social_comments (post_id, character_id, user_id, body) VALUES (?, ?, ?, ?)').run(postRow.id, c.id, c.user_id, body.slice(0, 2000));
+    db.prepare('INSERT INTO social_comments (post_id, character_id, user_id, body) VALUES (?, ?, ?, ?)').run(
+      postRow.id,
+      c.id,
+      c.user_id,
+      body.slice(0, 2000),
+    );
     if (postRow.user_id !== c.user_id) {
-      ctx.notify({ userId: postRow.user_id, type: 'comment', actorId: c.user_id, characterId: c.id, socialId: postRow.id, text: `${c.name}: ${body.slice(0, 120)}` });
+      ctx.notify({
+        userId: postRow.user_id,
+        type: 'comment',
+        actorId: c.user_id,
+        characterId: c.id,
+        socialId: postRow.id,
+        text: `${c.name}: ${body.slice(0, 120)}`,
+      });
     }
   }
 
@@ -71,7 +120,9 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
     onSocialPost(postId) {
       const s = settings();
       if (!s.enabled) return;
-      const p = db.prepare('SELECT p.*, c.name, c.handle FROM social_posts p JOIN characters c ON c.id = p.character_id WHERE p.id = ?').get(postId);
+      const p = db
+        .prepare('SELECT p.*, c.name, c.handle FROM social_posts p JOIN characters c ON c.id = p.character_id WHERE p.id = ?')
+        .get(postId);
       if (!p) return;
       const bots = automatic('bot').filter((b) => b.id !== p.character_id && (linesOf(b).comments || []).length);
       let made = 0;
@@ -89,9 +140,18 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
     onThread(channelId, what) {
       const s = settings();
       if (!s.enabled || !s.gossipAboutThreads) return;
-      const ch = db.prepare('SELECT c.*, s.title AS story_title, s.visibility FROM channels c JOIN stories s ON s.id = c.story_id WHERE c.id = ?').get(channelId);
+      const ch = db
+        .prepare(
+          'SELECT c.*, s.title AS story_title, s.visibility FROM channels c JOIN stories s ON s.id = c.story_id WHERE c.id = ?',
+        )
+        .get(channelId);
       if (!ch || ch.visibility !== 'public' || ch.status === 'closed' || !['thread', 'event', 'para'].includes(ch.kind)) return;
-      const cast = db.prepare('SELECT ch.name FROM channel_characters cc JOIN characters ch ON ch.id = cc.character_id WHERE cc.channel_id = ?').all(ch.id).map((x) => x.name);
+      const cast = db
+        .prepare(
+          'SELECT ch.name FROM channel_characters cc JOIN characters ch ON ch.id = cc.character_id WHERE cc.channel_id = ?',
+        )
+        .all(ch.id)
+        .map((x) => x.name);
       if (!cast.length) return;
       for (const g of automatic('gossip')) {
         const tips = linesOf(g)[what === 'finished' ? 'finished' : 'tips'] || [];
@@ -107,7 +167,8 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
     tick(now = Date.now()) {
       const s = settings();
       if (!s.enabled) return;
-      const someone = () => db.prepare('SELECT name FROM characters WHERE bot IS NULL ORDER BY RANDOM() LIMIT 1').get()?.name ?? 'someone';
+      const someone = () =>
+        db.prepare('SELECT name FROM characters WHERE bot IS NULL ORDER BY RANDOM() LIMIT 1').get()?.name ?? 'someone';
       for (const b of [...automatic('bot'), ...automatic('gossip')]) {
         const lines = linesOf(b).posts || [];
         if (!lines.length || writing.has(b.id)) continue;
@@ -116,7 +177,15 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
         if (last && now - new Date(`${last.replace(' ', 'T')}Z`).getTime() < due) continue;
         const feed = ctx.ai?.enabled ? recentFeed() : '';
         writing.add(b.id);
-        withLine(b, `Write one new post of your own.${feed ? ` What people have been posting lately (you can react to it, or not):\n${feed}` : ''}`, fill(pick(lines), { someone: someone() }), (text) => { writing.delete(b.id); post(b, text); });
+        withLine(
+          b,
+          `Write one new post of your own.${feed ? ` What people have been posting lately (you can react to it, or not):\n${feed}` : ''}`,
+          fill(pick(lines), { someone: someone() }),
+          (text) => {
+            writing.delete(b.id);
+            post(b, text);
+          },
+        );
       }
     },
 
@@ -126,14 +195,23 @@ export function createBots(ctx, { random = Math.random, delay = (fn) => setTimeo
       if (!b?.bot) return null;
       const lines = linesOf(b);
       if (what === 'comment') {
-        const p = db.prepare('SELECT p.*, c.name, c.handle FROM social_posts p JOIN characters c ON c.id = p.character_id WHERE p.character_id != ? ORDER BY p.id DESC LIMIT 1').get(b.id);
+        const p = db
+          .prepare(
+            'SELECT p.*, c.name, c.handle FROM social_posts p JOIN characters c ON c.id = p.character_id WHERE p.character_id != ? ORDER BY p.id DESC LIMIT 1',
+          )
+          .get(b.id);
         if (!p || !(lines.comments || []).length) return null;
         comment(b, p, fill(pick(lines.comments), { name: p.name, handle: `@${p.handle}` }));
         return p.id;
       }
       const list = lines.posts || [];
       if (!list.length) return null;
-      return post(b, fill(pick(list), { someone: db.prepare('SELECT name FROM characters WHERE bot IS NULL ORDER BY RANDOM() LIMIT 1').get()?.name ?? 'someone' }));
+      return post(
+        b,
+        fill(pick(list), {
+          someone: db.prepare('SELECT name FROM characters WHERE bot IS NULL ORDER BY RANDOM() LIMIT 1').get()?.name ?? 'someone',
+        }),
+      );
     },
   };
 }

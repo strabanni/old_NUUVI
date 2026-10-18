@@ -11,18 +11,32 @@ const fakeClient = {
     messages: {
       async create(req) {
         requests.push(req);
-        if (failNext) { failNext = false; throw new Error('overloaded'); }
+        if (failNext) {
+          failNext = false;
+          throw new Error('overloaded');
+        }
         const n = Number(req.messages[0].content.at(-1).text.match(/exactly (\d+)/)[1]);
         const batch = ++calls;
-        const comments = Array.from({ length: n }, (_, i) => ({ handle: `fan_${batch}_${i}`, text: `that red jacket is everything ${batch}-${i}`, mood: 'love' }));
-        return { stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ scene: 'A woman in a red jacket on a rooftop at night.', comments }) }] };
+        const comments = Array.from({ length: n }, (_, i) => ({
+          handle: `fan_${batch}_${i}`,
+          text: `that red jacket is everything ${batch}-${i}`,
+          mood: 'love',
+        }));
+        return {
+          stop_reason: 'end_turn',
+          content: [
+            { type: 'text', text: JSON.stringify({ scene: 'A woman in a red jacket on a rooftop at night.', comments }) },
+          ],
+        };
       },
     },
   },
 };
 
 let app;
-before(async () => { app = await startApp({ ai: { client: fakeClient } }); });
+before(async () => {
+  app = await startApp({ ai: { client: fakeClient } });
+});
 after(() => app.close());
 
 async function settled(c, id) {
@@ -42,7 +56,10 @@ test('Claude looks at the pictures, and edits replace every old fan comment', as
   const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
   const pic = (await w('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png })).data.url;
 
-  const made = await w('/api/social', { method: 'POST', body: { characterId: c.id, kind: 'photo', media: [pic], body: 'rooftop with @chayoonoh', commentsDisplay: 240 } });
+  const made = await w('/api/social', {
+    method: 'POST',
+    body: { characterId: c.id, kind: 'photo', media: [pic], body: 'rooftop with @chayoonoh', commentsDisplay: 240 },
+  });
   assert.equal(made.status, 201, JSON.stringify(made.data));
   const id = made.data.post.id;
   const post = await settled(w, id);
@@ -62,7 +79,10 @@ test('Claude looks at the pictures, and edits replace every old fan comment', as
   // Editing deletes every old comment and writes new ones.
   const before = new Set(post.buzz.map((b) => b.body));
   requests.length = 0;
-  const edited = await w(`/api/social/${id}`, { method: 'PUT', body: { body: 'rooftop with @chayoonoh', taggedIn: true, freshComments: true } });
+  const edited = await w(`/api/social/${id}`, {
+    method: 'PUT',
+    body: { body: 'rooftop with @chayoonoh', taggedIn: true, freshComments: true },
+  });
   assert.equal(edited.data.post.buzzPending, true);
   assert.equal(edited.data.post.buzz.length, 0, 'old comments gone straight away');
   const after = await settled(w, id);
@@ -71,11 +91,14 @@ test('Claude looks at the pictures, and edits replace every old fan comment', as
   assert.match(requests[0].messages[0].content[1].text, /ARE in the picture/);
 });
 
-test('if Claude can\'t be reached, the built-in writer fills in', async () => {
+test("if Claude can't be reached, the built-in writer fills in", async () => {
   const w = await app.signUp('ai_fallback');
   const c = (await w('/api/characters', { method: 'POST', body: { name: 'Jun', color: '#8fa3c9' } })).data.character;
   failNext = true;
-  const made = await w('/api/social', { method: 'POST', body: { characterId: c.id, kind: 'text', body: 'late night ramen', commentsDisplay: 40 } });
+  const made = await w('/api/social', {
+    method: 'POST',
+    body: { characterId: c.id, kind: 'text', body: 'late night ramen', commentsDisplay: 40 },
+  });
   const post = await settled(w, made.data.post.id);
   assert.equal(post.buzz.length, 10);
 });

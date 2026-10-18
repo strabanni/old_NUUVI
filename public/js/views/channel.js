@@ -1,18 +1,68 @@
 // A channel inside a story: the post feed, turn order bar and composer.
 import {
-  html, raw, esc, render, applyColors, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, promptModal,
-  formatPost, timeStamp, minutesBetween, words, bindForm, uploadImage, askImageLink, plainText, gradAttr, attachSheet, jumpToLatest, formattingGuide, aiEnabled, checkWriting, akaHtml,
+  html,
+  raw,
+  esc,
+  render,
+  applyColors,
+  api,
+  $,
+  $$,
+  store,
+  toast,
+  avatar,
+  icons,
+  menu,
+  modal,
+  confirmModal,
+  promptModal,
+  formatPost,
+  timeStamp,
+  minutesBetween,
+  words,
+  bindForm,
+  uploadImage,
+  askImageLink,
+  plainText,
+  gradAttr,
+  attachSheet,
+  jumpToLatest,
+  formattingGuide,
+  aiEnabled,
+  checkWriting,
+  akaHtml,
 } from '../lib.js';
 import {
-  state, page, loadStory, myCharacters, playableCharacters, onLeave, bus, refreshHome, refreshBlocks, copyText, routeAlive, ensureAlive, KIND_LABELS, kindIcon, channelIcon, replaceHash } from '../main.js';
+  state,
+  page,
+  loadStory,
+  myCharacters,
+  playableCharacters,
+  onLeave,
+  bus,
+  refreshHome,
+  refreshBlocks,
+  copyText,
+  routeAlive,
+  ensureAlive,
+  KIND_LABELS,
+  kindIcon,
+  channelIcon,
+  replaceHash,
+} from '../main.js';
 import { statusPill, openThreadForm, askLocation } from './threads.js';
 
 const nameOf = (u) => u?.displayName ?? 'someone';
 // Small post time for episodes: "7:34 PM" today, "Oct 12" before that (full time on hover).
 const shortTime = (sql) => {
   const d = new Date(`${sql.replace(' ', 'T')}Z`);
-  return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
+  return d.toDateString() === new Date().toDateString()
+    ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}),
+      });
 };
 
 // Every formatting code, with what it does. Discord-style shortcuts first, then forum (Jcink) codes.
@@ -20,7 +70,8 @@ function dayLabel(sqlDate) {
   if (!sqlDate) return '';
   const d = new Date(sqlDate.replace(' ', 'T') + 'Z');
   const today = new Date();
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
   if (d.toDateString() === today.toDateString()) return 'Today';
   if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
   return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
@@ -40,9 +91,14 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const target = s.channels.find((c) => c.id === last) ?? s.channels[0];
     if (target) return replaceHash(`#/s/${storyId}/${target.id}`);
     // Every channel was deleted: an empty story with a way to start again.
-    const body = page({ alive, title: s.story.title, subtitle: 'No channels yet', body: html`<div class="empty-story">
+    const body = page({
+      alive,
+      title: s.story.title,
+      subtitle: 'No channels yet',
+      body: html`<div class="empty-story">
       ${icons.episode}<h2>Nothing here yet</h2><p class="muted">This story has no channels or episodes.</p>
-      ${s.role ? html`<button class="primary" id="es-new">Start an episode</button>` : ''}</div>` });
+      ${s.role ? html`<button class="primary" id="es-new">Start an episode</button>` : ''}</div>`,
+    });
     $('#es-new', body)?.addEventListener('click', () => openThreadForm({ storyId }));
     return;
   }
@@ -55,7 +111,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const story = s.story;
   if ((story.contentWarnings.length || story.rating === 'M') && !store.get(`nuuvi:cw-ok:${storyId}`) && s.role !== 'owner') {
     const body = page({
-    alive,
+      alive,
       title: story.title,
       body: html`
         <div class="card narrow cw-gate">
@@ -95,8 +151,10 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   // For comms: who you're texting, by the contact names you chose.
   const commsTitle = () => {
     const sid = senderId();
-    return participants.filter((x) => (sid != null ? x.id !== sid : x.userId !== state.user?.id))
-      .map((x) => (detail.contacts || {})[x.id] || x.name).join(', ');
+    return participants
+      .filter((x) => (sid != null ? x.id !== sid : x.userId !== state.user?.id))
+      .map((x) => (detail.contacts || {})[x.id] || x.name)
+      .join(', ');
   };
   // Threads, events and self paras read like a forum; comms and OOC read like a chat.
   const storyStyle = () => ['thread', 'event', 'para'].includes(channel().kind);
@@ -109,7 +167,10 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     let n = unreadAtOpen;
     for (const p of [...initial].reverse()) {
       if (p.userId !== state.user?.id) n -= 1;
-      if (n <= 0) { dividerBefore = p.id; break; }
+      if (n <= 0) {
+        dividerBefore = p.id;
+        break;
+      }
     }
     dividerBefore ??= initial[0]?.id ?? null;
   }
@@ -117,8 +178,15 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const c = channel();
   const body = page({
     alive,
-    title: c.kind === 'comms' && commsTitle() ? html`<span class="hash-title">${channelIcon(c)}</span>${commsTitle()}` : html`<span class="hash-title">${channelIcon(c)}</span>${c.name}`,
-    subtitle: c.topic || (c.kind === 'ooc' ? 'Out of character' : `${KIND_LABELS[c.kind]} · ${({ open: 'open', closed: 'private', complete: 'complete' })[c.status]}`),
+    title:
+      c.kind === 'comms' && commsTitle()
+        ? html`<span class="hash-title">${channelIcon(c)}</span>${commsTitle()}`
+        : html`<span class="hash-title">${channelIcon(c)}</span>${c.name}`,
+    subtitle:
+      c.topic ||
+      (c.kind === 'ooc'
+        ? 'Out of character'
+        : `${KIND_LABELS[c.kind]} · ${{ open: 'open', closed: 'private', complete: 'complete' }[c.status]}`),
     actions: html`
       <button class="btn sm starred-btn" id="starred-btn" title="Starred moments" hidden>${icons.star}<b>0</b></button>
       ${c.kind !== 'ooc' ? html`<button class="btn sm recap-btn" id="recap-btn" title="Previously on… (a recap to catch up)" hidden>${icons.sparkles}<span class="lbl">Catch up</span></button>` : ''}
@@ -154,7 +222,9 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   const starred = new Set(detail.starred || []);
 
   function cwWrap(p, content) {
-    return p.cw ? html`<div class="cw-wrap"><button class="cw-toggle" type="button">${icons.warn} CW: ${p.cw}. Tap to show</button><div class="cw-content">${content}</div></div>` : content;
+    return p.cw
+      ? html`<div class="cw-wrap"><button class="cw-toggle" type="button">${icons.warn} CW: ${p.cw}. Tap to show</button><div class="cw-content">${content}</div></div>`
+      : content;
   }
 
   const menuBtn = html`<button class="icon-btn sm post-menu" data-act="menu" aria-label="Post options">${icons.more}</button>`;
@@ -169,11 +239,17 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       <article class="tpost align-${side} ${p.userId === state.user?.id ? 'mine' : ''} ${starred.has(p.id) ? 'is-starred' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"${gradAttr(ch)}` : ''}>
         <header class="tp-head">
           <div class="tp-id">
-            ${ch ? html`<a class="tp-name" href="#/c/${ch.id}">${ch.name}</a>${akaLine(ch)}`
-              : html`<span class="tp-name narrator">the narrator</span><div class="tp-aka"><span class="muted">written by</span> <a href="#/u/${p.userId}">${p.author.displayName}</a></div>`}
+            ${
+              ch
+                ? html`<a class="tp-name" href="#/c/${ch.id}">${ch.name}</a>${akaLine(ch)}`
+                : html`<span class="tp-name narrator">the narrator</span><div class="tp-aka"><span class="muted">written by</span> <a href="#/u/${p.userId}">${p.author.displayName}</a></div>`
+            }
           </div>
-          ${ch ? html`<a class="tp-avatar" href="#/c/${ch.id}" aria-label="${ch.name}">${pic ? html`<img src="${pic}" alt="">` : avatar({ name: ch.name, color: ch.color, size: 'xl square' })}</a>`
-            : html`<span class="tp-avatar narrator-av">${icons.mask}</span>`}
+          ${
+            ch
+              ? html`<a class="tp-avatar" href="#/c/${ch.id}" aria-label="${ch.name}">${pic ? html`<img src="${pic}" alt="">` : avatar({ name: ch.name, color: ch.color, size: 'xl square' })}</a>`
+              : html`<span class="tp-avatar narrator-av">${icons.mask}</span>`
+          }
         </header>
         <div class="tp-bar">
           <span class="tp-when"><time title="${timeStamp(p.createdAt)}">${shortTime(p.createdAt)}</time>${p.editedAt ? ' · edited' : ''}</span>
@@ -196,21 +272,37 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   // Chat bubble (comms texts, OOC chatter, and OOC asides inside threads).
   function bubble(p, prev) {
     // OOC reads like Discord (everyone on the left, no bubbles); comms read like a phone.
-    const mine = p.kind === 'ooc' ? false : channel().kind === 'comms' && p.kind === 'ic' && p.character
-      ? p.character.id === senderId() : p.userId === state.user?.id;
+    const mine =
+      p.kind === 'ooc'
+        ? false
+        : channel().kind === 'comms' && p.kind === 'ic' && p.character
+          ? p.character.id === senderId()
+          : p.userId === state.user?.id;
     const ch = p.kind === 'ic' ? p.character : null;
     const name = ch ? shownName(ch) : p.kind === 'narration' ? 'Narrator' : p.author.displayName;
     const key = (x) => `${x.userId}:${x.kind}:${x.character?.id ?? ''}`;
-    const grouped = prev && !blocked(prev) && key(prev) === key(p) && minutesBetween(prev.createdAt, p.createdAt) < 10 && p.id !== dividerBefore && dayLabel(prev.createdAt) === dayLabel(p.createdAt);
-    const av = ch ? avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' }) : avatar({ name: p.author.displayName, src: p.author.avatar, color: '#48484A', size: 'sm' });
+    const grouped =
+      prev &&
+      !blocked(prev) &&
+      key(prev) === key(p) &&
+      minutesBetween(prev.createdAt, p.createdAt) < 10 &&
+      p.id !== dividerBefore &&
+      dayLabel(prev.createdAt) === dayLabel(p.createdAt);
+    const av = ch
+      ? avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })
+      : avatar({ name: p.author.displayName, src: p.author.avatar, color: '#48484A', size: 'sm' });
     return html`
       <article class="bubble ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''} kind-${p.kind}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"${gradAttr(ch)}` : ''}>
         ${mine ? '' : html`<a class="b-av" href="${ch ? `#/c/${ch.id}` : `#/u/${p.userId}`}">${grouped ? '' : av}</a>`}
         <div class="b-col">
           ${grouped ? '' : html`<div class="b-name">${ch ? html`<a href="#/c/${ch.id}" class="cast-name" data-color="${ch.color}">${name}</a>` : html`<a href="#/u/${p.userId}">${name}</a>`}${p.kind === 'ooc' && storyStyle() ? html` <span class="ooc-badge">OOC</span>` : ''}${p.location ? html` <span class="loc-tag">${icons.pin} ${p.location}</span>` : ''}</div>`}
           <div class="b-bubble ${p.body ? '' : 'pics-only'}">
-            ${p.replyTo ? html`<button type="button" class="b-reply" data-act="jump" data-to="${p.replyTo.id}" data-color="${p.replyTo.color || ''}">
-              ${icons.reply}<b>${p.replyTo.name}</b><span>${p.replyTo.text || (p.replyTo.hasMedia ? 'Picture' : '')}</span></button>` : ''}
+            ${
+              p.replyTo
+                ? html`<button type="button" class="b-reply" data-act="jump" data-to="${p.replyTo.id}" data-color="${p.replyTo.color || ''}">
+              ${icons.reply}<b>${p.replyTo.name}</b><span>${p.replyTo.text || (p.replyTo.hasMedia ? 'Picture' : '')}</span></button>`
+                : ''
+            }
             ${cwWrap(p, html`${pictures(p)}${p.body ? html`<div class="body">${formatPost(p.body)}</div>` : ''}`)}
             <span class="b-time">${timeStamp(p.createdAt).replace(/^Today at /, '')}${p.editedAt ? ' · edited' : ''}</span>
             ${state.user && role ? html`<button class="icon-btn sm b-reply-btn" data-act="reply" aria-label="Reply" title="Reply">${icons.reply}</button>` : ''}
@@ -223,8 +315,10 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   // Pictures attached to a message (uploads or picture links). Tap to open full size.
   function pictures(p) {
     if (!p.media?.length) return '';
-    return html`<div class="b-pics n${Math.min(p.media.length, 4)}">${p.media.map((u) => html`
-      <a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="" loading="lazy"></a>`)}</div>`;
+    return html`<div class="b-pics n${Math.min(p.media.length, 4)}">${p.media.map(
+      (u) => html`
+      <a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="" loading="lazy"></a>`,
+    )}</div>`;
   }
 
   function postHtml(p, prev, side) {
@@ -258,8 +352,19 @@ export async function viewChannel(storyIdStr, channelIdStr) {
           ${ch.tags.map((t) => html`<span class="tag">#${t}</span>`)}
         </div>
         ${participants.length ? html`<div class="th-cast">${participants.map((x) => html`<a class="chip-link" href="#/c/${x.id}">${avatar({ name: x.name, src: x.avatar, color: x.color, size: 'xs' })}${x.name}</a>`)}</div>` : ''}
-        ${ch.summary ? html`<div class="plot-box"><span class="plot-star">${icons.star}</span>
-          ${participants.length ? html`<b class="plot-title">${participants.slice(0, 3).map((x) => x.name).join(' × ')}</b> ` : ''}${ch.summary}</div>` : ''}
+        ${
+          ch.summary
+            ? html`<div class="plot-box"><span class="plot-star">${icons.star}</span>
+          ${
+            participants.length
+              ? html`<b class="plot-title">${participants
+                  .slice(0, 3)
+                  .map((x) => x.name)
+                  .join(' × ')}</b> `
+              : ''
+          }${ch.summary}</div>`
+            : ''
+        }
       </section>`;
   }
 
@@ -290,17 +395,29 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   }
 
   const nearBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 160;
-  const toBottom = () => { scroller.scrollTop = scroller.scrollHeight; };
+  const toBottom = () => {
+    scroller.scrollTop = scroller.scrollHeight;
+  };
 
   drawFeed();
   const divider = $('.new-divider', feed);
   if (divider) divider.scrollIntoView({ block: 'center' });
   else toBottom();
   // Images can change the height after first paint; stay pinned to the bottom if you were there.
-  requestAnimationFrame(() => { if (!divider) toBottom(); });
-  feed.addEventListener('load', (e) => {
-    if (e.target.tagName === 'IMG' && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < e.target.offsetHeight + 200) toBottom();
-  }, true);
+  requestAnimationFrame(() => {
+    if (!divider) toBottom();
+  });
+  feed.addEventListener(
+    'load',
+    (e) => {
+      if (
+        e.target.tagName === 'IMG' &&
+        scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < e.target.offsetHeight + 200
+      )
+        toBottom();
+    },
+    true,
+  );
 
   // ---------- Read state ----------
   let readTimer;
@@ -331,7 +448,10 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       return;
     }
     const spoiler = e.target.closest('.spoiler');
-    if (spoiler) { spoiler.classList.add('revealed'); return; }
+    if (spoiler) {
+      spoiler.classList.add('revealed');
+      return;
+    }
     // On touch screens a message's reply / ⋯ buttons appear when you tap it.
     const tapped = e.target.closest('.bubble');
     if (tapped && !e.target.closest('a, button, .b-pics')) {
@@ -340,14 +460,26 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       if (!wasOpen) tapped.classList.add('show-actions');
     }
     const cw = e.target.closest('.cw-toggle');
-    if (cw) { cw.parentElement.classList.toggle('open'); return; }
+    if (cw) {
+      cw.parentElement.classList.toggle('open');
+      return;
+    }
     const btn = e.target.closest('[data-act]');
     if (!btn) return;
     const article = btn.closest('[data-id]');
     const p = posts.get(Number(article.dataset.id));
-    if (btn.dataset.act === 'reveal') { article.classList.toggle('revealed'); return; }
-    if (btn.dataset.act === 'jump') { jumpTo(Number(btn.dataset.to)); return; }
-    if (btn.dataset.act === 'reply') { startReply(p); return; }
+    if (btn.dataset.act === 'reveal') {
+      article.classList.toggle('revealed');
+      return;
+    }
+    if (btn.dataset.act === 'jump') {
+      jumpTo(Number(btn.dataset.to));
+      return;
+    }
+    if (btn.dataset.act === 'reply') {
+      startReply(p);
+      return;
+    }
     if (btn.dataset.act === 'menu') postMenu(btn, p, article);
     if (btn.dataset.act === 'star') toggleStar(p);
   });
@@ -362,22 +494,27 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       role && !storyStyle() && { label: 'Reply', action: () => startReply(p) },
       role && storyStyle() && !mine && { label: `Mention ${p.author.displayName}`, action: () => mention(p.author.username) },
       !mine && state.user && { label: 'Report post', action: () => reportPost(p) },
-      !mine && state.user && (state.blocks.has(p.userId)
-        ? { label: `Unblock ${p.author.displayName}`, action: () => toggleBlock(p.author, false) }
-        : { label: `Block ${p.author.displayName}`, danger: true, action: () => toggleBlock(p.author, true) }),
+      !mine &&
+        state.user &&
+        (state.blocks.has(p.userId)
+          ? { label: `Unblock ${p.author.displayName}`, action: () => toggleBlock(p.author, false) }
+          : { label: `Block ${p.author.displayName}`, danger: true, action: () => toggleBlock(p.author, true) }),
       canDelete && { label: 'Delete', danger: true, action: () => deletePost(p) },
     ]);
   }
 
   function editPost(p, article) {
     const content = $('.tp-body, .b-bubble, .content', article);
-    render(content, html`
+    render(
+      content,
+      html`
       <form class="edit-form">
         <textarea name="body" rows="6">${p.body}</textarea>
         <input name="cw" maxlength="100" placeholder="Content warning (optional)" value="${p.cw}">
         <div class="error"></div>
         <div class="actions"><button type="submit" class="primary">Save</button><button type="button" data-cancel>Cancel</button><span class="hint">Esc to cancel</span></div>
-      </form>`);
+      </form>`,
+    );
     const form = $('form', content);
     const ta = $('textarea', form);
     ta.focus();
@@ -401,23 +538,40 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       await api(`/api/posts/${p.id}`, { method: 'DELETE' });
       posts.delete(p.id);
       drawFeed({ keepScroll: true });
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   }
 
   async function reportPost(p) {
     const reason = await promptModal('Report this post', {
-      label: 'What is wrong with it? Only admins will see this.', multiline: true, ok: 'Send report', maxlength: 1000,
+      label: 'What is wrong with it? Only admins will see this.',
+      multiline: true,
+      ok: 'Send report',
+      maxlength: 1000,
     });
     if (!reason) return;
     try {
       await api(`/api/posts/${p.id}/report`, { method: 'POST', body: { reason } });
       toast('Report sent to the admins');
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   }
 
   async function toggleBlock(u, block) {
-    if (block && !(await confirmModal(`Block ${u.displayName}? Their posts will be hidden for you, they won't be able to notify you, and they can't join stories you own.`, { ok: 'Block', danger: true }))) return;
-    await api(block ? '/api/blocks' : `/api/blocks/${u.id}`, { method: block ? 'POST' : 'DELETE', body: block ? { userId: u.id } : undefined });
+    if (
+      block &&
+      !(await confirmModal(
+        `Block ${u.displayName}? Their posts will be hidden for you, they won't be able to notify you, and they can't join stories you own.`,
+        { ok: 'Block', danger: true },
+      ))
+    )
+      return;
+    await api(block ? '/api/blocks' : `/api/blocks/${u.id}`, {
+      method: block ? 'POST' : 'DELETE',
+      body: block ? { userId: u.id } : undefined,
+    });
     await refreshBlocks();
     drawFeed({ keepScroll: true });
     toast(block ? `${u.displayName} is blocked` : `${u.displayName} is unblocked`);
@@ -430,15 +584,22 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     if (!t?.enabled || !t.order.length) return render(turnBar, html``);
     const member = (id) => state.story.members.find((m) => m.id === id);
     const mine = t.current === state.user?.id;
-    render(turnBar, html`
+    render(
+      turnBar,
+      html`
       <div class="turn-bar ${mine ? 'mine' : ''}">
         <span class="turn-icon">${icons.hourglass}</span>
         <span class="turn-text">${mine ? html`<strong>It's your turn!</strong>` : html`Waiting on <strong>${nameOf(member(t.current))}</strong>`}</span>
         <span class="turn-order no-swipe">${t.order.map((id, i) => html`${i ? ' → ' : ''}<span class="${id === t.current ? 'current' : ''}">${nameOf(member(id))}</span>`)}</span>
         ${mine ? html`<button class="sm" id="turn-pass">Pass</button>` : role === 'owner' ? html`<button class="sm" id="turn-pass">Skip</button>` : ''}
-      </div>`);
+      </div>`,
+    );
     $('#turn-pass', turnBar)?.addEventListener('click', async () => {
-      try { await api(`/api/channels/${channelId}/turns/advance`, { method: 'POST', body: {} }); } catch (err) { toast(err.message); }
+      try {
+        await api(`/api/channels/${channelId}/turns/advance`, { method: 'POST', body: {} });
+      } catch (err) {
+        toast(err.message);
+      }
     });
   }
   drawTurns();
@@ -449,8 +610,11 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   let startReply = () => {};
   if (role && !detail.canPost && !story.completedAt && channel().status === 'complete' && detail.canManage) {
     // A finished episode: the text box shows it's complete, with a button to open it again.
-    render(wrap, html`<div class="composer-locked ep-done"><span>${icons.check} Episode complete</span>
-      <button type="button" class="primary sm" id="reopen-episode">Open</button></div>`);
+    render(
+      wrap,
+      html`<div class="composer-locked ep-done"><span>${icons.check} Episode complete</span>
+      <button type="button" class="primary sm" id="reopen-episode">Open</button></div>`,
+    );
     $('#reopen-episode', wrap).addEventListener('click', async (e) => {
       e.currentTarget.disabled = true;
       try {
@@ -458,14 +622,23 @@ export async function viewChannel(storyIdStr, channelIdStr) {
         toast('Episode open again');
         await loadStory(storyId);
         viewChannel(storyIdStr, channelIdStr);
-      } catch (err) { toast(err.message); e.currentTarget.disabled = false; }
+      } catch (err) {
+        toast(err.message);
+        e.currentTarget.disabled = false;
+      }
     });
   } else if (role && !detail.canPost) {
-    render(wrap, html`<div class="composer-locked">${story.completedAt ? html`${icons.archive} This story is complete and kept in the Archive. It's read-only.` : channel().status === 'complete' ? 'This episode is complete.' : 'This is a private episode for the characters in it.'}</div>`);
+    render(
+      wrap,
+      html`<div class="composer-locked">${story.completedAt ? html`${icons.archive} This story is complete and kept in the Archive. It's read-only.` : channel().status === 'complete' ? 'This episode is complete.' : 'This is a private episode for the characters in it.'}</div>`,
+    );
   } else if (!role) {
-    render(wrap, state.user
-      ? html`<div class="composer-locked">${story.status === 'open' ? html`You're reading as a guest. <button class="primary sm" id="join-here">Join to write</button>` : 'This story is closed to new writers.'}</div>`
-      : html`<div class="composer-locked"><a href="#/">Sign in</a> to write.</div>`);
+    render(
+      wrap,
+      state.user
+        ? html`<div class="composer-locked">${story.status === 'open' ? html`You're reading as a guest. <button class="primary sm" id="join-here">Join to write</button>` : 'This story is closed to new writers.'}</div>`
+        : html`<div class="composer-locked"><a href="#/">Sign in</a> to write.</div>`,
+    );
     $('#join-here', wrap)?.addEventListener('click', () => $('#side-join')?.click());
   } else {
     setupComposer();
@@ -482,7 +655,9 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     else if (!valid(identity)) identity = characters.length ? `c:${characters[0].id}` : 'narration';
     let cw = '';
 
-    render(wrap, html`
+    render(
+      wrap,
+      html`
       <form class="composer" id="composer">
         <div class="composer-extra" id="composer-extra" hidden></div>
         <div class="composer-top">
@@ -497,7 +672,8 @@ export async function viewChannel(storyIdStr, channelIdStr) {
           <div class="composer-tools"><button type="submit" class="icon-btn send" title="Post (Ctrl+Enter)" aria-label="Post">${icons.send}</button></div>
         </div>
         <div class="error"></div>
-      </form>`);
+      </form>`,
+    );
 
     const form = $('#composer', wrap);
     const ta = $('#post-body', form);
@@ -512,37 +688,82 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     // Reply bar, a new location and attached pictures, above the text box.
     function drawExtra() {
       extra.hidden = !replying && !attached.length && !place;
-      render(extra, html`
+      render(
+        extra,
+        html`
         ${place ? html`<div class="reply-bar loc-bar">${icons.pin}<span>Moving to <b>${place}</b></span><button type="button" class="icon-btn sm" id="loc-cancel" aria-label="Remove location">✕</button></div>` : ''}
-        ${replying ? html`<div class="reply-bar">${icons.reply}<span>Replying to <b>${replying.character ? shownName(replying.character) : replying.author.displayName}</b>
-          <small>${plainText(replying.body) || 'Picture'}</small></span><button type="button" class="icon-btn sm" id="reply-cancel" aria-label="Cancel reply">✕</button></div>` : ''}
-        ${attached.length ? html`<div class="attach-row">${attached.map((u, i) => html`
-          <span class="thumb"><img src="${u}" alt=""><button type="button" data-unattach="${i}" aria-label="Remove picture">✕</button></span>`)}</div>` : ''}`);
+        ${
+          replying
+            ? html`<div class="reply-bar">${icons.reply}<span>Replying to <b>${replying.character ? shownName(replying.character) : replying.author.displayName}</b>
+          <small>${plainText(replying.body) || 'Picture'}</small></span><button type="button" class="icon-btn sm" id="reply-cancel" aria-label="Cancel reply">✕</button></div>`
+            : ''
+        }
+        ${
+          attached.length
+            ? html`<div class="attach-row">${attached.map(
+                (u, i) => html`
+          <span class="thumb"><img src="${u}" alt=""><button type="button" data-unattach="${i}" aria-label="Remove picture">✕</button></span>`,
+              )}</div>`
+            : ''
+        }`,
+      );
     }
     extra.addEventListener('click', (e) => {
-      if (e.target.closest('#reply-cancel')) { replying = null; drawExtra(); return; }
-      if (e.target.closest('#loc-cancel')) { place = ''; drawExtra(); return; }
+      if (e.target.closest('#reply-cancel')) {
+        replying = null;
+        drawExtra();
+        return;
+      }
+      if (e.target.closest('#loc-cancel')) {
+        place = '';
+        drawExtra();
+        return;
+      }
       const rm = e.target.closest('[data-unattach]');
-      if (rm) { attached.splice(Number(rm.dataset.unattach), 1); drawExtra(); }
+      if (rm) {
+        attached.splice(Number(rm.dataset.unattach), 1);
+        drawExtra();
+      }
     });
-    startReply = (p) => { replying = p; drawExtra(); ta.focus(); };
+    startReply = (p) => {
+      replying = p;
+      drawExtra();
+      ta.focus();
+    };
     function drawIdentity() {
       const ch = identity.startsWith('c:') ? characters.find((x) => `c:${x.id}` === identity) : null;
-      render(idBtn, ch
-        ? html`${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'xs' })}<span data-color="${ch.color}" class="id-name">${ch.name}</span>${icons.chevron}`
+      render(
+        idBtn,
+        ch
+          ? html`${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'xs' })}<span data-color="${ch.color}" class="id-name">${ch.name}</span>${icons.chevron}`
+          : identity === 'narration'
+            ? html`<span class="avatar xs narrator-av">${icons.mask}</span><span class="id-name">Narrator</span>${icons.chevron}`
+            : html`${avatar({ name: state.user.displayName, src: state.user.avatar, size: 'xs' })}<span class="id-name">${state.user.displayName} <small>(OOC)</small></span>${icons.chevron}`,
+      );
+      ta.placeholder = ch
+        ? `Write as ${ch.name}…`
         : identity === 'narration'
-          ? html`<span class="avatar xs narrator-av">${icons.mask}</span><span class="id-name">Narrator</span>${icons.chevron}`
-          : html`${avatar({ name: state.user.displayName, src: state.user.avatar, size: 'xs' })}<span class="id-name">${state.user.displayName} <small>(OOC)</small></span>${icons.chevron}`);
-      ta.placeholder = ch ? `Write as ${ch.name}…` : identity === 'narration' ? 'Describe the scene…' : `Message #${channel().name}`;
+          ? 'Describe the scene…'
+          : `Message #${channel().name}`;
     }
     drawIdentity();
 
-    idBtn.addEventListener('click', () => menu(idBtn, [
-      ...characters.map((ch) => ({ label: `${identity === `c:${ch.id}` ? '✓ ' : ''}${ch.name}`, action: () => setIdentity(`c:${ch.id}`) })),
-      { label: `${identity === 'narration' ? '✓ ' : ''}Narrator`, action: () => setIdentity('narration') },
-      { label: `${identity === 'ooc' ? '✓ ' : ''}Out of character (you)`, action: () => setIdentity('ooc') },
-      { label: '+ New character…', action: () => { location.hash = '#/characters'; } },
-    ]));
+    idBtn.addEventListener('click', () =>
+      menu(idBtn, [
+        ...characters.map((ch) => ({
+          label: `${identity === `c:${ch.id}` ? '✓ ' : ''}${ch.name}`,
+          action: () => setIdentity(`c:${ch.id}`),
+        })),
+        { label: `${identity === 'narration' ? '✓ ' : ''}Narrator`, action: () => setIdentity('narration') },
+        { label: `${identity === 'ooc' ? '✓ ' : ''}Out of character (you)`, action: () => setIdentity('ooc') },
+        {
+          label: '+ New character…',
+          action: () => {
+            location.hash = '#/characters';
+          },
+        },
+      ]),
+    );
     function setIdentity(v) {
       identity = v;
       if (!isOocChannel) store.set(asKey, v);
@@ -559,7 +780,18 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     onLeave(() => mirror.remove());
     const autosize = () => {
       const cs = getComputedStyle(ta);
-      for (const k of ['font', 'letterSpacing', 'padding', 'border', 'boxSizing', 'lineHeight', 'whiteSpace', 'wordBreak', 'overflowWrap']) mirror.style[k] = cs[k];
+      for (const k of [
+        'font',
+        'letterSpacing',
+        'padding',
+        'border',
+        'boxSizing',
+        'lineHeight',
+        'whiteSpace',
+        'wordBreak',
+        'overflowWrap',
+      ])
+        mirror.style[k] = cs[k];
       mirror.style.width = `${ta.clientWidth + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth)}px`;
       if (!mirror.isConnected) document.body.append(mirror);
       mirror.value = ta.value || ' ';
@@ -567,21 +799,39 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       if (ta.style.height !== h) ta.style.height = h;
     };
     ta.value = store.get(draftKey) || '';
-    const update = () => { wc.textContent = `${words(ta.value)} words`; autosize(); };
+    const update = () => {
+      wc.textContent = `${words(ta.value)} words`;
+      autosize();
+    };
     update();
-    ta.addEventListener('input', () => { store.set(draftKey, ta.value); update(); });
+    ta.addEventListener('input', () => {
+      store.set(draftKey, ta.value);
+      update();
+    });
     ta.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); }
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
     });
 
     const askCw = async () => {
-      const v = await promptModal('Content warning', { label: 'Readers will have to tap to reveal this post.', value: cw, placeholder: 'e.g. gore, spiders', ok: 'Set', maxlength: 100 });
+      const v = await promptModal('Content warning', {
+        label: 'Readers will have to tap to reveal this post.',
+        value: cw,
+        placeholder: 'e.g. gore, spiders',
+        ok: 'Set',
+        maxlength: 100,
+      });
       if (v === null) return;
       cw = v.trim();
       cwChip.hidden = !cw;
       cwChip.textContent = `CW: ${cw} ✕`;
     };
-    cwChip.addEventListener('click', () => { cw = ''; cwChip.hidden = true; });
+    cwChip.addEventListener('click', () => {
+      cw = '';
+      cwChip.hidden = true;
+    });
 
     // Drops a formatting code in where the cursor is.
     const insertText = (code) => {
@@ -597,9 +847,23 @@ export async function viewChannel(storyIdStr, channelIdStr) {
       const ai = await aiEnabled();
       attachSheet({
         max: Math.max(0, 10 - attached.length),
-        onPictures: (urls) => { attached.push(...urls.slice(0, 10 - attached.length)); drawExtra(); ta.focus(); },
+        onPictures: (urls) => {
+          attached.push(...urls.slice(0, 10 - attached.length));
+          drawExtra();
+          ta.focus();
+        },
         extras: [
-          channel().kind !== 'ooc' && { label: 'Location', icon: icons.pin, action: async () => { const l = await askLocation(place || ''); if (l !== null) { place = l; drawExtra(); } } },
+          channel().kind !== 'ooc' && {
+            label: 'Location',
+            icon: icons.pin,
+            action: async () => {
+              const l = await askLocation(place || '');
+              if (l !== null) {
+                place = l;
+                drawExtra();
+              }
+            },
+          },
           { label: cw ? 'Change warning' : 'Warning', icon: icons.warning, action: askCw },
           detail.canManage && channel().kind !== 'ooc' && { label: 'Episode', icon: icons.episode, action: editThread },
           channel().kind === 'comms' && { label: 'Contacts', icon: icons.users, action: editContacts },
@@ -625,7 +889,14 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     bindForm(form, async () => {
       const text = ta.value.trim();
       if (!text && !attached.length) return;
-      await sendPost({ ...payloadBase(), body: text, cw, media: attached, replyTo: replying?.id ?? null, location: place || undefined });
+      await sendPost({
+        ...payloadBase(),
+        body: text,
+        cw,
+        media: attached,
+        replyTo: replying?.id ?? null,
+        location: place || undefined,
+      });
       ta.value = '';
       cw = '';
       place = '';
@@ -647,7 +918,10 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     if (!characters.length && !isOocChannel) {
       const note = document.createElement('p');
       note.className = 'hint pad-x';
-      render(note, html`No characters yet. <a href="#/characters">Create one</a> to write in character. You can still narrate or chat OOC.`);
+      render(
+        note,
+        html`No characters yet. <a href="#/characters">Create one</a> to write in character. You can still narrate or chat OOC.`,
+      );
       form.prepend(note);
     }
   }
@@ -656,11 +930,14 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     const on = starred.has(p.id);
     try {
       await api(`/api/posts/${p.id}/star`, { method: on ? 'DELETE' : 'POST', body: on ? undefined : {} });
-      if (on) starred.delete(p.id); else starred.add(p.id);
+      if (on) starred.delete(p.id);
+      else starred.add(p.id);
       drawFeed({ keepScroll: true });
       drawStarBtn();
       toast(on ? 'Star removed' : 'Starred. Find it again from ★ at the top');
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   }
 
   // Jump back to a starred moment (loading older posts if needed).
@@ -688,12 +965,17 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   $('#main #starred-btn')?.addEventListener('click', async (e) => {
     const anchor = e.currentTarget;
     const known = posts;
-    menu(anchor, [...starred].sort((x, y) => x - y).map((id) => {
-      const p = known.get(id);
-      const who = p ? (p.character?.name || p.author.displayName) : 'Earlier post';
-      const snip = p ? plainText(p.body, 60) : '';
-      return { label: `★ ${who}${snip ? `: ${snip}` : ''}`, action: () => jumpTo(id) };
-    }));
+    menu(
+      anchor,
+      [...starred]
+        .sort((x, y) => x - y)
+        .map((id) => {
+          const p = known.get(id);
+          const who = p ? p.character?.name || p.author.displayName : 'Earlier post';
+          const snip = p ? plainText(p.body, 60) : '';
+          return { label: `★ ${who}${snip ? `: ${snip}` : ''}`, action: () => jumpTo(id) };
+        }),
+    );
   });
   drawStarBtn();
 
@@ -720,18 +1002,29 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   $('#main #edit-thread')?.addEventListener('click', editThread);
   // End the episode: it's locked (read-only) and marked complete. It can be opened again from Episode details.
   $('#main #end-episode')?.addEventListener('click', async () => {
-    if (!(await confirmModal(`End “${channel().name}”? It will be locked and marked complete. You can open it again later from Episode details.`, { ok: 'End episode' }))) return;
+    if (
+      !(await confirmModal(
+        `End “${channel().name}”? It will be locked and marked complete. You can open it again later from Episode details.`,
+        { ok: 'End episode' },
+      ))
+    )
+      return;
     try {
       await api(`/api/channels/${channelId}`, { method: 'PUT', body: { status: 'complete' } });
       toast('Episode complete');
       await loadStory(storyId);
       viewChannel(storyIdStr, channelIdStr);
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   });
 
   // "Previously on…": a recap of the episode by Claude, to catch up before writing.
   const recapBtn = $('#main #recap-btn');
-  if (recapBtn) aiEnabled().then((on) => { recapBtn.hidden = !on; });
+  if (recapBtn)
+    aiEnabled().then((on) => {
+      recapBtn.hidden = !on;
+    });
   recapBtn?.addEventListener('click', async () => {
     const box = modal(html`<div class="recap"><h2>Previously on ${channel().name}</h2>
       <div id="recap-text" class="recap-text"><p class="muted">${icons.sparkles} Reading the episode…</p></div>
@@ -739,14 +1032,23 @@ export async function viewChannel(storyIdStr, channelIdStr) {
     try {
       const { recap } = await api(`/api/channels/${channelId}/recap`, { method: 'POST', body: {} });
       const el = document.querySelector('#recap-text');
-      if (el) render(el, html`${recap.split(/\n+/).filter(Boolean).map((para) => html`<p>${para}</p>`)}`);
+      if (el)
+        render(
+          el,
+          html`${recap
+            .split(/\n+/)
+            .filter(Boolean)
+            .map((para) => html`<p>${para}</p>`)}`,
+        );
     } catch (err) {
       const el = document.querySelector('#recap-text');
       if (el) render(el, html`<p class="muted">${err.message}</p>`);
     }
     await box;
   });
-  feed.addEventListener('click', (e) => { if (e.target.closest('#contacts-btn')) editContacts(); });
+  feed.addEventListener('click', (e) => {
+    if (e.target.closest('#contacts-btn')) editContacts();
+  });
 
   // ---------- Live updates ----------
   const on = (type, fn) => {
@@ -764,16 +1066,24 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   });
   on('edit', (p) => {
     if (p.channelId !== channelId) return;
-    if ($(`#post-${p.id} form`, feed)) { posts.set(p.id, p); return; } // don't clobber an open editor
+    if ($(`#post-${p.id} form`, feed)) {
+      posts.set(p.id, p);
+      return;
+    } // don't clobber an open editor
     posts.set(p.id, p);
     drawFeed({ keepScroll: true });
   });
   on('delete', ({ id }) => {
     if (posts.delete(id)) drawFeed({ keepScroll: true });
   });
-  on('channel', (ch) => { if (ch.id === channelId) drawTurns(); });
+  on('channel', (ch) => {
+    if (ch.id === channelId) drawTurns();
+  });
   on('story-updated', () => {
-    if (!channel()) { location.hash = `#/s/${storyId}`; return; }
+    if (!channel()) {
+      location.hash = `#/s/${storyId}`;
+      return;
+    }
     $('.head-title h1', document).lastChild.textContent = channel().name;
     drawTurns();
   });

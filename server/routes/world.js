@@ -5,15 +5,53 @@
 import { fail, str, oneOf } from '../http.js';
 import { toCharacter, requireUser, isBlocked } from '../model.js';
 
-export const TIE_KINDS = ['partner', 'spouse', 'crush', 'ex', 'bestfriend', 'friend',
-  'parent', 'stepparent', 'child', 'stepchild', 'sibling', 'halfsibling', 'stepsibling', 'grandparent', 'grandchild',
-  'auntuncle', 'nibling', 'cousin', 'inlaw', 'family',
-  'rival', 'enemy', 'coworker', 'roommate', 'mentor', 'complicated', 'other'];
+export const TIE_KINDS = [
+  'partner',
+  'spouse',
+  'crush',
+  'ex',
+  'bestfriend',
+  'friend',
+  'parent',
+  'stepparent',
+  'child',
+  'stepchild',
+  'sibling',
+  'halfsibling',
+  'stepsibling',
+  'grandparent',
+  'grandchild',
+  'auntuncle',
+  'nibling',
+  'cousin',
+  'inlaw',
+  'family',
+  'rival',
+  'enemy',
+  'coworker',
+  'roommate',
+  'mentor',
+  'complicated',
+  'other',
+];
 // Family ties, and how many generations away the other person is (-1 = a generation up).
 export const FAMILY_GEN = {
-  parent: -1, stepparent: -1, grandparent: -2, auntuncle: -1,
-  child: 1, stepchild: 1, grandchild: 2, nibling: 1,
-  sibling: 0, halfsibling: 0, stepsibling: 0, cousin: 0, spouse: 0, partner: 0, inlaw: 0, family: 0,
+  parent: -1,
+  stepparent: -1,
+  grandparent: -2,
+  auntuncle: -1,
+  child: 1,
+  stepchild: 1,
+  grandchild: 2,
+  nibling: 1,
+  sibling: 0,
+  halfsibling: 0,
+  stepsibling: 0,
+  cousin: 0,
+  spouse: 0,
+  partner: 0,
+  inlaw: 0,
+  family: 0,
 };
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -22,11 +60,15 @@ export function worldRoutes(r, ctx) {
   const character = (id) => db.prepare('SELECT * FROM characters WHERE id = ?').get(id);
   const blockedEither = (a, b) => isBlocked(db, a, b) || isBlocked(db, b, a);
   // Stories the viewer may see (public, or ones they're in).
-  const VISIBLE = '(s.visibility = \'public\' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :viewer))';
+  const VISIBLE = "(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :viewer))";
 
   // ---------- Ties ----------
   const toTie = (t, other, mirror) => ({
-    kind: t.kind, label: t.label, note: t.note, since: t.since, createdAt: t.created_at,
+    kind: t.kind,
+    label: t.label,
+    note: t.note,
+    since: t.since,
+    createdAt: t.created_at,
     other: toCharacter(other),
     // How the other character sees it, if their writer has said.
     mutual: mirror ? { kind: mirror.kind, label: mirror.label } : null,
@@ -35,17 +77,30 @@ export function worldRoutes(r, ctx) {
   r.get('/api/characters/:id/ties', ({ user, params }) => {
     requireUser(user);
     const c = character(params.id) ?? fail(404, 'Character not found');
-    const out = db.prepare('SELECT * FROM character_ties WHERE character_id = ? ORDER BY created_at').all(c.id)
+    const out = db
+      .prepare('SELECT * FROM character_ties WHERE character_id = ? ORDER BY created_at')
+      .all(c.id)
       .map((t) => ({ t, other: character(t.other_id) }))
       .filter(({ other }) => other && !blockedEither(user.id, other.user_id))
-      .map(({ t, other }) => toTie(t, other, db.prepare('SELECT * FROM character_ties WHERE character_id = ? AND other_id = ?').get(other.id, c.id)));
+      .map(({ t, other }) =>
+        toTie(t, other, db.prepare('SELECT * FROM character_ties WHERE character_id = ? AND other_id = ?').get(other.id, c.id)),
+      );
     // Others who've named a tie to this character that this character hasn't named back.
     const named = new Set(out.map((t) => t.other.id));
-    const incoming = db.prepare('SELECT * FROM character_ties WHERE other_id = ? ORDER BY created_at').all(c.id)
+    const incoming = db
+      .prepare('SELECT * FROM character_ties WHERE other_id = ? ORDER BY created_at')
+      .all(c.id)
       .filter((t) => !named.has(t.character_id))
       .map((t) => ({ t, other: character(t.character_id) }))
       .filter(({ other }) => other && !blockedEither(user.id, other.user_id))
-      .map(({ t, other }) => ({ kind: t.kind, label: t.label, note: t.note, since: t.since, createdAt: t.created_at, from: toCharacter(other) }));
+      .map(({ t, other }) => ({
+        kind: t.kind,
+        label: t.label,
+        note: t.note,
+        since: t.since,
+        createdAt: t.created_at,
+        from: toCharacter(other),
+      }));
     return { data: { ties: out, incoming, kinds: TIE_KINDS } };
   });
 
@@ -59,17 +114,29 @@ export function worldRoutes(r, ctx) {
     const kind = oneOf(body.kind, 'Kind of tie', TIE_KINDS) ?? 'friend';
     const label = (str(body.label, 'Label', { max: 40 }) ?? '').trim();
     const note = (str(body.note, 'Note', { max: 300 }) ?? '').trim();
-    const since = body.since ? (DATE.test(String(body.since)) ? String(body.since) : fail(400, "That date doesn't look right")) : null;
+    const since = body.since
+      ? DATE.test(String(body.since))
+        ? String(body.since)
+        : fail(400, "That date doesn't look right")
+      : null;
     const had = db.prepare('SELECT 1 FROM character_ties WHERE character_id = ? AND other_id = ?').get(c.id, other.id);
-    db.prepare(`INSERT INTO character_ties (character_id, other_id, kind, label, note, since, created_at) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))
-      ON CONFLICT(character_id, other_id) DO UPDATE SET kind = excluded.kind, label = excluded.label, note = excluded.note, since = excluded.since`)
-      .run(c.id, other.id, kind, label, note, since, ctx.storyNow());
+    db.prepare(
+      `INSERT INTO character_ties (character_id, other_id, kind, label, note, since, created_at) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))
+      ON CONFLICT(character_id, other_id) DO UPDATE SET kind = excluded.kind, label = excluded.label, note = excluded.note, since = excluded.since`,
+    ).run(c.id, other.id, kind, label, note, since, ctx.storyNow());
     // Adding them back answers their "added you to their ties" notification.
-    db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type = 'tie' AND character_id = ? AND from_character_id = ? AND read_at IS NULL")
-      .run(user.id, c.id, other.id);
+    db.prepare(
+      "UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type = 'tie' AND character_id = ? AND from_character_id = ? AND read_at IS NULL",
+    ).run(user.id, c.id, other.id);
     if (!had && other.user_id !== user.id) {
-      ctx.notify({ userId: other.user_id, type: 'tie', actorId: user.id, characterId: other.id, fromCharacterId: c.id,
-        text: `${c.name} added ${other.name} to their ties`, });
+      ctx.notify({
+        userId: other.user_id,
+        type: 'tie',
+        actorId: user.id,
+        characterId: other.id,
+        fromCharacterId: c.id,
+        text: `${c.name} added ${other.name} to their ties`,
+      });
     }
     return { data: { ok: true } };
   });
@@ -111,17 +178,25 @@ export function worldRoutes(r, ctx) {
   r.post('/api/characters/:id/timeline', ({ user, params, body }) => {
     requireUser(user);
     const c = ownCharacter(params.id, user);
-    if (db.prepare('SELECT COUNT(*) AS n FROM timeline_events WHERE character_id = ?').get(c.id).n >= 300) fail(400, 'That timeline is full');
+    if (db.prepare('SELECT COUNT(*) AS n FROM timeline_events WHERE character_id = ?').get(c.id).n >= 300)
+      fail(400, 'That timeline is full');
     const e = eventInput(body);
-    const { lastInsertRowid } = db.prepare('INSERT INTO timeline_events (character_id, date, title, note) VALUES (?, ?, ?, ?)').run(c.id, e.date, e.title, e.note);
-    return { status: 201, data: { event: toEvent(db.prepare('SELECT * FROM timeline_events WHERE id = ?').get(lastInsertRowid)) } };
+    const { lastInsertRowid } = db
+      .prepare('INSERT INTO timeline_events (character_id, date, title, note) VALUES (?, ?, ?, ?)')
+      .run(c.id, e.date, e.title, e.note);
+    return {
+      status: 201,
+      data: { event: toEvent(db.prepare('SELECT * FROM timeline_events WHERE id = ?').get(lastInsertRowid)) },
+    };
   });
 
   r.put('/api/characters/:id/timeline/:eventId', ({ user, params, body }) => {
     requireUser(user);
     const c = ownCharacter(params.id, user);
     const e = eventInput(body);
-    const res = db.prepare('UPDATE timeline_events SET date = ?, title = ?, note = ? WHERE id = ? AND character_id = ?').run(e.date, e.title, e.note, params.eventId, c.id);
+    const res = db
+      .prepare('UPDATE timeline_events SET date = ?, title = ?, note = ? WHERE id = ? AND character_id = ?')
+      .run(e.date, e.title, e.note, params.eventId, c.id);
     if (!res.changes) fail(404, 'Event not found');
     return { data: { event: toEvent(db.prepare('SELECT * FROM timeline_events WHERE id = ?').get(params.eventId)) } };
   });
@@ -175,7 +250,11 @@ export function worldRoutes(r, ctx) {
       if (t.character_id === c.id) direct.set(t.other_id, { kind: t.kind, label: t.label });
       else if (!direct.has(t.character_id)) direct.set(t.character_id, { kind: t.kind, label: t.label, theirs: true });
     }
-    const members = [...people.values()].map((p) => ({ character: toCharacter(p), gen: gen.get(p.id), relation: direct.get(p.id) ?? null }));
+    const members = [...people.values()].map((p) => ({
+      character: toCharacter(p),
+      gen: gen.get(p.id),
+      relation: direct.get(p.id) ?? null,
+    }));
     return { data: { center: c.id, members, links: [...links.values()].filter((l) => people.has(l.from) && people.has(l.to)) } };
   });
 }

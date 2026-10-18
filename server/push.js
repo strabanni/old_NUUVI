@@ -2,8 +2,14 @@
 // implemented with node:crypto so NUUVI needs no third-party packages.
 // Payloads are end-to-end encrypted: Apple/Google's push services can't read them.
 import {
-  createECDH, createPrivateKey, createPublicKey, generateKeyPairSync,
-  sign, hkdfSync, randomBytes, createCipheriv,
+  createECDH,
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPairSync,
+  sign,
+  hkdfSync,
+  randomBytes,
+  createCipheriv,
 } from 'node:crypto';
 
 const b64u = (buf) => Buffer.from(buf).toString('base64url');
@@ -48,7 +54,11 @@ export function encryptPayload(payload, { p256dh, auth }) {
   const cek = Buffer.from(hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: aes128gcm\0'), 16));
   const nonce = Buffer.from(hkdfSync('sha256', ikm, salt, Buffer.from('Content-Encoding: nonce\0'), 12));
   const cipher = createCipheriv('aes-128-gcm', cek, nonce);
-  const body = Buffer.concat([cipher.update(Buffer.concat([Buffer.from(payload), Buffer.from([2])])), cipher.final(), cipher.getAuthTag()]);
+  const body = Buffer.concat([
+    cipher.update(Buffer.concat([Buffer.from(payload), Buffer.from([2])])),
+    cipher.final(),
+    cipher.getAuthTag(),
+  ]);
   const header = Buffer.alloc(21);
   salt.copy(header, 0);
   header.writeUInt32BE(4096, 16);
@@ -61,12 +71,24 @@ export function validateSubscription(sub) {
   const { endpoint, keys } = sub;
   if (typeof endpoint !== 'string' || endpoint.length > 1000) return null;
   let url;
-  try { url = new URL(endpoint); } catch { return null; }
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return null;
+  }
   if (url.protocol !== 'https:') return null;
   if (!keys || typeof keys.p256dh !== 'string' || typeof keys.auth !== 'string') return null;
   try {
     if (Buffer.from(keys.p256dh, 'base64url').length !== 65 || Buffer.from(keys.auth, 'base64url').length !== 16) return null;
-    createPublicKey({ format: 'jwk', key: { kty: 'EC', crv: 'P-256', x: b64u(Buffer.from(keys.p256dh, 'base64url').subarray(1, 33)), y: b64u(Buffer.from(keys.p256dh, 'base64url').subarray(33)) } });
+    createPublicKey({
+      format: 'jwk',
+      key: {
+        kty: 'EC',
+        crv: 'P-256',
+        x: b64u(Buffer.from(keys.p256dh, 'base64url').subarray(1, 33)),
+        y: b64u(Buffer.from(keys.p256dh, 'base64url').subarray(33)),
+      },
+    });
   } catch {
     return null;
   }

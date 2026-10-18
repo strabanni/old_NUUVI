@@ -7,7 +7,9 @@ export class HttpError extends Error {
   }
 }
 
-export const fail = (status, message) => { throw new HttpError(status, message); };
+export const fail = (status, message) => {
+  throw new HttpError(status, message);
+};
 
 export function str(value, field, { min = 0, max = 200, required = false } = {}) {
   if (value === undefined || value === null) {
@@ -45,7 +47,14 @@ export function createRouter() {
   const routes = [];
   const add = (method, pattern, handler, options = {}) => {
     const keys = [];
-    const regex = new RegExp('^' + pattern.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '(\\d+)'; }) + '$');
+    const regex = new RegExp(
+      '^' +
+        pattern.replace(/:(\w+)/g, (_, k) => {
+          keys.push(k);
+          return '(\\d+)';
+        }) +
+        '$',
+    );
     routes.push({ method, regex, keys, handler, options });
   };
   const match = (method, pathname) => {

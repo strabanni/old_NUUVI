@@ -1,4 +1,31 @@
-import { html, esc, raw, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, formatPost, timeAgo, askImageLink, gradAttr, applyColors, attachSheet, BRAND_GRADIENT, GRADIENT_PRESETS, akaHtml, promptModal } from '../lib.js';
+// Characters: the create/edit form, the character cards in lists, and a character's own page
+// (banner, picture, numbers, bio, their song, and the Posts / Tagged / Episodes / Ties / Timeline / About tabs).
+import {
+  html,
+  esc,
+  raw,
+  render,
+  api,
+  $,
+  $$,
+  toast,
+  avatar,
+  icons,
+  menu,
+  modal,
+  confirmModal,
+  uploadImage,
+  formatPost,
+  timeAgo,
+  askImageLink,
+  gradAttr,
+  applyColors,
+  attachSheet,
+  BRAND_GRADIENT,
+  GRADIENT_PRESETS,
+  akaHtml,
+  promptModal,
+} from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHash } from '../main.js';
 import { openThreadForm } from './threads.js';
 import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './social.js';
@@ -16,7 +43,6 @@ function detailRow(d = {}) {
       <button type="button" class="icon-btn sm" data-remove aria-label="Remove detail">✕</button>
     </div>`;
 }
-
 
 function characterForm(c = {}) {
   const details = c.details?.length ? c.details : [{ label: 'Age' }, { label: 'Pronouns' }];
@@ -79,7 +105,9 @@ function characterForm(c = {}) {
       <p class="hint">Leave the counts empty to show real follows. Set them for celebrities, influencers and the like.</p>
       <label class="check"><input type="checkbox" name="verified" ${c.verified ? 'checked' : ''}> Verified badge (for public figures)</label>
       <p class="hint">Their username is who they post as on the feed; their name shows at the top of their profile.</p>
-      ${c.id ? html`<fieldset class="status-box">
+      ${
+        c.id
+          ? html`<fieldset class="status-box">
         <legend>Status</legend>
         <div class="post-cat status-seg" role="radiogroup" aria-label="Status">
           <label><input type="radio" name="status" value="" ${!c.status ? 'checked' : ''}><span>Playable</span></label>
@@ -87,7 +115,9 @@ function characterForm(c = {}) {
           <label><input type="radio" name="status" value="mia" ${c.status === 'mia' ? 'checked' : ''}><span>Missing in action</span></label>
         </div>
         <p class="hint">Deceased or missing characters stay on NUUVI with everything they've written, but they're no longer playable: no new posts, comments, likes, follows or texts as them. They don't become NPCs. Switch back to Playable any time (for a flashback, or a comeback).</p>
-      </fieldset>` : ''}
+      </fieldset>`
+          : ''
+      }
       <label class="check"><input type="checkbox" name="private" ${c.private ? 'checked' : ''}> Private account <span class="muted small">(only followers see their posts and stories; others have to ask to follow)</span></label>
       <label class="check"><input type="checkbox" name="brand" ${c.brand ? 'checked' : ''}> This is a brand account <span class="muted small">(a shop, label, café, magazine… gets a Brand badge and shows under Directory → Brands)</span></label>
       <fieldset class="npc-box">
@@ -130,18 +160,30 @@ export function editCharacter(c = {}) {
     init: (d, close) => {
       form = d.querySelector('form');
       const preview = $('#pic-preview', d);
-      const showPic = () => render(preview, avatar({ name: form.name.value || '?', src: form.avatar.value, color: form.color.value, size: 'xl' }));
-      const upload = (id, size, done) => $(id, d).addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        try { done(await uploadImage(file, size, { square: id === '#pic-file' || id === '#thread-file' })); } catch (err) { toast(err.message); }
-      });
+      const showPic = () =>
+        render(preview, avatar({ name: form.name.value || '?', src: form.avatar.value, color: form.color.value, size: 'xl' }));
+      const upload = (id, size, done) =>
+        $(id, d).addEventListener('change', async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          try {
+            done(await uploadImage(file, size, { square: id === '#pic-file' || id === '#thread-file' }));
+          } catch (err) {
+            toast(err.message);
+          }
+        });
       const set = {
-        avatar: (url) => { form.avatar.value = url; showPic(); },
+        avatar: (url) => {
+          form.avatar.value = url;
+          showPic();
+        },
         portrait: (url) => {
           form.portrait.value = url;
           $('#portrait-state', d).textContent = 'Portrait set ✓';
-          if (!form.avatar.value) { form.avatar.value = url; showPic(); }
+          if (!form.avatar.value) {
+            form.avatar.value = url;
+            showPic();
+          }
         },
         threadAvatar: (url) => {
           form.threadAvatar.value = url;
@@ -176,7 +218,10 @@ export function editCharacter(c = {}) {
       });
       form.color.addEventListener('input', showPic);
       const gbox = $('.grad-box', d);
-      const stops = () => $$('[data-stop]', d).filter((x) => x.dataset.stop !== '2' || $('#g-three', d).checked).map((x) => x.value);
+      const stops = () =>
+        $$('[data-stop]', d)
+          .filter((x) => x.dataset.stop !== '2' || $('#g-three', d).checked)
+          .map((x) => x.value);
       const drawGrad = () => {
         $('.grad-edit', d).hidden = !form.useGradient.checked;
         $('[data-stop="2"]', d).hidden = !$('#g-three', d).checked;
@@ -189,7 +234,9 @@ export function editCharacter(c = {}) {
         const p = e.target.closest('[data-preset]');
         if (!p) return;
         const g = GRADIENT_PRESETS[Number(p.dataset.preset)];
-        $$('[data-stop]', d).forEach((x, i) => { if (g[i]) x.value = g[i]; });
+        $$('[data-stop]', d).forEach((x, i) => {
+          if (g[i]) x.value = g[i];
+        });
         $('#g-three', d).checked = g.length > 2;
         drawGrad();
       });
@@ -208,9 +255,12 @@ export function editCharacter(c = {}) {
         list.insertAdjacentHTML('beforeend', detailRow().v);
         list.lastElementChild.querySelector('input').focus();
       });
-      list.addEventListener('click', (e) => { if (e.target.closest('[data-remove]')) e.target.closest('.detail-row').remove(); });
+      list.addEventListener('click', (e) => {
+        if (e.target.closest('[data-remove]')) e.target.closest('.detail-row').remove();
+      });
       $('#char-delete', d)?.addEventListener('click', async () => {
-        if (!(await confirmModal(`Delete ${c.name}? Their posts will remain, without a name.`, { ok: 'Delete', danger: true }))) return;
+        if (!(await confirmModal(`Delete ${c.name}? Their posts will remain, without a name.`, { ok: 'Delete', danger: true })))
+          return;
         await api(`/api/characters/${c.id}`, { method: 'DELETE' });
         close(true);
       });
@@ -220,13 +270,26 @@ export function editCharacter(c = {}) {
       data.npc = !!form.npc.checked;
       data.brand = !!form.brand.checked;
       data.private = !!form.private.checked;
-      data.gradient = form.useGradient.checked ? $$('[data-stop]', form).filter((x) => x.dataset.stop !== '2' || form.querySelector('#g-three').checked).map((x) => x.value) : '';
+      data.gradient = form.useGradient.checked
+        ? $$('[data-stop]', form)
+            .filter((x) => x.dataset.stop !== '2' || form.querySelector('#g-three').checked)
+            .map((x) => x.value)
+        : '';
       if (data.gradient) data.color = data.gradient[0];
       delete data.useGradient;
-      data.bot = data.npc ? (form.querySelector('input[name=bot]:checked')?.value || null) : null;
-      data.botLines = Object.fromEntries($$('[data-lines]', form).map((t) => [t.dataset.lines, t.value.split('\n').map((l) => l.trim()).filter(Boolean)]));
+      data.bot = data.npc ? form.querySelector('input[name=bot]:checked')?.value || null : null;
+      data.botLines = Object.fromEntries(
+        $$('[data-lines]', form).map((t) => [
+          t.dataset.lines,
+          t.value
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean),
+        ]),
+      );
       if (!data.handle) delete data.handle;
-      data.details = $$('.detail-row', form).map((r) => ({ label: r.querySelector('.d-label').value, value: r.querySelector('.d-value').value }))
+      data.details = $$('.detail-row', form)
+        .map((r) => ({ label: r.querySelector('.d-label').value, value: r.querySelector('.d-value').value }))
         .filter((x) => x.label.trim() && x.value.trim());
       await api(c.id ? `/api/characters/${c.id}` : '/api/characters', { method: c.id ? 'PUT' : 'POST', body: data });
       return true;
@@ -240,7 +303,22 @@ export function editCharacter(c = {}) {
 export function characterCard(c, { editable = false } = {}) {
   const pic = c.portrait || c.avatar;
   const followers = c.followersDisplay ?? c.followers;
-  const badge = c.status === 'deceased' ? 'Deceased' : c.status === 'mia' ? 'Missing' : c.bot === 'gossip' ? 'Anonymous' : c.brand ? 'Brand' : c.npc ? 'NPC' : c.verified ? 'Verified' : followers ? `${compact(followers)} followers` : '';
+  const badge =
+    c.status === 'deceased'
+      ? 'Deceased'
+      : c.status === 'mia'
+        ? 'Missing'
+        : c.bot === 'gossip'
+          ? 'Anonymous'
+          : c.brand
+            ? 'Brand'
+            : c.npc
+              ? 'NPC'
+              : c.verified
+                ? 'Verified'
+                : followers
+                  ? `${compact(followers)} followers`
+                  : '';
   return html`
     <a class="char-card ${c.status ? 'char-gone' : ''}" href="#/c/${c.id}" data-color="${c.color}"${gradAttr(c)} data-tilt>
       ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : html`<span class="initial">${c.name.charAt(0).toUpperCase()}</span>`}
@@ -265,7 +343,13 @@ export function viewCharacters() {
 // Instagram-style profile: header (picture, counts, what the owner wrote), then Posts / Threads / About tabs.
 export async function viewCharacter(id) {
   const alive = routeAlive();
-  const [{ character: c, stats, threads, followedBy, requested = [], locked = false, requestCount = 0 }, mine, { posts }, storyGroups, prof0] = await Promise.all([
+  const [
+    { character: c, stats, threads, followedBy, requested = [], locked = false, requestCount = 0 },
+    mine,
+    { posts },
+    storyGroups,
+    prof0,
+  ] = await Promise.all([
     api(`/api/characters/${id}`),
     state.user ? myCharacters() : [],
     api(`/api/social?character=${id}`),
@@ -279,96 +363,90 @@ export async function viewCharacter(id) {
   const pic = c.portrait || c.avatar;
   const following = followedBy.length > 0;
   const followable = mine.filter((m) => m.id !== c.id && !m.status);
-  // Their posts live in the boxes at the top now, so the tabs start on Tagged.
-  let tab = sessionStorage.getItem('nuuvi:char-tab') || 'tagged';
-  if (tab === 'posts') tab = 'tagged';
-  // ---- The bento profile: a big hello, a grid of their pictures, their song, and what's new ----
+  let tab = sessionStorage.getItem('nuuvi:char-tab') || 'posts';
+  // ---- Their song: a share link shown as that service's own player ----
   const dossier = prof0?.dossier || {};
-  // The headline changes every few minutes, through lines with the same energy as the writer's.
-  const headlines = dossier.headlines?.length ? dossier.headlines : [(dossier.headline || "IT'S").trim()];
-  const HEADLINE_EVERY = 4 * 60 * 1000;
-  const headlineNow = () => headlines[Math.floor(Date.now() / HEADLINE_EVERY) % headlines.length];
-  const headline = headlineNow();
-  const firstName = c.name.split(/\s+/)[0];
-  // The boxes show their posts: the ones the writer put in a box first, then the rest newest
-  // first (pinned posts lead, like on their old grid).
-  const SLOTS = ['main', 'tall', 'a', 'b', 'r', 's1', 's2', 's3', 'w1', 'w2'];
-  const chosen = dossier.bento || {};
-  const shown = locked ? [] : posts;
-  const byId = new Map(shown.map((p) => [p.id, p]));
-  const slotPost = {};
-  const used = new Set();
-  for (const k of SLOTS) { const p = byId.get(chosen[k]); if (p && !used.has(p.id)) { slotPost[k] = p; used.add(p.id); } }
-  const rest = shown.filter((p) => !used.has(p.id));
-  for (const k of SLOTS) if (!slotPost[k]) slotPost[k] = rest.shift();
-  // What a post looks like in a box: its picture or video, or its words.
-  const face = (p) => {
-    const m = p.media?.[0];
-    if ((p.kind === 'photo' || p.kind === 'stream') && m) return html`<img src="${m}" alt="" loading="lazy">${p.media.length > 1 ? html`<span class="bp-multi">${icons.grid}</span>` : ''}`;
-    if (p.kind === 'video' && m) return html`<video src="${m}" muted playsinline preload="metadata"></video><span class="bp-multi">${icons.play}</span>`;
-    return html`<span class="bp-words">${p.kind === 'voice' ? html`${icons.mic} ` : ''}${(p.body || p.title || 'Voice note').slice(0, 220)}</span>`;
-  };
-  const tile = (k, extra = '') => {
-    const p = slotPost[k];
-    const inner = html`${p ? face(p) : html`<span class="bp-empty" aria-hidden="true"></span>`}${extra}
-      ${own ? html`<span class="bp-pick" aria-hidden="true">${chosen[k] && p?.id === chosen[k] ? 'Chosen' : 'Auto'} · tap to change</span>` : ''}`;
-    return p ? html`<a class="bp-tile ${p.kind === 'text' || p.kind === 'voice' || !p.media?.length ? 'words' : ''}" data-area="${k}" data-slot="${k}" href="#/p/${p.id}">${inner}</a>`
-      : html`<div class="bp-tile blank" data-area="${k}" data-slot="${k}">${inner}</div>`;
-  };
-  // When they were last active: their newest post.
-  const newest = posts.reduce((m, p) => (p.createdAt > m ? p.createdAt : m), '');
-  const active = newest ? (Date.now() - Date.parse(`${newest.replace(' ', 'T')}${newest.includes('Z') ? '' : 'Z'}`) < 15 * 60000 ? 'now' : timeAgo(newest)) : '';
-  // Their song: a share link shown as that service's own player (Spotify, Apple Music, YouTube or
-  // SoundCloud), sized for whichever it is. Falls back to the first song on their playlist with a link.
   const song = dossier.song || (dossier.playlist || []).find((t) => t.link?.embed)?.link || null;
-  const musicCard = () => (song ? html`
-    <iframe class="bp-player svc-${song.service} size-${song.size}" src="${song.embed}" title="Their song" loading="lazy"
-      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
-    ${own ? html`<button type="button" class="bp-song-edit" id="bp-song" aria-label="Change the song">${icons.pencil}</button>` : ''}`
-    : own ? html`<button type="button" class="bp-song-add" id="bp-song">${icons.music}<b>Add a song</b><small>Paste a share link from Spotify, Apple Music, YouTube or SoundCloud</small></button>`
-    : html`<span class="bp-empty" aria-hidden="true"></span>`);
+  function songBox() {
+    if (song) {
+      return html`<div class="ig-song song-${song.service}">
+        <iframe class="ig-player" src="${song.embed}" title="${c.name}'s song" loading="lazy"
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        ${own ? html`<button type="button" class="ig-song-edit" id="song-edit" aria-label="Change the song">${icons.pencil}</button>` : ''}
+      </div>`;
+    }
+    return own && !c.status
+      ? html`<button type="button" class="ig-song-add" id="song-edit">${icons.music}<span><b>Add a song</b><small>Paste a share link from Spotify, Apple Music, YouTube or SoundCloud</small></span></button>`
+      : '';
+  }
+  function wireSong() {
+    $('#song-edit', body)?.addEventListener('click', async () => {
+      const v = await promptModal('Their song', {
+        value: dossier.song?.url || '',
+        placeholder: 'https://open.spotify.com/track/…',
+        maxlength: 2000,
+        required: false,
+        multiline: true,
+        label:
+          'Paste a share link (or the Embed code) from Spotify, Apple Music, YouTube or SoundCloud. Leave it empty to remove the song.',
+      });
+      if (v === null) return;
+      try {
+        await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, song: v.trim() || null } } });
+        reload();
+      } catch (err) {
+        toast(err.message);
+      }
+    });
+  }
+
   const body = page({
     alive,
     title: c.name,
     actions: html`<button class="icon-btn" id="char-more" aria-label="More">${icons.more}</button>`,
     body: html`
-      <article class="bp ig-profile ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
-        <header class="bp-head">
-          <h1 class="bp-title">${own ? html`<button type="button" class="bp-headline" id="bp-headline" title="Change this line">${headline}</button>` : html`<span class="bp-headline">${headline}</span>`}<span class="bp-comma">,</span> <span class="bp-name">${firstName}</span> <span class="bp-bang">!</span></h1>
-        </header>
-        ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
-        <div class="bp-info">
+      ${
+        own
+          ? html`<button type="button" class="ig-banner own ${c.banner ? '' : 'empty'} ${c.status ? 'gone' : ''}" id="pic-banner" aria-label="${c.banner ? 'Change the banner' : 'Add a banner'}">
+          ${c.banner ? html`<img src="${c.banner}" alt="">` : ''}<span class="ig-cam">${icons.camera}<span>${c.banner ? 'Change banner' : 'Add a banner'}</span></span></button>`
+          : c.banner
+            ? html`<div class="ig-banner ${c.status ? 'gone' : ''}"><img src="${c.banner}" alt=""></div>`
+            : ''
+      }
+      <article class="ig-profile ${c.banner ? 'has-banner' : ''} ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
+        <header class="ig-head">
+          ${
+            own
+              ? html`<button type="button" class="ig-avatar own ${storyGroup ? `has-story ${storyGroup.allSeen ? 'seen' : ''}` : ''}" id="pic-avatar" aria-label="Change the profile picture">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}<span class="ig-cam">${icons.camera}</span></button>`
+              : storyGroup
+                ? html`<button type="button" class="ig-avatar has-story ${storyGroup.allSeen ? 'seen' : ''}" id="watch-story" aria-label="Watch ${c.name}'s story">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</button>`
+                : html`<span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>`
+          }
           <div class="ig-stats">
-            <button type="button" id="bp-all-posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
+            <button type="button" data-tab-go="posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
             <button type="button" data-list="followers"><b>${compact(stats.followers)}</b><span>Followers</span></button>
             <button type="button" data-list="following"><b>${compact(stats.following)}</b><span>Following</span></button>
             <button type="button" data-tab-go="threads"><b>${compact(stats.threads)}</b><span>Threads</span></button>
           </div>
-          <div class="ig-id">
-            <h2 class="ig-name">${handleOf(c)}${npcBadges(c)}</h2>
-            ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
-          </div>
-          <div class="ig-actions">
-            ${own ? html`<button id="edit">Edit profile</button>${c.status ? '' : html`<button class="primary" id="new-post">${icons.plus} New post</button>`}
-                ${posts.length > 1 ? html`<button id="bp-arrange" aria-pressed="false">${icons.grid} Arrange boxes</button>` : ''}
-                ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}
-                ${c.private ? html`<button id="follow-requests">${icons.users} Requests${requestCount ? html` <span class="badge">${requestCount}</span>` : ''}</button>` : ''}`
-              : html`<button class="${following || requested.length ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : requested.length ? html`${icons.hourglass} Requested` : html`${icons.userAdd} Follow`}</button>
-                <button id="start-thread">${icons.episode} Start an episode</button>`}
-          </div>
+        </header>
+        ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
+        <div class="ig-id">
+          <h1 class="ig-name">${c.private ? html`<span class="ig-lock" title="Private account" aria-label="Private account">${icons.lock}</span>` : ''}${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(c)}</h1>
+          ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
+          ${songBox()}
         </div>
-        <section class="bp-grid ${song ? `song-${song.service}` : ''}">
-          ${['s1', 's2', 's3'].map((k) => tile(k))}
-          ${tile('main', html`
-            ${storyGroup ? html`<button type="button" class="bp-ring" id="bp-story" aria-label="Watch ${c.name}'s story"><i></i></button>`
-              : own && !c.status ? html`<button type="button" class="bp-ring add" id="bp-story" aria-label="Add to ${c.name}'s story"><i></i></button>` : ''}
-            ${locked ? html`<span class="bp-locked">${icons.lock}<b>This account is private</b><small>${requested.length ? 'Your follow request is waiting for an answer.' : `Follow ${c.name} to see their posts.`}</small></span>` : ''}
-            <span class="bp-tag"><b>${c.handle}</b><small class="${active === 'now' ? 'live' : ''}">${active === 'now' ? 'active now' : active ? `active ${active}` : 'new in town'}</small></span>`)}
-          ${['tall', 'a', 'b', 'r'].map((k) => tile(k))}
-          ${tile('w1')}${tile('w2')}
-          <div class="bp-music ${song ? `has-${song.service} size-${song.size}` : 'empty'}" data-area="music">${musicCard()}</div>
-        </section>
+        <div class="ig-actions">
+          ${
+            own
+              ? html`<button id="edit">Edit profile</button>${c.status ? '' : html`<button class="primary" id="new-post">${icons.plus} New post</button>`}
+              ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}
+              ${c.private ? html`<button id="follow-requests">${icons.users} Requests${requestCount ? html` <span class="badge">${requestCount}</span>` : ''}</button>` : ''}`
+              : html`<button class="${following || requested.length ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : requested.length ? html`${icons.hourglass} Requested` : html`${icons.userAdd} Follow`}</button>
+              <button id="start-thread">${icons.episode} Start an episode</button>`
+          }
+        </div>
         <nav class="ig-tabs" role="tablist">
+          <button role="tab" data-tab="posts">${icons.grid}<span>Posts</span></button>
           <button role="tab" data-tab="tagged">${icons.user}<span>Tagged</span></button>
           <button role="tab" data-tab="threads">${icons.episode}<span>Episodes</span></button>
           <button role="tab" data-tab="ties">${icons.ties}<span>Ties</span></button>
@@ -380,182 +458,242 @@ export async function viewCharacter(id) {
   });
   const pane = $('#ig-pane', body);
   let profile = prof0;
-  wireBento();
+  wireSong();
   let tagged = null; // other characters' posts this character is tagged in (loaded when the tab opens)
   const thumb = (p) => html`
     <a class="ig-tile kind-${p.kind}" href="#/p/${p.id}">
-      ${p.kind === 'photo' ? html`<img src="${p.media[0]}" alt="" loading="lazy">${p.media.length > 1 ? html`<span class="ig-badge">${icons.grid}</span>` : ''}`
-        : p.kind === 'video' ? html`<video src="${p.media[0]}" muted playsinline preload="metadata"></video><span class="ig-badge">${icons.play}</span>`
-        : p.kind === 'stream' ? html`${p.media[0] ? html`<img src="${p.media[0]}" alt="">` : ''}<span class="ig-live">${p.meta.live === false ? 'ENDED' : 'LIVE'}</span><span class="ig-text">${p.title}</span>`
-        : p.kind === 'voice' ? html`<span class="ig-text">${icons.mic} ${p.body || 'Voice note'}</span>`
-        : html`<span class="ig-text">${p.body.slice(0, 140)}</span>`}
+      ${
+        p.kind === 'photo'
+          ? html`<img src="${p.media[0]}" alt="" loading="lazy">${p.media.length > 1 ? html`<span class="ig-badge">${icons.grid}</span>` : ''}`
+          : p.kind === 'video'
+            ? html`<video src="${p.media[0]}" muted playsinline preload="metadata"></video><span class="ig-badge">${icons.play}</span>`
+            : p.kind === 'stream'
+              ? html`${p.media[0] ? html`<img src="${p.media[0]}" alt="">` : ''}<span class="ig-live">${p.meta.live === false ? 'ENDED' : 'LIVE'}</span><span class="ig-text">${p.title}</span>`
+              : p.kind === 'voice'
+                ? html`<span class="ig-text">${icons.mic} ${p.body || 'Voice note'}</span>`
+                : html`<span class="ig-text">${p.body.slice(0, 140)}</span>`
+      }
       ${p.pinned ? html`<span class="ig-pin" title="Pinned">${icons.pushpin}</span>` : ''}
       <span class="ig-hover">${icons.heartFill} ${compact(p.likes)} &nbsp; ${icons.chat} ${compact(p.commentCount)}</span>
     </a>`;
   const draw = () => {
     $$('[data-tab]', body).forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
-    if (tab === 'tagged') {
+    if (tab === 'posts' && locked) {
+      // A private account you don't follow (yet).
+      render(
+        pane,
+        html`<div class="empty ig-private">${icons.lock}<p><b>This account is private</b></p><p class="small muted">${requested.length ? 'Your follow request is waiting for an answer.' : `Follow ${c.name} to see their posts and stories.`}</p></div>`,
+      );
+    } else if (tab === 'posts') {
+      render(
+        pane,
+        posts.length
+          ? html`<div class="ig-grid">${posts.map(thumb)}</div>`
+          : html`<div class="empty"><p>No posts yet.</p>${own && !c.status ? html`<p><button class="primary" id="first-post">Make ${c.name}'s first post</button></p>` : ''}</div>`,
+      );
+      $('#first-post', pane)?.addEventListener('click', newPost);
+    } else if (tab === 'tagged') {
       // Posts by others that tag this character on a photo or @mention them (like Instagram's Tagged).
       if (!tagged) {
         render(pane, html`<p class="muted small ig-loading">Loading…</p>`);
-        api(`/api/social?tagged=${c.id}`).then((r) => { tagged = r.posts; if (tab === 'tagged') draw(); }).catch(() => { tagged = []; if (tab === 'tagged') draw(); });
+        api(`/api/social?tagged=${c.id}`)
+          .then((r) => {
+            tagged = r.posts;
+            if (tab === 'tagged') draw();
+          })
+          .catch(() => {
+            tagged = [];
+            if (tab === 'tagged') draw();
+          });
         return;
       }
-      render(pane, tagged.length ? html`<div class="ig-grid">${tagged.map((p) => html`<div class="ig-tagged">${thumb(p)}<a class="ig-by" href="#/c/${p.character.id}">${avatar({ name: p.character.name, src: p.character.avatar, color: p.character.color, size: 'xs' })}</a></div>`)}</div>`
-        : html`<div class="empty"><p>No tagged posts yet.</p><p class="small muted">When someone tags ${c.name} on a photo or @mentions them in a post, it shows here.</p></div>`);
+      render(
+        pane,
+        tagged.length
+          ? html`<div class="ig-grid">${tagged.map((p) => html`<div class="ig-tagged">${thumb(p)}<a class="ig-by" href="#/c/${p.character.id}">${avatar({ name: p.character.name, src: p.character.avatar, color: p.character.color, size: 'xs' })}</a></div>`)}</div>`
+          : html`<div class="empty"><p>No tagged posts yet.</p><p class="small muted">When someone tags ${c.name} on a photo or @mentions them in a post, it shows here.</p></div>`,
+      );
     } else if (tab === 'ties') {
       drawTies(pane, c, { own, isAlive: () => tab === 'ties' && pane.isConnected });
     } else if (tab === 'timeline') {
       drawTimeline(pane, c, { isAlive: () => tab === 'timeline' && pane.isConnected });
     } else if (tab === 'threads') {
-      render(pane, threads.length ? html`<div class="sp-threads">${threads.map((t) => html`
+      render(
+        pane,
+        threads.length
+          ? html`<div class="sp-threads">${threads.map(
+              (t) => html`
         <a class="sp-thread status-${t.status}" href="#/s/${t.storyId}/${t.id}">
           <span class="sp-t-icon">${kindIcon(t.kind)}</span>
           <span class="grow"><strong>${t.name}</strong><small>${t.storyTitle} · ${t.postCount} posts${t.lastPostAt ? ` · ${timeAgo(t.lastPostAt)}` : ''}</small></span>
-          <span class="pill-tag status-${t.status}">${({ open: 'Open', closed: 'Private', complete: 'Complete' })[t.status]}</span>
-        </a>`)}</div>` : html`<div class="empty"><p>Not in any episodes yet.</p></div>`);
+          <span class="pill-tag status-${t.status}">${{ open: 'Open', closed: 'Private', complete: 'Complete' }[t.status]}</span>
+        </a>`,
+            )}</div>`
+          : html`<div class="empty"><p>Not in any episodes yet.</p></div>`,
+      );
     } else {
       // About: the character's details, then their full profile (facts, personality, history…).
       const drawAbout = (prof) => {
-        render(pane, html`
+        render(
+          pane,
+          html`
           ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div class="aka-text">${raw(akaHtml(c.aka))}</div></div>` : ''}
           ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
           <div class="small-stats"><span><b>${compact(stats.posts)}</b> episode posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
-          ${prof ? dossierAbout(c, prof.dossier, { canEdit: prof.canEdit }) : html`<p class="muted small">Loading profile…</p>`}`);
+          ${prof ? dossierAbout(c, prof.dossier, { canEdit: prof.canEdit }) : html`<p class="muted small">Loading profile…</p>`}`,
+        );
         applyColors(pane);
         wireGallery(pane);
         $('#about-edit', pane)?.addEventListener('click', async () => {
-          if (await editDossier(c, prof.dossier)) { profile = null; draw(); }
+          if (await editDossier(c, prof.dossier)) {
+            profile = null;
+            draw();
+          }
         });
       };
       if (profile) drawAbout(profile);
       else {
         drawAbout(null);
-        api(`/api/profiles/${c.id}`).then((r) => { profile = r; if (tab === 'about') drawAbout(r); }).catch(() => {});
+        api(`/api/profiles/${c.id}`)
+          .then((r) => {
+            profile = r;
+            if (tab === 'about') drawAbout(r);
+          })
+          .catch(() => {});
       }
     }
   };
   draw();
-  $$('[data-tab]', body).forEach((b) => b.addEventListener('click', () => {
-    tab = b.dataset.tab;
-    try { sessionStorage.setItem('nuuvi:char-tab', tab); } catch { /* ignore */ }
-    draw();
-  }));
-  $$('[data-tab-go]', body).forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tabGo; draw(); $('.ig-tabs', body).scrollIntoView({ behavior: 'smooth' }); }));
-  $$('[data-list]', body).forEach((b) => b.addEventListener('click', () => showPeople(
-    b.dataset.list === 'followers' ? `Following ${c.name}` : `${c.name} follows`, `/api/characters/${c.id}/${b.dataset.list}`,
-  )));
-  const reload = () => viewCharacter(id);
-  function wireBento() {
-    applyColors(body);
-    const rotate = setInterval(() => {
-      const el = $('.bp-headline', body);
-      if (!el?.isConnected) return clearInterval(rotate);
-      const next = headlineNow();
-      if (el.textContent !== next) { el.classList.remove('swap'); void el.offsetWidth; el.textContent = next; el.classList.add('swap'); }
-    }, 20000);
-    $('#bp-headline', body)?.addEventListener('click', async () => {
-      const v = await promptModal('The line before their name', { value: dossier.headline || '', placeholder: "OHH SHIT IT'S", maxlength: 40, required: false, label: `It shows as "YOUR LINE, ${firstName.toUpperCase()}!" and changes every few minutes to lines with the same energy.` });
-      if (v === null) return;
-      try { await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, headline: v } } }); reload(); } catch (err) { toast(err.message); }
-    });
-    $('#bp-story', body)?.addEventListener('click', async () => {
-      if (storyGroup) openStoryViewer([storyGroup], 0, { onClose: reload });
-      else if (await openStoryComposer({ characterId: c.id })) reload();
-    });
-    // Every post, in a grid (the Posts number).
-    $('#bp-all-posts', body)?.addEventListener('click', () => modal(html`<div class="bp-all">
-      <h2>${c.name}'s posts</h2>
-      ${locked ? html`<p class="muted">This account is private.</p>` : posts.length ? html`<div class="ig-grid">${posts.map(thumb)}</div>` : html`<p class="muted">No posts yet.</p>`}
-      <div class="actions end"><button type="button" data-close>Close</button></div></div>`, { init: (d) => d.addEventListener('click', (e) => { if (e.target.closest('a')) d.querySelector('[data-close]').click(); }) }));
-    // Arrange boxes: tap a box, then pick which post goes in it.
-    let arranging = false;
-    $('#bp-arrange', body)?.addEventListener('click', (e) => {
-      arranging = !arranging;
-      $('.bp-grid', body).classList.toggle('arranging', arranging);
-      e.currentTarget.setAttribute('aria-pressed', String(arranging));
-      render(e.currentTarget, arranging ? html`${icons.check} Done` : html`${icons.grid} Arrange boxes`);
-      if (arranging) toast('Tap a box to choose which post goes in it');
-    });
-    $('.bp-grid', body).addEventListener('click', async (e) => {
-      const box = e.target.closest('[data-slot]');
-      if (!arranging || !box || e.target.closest('.bp-ring')) return;
-      e.preventDefault();
-      const k = box.dataset.slot;
-      const pick = await modal(html`<div class="bp-picker">
-        <h2>Which post goes in this box?</h2>
-        <button type="button" class="bp-auto ${chosen[k] ? '' : 'on'}" data-choose="0">Automatic (their newest posts fill the boxes)</button>
-        <div class="ig-grid">${posts.map((p) => html`<button type="button" class="bp-choice ${chosen[k] === p.id ? 'on' : ''}" data-choose="${p.id}">${face(p)}</button>`)}</div>
-        <div class="actions end"><button type="button" data-close>Cancel</button></div></div>`, {
-        init: (d, close) => d.addEventListener('click', (ev) => { const b = ev.target.closest('[data-choose]'); if (b) close(Number(b.dataset.choose)); }),
-      });
-      if (pick === null || pick === undefined) return;
-      const next = { ...chosen };
-      // A post can sit in one box only: take it out of any other box first.
-      for (const key of Object.keys(next)) if (next[key] === pick) delete next[key];
-      if (pick) next[k] = pick; else delete next[k];
+  $$('[data-tab]', body).forEach((b) =>
+    b.addEventListener('click', () => {
+      tab = b.dataset.tab;
       try {
-        await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, bento: next } } });
-        sessionStorage.setItem('nuuvi:bp-arranging', '1');
-        reload();
-      } catch (err) { toast(err.message); }
-    }, true);
-    if (sessionStorage.getItem('nuuvi:bp-arranging')) { sessionStorage.removeItem('nuuvi:bp-arranging'); $('#bp-arrange', body)?.click(); }
-    $('#bp-song', body)?.addEventListener('click', async () => {
-      const v = await promptModal('Their song', {
-        value: dossier.song?.url || '', placeholder: 'https://open.spotify.com/track/…', maxlength: 2000, required: false, multiline: true,
-        label: 'Paste a share link (or the Embed code) from Spotify, Apple Music, YouTube or SoundCloud. Leave it empty to remove the song.',
-      });
-      if (v === null) return;
-      try { await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, song: v.trim() || null } } }); reload(); } catch (err) { toast(err.message); }
-    });
-  }
+        sessionStorage.setItem('nuuvi:char-tab', tab);
+      } catch {
+        /* ignore */
+      }
+      draw();
+    }),
+  );
+  $$('[data-tab-go]', body).forEach((b) =>
+    b.addEventListener('click', () => {
+      tab = b.dataset.tabGo;
+      draw();
+      $('.ig-tabs', body).scrollIntoView({ behavior: 'smooth' });
+    }),
+  );
+  $$('[data-list]', body).forEach((b) =>
+    b.addEventListener('click', () =>
+      showPeople(
+        b.dataset.list === 'followers' ? `Following ${c.name}` : `${c.name} follows`,
+        `/api/characters/${c.id}/${b.dataset.list}`,
+      ),
+    ),
+  );
+  const reload = () => viewCharacter(id);
   // Your own character: tap the profile picture or the banner to change it right here.
-  const changePic = (field, label) => attachSheet({
-    max: 1,
-    square: field === 'avatar',
-    onPictures: async ([url]) => {
-      if (!url) return;
-      try { await api(`/api/characters/${c.id}`, { method: 'PUT', body: { [field]: url } }); toast(`${label} updated`); reload(); } catch (err) { toast(err.message); }
-    },
-    extras: [field === 'banner' && c.banner && { label: 'Remove banner', icon: icons.warning, action: async () => {
-      try { await api(`/api/characters/${c.id}`, { method: 'PUT', body: { banner: '' } }); toast('Banner removed'); reload(); } catch (err) { toast(err.message); }
-    } }],
-  });
+  const changePic = (field, label) =>
+    attachSheet({
+      max: 1,
+      square: field === 'avatar',
+      onPictures: async ([url]) => {
+        if (!url) return;
+        try {
+          await api(`/api/characters/${c.id}`, { method: 'PUT', body: { [field]: url } });
+          toast(`${label} updated`);
+          reload();
+        } catch (err) {
+          toast(err.message);
+        }
+      },
+      extras: [
+        field === 'banner' &&
+          c.banner && {
+            label: 'Remove banner',
+            icon: icons.warning,
+            action: async () => {
+              try {
+                await api(`/api/characters/${c.id}`, { method: 'PUT', body: { banner: '' } });
+                toast('Banner removed');
+                reload();
+              } catch (err) {
+                toast(err.message);
+              }
+            },
+          },
+      ],
+    });
   $('#pic-avatar', body)?.addEventListener('click', () => changePic('avatar', 'Profile picture'));
   $('#pic-banner', body)?.addEventListener('click', () => changePic('banner', 'Banner'));
-  async function newPost() { if (await openSocialComposer({ characterId: c.id })) reload(); }
+  async function newPost() {
+    if (await openSocialComposer({ characterId: c.id })) {
+      tab = 'posts';
+      reload();
+    }
+  }
   $('#new-post', body)?.addEventListener('click', newPost);
-  $('#edit', body)?.addEventListener('click', async () => { if (await editCharacter(c)) { state.characters = null; reload(); } });
+  $('#edit', body)?.addEventListener('click', async () => {
+    if (await editCharacter(c)) {
+      state.characters = null;
+      reload();
+    }
+  });
   $('#start-thread', body)?.addEventListener('click', () => openThreadForm({ tag: [c.id] }));
   $('#watch-story', body)?.addEventListener('click', () => openStoryViewer([storyGroup], 0, { onClose: reload }));
-  $('#main #char-more').addEventListener('click', (e) => menu(e.currentTarget, [
-    storyGroup && own && { label: 'Watch their story', action: () => openStoryViewer([storyGroup], 0, { onClose: reload }) },
-    own && !c.status && { label: 'Add to their story', action: async () => { if (await openStoryComposer({ characterId: c.id })) reload(); } },
-    c.owner && { label: `View ${c.owner.displayName}'s profile`, action: () => { location.hash = `#/u/${c.owner.id}`; } },
-    own && { label: 'Edit character', action: () => $('#edit', body).click() },
-  ]));
+  $('#main #char-more').addEventListener('click', (e) =>
+    menu(e.currentTarget, [
+      storyGroup && own && { label: 'Watch their story', action: () => openStoryViewer([storyGroup], 0, { onClose: reload }) },
+      own &&
+        !c.status && {
+          label: 'Add to their story',
+          action: async () => {
+            if (await openStoryComposer({ characterId: c.id })) reload();
+          },
+        },
+      c.owner && {
+        label: `View ${c.owner.displayName}'s profile`,
+        action: () => {
+          location.hash = `#/u/${c.owner.id}`;
+        },
+      },
+      own && { label: 'Edit character', action: () => $('#edit', body).click() },
+    ]),
+  );
   // Your private character: who's asked to follow, to approve or decline.
   $('#follow-requests', body)?.addEventListener('click', async () => {
     const { requests } = await api(`/api/characters/${c.id}/requests`);
-    await modal(html`<div class="follow-reqs">
+    await modal(
+      html`<div class="follow-reqs">
       <h2>Follow requests</h2>
       <p class="hint">${c.name}'s account is private: only followers see their posts and stories.</p>
-      <div class="pc-list" id="fr-list">${requests.length ? requests.map((r) => html`
+      <div class="pc-list" id="fr-list">${
+        requests.length
+          ? requests.map(
+              (r) => html`
         <div class="pc-item" data-req="${r.id}">${avatar({ name: r.name, src: r.avatar, color: r.color, size: 'sm' })}<span class="grow"><b>${r.name}</b><small>@${r.handle}</small></span>
-          <button type="button" class="sm primary" data-fr="approve">Approve</button><button type="button" class="sm" data-fr="decline">Decline</button></div>`)
-        : html`<p class="muted small">No requests right now.</p>`}</div>
-      <div class="actions end"><button type="button" data-close>Done</button></div></div>`, {
-      init: (d) => d.addEventListener('click', async (e) => {
-        const b = e.target.closest('[data-fr]');
-        if (!b) return;
-        const row = b.closest('[data-req]');
-        try {
-          await api(`/api/characters/${c.id}/requests/${row.dataset.req}`, { method: 'POST', body: { approve: b.dataset.fr === 'approve' } });
-          render(row, html`<span class="grow muted small">${b.dataset.fr === 'approve' ? 'Approved' : 'Declined'}</span>`);
-        } catch (err) { toast(err.message); }
-      }),
-    });
+          <button type="button" class="sm primary" data-fr="approve">Approve</button><button type="button" class="sm" data-fr="decline">Decline</button></div>`,
+            )
+          : html`<p class="muted small">No requests right now.</p>`
+      }</div>
+      <div class="actions end"><button type="button" data-close>Done</button></div></div>`,
+      {
+        init: (d) =>
+          d.addEventListener('click', async (e) => {
+            const b = e.target.closest('[data-fr]');
+            if (!b) return;
+            const row = b.closest('[data-req]');
+            try {
+              await api(`/api/characters/${c.id}/requests/${row.dataset.req}`, {
+                method: 'POST',
+                body: { approve: b.dataset.fr === 'approve' },
+              });
+              render(row, html`<span class="grow muted small">${b.dataset.fr === 'approve' ? 'Approved' : 'Declined'}</span>`);
+            } catch (err) {
+              toast(err.message);
+            }
+          }),
+      },
+    );
     reload();
   });
   $('#follow', body)?.addEventListener('click', (e) => {
@@ -564,16 +702,35 @@ export async function viewCharacter(id) {
       // Following, or a request still waiting: tap again to undo.
       const on = followedBy.includes(me.id) || requested.includes(me.id);
       try {
-        const res = await api(`/api/characters/${c.id}/${on ? 'unfollow' : 'follow'}`, { method: 'POST', body: { asCharacterId: me.id } });
-        toast(on ? (followedBy.includes(me.id) ? `${me.name} unfollowed ${c.name}` : 'Follow request cancelled')
-          : res.requested ? `Follow request sent. ${c.name}'s writer will approve or decline it` : `${me.name} now follows ${c.name}`);
+        const res = await api(`/api/characters/${c.id}/${on ? 'unfollow' : 'follow'}`, {
+          method: 'POST',
+          body: { asCharacterId: me.id },
+        });
+        toast(
+          on
+            ? followedBy.includes(me.id)
+              ? `${me.name} unfollowed ${c.name}`
+              : 'Follow request cancelled'
+            : res.requested
+              ? `Follow request sent. ${c.name}'s writer will approve or decline it`
+              : `${me.name} now follows ${c.name}`,
+        );
         reload();
-      } catch (err) { toast(err.message); }
+      } catch (err) {
+        toast(err.message);
+      }
     };
     if (followable.length === 1) return act(followable[0]);
-    menu(e.currentTarget, followable.map((me) => ({
-      label: followedBy.includes(me.id) ? `✓ ${me.name} follows (unfollow)` : requested.includes(me.id) ? `${me.name}: requested (cancel)` : `Follow as ${me.name}`,
-      action: () => act(me),
-    })));
+    menu(
+      e.currentTarget,
+      followable.map((me) => ({
+        label: followedBy.includes(me.id)
+          ? `✓ ${me.name} follows (unfollow)`
+          : requested.includes(me.id)
+            ? `${me.name}: requested (cancel)`
+            : `Follow as ${me.name}`,
+        action: () => act(me),
+      })),
+    );
   });
 }

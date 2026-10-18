@@ -25,25 +25,39 @@ export function messageRoutes(r, ctx) {
   const toMessage = (m) => {
     const r = m.reply_to ? replyRow.get(m.reply_to) : null;
     return {
-      id: m.id, userId: m.user_id, body: m.body, media: JSON.parse(m.media), createdAt: m.created_at, editedAt: m.edited_at ?? null,
+      id: m.id,
+      userId: m.user_id,
+      body: m.body,
+      media: JSON.parse(m.media),
+      createdAt: m.created_at,
+      editedAt: m.edited_at ?? null,
       replyTo: r ? { id: r.id, userId: r.user_id, text: r.body.slice(0, 140), hasMedia: r.media !== '[]' } : null,
     };
   };
 
   // Unread conversations, for the badge.
-  ctx.messageUnread = (userId) => db.prepare(`
+  ctx.messageUnread = (userId) =>
+    db
+      .prepare(
+        `
     SELECT COUNT(*) AS n FROM dm_threads t
     WHERE (t.user_a = :u OR t.user_b = :u) AND EXISTS (SELECT 1 FROM dm_messages m WHERE m.thread_id = t.id AND m.user_id != :u
-      AND m.id > COALESCE((SELECT last_read_id FROM dm_reads r WHERE r.thread_id = t.id AND r.user_id = :u), 0))`).get({ u: userId }).n;
+      AND m.id > COALESCE((SELECT last_read_id FROM dm_reads r WHERE r.thread_id = t.id AND r.user_id = :u), 0))`,
+      )
+      .get({ u: userId }).n;
 
   r.get('/api/messages', ({ user }) => {
     requireUser(user);
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(
+        `
       SELECT t.*, (SELECT MAX(id) FROM dm_messages WHERE thread_id = t.id) AS last_id,
         (SELECT COUNT(*) FROM dm_messages m WHERE m.thread_id = t.id AND m.user_id != :u
           AND m.id > COALESCE((SELECT last_read_id FROM dm_reads r WHERE r.thread_id = t.id AND r.user_id = :u), 0)) AS unread
       FROM dm_threads t WHERE (t.user_a = :u OR t.user_b = :u) AND t.last_at IS NOT NULL
-      ORDER BY t.last_at DESC`).all({ u: user.id });
+      ORDER BY t.last_at DESC`,
+      )
+      .all({ u: user.id });
     const last = db.prepare('SELECT * FROM dm_messages WHERE id = ?');
     return {
       data: {
@@ -51,7 +65,10 @@ export function messageRoutes(r, ctx) {
           const other = userRow.get(t.user_a === user.id ? t.user_b : t.user_a);
           const m = t.last_id ? last.get(t.last_id) : null;
           return {
-            id: t.id, with: toUser(other), unread: t.unread, lastAt: t.last_at,
+            id: t.id,
+            with: toUser(other),
+            unread: t.unread,
+            lastAt: t.last_at,
             last: m ? { mine: m.user_id === user.id, text: m.body || (JSON.parse(m.media).length ? 'Photo' : '') } : null,
           };
         }),
@@ -63,13 +80,18 @@ export function messageRoutes(r, ctx) {
     requireUser(user);
     const { t, other } = threadWith(user.id, params.userId);
     const before = Number(query.get('before')) || null;
-    const msgs = t ? db.prepare(`SELECT * FROM dm_messages WHERE thread_id = ? ${before ? 'AND id < ?' : ''} ORDER BY id DESC LIMIT 61`)
-      .all(...[t.id, ...(before ? [before] : [])]) : [];
+    const msgs = t
+      ? db
+          .prepare(`SELECT * FROM dm_messages WHERE thread_id = ? ${before ? 'AND id < ?' : ''} ORDER BY id DESC LIMIT 61`)
+          .all(...[t.id, ...(before ? [before] : [])])
+      : [];
     const hasMore = msgs.length > 60;
     return {
       data: {
-        with: toUser(other), blocked: isBlocked(db, user.id, other.id) || isBlocked(db, other.id, user.id),
-        messages: msgs.slice(0, 60).reverse().map(toMessage), hasMore,
+        with: toUser(other),
+        blocked: isBlocked(db, user.id, other.id) || isBlocked(db, other.id, user.id),
+        messages: msgs.slice(0, 60).reverse().map(toMessage),
+        hasMore,
       },
     };
   });
@@ -79,16 +101,24 @@ export function messageRoutes(r, ctx) {
     const { t, other } = threadWith(user.id, params.userId, true);
     if (isBlocked(db, user.id, other.id) || isBlocked(db, other.id, user.id)) fail(403, "You can't message this person");
     const text = str(body.body, 'Message', { max: MAX_TEXT }) ?? '';
-    const media = (Array.isArray(body.media) ? body.media.slice(0, 10) : []).map((v) => uploadRef(db, v, user.id) ?? fail(400, 'Picture missing'));
+    const media = (Array.isArray(body.media) ? body.media.slice(0, 10) : []).map(
+      (v) => uploadRef(db, v, user.id) ?? fail(400, 'Picture missing'),
+    );
     if (!text && !media.length) fail(400, 'Write something or add a picture');
     let replyTo = null;
     if (body.replyTo != null) {
-      replyTo = db.prepare('SELECT id FROM dm_messages WHERE id = ? AND thread_id = ?').get(Number(body.replyTo), t.id)?.id ?? fail(400, 'That message is gone');
+      replyTo =
+        db.prepare('SELECT id FROM dm_messages WHERE id = ? AND thread_id = ?').get(Number(body.replyTo), t.id)?.id ??
+        fail(400, 'That message is gone');
     }
-    const { lastInsertRowid } = db.prepare('INSERT INTO dm_messages (thread_id, user_id, body, media, reply_to) VALUES (?, ?, ?, ?, ?)').run(t.id, user.id, text, JSON.stringify(media), replyTo);
+    const { lastInsertRowid } = db
+      .prepare('INSERT INTO dm_messages (thread_id, user_id, body, media, reply_to) VALUES (?, ?, ?, ?, ?)')
+      .run(t.id, user.id, text, JSON.stringify(media), replyTo);
     db.prepare("UPDATE dm_threads SET last_at = datetime('now') WHERE id = ?").run(t.id);
-    db.prepare(`INSERT INTO dm_reads (thread_id, user_id, last_read_id) VALUES (?, ?, ?)
-      ON CONFLICT(thread_id, user_id) DO UPDATE SET last_read_id = excluded.last_read_id`).run(t.id, user.id, lastInsertRowid);
+    db.prepare(
+      `INSERT INTO dm_reads (thread_id, user_id, last_read_id) VALUES (?, ?, ?)
+      ON CONFLICT(thread_id, user_id) DO UPDATE SET last_read_id = excluded.last_read_id`,
+    ).run(t.id, user.id, lastInsertRowid);
     const message = toMessage(db.prepare('SELECT * FROM dm_messages WHERE id = ?').get(lastInsertRowid));
     for (const u of [user.id, other.id]) hub.sendUser(u, 'message', { ...message, threadId: t.id, between: [user.id, other.id] });
     ctx.notify({ userId: other.id, type: 'message', actorId: user.id, text: text.slice(0, 140) || 'sent a photo' });
@@ -100,28 +130,37 @@ export function messageRoutes(r, ctx) {
     const { t } = threadWith(user.id, params.userId);
     if (!t) return { data: { ok: true } };
     const last = db.prepare('SELECT MAX(id) AS id FROM dm_messages WHERE thread_id = ?').get(t.id).id || 0;
-    db.prepare(`INSERT INTO dm_reads (thread_id, user_id, last_read_id) VALUES (?, ?, ?)
-      ON CONFLICT(thread_id, user_id) DO UPDATE SET last_read_id = MAX(last_read_id, excluded.last_read_id)`).run(t.id, user.id, last);
-    db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type = 'message' AND actor_id = ? AND read_at IS NULL").run(user.id, Number(params.userId));
+    db.prepare(
+      `INSERT INTO dm_reads (thread_id, user_id, last_read_id) VALUES (?, ?, ?)
+      ON CONFLICT(thread_id, user_id) DO UPDATE SET last_read_id = MAX(last_read_id, excluded.last_read_id)`,
+    ).run(t.id, user.id, last);
+    db.prepare(
+      "UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type = 'message' AND actor_id = ? AND read_at IS NULL",
+    ).run(user.id, Number(params.userId));
     return { data: { ok: true } };
   });
 
   // Edit your own message (it shows "edited").
   r.put('/api/messages/item/:id', ({ user, params, body }) => {
     requireUser(user);
-    const m = db.prepare('SELECT m.*, t.user_a, t.user_b FROM dm_messages m JOIN dm_threads t ON t.id = m.thread_id WHERE m.id = ?').get(Number(params.id));
+    const m = db
+      .prepare('SELECT m.*, t.user_a, t.user_b FROM dm_messages m JOIN dm_threads t ON t.id = m.thread_id WHERE m.id = ?')
+      .get(Number(params.id));
     if (!m || m.user_id !== user.id) fail(404, 'Message not found');
     const text = str(body.body, 'Message', { max: MAX_TEXT }) ?? '';
     if (!text && m.media === '[]') fail(400, 'Write something, or delete the message instead');
     if (text !== m.body) db.prepare("UPDATE dm_messages SET body = ?, edited_at = datetime('now') WHERE id = ?").run(text, m.id);
     const message = toMessage(db.prepare('SELECT * FROM dm_messages WHERE id = ?').get(m.id));
-    for (const u of [m.user_a, m.user_b]) hub.sendUser(u, 'message-edit', { ...message, threadId: m.thread_id, between: [m.user_a, m.user_b] });
+    for (const u of [m.user_a, m.user_b])
+      hub.sendUser(u, 'message-edit', { ...message, threadId: m.thread_id, between: [m.user_a, m.user_b] });
     return { data: { message } };
   });
 
   r.delete('/api/messages/item/:id', ({ user, params }) => {
     requireUser(user);
-    const m = db.prepare('SELECT m.*, t.user_a, t.user_b FROM dm_messages m JOIN dm_threads t ON t.id = m.thread_id WHERE m.id = ?').get(Number(params.id));
+    const m = db
+      .prepare('SELECT m.*, t.user_a, t.user_b FROM dm_messages m JOIN dm_threads t ON t.id = m.thread_id WHERE m.id = ?')
+      .get(Number(params.id));
     if (!m || m.user_id !== user.id) fail(404, 'Message not found');
     db.prepare('DELETE FROM dm_messages WHERE id = ?').run(m.id);
     for (const u of [m.user_a, m.user_b]) hub.sendUser(u, 'message-delete', { id: m.id, threadId: m.thread_id });
