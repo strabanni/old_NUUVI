@@ -120,7 +120,7 @@ export function phoneRoutes(r, ctx) {
 
   function summary(t, meId, others = null) {
     const rest = others ?? members(t.id).filter((c) => c.id !== meId);
-    const last = db.prepare('SELECT * FROM phone_messages WHERE thread_id = ? ORDER BY id DESC LIMIT 1').get(t.id);
+    const last = db.prepare('SELECT * FROM phone_messages WHERE thread_id = ? ORDER BY created_at DESC, id DESC LIMIT 1').get(t.id);
     const read = db.prepare('SELECT last_read_id FROM phone_reads WHERE character_id = ? AND thread_id = ?').get(meId, t.id)?.last_read_id ?? 0;
     const sender = last && last.character_id !== meId && t.is_group ? rest.find((c) => c.id === last.character_id) : null;
     const base = {
