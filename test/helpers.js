@@ -7,7 +7,10 @@ export async function startApp(options = {}) {
   const server = createApp({
     dbPath: ':memory:',
     authRateLimit: 10000,
-    pushFetch: async (url, init) => { pushes.push({ url, init }); return new Response(null, { status: 201 }); },
+    pushFetch: async (url, init) => {
+      pushes.push({ url, init });
+      return new Response(null, { status: 201 });
+    },
     ...options,
   });
   await new Promise((resolve) => server.listen(0, resolve));
@@ -39,7 +42,10 @@ export async function startApp(options = {}) {
     const c = client();
     let code = invite;
     if (code === undefined && admin) code = (await admin('/api/admin/invites', { method: 'POST', body: {} })).data.code;
-    const r = await c('/api/auth/register', { method: 'POST', body: { username, password: 'correct horse', displayName: username, invite: code } });
+    const r = await c('/api/auth/register', {
+      method: 'POST',
+      body: { username, password: 'correct horse', displayName: username, invite: code },
+    });
     assert.equal(r.status, 201, JSON.stringify(r.data));
     c.user = r.data.user;
     if (!admin) admin = c;
@@ -47,9 +53,18 @@ export async function startApp(options = {}) {
   }
 
   return {
-    server, base, client, signUp, pushes,
-    get admin() { return admin; },
-    close() { server.closeAllConnections(); server.close(); },
+    server,
+    base,
+    client,
+    signUp,
+    pushes,
+    get admin() {
+      return admin;
+    },
+    close() {
+      server.closeAllConnections();
+      server.close();
+    },
   };
 }
 

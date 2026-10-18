@@ -1,14 +1,52 @@
 // THE NU — everything happening in NUUVI, laid out like an Instagram feed: one column of posts,
 // newest first, in the order they were made. Character posts, open episodes, self paras, events
 // and connections (muse ideas anyone can pick up) all share the same post shape.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, formatPost, timeAgo, applyColors, gradAttr, userGrad, uploadImage, askImageLink, logoMark, backToTop } from '../lib.js';
-import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, kindIcon, previousHash, storyNow } from '../main.js';
+import {
+  html,
+  render,
+  api,
+  $,
+  $$,
+  toast,
+  avatar,
+  icons,
+  menu,
+  modal,
+  confirmModal,
+  formatPost,
+  timeAgo,
+  applyColors,
+  gradAttr,
+  userGrad,
+  uploadImage,
+  askImageLink,
+  logoMark,
+  backToTop,
+} from '../lib.js';
+import {
+  state,
+  page,
+  myCharacters,
+  playableCharacters,
+  routeAlive,
+  ensureAlive,
+  kindIcon,
+  previousHash,
+  storyNow,
+} from '../main.js';
 import { socialCard, bindSocial, openSocialComposer, styleBars, handleOf, nameBadge, agoShort } from './social.js';
 import { mountStoryStrip } from './stories.js';
 
 const ONE = { thread: 'Episode', para: 'Self para', event: 'Event', comms: 'Comms', ooc: 'OOC' };
 // The social feed comes first; episodes and the rest are a tap away.
-const FILTERS = [['social', 'Feed'], ['open', 'Episodes'], ['musing', 'Musings'], ['connection', 'Connections'], ['event', 'Events'], ['all', 'Everything']];
+const FILTERS = [
+  ['social', 'Feed'],
+  ['open', 'Episodes'],
+  ['musing', 'Musings'],
+  ['connection', 'Connections'],
+  ['event', 'Events'],
+  ['all', 'Everything'],
+];
 const parseDate = (d) => new Date(String(d).includes('T') ? d : `${String(d).replace(' ', 'T')}Z`);
 
 // Posts that come from a writer (connections, episodes): their picture, display name and @username.
@@ -22,7 +60,8 @@ const writerHead = (u, sub) => html`
 // An episode or self para, as a post: the story as the poster, the cover as the picture.
 // How far along an episode is, like Netflix's red bar: it creeps forward with every post (fast at
 // first, then slower) and only fills up when the episode is ended.
-const progressOf = (it) => (it.status === 'complete' ? 1 : Math.min(0.92, 0.04 + 0.9 * (1 - Math.exp(-(it.postCount || 0) / 30))));
+const progressOf = (it) =>
+  it.status === 'complete' ? 1 : Math.min(0.92, 0.04 + 0.9 * (1 - Math.exp(-(it.postCount || 0) / 30)));
 
 function threadPost(it) {
   // The episode's own picture first; the story's header only when the episode has none.
@@ -30,12 +69,19 @@ function threadPost(it) {
   return html`
     <article class="np np-thread-post" data-color="${it.story.color}">
       <header class="np-head">
-        ${it.author ? writerHead(it.author, html`${kindIcon(it.kind)} ${ONE[it.kind] || 'Episode'} in <a href="#/s/${it.storyId}">${it.story.title}</a> · ${agoShort(it.createdAt)}`) : html`
+        ${
+          it.author
+            ? writerHead(
+                it.author,
+                html`${kindIcon(it.kind)} ${ONE[it.kind] || 'Episode'} in <a href="#/s/${it.storyId}">${it.story.title}</a> · ${agoShort(it.createdAt)}`,
+              )
+            : html`
         <a class="np-av story" href="#/s/${it.storyId}">${avatar({ name: it.story.title, src: it.story.icon, color: it.story.color, size: 'sm' })}</a>
         <div class="np-id">
           <div class="np-line"><a class="np-who" href="#/s/${it.storyId}">${it.story.title}</a><span class="np-dot">•</span><span class="np-ago">${agoShort(it.createdAt)}</span></div>
           <span class="np-sub">${kindIcon(it.kind)} ${ONE[it.kind] || 'Episode'}${it.status === 'open' ? ' · open to join' : ''}</span>
-        </div>`}
+        </div>`
+        }
       </header>
       <a class="np-media np-cover ${pic ? '' : 'no-img'}" href="#/s/${it.storyId}/${it.id}">
         ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : ''}
@@ -47,7 +93,14 @@ function threadPost(it) {
       </a>
       <div class="np-actions">
         <a class="np-act" href="#/s/${it.storyId}/${it.id}" aria-label="Read">${icons.episode}</a>
-        ${it.participants.length ? html`<span class="np-with">${it.participants.slice(0, 3).map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}<span>with ${it.participants.slice(0, 2).map((c) => c.name).join(', ')}${it.participants.length > 2 ? ` +${it.participants.length - 2}` : ''}</span></span>` : ''}
+        ${
+          it.participants.length
+            ? html`<span class="np-with">${it.participants.slice(0, 3).map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}<span>with ${it.participants
+                .slice(0, 2)
+                .map((c) => c.name)
+                .join(', ')}${it.participants.length > 2 ? ` +${it.participants.length - 2}` : ''}</span></span>`
+            : ''
+        }
         <a class="btn sm np-cta" href="#/s/${it.storyId}/${it.id}">${it.status === 'open' ? 'Join in' : it.status === 'complete' ? 'Rewatch' : 'Read'}</a>
       </div>
       <div class="np-caption"><b>${it.name}</b> ${it.summary || (it.lastPost ? html`<span class="muted">${it.lastPost.by}: ${it.lastPost.text}</span>` : '')}</div>
@@ -117,7 +170,11 @@ export function connectionPost(k) {
   const takers = k.takers || (k.takenBy ? [k.takenBy] : []);
   const slots = k.slots || 1;
   const imIn = takers.some((t) => t.userId === state.user.id);
-  const label = k.full ? html`${icons.lock} ${slots > 1 ? 'Full' : 'Taken'}` : slots > 1 ? html`Looking for ${slots} · ${takers.length}/${slots}` : 'Looking for…';
+  const label = k.full
+    ? html`${icons.lock} ${slots > 1 ? 'Full' : 'Taken'}`
+    : slots > 1
+      ? html`Looking for ${slots} · ${takers.length}/${slots}`
+      : 'Looking for…';
   return html`
     <article class="np np-conn ${k.full ? 'taken' : ''}" data-conn="${k.id}" data-color="${ch.color}"${gradAttr(ch)}>
       <header class="np-head">
@@ -132,8 +189,13 @@ export function connectionPost(k) {
       ${slots > 1 ? html`<div class="np-slots" aria-label="${takers.length} of ${slots} spots taken">${Array.from({ length: slots }, (_, i) => html`<i class="${i < takers.length ? 'on' : ''}"></i>`)}</div>` : ''}
       <div class="np-actions">
         ${takers.length ? html`<span class="np-lock">${k.full ? icons.lock : icons.users} ${takers.map((t, i) => html`${i ? ', ' : ''}<a href="#/c/${t.character.id}">${handleOf(t.character)}</a>`)}${slots > 1 ? html` <span class="muted">· ${takers.length}/${slots}</span>` : ''}</span>` : ''}
-        ${!k.full && !mineToo && !imIn ? html`<button type="button" class="primary sm np-cta" data-k="take">${slots > 1 ? 'Join' : 'Pick it up'}</button>`
-          : !takers.length && mineToo ? html`<span class="np-with muted">Waiting for someone to pick it up</span>` : ''}
+        ${
+          !k.full && !mineToo && !imIn
+            ? html`<button type="button" class="primary sm np-cta" data-k="take">${slots > 1 ? 'Join' : 'Pick it up'}</button>`
+            : !takers.length && mineToo
+              ? html`<span class="np-with muted">Waiting for someone to pick it up</span>`
+              : ''
+        }
       </div>
       ${k.body ? html`<div class="np-caption">${k.author ? html`<a class="np-handle" href="#/u/${k.author.id}">${k.author.username}</a> ` : ''}<span class="body">${formatPost(k.body)}</span></div>` : ''}
       ${k.tags.length ? html`<div class="np-tags">${k.tags.map((t) => html`<span>#${t}</span>`)}</div>` : ''}
@@ -145,24 +207,35 @@ export function connectionPost(k) {
 async function takeConnection(k) {
   const mine = await playableCharacters();
   if (!mine.length) return toast('Create a character first');
-  const res = await modal(html`<form>
+  const res = await modal(
+    html`<form>
     <h2>Pick up “${k.title}”</h2>
-    <p class="muted small">From ${k.author ? k.author.displayName : 'a writer'}, for ${handleOf(k.character)}. ${(k.slots || 1) > 1 ? `It needs ${k.slots} people; it locks when everyone's in.` : 'Once you pick it up it\'s locked for everyone else.'}</p>
+    <p class="muted small">From ${k.author ? k.author.displayName : 'a writer'}, for ${handleOf(k.character)}. ${(k.slots || 1) > 1 ? `It needs ${k.slots} people; it locks when everyone's in.` : "Once you pick it up it's locked for everyone else."}</p>
     <label for="k-as">Which muse is this for?</label>
     <select id="k-as" name="characterId">${mine.map((c) => html`<option value="${c.id}">${c.name}${c.handle ? ` (@${c.handle})` : ''}</option>`)}</select>
     <div class="error"></div>
     <div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Pick it up</button></div>
-  </form>`, { submit: async (data) => (await api(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: Number(data.characterId) } })).connection });
+  </form>`,
+    {
+      submit: async (data) =>
+        (await api(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: Number(data.characterId) } }))
+          .connection,
+    },
+  );
   return res;
 }
 
 // Put a new connection out on THE NU, or edit one (`k`).
 export async function openConnectionComposer(k = null) {
   const mine = await playableCharacters(true);
-  if (!mine.length) { toast('Create a character first'); return null; }
+  if (!mine.length) {
+    toast('Create a character first');
+    return null;
+  }
   const pics = [...(k?.media || [])];
   const taken = k?.takers?.length || 0;
-  return modal(html`<form class="conn-form">
+  return modal(
+    html`<form class="conn-form">
     <h2>${k ? 'Edit connection' : 'New connection'}</h2>
     ${k ? '' : html`<p class="muted small">Put out an idea for your muse. Anyone can pick it up for one of theirs; it locks once everyone you need has joined.</p>`}
     <label for="k-char">Which muse is it for?</label>
@@ -182,20 +255,42 @@ export async function openConnectionComposer(k = null) {
       <button type="button" class="sm" id="k-clear" ${pics.length ? '' : 'hidden'}>Remove pictures</button></div>
     <div class="error"></div>
     <div class="actions end"><button type="button" data-close>Cancel</button><button class="primary" type="submit">${k ? 'Save' : 'Post connection'}</button></div>
-  </form>`, {
-    init: (d) => {
-      const show = () => { $('#k-pics', d).textContent = pics.length ? `${pics.length} picture${pics.length === 1 ? '' : 's'} added ✓` : ''; $('#k-clear', d).hidden = !pics.length; };
-      show();
-      $('#k-file', d).addEventListener('change', async (e) => { try { pics.push(await uploadImage(e.target.files[0], 1600)); show(); } catch (err) { toast(err.message); } });
-      $('#k-link', d).addEventListener('click', async () => { const u = await askImageLink(); if (u) { pics.push(u); show(); } });
-      $('#k-clear', d).addEventListener('click', () => { pics.length = 0; show(); });
+  </form>`,
+    {
+      init: (d) => {
+        const show = () => {
+          $('#k-pics', d).textContent = pics.length ? `${pics.length} picture${pics.length === 1 ? '' : 's'} added ✓` : '';
+          $('#k-clear', d).hidden = !pics.length;
+        };
+        show();
+        $('#k-file', d).addEventListener('change', async (e) => {
+          try {
+            pics.push(await uploadImage(e.target.files[0], 1600));
+            show();
+          } catch (err) {
+            toast(err.message);
+          }
+        });
+        $('#k-link', d).addEventListener('click', async () => {
+          const u = await askImageLink();
+          if (u) {
+            pics.push(u);
+            show();
+          }
+        });
+        $('#k-clear', d).addEventListener('click', () => {
+          pics.length = 0;
+          show();
+        });
+      },
+      submit: async (data) => {
+        const body = { ...data, characterId: Number(data.characterId), slots: Number(data.slots) || 1, media: pics };
+        return k
+          ? (await api(`/api/connections/${k.id}`, { method: 'PUT', body })).connection
+          : (await api('/api/connections', { method: 'POST', body })).connection;
+      },
     },
-    submit: async (data) => {
-      const body = { ...data, characterId: Number(data.characterId), slots: Number(data.slots) || 1, media: pics };
-      return k ? (await api(`/api/connections/${k.id}`, { method: 'PUT', body })).connection
-        : (await api('/api/connections', { method: 'POST', body })).connection;
-    },
-  });
+  );
 }
 
 export async function viewNu(tagStr = null) {
@@ -225,8 +320,12 @@ export async function viewNu(tagStr = null) {
         </div>
         <aside class="nu-side">
           <a class="nu-me" href="#/u/${state.user.id}">${avatar({ name: state.user.displayName, src: state.user.avatar, color: '#EE719E' })}<span><b>${state.user.username}</b><small>${state.user.displayName}</small></span></a>
-          ${mine.length ? html`<div class="nu-side-head"><span>Your cast</span><a href="#/characters">See all</a></div>
-            ${mine.slice(0, 6).map((c) => html`<a class="nu-side-row" href="#/c/${c.id}">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span><b>${c.handle || c.name}</b><small>${c.name}</small></span></a>`)}` : ''}
+          ${
+            mine.length
+              ? html`<div class="nu-side-head"><span>Your cast</span><a href="#/characters">See all</a></div>
+            ${mine.slice(0, 6).map((c) => html`<a class="nu-side-row" href="#/c/${c.id}">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span><b>${c.handle || c.name}</b><small>${c.name}</small></span></a>`)}`
+              : ''
+          }
           <div class="nu-side-head"><span>Share something</span></div>
           <button class="nu-side-btn" data-new="post">${icons.image} New post</button>
           <button class="nu-side-btn" data-new="musing">${icons.quill} New musing</button>
@@ -242,16 +341,27 @@ export async function viewNu(tagStr = null) {
   const load = async () => {
     const { items } = await api(`/api/feed?filter=${filter}${tag ? `&q=${encodeURIComponent(`#${tag}`)}` : ''}`);
     ensureAlive(alive);
-    social.clear(); conns.clear();
-    for (const it of items) { if (it.type === 'social') social.set(it.id, it); if (it.type === 'connection') conns.set(it.id, it); }
+    social.clear();
+    conns.clear();
+    for (const it of items) {
+      if (it.type === 'social') social.set(it.id, it);
+      if (it.type === 'connection') conns.set(it.id, it);
+    }
     // Stories: everyone with one up right now (tap to watch), and yours first.
     mountStoryStrip($('#nu-stories', body)).catch(() => {});
     // Birthdays today: a post from NUUVI Official, pinned to the top for the whole day.
     birthdays ??= (await api('/api/birthdays').catch(() => ({ birthdays: [] }))).birthdays;
     const now = storyNow();
-    const today = tag || filter === 'connection' || filter === 'event' ? [] : birthdays.filter((b) => b.month === now.getMonth() + 1 && b.day === now.getDate());
-    render(list, items.length || today.length ? html`${today.map(birthdayPost)}${items.map((it) => (it.type === 'social' ? socialCard(it) : it.type === 'event' ? eventPost(it) : it.type === 'connection' ? connectionPost(it) : threadPost(it)))}`
-      : html`<div class="empty"><p>Nothing on THE NU yet.</p><p class="small">Make a post, put out a connection, or start an episode.</p></div>`);
+    const today =
+      tag || filter === 'connection' || filter === 'event'
+        ? []
+        : birthdays.filter((b) => b.month === now.getMonth() + 1 && b.day === now.getDate());
+    render(
+      list,
+      items.length || today.length
+        ? html`${today.map(birthdayPost)}${items.map((it) => (it.type === 'social' ? socialCard(it) : it.type === 'event' ? eventPost(it) : it.type === 'connection' ? connectionPost(it) : threadPost(it)))}`
+        : html`<div class="empty"><p>Nothing on THE NU yet.</p><p class="small">Make a post, put out a connection, or start an episode.</p></div>`,
+    );
     styleBars(list);
     applyColors(list);
     // Progress bars: their width comes from the episode (set here, since inline styles aren't allowed).
@@ -260,37 +370,66 @@ export async function viewNu(tagStr = null) {
   bindSocial(list, social, (p) => {
     social.set(p.id, p);
     const el = list.querySelector(`[data-social="${p.id}"]`);
-    if (el) { el.outerHTML = socialCard(p).v; applyColors(list); styleBars(list); }
+    if (el) {
+      el.outerHTML = socialCard(p).v;
+      applyColors(list);
+      styleBars(list);
+    }
   });
   const redrawConn = (k) => {
     conns.set(k.id, k);
     const el = list.querySelector(`[data-conn="${k.id}"]`);
-    if (el) { el.outerHTML = connectionPost(k).v; applyColors(list); }
+    if (el) {
+      el.outerHTML = connectionPost(k).v;
+      applyColors(list);
+    }
   };
   list.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-k]');
     if (!b) return;
     const k = conns.get(Number(b.closest('[data-conn]').dataset.conn));
-    if (b.dataset.k === 'take') { const taken = await takeConnection(k); if (taken) { redrawConn(taken); toast('Picked up. It\'s yours'); } }
+    if (b.dataset.k === 'take') {
+      const taken = await takeConnection(k);
+      if (taken) {
+        redrawConn(taken);
+        toast("Picked up. It's yours");
+      }
+    }
     if (b.dataset.k === 'more') {
       const owner = k.userId === state.user.id || state.user.isAdmin;
       const takers = k.takers || [];
-      const release = async (body) => redrawConn((await api(`/api/connections/${k.id}/release`, { method: 'POST', body })).connection);
+      const release = async (body) =>
+        redrawConn((await api(`/api/connections/${k.id}/release`, { method: 'POST', body })).connection);
       menu(b, [
-        owner && { label: 'Edit connection', action: async () => { const made = await openConnectionComposer(k); if (made) redrawConn(made); } },
+        owner && {
+          label: 'Edit connection',
+          action: async () => {
+            const made = await openConnectionComposer(k);
+            if (made) redrawConn(made);
+          },
+        },
         !owner && takers.some((t) => t.userId === state.user.id) && { label: 'Leave this connection', action: () => release({}) },
-        ...(owner ? takers.map((t) => ({ label: `Remove ${t.character.name}`, action: () => release({ characterId: t.character.id }) })) : []),
+        ...(owner
+          ? takers.map((t) => ({ label: `Remove ${t.character.name}`, action: () => release({ characterId: t.character.id }) }))
+          : []),
         owner && takers.length > 1 && { label: 'Open it up again (remove everyone)', action: () => release({}) },
-        (k.userId === state.user.id || state.user.isAdmin) && { label: 'Delete connection', danger: true, action: async () => {
-          if (!(await confirmModal('Delete this connection?', { ok: 'Delete', danger: true }))) return;
-          await api(`/api/connections/${k.id}`, { method: 'DELETE' });
-          b.closest('[data-conn]').remove();
-        } },
+        (k.userId === state.user.id || state.user.isAdmin) && {
+          label: 'Delete connection',
+          danger: true,
+          action: async () => {
+            if (!(await confirmModal('Delete this connection?', { ok: 'Delete', danger: true }))) return;
+            await api(`/api/connections/${k.id}`, { method: 'DELETE' });
+            b.closest('[data-conn]').remove();
+          },
+        },
       ]);
     }
   });
   const create = async (what) => {
-    const made = what === 'connection' ? await openConnectionComposer() : await openSocialComposer({ category: what === 'musing' ? 'musing' : 'post' });
+    const made =
+      what === 'connection'
+        ? await openConnectionComposer()
+        : await openSocialComposer({ category: what === 'musing' ? 'musing' : 'post' });
     if (made) load();
   };
   backToTop(body);
@@ -299,20 +438,40 @@ export async function viewNu(tagStr = null) {
     const b = e.currentTarget;
     if (b.classList.contains('spin')) return;
     b.classList.add('spin');
-    try { await load(); body.scrollTo({ top: 0, behavior: 'smooth' }); } catch (err) { toast(err.message); } finally { b.classList.remove('spin'); }
+    try {
+      await load();
+      body.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      toast(err.message);
+    } finally {
+      b.classList.remove('spin');
+    }
   });
-  $('#main #nu-new').addEventListener('click', (e) => menu(e.currentTarget, [
-    { label: 'New post', action: () => create('post') },
-    { label: 'New musing', action: () => create('musing') },
-    { label: 'New connection', action: () => create('connection') },
-  ]));
-  body.addEventListener('click', (e) => { const n = e.target.closest('[data-new]'); if (n) create(n.dataset.new); });
-  $$('[data-f]', body).forEach((b) => b.addEventListener('click', () => {
-    filter = b.dataset.f;
-    try { sessionStorage.setItem('nuuvi:nu-filter', filter); } catch { /* ignore */ }
-    $$('[data-f]', body).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-    list.classList.remove('swap'); void list.offsetWidth; list.classList.add('swap');
-    load().catch((err) => toast(err.message));
-  }));
+  $('#main #nu-new').addEventListener('click', (e) =>
+    menu(e.currentTarget, [
+      { label: 'New post', action: () => create('post') },
+      { label: 'New musing', action: () => create('musing') },
+      { label: 'New connection', action: () => create('connection') },
+    ]),
+  );
+  body.addEventListener('click', (e) => {
+    const n = e.target.closest('[data-new]');
+    if (n) create(n.dataset.new);
+  });
+  $$('[data-f]', body).forEach((b) =>
+    b.addEventListener('click', () => {
+      filter = b.dataset.f;
+      try {
+        sessionStorage.setItem('nuuvi:nu-filter', filter);
+      } catch {
+        /* ignore */
+      }
+      $$('[data-f]', body).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      list.classList.remove('swap');
+      void list.offsetWidth;
+      list.classList.add('swap');
+      load().catch((err) => toast(err.message));
+    }),
+  );
   await load();
 }

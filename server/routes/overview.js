@@ -20,20 +20,23 @@ const list = (v, field, max) => {
 };
 
 export function overviewInput(body) {
-  const orgs = list(body.orgs, 'Organizations', 80).map((o) => ({
-    name: text(o.name, 'Name', 120),
-    kind: KINDS.includes(o.kind) ? o.kind : 'other',
-    parent: text(o.parent, 'Parent', 120),
-    founded: text(o.founded, 'Founded', 40),
-    motto: text(o.motto, 'Motto', 300),
-    body: text(o.body, 'Description', 20000),
-    credit: text(o.credit, 'Credit', 80),
-    whisper: text(o.whisper, 'Gossip line', 500),
-  })).filter((o) => o.name);
+  const orgs = list(body.orgs, 'Organizations', 80)
+    .map((o) => ({
+      name: text(o.name, 'Name', 120),
+      kind: KINDS.includes(o.kind) ? o.kind : 'other',
+      parent: text(o.parent, 'Parent', 120),
+      founded: text(o.founded, 'Founded', 40),
+      motto: text(o.motto, 'Motto', 300),
+      body: text(o.body, 'Description', 20000),
+      credit: text(o.credit, 'Credit', 80),
+      whisper: text(o.whisper, 'Gossip line', 500),
+    }))
+    .filter((o) => o.name);
   return {
     tagline: text(body.tagline, 'Tagline', 300),
     intro: text(body.intro, 'Intro', 30000),
-    sections: list(body.sections, 'Sections', 40).map((x) => ({ title: text(x.title, 'Section title', 160), body: text(x.body, 'Section', 30000) }))
+    sections: list(body.sections, 'Sections', 40)
+      .map((x) => ({ title: text(x.title, 'Section title', 160), body: text(x.body, 'Section', 30000) }))
       .filter((x) => x.title || x.body),
     independentNote: text(body.independentNote, 'Note', 300),
     letter: text(body.letter, 'Gossip column', 5000),
@@ -56,11 +59,14 @@ export function overviewRoutes(r, ctx) {
       const has = (name) => lore.orgs.some((o) => o.name?.toUpperCase() === name.toUpperCase());
       for (const org of LORE_PRESET.orgs.filter((o) => ['MOSSETA', 'NOER', 'OKINE', 'MONO'].includes(o.name) && !has(o.name))) {
         let at = -1;
-        lore.orgs.forEach((o, n) => { if (o.name === org.parent || o.parent === org.parent) at = n; });
+        lore.orgs.forEach((o, n) => {
+          if (o.name === org.parent || o.parent === org.parent) at = n;
+        });
         lore.orgs.splice(at < 0 ? lore.orgs.length : at + 1, 0, { ...org });
       }
       const intrepide = lore.orgs.find((o) => /^INTR[ÉE]PIDE/i.test(o.name || ''));
-      if (intrepide?.body?.endsWith('with minimal interference.')) intrepide.body = intrepide.body.replace(/minimal interference\.$/, 'minimal authority intervention.');
+      if (intrepide?.body?.endsWith('with minimal interference.'))
+        intrepide.body = intrepide.body.replace(/minimal interference\.$/, 'minimal authority intervention.');
       db.prepare("UPDATE settings SET value = ? WHERE key = 'lore'").run(JSON.stringify(lore));
     }
     db.prepare("INSERT INTO settings (key, value) VALUES ('lore_v2', '1')").run();
@@ -79,7 +85,9 @@ export function overviewRoutes(r, ctx) {
           characters: n(`SELECT COUNT(DISTINCT c.id) AS n FROM characters c JOIN story_members m ON m.user_id = c.user_id
             WHERE m.story_id = ? AND (c.bot IS NULL OR c.bot != 'gossip')`),
           threads: n("SELECT COUNT(*) AS n FROM channels WHERE story_id = ? AND kind IN ('thread', 'para', 'event', 'comms')"),
-          events: n("SELECT COUNT(*) AS n FROM events WHERE story_id = ? AND COALESCE(ends_at, starts_at) >= datetime('now', '-1 day')"),
+          events: n(
+            "SELECT COUNT(*) AS n FROM events WHERE story_id = ? AND COALESCE(ends_at, starts_at) >= datetime('now', '-1 day')",
+          ),
         },
       },
     };
@@ -109,7 +117,9 @@ export function overviewRoutes(r, ctx) {
     requireUser(user);
     if (!user.isAdmin) fail(403, 'Only admins can edit the lore');
     const overview = overviewInput(body);
-    db.prepare("INSERT INTO settings (key, value) VALUES ('lore', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(overview));
+    db.prepare("INSERT INTO settings (key, value) VALUES ('lore', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(
+      JSON.stringify(overview),
+    );
     return { data: { overview } };
   });
 

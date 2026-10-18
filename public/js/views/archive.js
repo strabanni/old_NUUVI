@@ -14,7 +14,9 @@ export async function viewArchive() {
     alive,
     title: 'Archive',
     subtitle: 'Completed stories, kept safe and read-only',
-    body: done.length ? html`<div class="archive-grid">${done.map((s) => html`
+    body: done.length
+      ? html`<div class="archive-grid">${done.map(
+          (s) => html`
       <article class="archive-card" data-id="${s.id}">
         <a class="archive-cover" href="#/s/${s.id}" data-color="${s.color}">
           ${s.banner ? html`<img src="${s.banner}" alt="" loading="lazy">` : ''}
@@ -26,7 +28,8 @@ export async function viewArchive() {
           <div class="archive-actions"><a class="btn sm" href="#/s/${s.id}">Read</a>
             ${canReopen(s) ? html`<button type="button" class="sm" data-reopen="${s.id}">Reopen</button>` : ''}</div>
         </div>
-      </article>`)}</div>`
+      </article>`,
+        )}</div>`
       : html`<div class="empty archive-empty">${icons.archive}<h2>Nothing archived yet</h2>
         <p class="muted">When a story is finished, its owner can mark it complete (long-press or right-click the story, or open its menu). It moves here, read-only, and can be reopened any time.</p></div>`,
   });

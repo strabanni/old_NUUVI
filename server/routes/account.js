@@ -21,10 +21,18 @@ const ftyp = (b) => b.subarray(4, 8).toString('latin1') === 'ftyp';
 const ebml = (b) => b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3;
 // Accepted uploads: type → extension, a check of the file's first bytes, and a size limit.
 const MEDIA_TYPES = {
-  'image/png': { ext: 'png', max: 8 * MB, magic: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) },
+  'image/png': {
+    ext: 'png',
+    max: 8 * MB,
+    magic: (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  },
   'image/jpeg': { ext: 'jpg', max: 8 * MB, magic: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
   'image/gif': { ext: 'gif', max: 15 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'GIF8' },
-  'image/webp': { ext: 'webp', max: 8 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' },
+  'image/webp': {
+    ext: 'webp',
+    max: 8 * MB,
+    magic: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP',
+  },
   'video/mp4': { ext: 'mp4', max: 60 * MB, magic: ftyp },
   'video/quicktime': { ext: 'mov', max: 60 * MB, magic: ftyp },
   'video/webm': { ext: 'webm', max: 60 * MB, magic: ebml },
@@ -32,15 +40,24 @@ const MEDIA_TYPES = {
   'audio/x-m4a': { ext: 'm4a', max: 20 * MB, magic: ftyp },
   'audio/webm': { ext: 'weba', max: 20 * MB, magic: ebml },
   'audio/ogg': { ext: 'ogg', max: 20 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'OggS' },
-  'audio/mpeg': { ext: 'mp3', max: 20 * MB, magic: (b) => b.subarray(0, 3).toString('latin1') === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) },
-  'audio/wav': { ext: 'wav', max: 20 * MB, magic: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WAVE' },
+  'audio/mpeg': {
+    ext: 'mp3',
+    max: 20 * MB,
+    magic: (b) => b.subarray(0, 3).toString('latin1') === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0),
+  },
+  'audio/wav': {
+    ext: 'wav',
+    max: 20 * MB,
+    magic: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WAVE',
+  },
 };
 MEDIA_TYPES['audio/x-wav'] = MEDIA_TYPES['audio/wav'];
 
 function validPassword(password, username = '') {
   if (typeof password !== 'string' || password.length < 8) fail(400, 'Password must be at least 8 characters');
   if (password.length > 200) fail(400, 'Password is too long');
-  if (weakPassword(password, username)) fail(400, 'That password is too easy to guess. Try a few words together, like "velvet-taxi-midnight"');
+  if (weakPassword(password, username))
+    fail(400, 'That password is too easy to guess. Try a few words together, like "velvet-taxi-midnight"');
   return password;
 }
 
@@ -63,7 +80,10 @@ export function accountRoutes(r, ctx) {
     const exact = db.prepare('SELECT * FROM users WHERE username = ?').get(name);
     if (exact) return exact;
     const key = nameKey(name);
-    const hit = db.prepare('SELECT id, username FROM users').all().find((u) => nameKey(u.username) === key);
+    const hit = db
+      .prepare('SELECT id, username FROM users')
+      .all()
+      .find((u) => nameKey(u.username) === key);
     return hit ? db.prepare('SELECT * FROM users WHERE id = ?').get(hit.id) : null;
   };
 
@@ -86,7 +106,8 @@ export function accountRoutes(r, ctx) {
         if (!invite) fail(403, 'You need a valid invite code to join');
       }
       if (findByUsername(username)) fail(409, 'That username is taken');
-      const { lastInsertRowid } = db.prepare('INSERT INTO users (username, display_name, password_hash, is_admin) VALUES (?, ?, ?, ?)')
+      const { lastInsertRowid } = db
+        .prepare('INSERT INTO users (username, display_name, password_hash, is_admin) VALUES (?, ?, ?, ?)')
         .run(username, displayName, hashPassword(password), firstUser ? 1 : 0);
       if (invite) db.prepare('UPDATE site_invites SET uses = uses + 1 WHERE id = ?').run(invite.id);
       return db.prepare('SELECT * FROM users WHERE id = ?').get(lastInsertRowid);
@@ -99,7 +120,8 @@ export function accountRoutes(r, ctx) {
     if (!authLimiter(ip)) fail(429, 'Too many attempts, try again later');
     const row = typeof body.username === 'string' ? findByUsername(body.username.normalize('NFC').trim()) : null;
     // Too many wrong passwords for this account lately: it waits a while, whoever is trying.
-    if (row && accountLimiter.blocked(`u${row.id}`)) fail(429, 'Too many wrong passwords for this account. Try again in 15 minutes, or reset your password.');
+    if (row && accountLimiter.blocked(`u${row.id}`))
+      fail(429, 'Too many wrong passwords for this account. Try again in 15 minutes, or reset your password.');
     if (!row || typeof body.password !== 'string' || !verifyPassword(body.password, row.password_hash)) {
       if (row) accountLimiter(`u${row.id}`);
       fail(401, 'Wrong username or password');
@@ -117,9 +139,8 @@ export function accountRoutes(r, ctx) {
 
   r.post('/api/auth/reset', ({ body, ip, setSession }) => {
     if (!authLimiter(ip)) fail(429, 'Too many attempts, try again later');
-    const reset = typeof body.token === 'string'
-      ? db.prepare('SELECT * FROM password_resets WHERE token = ?').get(body.token)
-      : null;
+    const reset =
+      typeof body.token === 'string' ? db.prepare('SELECT * FROM password_resets WHERE token = ?').get(body.token) : null;
     if (!reset || reset.expires_at < Date.now()) fail(400, 'This reset link is invalid or expired');
     const password = validPassword(body.password);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), reset.user_id);
@@ -146,7 +167,16 @@ export function accountRoutes(r, ctx) {
     requireUser(user);
     const row = db.prepare("SELECT value FROM settings WHERE key = 'headers'").get();
     // Until an admin picks some, use any pictures that ship in public/headers/.
-    const bundled = () => { try { return readdirSync(HEADERS_DIR).filter((f) => /\.(?:jpg|jpeg|png|webp)$/i.test(f)).sort().map((f) => `/headers/${f}`); } catch { return []; } };
+    const bundled = () => {
+      try {
+        return readdirSync(HEADERS_DIR)
+          .filter((f) => /\.(?:jpg|jpeg|png|webp)$/i.test(f))
+          .sort()
+          .map((f) => `/headers/${f}`);
+      } catch {
+        return [];
+      }
+    };
     return { data: { headers: row ? JSON.parse(row.value) : bundled() } };
   });
   r.put('/api/headers', ({ user, body }) => {
@@ -154,9 +184,14 @@ export function accountRoutes(r, ctx) {
     if (!user.isAdmin) fail(403, 'Only admins can change the headers');
     if (!Array.isArray(body.headers) || body.headers.length > 30) fail(400, 'At most 30 header pictures');
     // Uploads, picture links, or pictures that ship with NUUVI (public/headers/).
-    const headers = body.headers.map((h) => (typeof h === 'string' && /^\/headers\/[\w.-]+\.(?:jpg|jpeg|png|webp)$/.test(h) ? h
-      : uploadRef(db, h, user.id) ?? fail(400, 'Picture missing')));
-    db.prepare("INSERT INTO settings (key, value) VALUES ('headers', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(headers));
+    const headers = body.headers.map((h) =>
+      typeof h === 'string' && /^\/headers\/[\w.-]+\.(?:jpg|jpeg|png|webp)$/.test(h)
+        ? h
+        : (uploadRef(db, h, user.id) ?? fail(400, 'Picture missing')),
+    );
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES ('headers', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    ).run(JSON.stringify(headers));
     return { data: { headers } };
   });
 
@@ -186,7 +221,10 @@ export function accountRoutes(r, ctx) {
         const since = changedAt ? Date.now() - new Date(`${changedAt.replace(' ', 'T')}Z`).getTime() : Infinity;
         if (since < USERNAME_COOLDOWN) {
           const mins = Math.ceil((USERNAME_COOLDOWN - since) / 60000);
-          fail(429, `You can change your username again in ${mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`}`);
+          fail(
+            429,
+            `You can change your username again in ${mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`}`,
+          );
         }
         const taken = findByUsername(next);
         if (taken && taken.id !== user.id) fail(409, 'That username is taken');
@@ -194,11 +232,21 @@ export function accountRoutes(r, ctx) {
         changedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
       }
     }
-    db.prepare(`UPDATE users SET display_name = ?, bio = ?, avatar = ?, banner = ?, profile = ?, gradient = ?, show_about = ?,
-      username = ?, username_changed_at = ? WHERE id = ?`)
-      .run(displayName, bio, avatar === undefined ? user.avatar : avatar, banner === undefined ? user.banner : banner,
-        JSON.stringify(profile ?? user.profile), gradient === undefined ? user.gradient?.join(',') ?? null : gradient, showAbout,
-        username, changedAt, user.id);
+    db.prepare(
+      `UPDATE users SET display_name = ?, bio = ?, avatar = ?, banner = ?, profile = ?, gradient = ?, show_about = ?,
+      username = ?, username_changed_at = ? WHERE id = ?`,
+    ).run(
+      displayName,
+      bio,
+      avatar === undefined ? user.avatar : avatar,
+      banner === undefined ? user.banner : banner,
+      JSON.stringify(profile ?? user.profile),
+      gradient === undefined ? (user.gradient?.join(',') ?? null) : gradient,
+      showAbout,
+      username,
+      changedAt,
+      user.id,
+    );
     return { data: { user: toSelf(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) } };
   });
 
@@ -206,8 +254,14 @@ export function accountRoutes(r, ctx) {
     requireUser(user);
     const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id);
     if (accountLimiter.blocked(`u${user.id}`)) fail(429, 'Too many wrong passwords. Try again in 15 minutes.');
-    if (typeof body.current !== 'string' || !verifyPassword(body.current, row.password_hash)) { accountLimiter(`u${user.id}`); fail(400, 'Current password is wrong'); }
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(validPassword(body.next, user.username)), user.id);
+    if (typeof body.current !== 'string' || !verifyPassword(body.current, row.password_hash)) {
+      accountLimiter(`u${user.id}`);
+      fail(400, 'Current password is wrong');
+    }
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(
+      hashPassword(validPassword(body.next, user.username)),
+      user.id,
+    );
     // Sign out every other device.
     db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(user.id, token);
     return { data: { ok: true } };
@@ -217,14 +271,24 @@ export function accountRoutes(r, ctx) {
   r.get('/api/users/:id', ({ user, params }) => {
     const row = db.prepare('SELECT * FROM users WHERE id = ?').get(params.id);
     if (!row) fail(404, 'User not found');
-    const characters = db.prepare('SELECT * FROM characters WHERE user_id = ? ORDER BY name COLLATE NOCASE').all(row.id).map(toCharacter);
-    const blocked = user ? !!db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?').get(user.id, row.id) : false;
+    const characters = db
+      .prepare('SELECT * FROM characters WHERE user_id = ? ORDER BY name COLLATE NOCASE')
+      .all(row.id)
+      .map(toCharacter);
+    const blocked = user
+      ? !!db.prepare('SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?').get(user.id, row.id)
+      : false;
     return {
       data: {
         user: {
-          ...toUser(row), bio: row.show_about === 0 && row.id !== user?.id ? '' : row.bio, banner: row.banner, profile: parseProfile(row.profile),
+          ...toUser(row),
+          bio: row.show_about === 0 && row.id !== user?.id ? '' : row.bio,
+          banner: row.banner,
+          profile: parseProfile(row.profile),
           showAbout: row.show_about !== 0,
-          isAdmin: !!row.is_admin, suspended: !!row.banned_at, joinedAt: row.created_at,
+          isAdmin: !!row.is_admin,
+          suspended: !!row.banned_at,
+          joinedAt: row.created_at,
         },
         stats: ctx.userStats(row.id),
         characters,
@@ -236,7 +300,9 @@ export function accountRoutes(r, ctx) {
   // ---------- Blocking ----------
   r.get('/api/blocks', ({ user }) => {
     requireUser(user);
-    const rows = db.prepare('SELECT u.* FROM blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = ? ORDER BY b.created_at DESC').all(user.id);
+    const rows = db
+      .prepare('SELECT u.* FROM blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = ? ORDER BY b.created_at DESC')
+      .all(user.id);
     return { data: { users: rows.map((u) => toUser(u)) } };
   });
 
@@ -256,29 +322,37 @@ export function accountRoutes(r, ctx) {
   });
 
   // ---------- Image uploads ----------
-  r.post('/api/uploads', async ({ user, rawBody, headers }) => {
-    requireUser(user);
-    const type = MEDIA_TYPES[(headers['content-type'] || '').split(';')[0].trim().toLowerCase()];
-    if (!type) fail(415, 'Use a PNG, JPEG, GIF or WebP image, an MP4/MOV/WebM video, or an M4A/MP3/WebM/OGG/WAV audio file');
-    if (rawBody && rawBody.length > type.max) fail(413, `That file is too large (max ${type.max / MB} MB)`);
-    if (!rawBody?.length) fail(400, 'Empty upload');
-    if (!type.magic(rawBody)) fail(400, "That file doesn't look like the image type it claims to be");
-    const count = db.prepare('SELECT COUNT(*) AS n FROM uploads WHERE user_id = ?').get(user.id).n;
-    if (count >= 2000) fail(400, 'Upload limit reached');
-    const used = db.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM uploads WHERE user_id = ?').get(user.id).n;
-    if (used + rawBody.length > 2048 * MB) fail(400, 'You have used all of your 2 GB of storage');
-    const name = `${randomBytes(16).toString('base64url')}.${type.ext}`;
-    await writeFile(join(config.uploadDir, name), rawBody, { flag: 'wx' });
-    db.prepare('INSERT INTO uploads (name, user_id, size) VALUES (?, ?, ?)').run(name, user.id, rawBody.length);
-    return { status: 201, data: { url: `/uploads/${name}` } };
-  }, { raw: MAX_UPLOAD_BYTES });
+  r.post(
+    '/api/uploads',
+    async ({ user, rawBody, headers }) => {
+      requireUser(user);
+      const type = MEDIA_TYPES[(headers['content-type'] || '').split(';')[0].trim().toLowerCase()];
+      if (!type) fail(415, 'Use a PNG, JPEG, GIF or WebP image, an MP4/MOV/WebM video, or an M4A/MP3/WebM/OGG/WAV audio file');
+      if (rawBody && rawBody.length > type.max) fail(413, `That file is too large (max ${type.max / MB} MB)`);
+      if (!rawBody?.length) fail(400, 'Empty upload');
+      if (!type.magic(rawBody)) fail(400, "That file doesn't look like the image type it claims to be");
+      const count = db.prepare('SELECT COUNT(*) AS n FROM uploads WHERE user_id = ?').get(user.id).n;
+      if (count >= 2000) fail(400, 'Upload limit reached');
+      const used = db.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM uploads WHERE user_id = ?').get(user.id).n;
+      if (used + rawBody.length > 2048 * MB) fail(400, 'You have used all of your 2 GB of storage');
+      const name = `${randomBytes(16).toString('base64url')}.${type.ext}`;
+      await writeFile(join(config.uploadDir, name), rawBody, { flag: 'wx' });
+      db.prepare('INSERT INTO uploads (name, user_id, size) VALUES (?, ?, ?)').run(name, user.id, rawBody.length);
+      return { status: 201, data: { url: `/uploads/${name}` } };
+    },
+    { raw: MAX_UPLOAD_BYTES },
+  );
 
   // Your own recent pictures, newest first, for the picture panel behind every + button.
   r.get('/api/uploads/recent', ({ user }) => {
     requireUser(user);
-    const rows = db.prepare(`SELECT name FROM uploads WHERE user_id = ?
+    const rows = db
+      .prepare(
+        `SELECT name FROM uploads WHERE user_id = ?
       AND (name LIKE '%.png' OR name LIKE '%.jpg' OR name LIKE '%.webp' OR name LIKE '%.gif')
-      ORDER BY created_at DESC, rowid DESC LIMIT 60`).all(user.id);
+      ORDER BY created_at DESC, rowid DESC LIMIT 60`,
+      )
+      .all(user.id);
     return { data: { pictures: rows.map((r) => `/uploads/${r.name}`) } };
   });
 
@@ -286,8 +360,12 @@ export function accountRoutes(r, ctx) {
   r.get('/api/notifications', ({ user, query }) => {
     requireUser(user);
     const before = Number(query.get('before')) || Number.MAX_SAFE_INTEGER;
-    const rows = db.prepare(`${ctx.notificationSql}
-      WHERE n.user_id = ? AND n.id < ? ORDER BY n.id DESC LIMIT 50`).all(user.id, before);
+    const rows = db
+      .prepare(
+        `${ctx.notificationSql}
+      WHERE n.user_id = ? AND n.id < ? ORDER BY n.id DESC LIMIT 50`,
+      )
+      .all(user.id, before);
     const unread = db.prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL').get(user.id).n;
     return { data: { notifications: rows.map(ctx.toNotification), unread } };
   });
@@ -303,7 +381,9 @@ export function accountRoutes(r, ctx) {
   r.post('/api/notifications/read', ({ user, body }) => {
     requireUser(user);
     if (Array.isArray(body.ids)) {
-      const stmt = db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE id = ? AND user_id = ? AND read_at IS NULL");
+      const stmt = db.prepare(
+        "UPDATE notifications SET read_at = datetime('now') WHERE id = ? AND user_id = ? AND read_at IS NULL",
+      );
       for (const n of body.ids.slice(0, 200)) stmt.run(id(n, 'Notification'), user.id);
     } else {
       db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND read_at IS NULL").run(user.id);
@@ -318,9 +398,10 @@ export function accountRoutes(r, ctx) {
     requireUser(user);
     const sub = validateSubscription(body.subscription);
     if (!sub) fail(400, 'Invalid push subscription');
-    db.prepare(`INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth) VALUES (?, ?, ?, ?)
-      ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth`)
-      .run(sub.endpoint, user.id, sub.p256dh, sub.auth);
+    db.prepare(
+      `INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth) VALUES (?, ?, ?, ?)
+      ON CONFLICT(endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth`,
+    ).run(sub.endpoint, user.id, sub.p256dh, sub.auth);
     return { data: { ok: true } };
   });
 
@@ -341,10 +422,18 @@ export function accountRoutes(r, ctx) {
   // ---------- Characters ----------
   r.get('/api/characters', ({ user }) => {
     requireUser(user);
-    const rows = db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id) AS followers
-      FROM characters c WHERE c.user_id = ? ORDER BY c.name COLLATE NOCASE`).all(user.id);
+    const rows = db
+      .prepare(
+        `SELECT c.*, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id) AS followers
+      FROM characters c WHERE c.user_id = ? ORDER BY c.name COLLATE NOCASE`,
+      )
+      .all(user.id);
     // Your own characters include their NPC lines (for the editor).
-    return { data: { characters: rows.map((c) => ({ ...toCharacter(c), followers: c.followers, botLines: JSON.parse(c.bot_lines || '{}') })) } };
+    return {
+      data: {
+        characters: rows.map((c) => ({ ...toCharacter(c), followers: c.followers, botLines: JSON.parse(c.bot_lines || '{}') })),
+      },
+    };
   });
 
   // Directory: every writer (by username) and every character in their cast.
@@ -352,31 +441,69 @@ export function accountRoutes(r, ctx) {
   // Everyone's NPCs, shared so anyone can find and tag them. Filter by category tag or search.
   r.get('/api/npcs', ({ user }) => {
     requireUser(user);
-    const hidden = new Set(db.prepare('SELECT blocked_id AS id FROM blocks WHERE blocker_id = ? UNION SELECT blocker_id FROM blocks WHERE blocked_id = ?')
-      .all(user.id, user.id).map((r) => r.id));
-    const rows = db.prepare(`SELECT c.*, u.username AS owner_username, u.display_name AS owner_name FROM characters c JOIN users u ON u.id = c.user_id
-      WHERE c.npc = 1 AND (c.bot IS NULL OR c.bot != 'gossip') AND u.banned_at IS NULL ORDER BY c.name COLLATE NOCASE`).all()
+    const hidden = new Set(
+      db
+        .prepare(
+          'SELECT blocked_id AS id FROM blocks WHERE blocker_id = ? UNION SELECT blocker_id FROM blocks WHERE blocked_id = ?',
+        )
+        .all(user.id, user.id)
+        .map((r) => r.id),
+    );
+    const rows = db
+      .prepare(
+        `SELECT c.*, u.username AS owner_username, u.display_name AS owner_name FROM characters c JOIN users u ON u.id = c.user_id
+      WHERE c.npc = 1 AND (c.bot IS NULL OR c.bot != 'gossip') AND u.banned_at IS NULL ORDER BY c.name COLLATE NOCASE`,
+      )
+      .all()
       .filter((c) => !hidden.has(c.user_id));
     const tags = [...new Set(rows.flatMap((c) => (c.npc_tags ? c.npc_tags.split(',') : [])))].sort();
-    return { data: { npcs: rows.map((c) => ({ ...toCharacter(c), owner: { id: c.user_id, username: c.owner_username, displayName: c.owner_name } })), tags } };
+    return {
+      data: {
+        npcs: rows.map((c) => ({
+          ...toCharacter(c),
+          owner: { id: c.user_id, username: c.owner_username, displayName: c.owner_name },
+        })),
+        tags,
+      },
+    };
   });
 
   r.get('/api/directory', ({ user }) => {
     requireUser(user);
-    const hidden = new Set(db.prepare('SELECT blocked_id AS id FROM blocks WHERE blocker_id = ? UNION SELECT blocker_id FROM blocks WHERE blocked_id = ?')
-      .all(user.id, user.id).map((r) => r.id));
-    const users = db.prepare('SELECT * FROM users WHERE banned_at IS NULL ORDER BY username COLLATE NOCASE').all().filter((u) => !hidden.has(u.id));
-    const chars = db.prepare(`SELECT c.*, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id) AS followers
-      FROM characters c ORDER BY c.name COLLATE NOCASE`).all();
+    const hidden = new Set(
+      db
+        .prepare(
+          'SELECT blocked_id AS id FROM blocks WHERE blocker_id = ? UNION SELECT blocker_id FROM blocks WHERE blocked_id = ?',
+        )
+        .all(user.id, user.id)
+        .map((r) => r.id),
+    );
+    const users = db
+      .prepare('SELECT * FROM users WHERE banned_at IS NULL ORDER BY username COLLATE NOCASE')
+      .all()
+      .filter((u) => !hidden.has(u.id));
+    const chars = db
+      .prepare(
+        `SELECT c.*, (SELECT COUNT(*) FROM character_follows f WHERE f.followed_id = c.id) AS followers
+      FROM characters c ORDER BY c.name COLLATE NOCASE`,
+      )
+      .all();
     const byUser = new Map(users.map((u) => [u.id, []]));
     const anonymous = [];
     // The gossip account is listed on its own, never under whoever runs it.
-    for (const c of chars) (c.bot === 'gossip' ? anonymous : byUser.get(c.user_id))?.push({ ...toCharacter(c), followers: c.followers });
+    for (const c of chars)
+      (c.bot === 'gossip' ? anonymous : byUser.get(c.user_id))?.push({ ...toCharacter(c), followers: c.followers });
     return {
       data: {
         writers: users.map((u) => ({
-          id: u.id, username: u.username, displayName: u.display_name, avatar: u.avatar ?? null,
-          gradient: u.gradient ? u.gradient.split(',') : null, isAdmin: !!u.is_admin, joinedAt: u.created_at, characters: byUser.get(u.id),
+          id: u.id,
+          username: u.username,
+          displayName: u.display_name,
+          avatar: u.avatar ?? null,
+          gradient: u.gradient ? u.gradient.split(',') : null,
+          isAdmin: !!u.is_admin,
+          joinedAt: u.created_at,
+          characters: byUser.get(u.id),
         })),
         anonymous,
       },
@@ -410,18 +537,21 @@ export function accountRoutes(r, ctx) {
     const align = oneOf(body.postAlign, 'Name position', ['left', 'right']) ?? existing.post_align ?? 'right';
     const followers = countInput(body.followersDisplay, 'Followers');
     const following = countInput(body.followingDisplay, 'Following');
-    const verified = body.verified === undefined ? existing.verified ?? 0 : body.verified ? 1 : 0;
+    const verified = body.verified === undefined ? (existing.verified ?? 0) : body.verified ? 1 : 0;
     const banner = uploadRef(db, body.banner, userId);
     // The picture on their thread posts (empty: their avatar is used).
     const threadAvatar = uploadRef(db, body.threadAvatar, userId);
-    if (threadAvatar !== undefined) db.prepare('UPDATE characters SET thread_avatar = ? WHERE id = ?').run(threadAvatar, characterId);
+    if (threadAvatar !== undefined)
+      db.prepare('UPDATE characters SET thread_avatar = ? WHERE id = ?').run(threadAvatar, characterId);
     // A brand account (a shop, label, café, magazine…): posts on THE NU as a business, not a person.
     if (body.brand !== undefined) db.prepare('UPDATE characters SET brand = ? WHERE id = ?').run(body.brand ? 1 : 0, characterId);
     // Private account (only followers see posts and stories). Going public lets everyone waiting in.
     if (body.private !== undefined) {
       db.prepare('UPDATE characters SET private = ? WHERE id = ?').run(body.private ? 1 : 0, characterId);
       if (!body.private) {
-        db.prepare('INSERT OR IGNORE INTO character_follows (follower_id, followed_id) SELECT follower_id, followed_id FROM character_follow_requests WHERE followed_id = ?').run(characterId);
+        db.prepare(
+          'INSERT OR IGNORE INTO character_follows (follower_id, followed_id) SELECT follower_id, followed_id FROM character_follow_requests WHERE followed_id = ?',
+        ).run(characterId);
         db.prepare('DELETE FROM character_follow_requests WHERE followed_id = ?').run(characterId);
       }
     }
@@ -433,11 +563,12 @@ export function accountRoutes(r, ctx) {
     let handle;
     if (body.handle !== undefined && body.handle !== null && body.handle !== '') {
       handle = validHandle(body.handle);
-      if (db.prepare('SELECT 1 FROM characters WHERE handle = ? COLLATE NOCASE AND id != ?').get(handle, characterId)) fail(409, `@${handle} is taken`);
+      if (db.prepare('SELECT 1 FROM characters WHERE handle = ? COLLATE NOCASE AND id != ?').get(handle, characterId))
+        fail(409, `@${handle} is taken`);
     } else if (!existing.handle) {
       handle = makeHandle(db, body.name ?? existing.name ?? 'character', characterId);
     }
-    const npc = body.npc === undefined ? existing.npc ?? 0 : body.npc ? 1 : 0;
+    const npc = body.npc === undefined ? (existing.npc ?? 0) : body.npc ? 1 : 0;
     // Automatic NPCs post/comment on their own; the anonymous gossip account is admin-only.
     let bot = existing.bot ?? null;
     if (body.bot !== undefined) {
@@ -446,22 +577,36 @@ export function accountRoutes(r, ctx) {
       if (bot === 'gossip' && !isAdmin) fail(403, 'Only admins can run the gossip account');
       if (bot === 'bot' && !npc) fail(400, 'Only NPCs can post on their own');
     }
-    const lines = body.botLines === undefined ? existing.bot_lines ?? '{}' : JSON.stringify(botLinesInput(body.botLines));
+    const lines = body.botLines === undefined ? (existing.bot_lines ?? '{}') : JSON.stringify(botLinesInput(body.botLines));
     // A gradient color: 2–3 hex stops, e.g. "#EE719E,#B8A6DB". Empty clears it.
     const g = gradientInput(body.gradient);
-    const gradient = g === undefined ? existing.gradient ?? null : g;
+    const gradient = g === undefined ? (existing.gradient ?? null) : g;
     let npcTags = existing.npc_tags ?? '';
     if (body.npcTags !== undefined) {
       const list = Array.isArray(body.npcTags) ? body.npcTags : String(body.npcTags || '').split(',');
-      npcTags = [...new Set(list.map((t) => String(t).trim().toLowerCase().replace(/^#/, '').slice(0, 30)).filter(Boolean))].slice(0, 12).join(',');
+      npcTags = [...new Set(list.map((t) => String(t).trim().toLowerCase().replace(/^#/, '').slice(0, 30)).filter(Boolean))]
+        .slice(0, 12)
+        .join(',');
     }
     db.prepare('UPDATE characters SET gradient = ?, npc_tags = ? WHERE id = ?').run(gradient, npcTags, characterId);
-    db.prepare('UPDATE characters SET handle = COALESCE(?, handle), npc = ?, bot = ?, bot_lines = ? WHERE id = ?')
-      .run(handle ?? null, npc, bot, lines, characterId);
-    db.prepare('UPDATE characters SET aka = ?, post_align = ?, followers_display = ?, following_display = ?, verified = ?, banner = ? WHERE id = ?')
-      .run(aka, align, followers === undefined ? existing.followers_display ?? null : followers,
-        following === undefined ? existing.following_display ?? null : following, verified,
-        banner === undefined ? existing.banner ?? null : banner, characterId);
+    db.prepare('UPDATE characters SET handle = COALESCE(?, handle), npc = ?, bot = ?, bot_lines = ? WHERE id = ?').run(
+      handle ?? null,
+      npc,
+      bot,
+      lines,
+      characterId,
+    );
+    db.prepare(
+      'UPDATE characters SET aka = ?, post_align = ?, followers_display = ?, following_display = ?, verified = ?, banner = ? WHERE id = ?',
+    ).run(
+      aka,
+      align,
+      followers === undefined ? (existing.followers_display ?? null) : followers,
+      following === undefined ? (existing.following_display ?? null) : following,
+      verified,
+      banner === undefined ? (existing.banner ?? null) : banner,
+      characterId,
+    );
   }
 
   const characterFields = (body, existing = {}) => ({
@@ -481,12 +626,18 @@ export function accountRoutes(r, ctx) {
     const details = JSON.stringify(detailsInput(body.details) ?? []);
     // One transaction, so a taken @username doesn't leave a half-made character behind.
     const lastInsertRowid = transaction(db, () => {
-      const row = db.prepare('INSERT INTO characters (user_id, name, tagline, bio, color, avatar, portrait, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      const row = db
+        .prepare(
+          'INSERT INTO characters (user_id, name, tagline, bio, color, avatar, portrait, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        )
         .run(user.id, f.name, f.tagline, f.bio, f.color, avatar, portrait, details);
       applyExtras(Number(row.lastInsertRowid), user.id, body, { name: f.name }, user.isAdmin);
       return row.lastInsertRowid;
     });
-    return { status: 201, data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(lastInsertRowid)) } };
+    return {
+      status: 201,
+      data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(lastInsertRowid)) },
+    };
   });
 
   r.put('/api/characters/:id', ({ user, body, params }) => {
@@ -498,9 +649,18 @@ export function accountRoutes(r, ctx) {
     const portrait = uploadRef(db, body.portrait, user.id);
     const details = detailsInput(body.details);
     transaction(db, () => {
-      db.prepare('UPDATE characters SET name = ?, tagline = ?, bio = ?, color = ?, avatar = ?, portrait = ?, details = ? WHERE id = ?')
-        .run(f.name, f.tagline, f.bio, f.color, avatar === undefined ? existing.avatar : avatar,
-          portrait === undefined ? existing.portrait : portrait, details === undefined ? existing.details : JSON.stringify(details), existing.id);
+      db.prepare(
+        'UPDATE characters SET name = ?, tagline = ?, bio = ?, color = ?, avatar = ?, portrait = ?, details = ? WHERE id = ?',
+      ).run(
+        f.name,
+        f.tagline,
+        f.bio,
+        f.color,
+        avatar === undefined ? existing.avatar : avatar,
+        portrait === undefined ? existing.portrait : portrait,
+        details === undefined ? existing.details : JSON.stringify(details),
+        existing.id,
+      );
       applyExtras(existing.id, user.id, body, existing, user.isAdmin);
     });
     return { data: { character: toCharacter(db.prepare('SELECT * FROM characters WHERE id = ?').get(existing.id)) } };

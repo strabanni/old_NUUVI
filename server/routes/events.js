@@ -18,28 +18,51 @@ export function eventRoutes(r, ctx) {
       (SELECT COUNT(*) FROM channels c WHERE c.event_id = e.id) AS thread_count
     FROM events e JOIN stories s ON s.id = e.story_id`;
 
-  const castOf = (eventId, limit = 8) => db.prepare(`SELECT DISTINCT ch.* FROM channels c
+  const castOf = (eventId, limit = 8) =>
+    db
+      .prepare(
+        `SELECT DISTINCT ch.* FROM channels c
     JOIN channel_characters cc ON cc.channel_id = c.id JOIN characters ch ON ch.id = cc.character_id
-    WHERE c.event_id = ? ORDER BY ch.name COLLATE NOCASE LIMIT ?`).all(eventId, limit).map(toCharacter);
+    WHERE c.event_id = ? ORDER BY ch.name COLLATE NOCASE LIMIT ?`,
+      )
+      .all(eventId, limit)
+      .map(toCharacter);
 
   const toEvent = (row) => ({
     type: 'event',
-    id: row.id, storyId: row.story_id, title: row.title, startsAt: row.starts_at, endsAt: row.ends_at,
-    location: row.location, summary: row.summary, banner: row.banner, createdBy: row.created_by, createdAt: row.created_at,
+    id: row.id,
+    storyId: row.story_id,
+    title: row.title,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    location: row.location,
+    summary: row.summary,
+    banner: row.banner,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
     story: { id: row.story_id, title: row.story_title, color: row.story_color, icon: row.story_icon, banner: row.story_banner },
-    threadCount: row.thread_count, participants: castOf(row.id, 6),
+    threadCount: row.thread_count,
+    participants: castOf(row.id, 6),
     sortAt: row.created_at,
   });
 
   ctx.eventItems = ({ userId, q = '', storyId = null }) => {
     const where = [VISIBLE];
     const args = { u: userId };
-    if (storyId) { where.push('e.story_id = :sid'); args.sid = storyId; }
+    if (storyId) {
+      where.push('e.story_id = :sid');
+      args.sid = storyId;
+    }
     if (q) {
-      where.push("(e.title LIKE :q ESCAPE '\\' OR e.summary LIKE :q ESCAPE '\\' OR e.location LIKE :q ESCAPE '\\' OR s.title LIKE :q ESCAPE '\\')");
+      where.push(
+        "(e.title LIKE :q ESCAPE '\\' OR e.summary LIKE :q ESCAPE '\\' OR e.location LIKE :q ESCAPE '\\' OR s.title LIKE :q ESCAPE '\\')",
+      );
       args.q = `%${q.replace(/[\\%_]/g, (m) => '\\' + m)}%`;
     }
-    return db.prepare(`${SELECT} WHERE ${where.join(' AND ')} ORDER BY e.starts_at LIMIT 300`).all(args).map(toEvent);
+    return db
+      .prepare(`${SELECT} WHERE ${where.join(' AND ')} ORDER BY e.starts_at LIMIT 300`)
+      .all(args)
+      .map(toEvent);
   };
 
   const load = (id, user) => {
@@ -52,11 +75,12 @@ export function eventRoutes(r, ctx) {
 
   function fields(body, existing = {}) {
     const startsAt = dateInput(body.startsAt, 'Start date', { required: !existing.id }) ?? existing.starts_at;
-    const endsAt = body.endsAt === undefined ? existing.ends_at ?? null : dateInput(body.endsAt, 'End date');
+    const endsAt = body.endsAt === undefined ? (existing.ends_at ?? null) : dateInput(body.endsAt, 'End date');
     if (endsAt && endsAt < startsAt) fail(400, 'The event ends before it starts');
     return {
       title: str(body.title, 'Title', { min: 1, max: 120, required: !existing.id }) ?? existing.title,
-      startsAt, endsAt,
+      startsAt,
+      endsAt,
       location: str(body.location, 'Location', { max: 200 }) ?? existing.location ?? '',
       summary: str(body.summary, 'Description', { max: 5000 }) ?? existing.summary ?? '',
     };
@@ -87,8 +111,12 @@ export function eventRoutes(r, ctx) {
     if (!role && !user.isAdmin) fail(403, 'Join the story to add events');
     const f = fields(body);
     const banner = uploadRef(db, body.banner, user.id) ?? null;
-    const { lastInsertRowid } = db.prepare(`INSERT INTO events (story_id, title, starts_at, ends_at, location, summary, banner, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(story.id, f.title, f.startsAt, f.endsAt, f.location, f.summary, banner, user.id);
+    const { lastInsertRowid } = db
+      .prepare(
+        `INSERT INTO events (story_id, title, starts_at, ends_at, location, summary, banner, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(story.id, f.title, f.startsAt, f.endsAt, f.location, f.summary, banner, user.id);
     hub.sendStory(story.id, 'story', { storyId: story.id });
     return { status: 201, data: { event: toEvent(db.prepare(`${SELECT} WHERE e.id = ?`).get(lastInsertRowid)) } };
   });
@@ -99,8 +127,15 @@ export function eventRoutes(r, ctx) {
     if (!canEdit(row, role, user)) fail(403, 'Only whoever made the event or the story owner can change it');
     const f = fields(body, { ...row, id: row.id });
     const banner = uploadRef(db, body.banner, user.id);
-    db.prepare('UPDATE events SET title = ?, starts_at = ?, ends_at = ?, location = ?, summary = ?, banner = ? WHERE id = ?')
-      .run(f.title, f.startsAt, f.endsAt, f.location, f.summary, banner === undefined ? row.banner : banner, row.id);
+    db.prepare('UPDATE events SET title = ?, starts_at = ?, ends_at = ?, location = ?, summary = ?, banner = ? WHERE id = ?').run(
+      f.title,
+      f.startsAt,
+      f.endsAt,
+      f.location,
+      f.summary,
+      banner === undefined ? row.banner : banner,
+      row.id,
+    );
     hub.sendStory(row.story_id, 'story', { storyId: row.story_id });
     return { data: { event: toEvent(db.prepare(`${SELECT} WHERE e.id = ?`).get(row.id)) } };
   });

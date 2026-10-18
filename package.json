@@ -11,10 +11,15 @@
     "start": "node --disable-warning=ExperimentalWarning server/index.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch server/index.js",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
-    "admin": "node --disable-warning=ExperimentalWarning server/admin-cli.js"
+    "admin": "node --disable-warning=ExperimentalWarning server/admin-cli.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "license": "UNLICENSED",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10"
   }
 }

@@ -213,11 +213,14 @@ npm run admin -- invite "note"           # print an invite code
 
 ## How it's built
 
+For a plain-words guide to every file (and which one to open for which change), see
+[CODE-MAP.md](CODE-MAP.md).
+
 ```
 server/
   index.js          starts the server (reads environment variables)
   app.js            HTTP server, live updates (Server-Sent Events), notifications, file serving
-  routes/           account.js · stories.js · threads.js · social.js · posts.js · admin.js
+  routes/           one file per feature (account, stories, threads, social, phone, world, …)
   model.js          database row mapping and access checks
   push.js           Web Push encryption and signing (no third-party packages)
   db.js             SQLite schema

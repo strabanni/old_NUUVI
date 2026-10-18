@@ -2,7 +2,11 @@
 // Themes: light, dark, or auto (light/dark from the device, the default).
 (function () {
   var pick = 'auto';
-  try { pick = localStorage.getItem('nuuvi:theme') || 'auto'; } catch (e) { /* storage unavailable */ }
+  try {
+    pick = localStorage.getItem('nuuvi:theme') || 'auto';
+  } catch (e) {
+    /* storage unavailable */
+  }
   if (pick === 'mono-light' || pick === 'mono-dark') pick = pick.slice(5); // the old Neutral themes
   if (['light', 'dark', 'auto'].indexOf(pick) < 0) pick = 'auto';
   var light = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
@@ -13,11 +17,19 @@
   root.dataset.accent = 'neutral';
   root.dataset.brand = 'pink';
   var size = null;
-  try { size = localStorage.getItem('nuuvi:text'); } catch (e) { /* storage unavailable */ }
+  try {
+    size = localStorage.getItem('nuuvi:text');
+  } catch (e) {
+    /* storage unavailable */
+  }
   if (size === 'large' || size === 'larger') document.documentElement.dataset.text = size;
   // Character names in episodes: their own color/gradient (default) or plain, matching the theme.
   var names = null;
-  try { names = localStorage.getItem('nuuvi:names'); } catch (e) { /* storage unavailable */ }
+  try {
+    names = localStorage.getItem('nuuvi:names');
+  } catch (e) {
+    /* storage unavailable */
+  }
   if (names === 'theme') root.dataset.names = 'theme';
 
   // Interface size, on every device. Phones default to Small (closer to Discord's scale), computers
@@ -34,13 +46,18 @@
   if (meta && ios) meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover');
   function apply(ui) {
     var saved = null;
-    try { saved = localStorage.getItem('nuuvi:ui'); } catch (e) { /* storage unavailable */ }
+    try {
+      saved = localStorage.getItem('nuuvi:ui');
+    } catch (e) {
+      /* storage unavailable */
+    }
     ui = ui || saved;
     if (!SCALES[ui]) ui = mobile ? 'compact' : 'standard';
     root.dataset.ui = ui;
     var scale = SCALES[ui];
     root.style.setProperty('--ui-zoom', String(scale));
-    if (scale === 1) root.style.removeProperty('zoom'); else root.style.zoom = String(scale);
+    if (scale === 1) root.style.removeProperty('zoom');
+    else root.style.zoom = String(scale);
   }
   apply();
 
@@ -50,25 +67,37 @@
     var vv = window.visualViewport;
     var typing = function () {
       var el = document.activeElement;
-      return !!el && (el.tagName === 'TEXTAREA' || el.isContentEditable || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file|color|range)$/.test(el.type)));
+      return (
+        !!el &&
+        (el.tagName === 'TEXTAREA' ||
+          el.isContentEditable ||
+          (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|file|color|range)$/.test(el.type)))
+      );
     };
     // The app's height changes only when the keyboard opens or closes (a resize). iOS scrolling to
     // keep your cursor in view is never fought (that made the screen jump); the app follows it instead.
     var lastH = 0;
-    var zoom = function () { return Number(root.style.getPropertyValue('--ui-zoom')) || 1; };
+    var zoom = function () {
+      return Number(root.style.getPropertyValue('--ui-zoom')) || 1;
+    };
     // iPhone also slides the visible area down while you type (to show the cursor). Instead of
     // fighting that, the app moves with it, so it always sits exactly above the keyboard.
     var raf = 0;
     var follow = function () {
       raf = 0;
-      if (!lastH) { root.style.removeProperty('--vv-top'); return; }
+      if (!lastH) {
+        root.style.removeProperty('--vv-top');
+        return;
+      }
       // The app is pinned (position: fixed) while the keyboard is up, so only how far the visible
       // area has slid inside the screen counts. Adding the page's scroll too pushed the app down
       // twice on newer iPhones, leaving an empty band above the chat.
       var top = Math.max(0, vv.offsetTop);
-      root.style.setProperty('--vv-top', (top / zoom()) + 'px');
+      root.style.setProperty('--vv-top', top / zoom() + 'px');
     };
-    var schedule = function () { if (!raf) raf = requestAnimationFrame(follow); };
+    var schedule = function () {
+      if (!raf) raf = requestAnimationFrame(follow);
+    };
     vv.addEventListener('scroll', schedule);
     window.addEventListener('scroll', schedule, { passive: true });
     var fit = function (e) {
@@ -77,7 +106,7 @@
         var h = Math.round(vv.height);
         if (Math.abs(h - lastH) > 1) {
           lastH = h;
-          root.style.setProperty('--app-h', (h / zoom()) + 'px');
+          root.style.setProperty('--app-h', h / zoom() + 'px');
           root.classList.add('kb-up');
         }
         schedule();
@@ -103,11 +132,16 @@
       settleUntil = performance.now() + 1000;
       if (!running) requestAnimationFrame(settle);
     });
-    document.addEventListener('focusout', function () { setTimeout(fit, 120); });
+    document.addEventListener('focusout', function () {
+      setTimeout(fit, 120);
+    });
   }
   window.nuuviScale = { apply: apply, touch: touch, mobile: mobile };
   if (window.matchMedia) {
     var o = window.matchMedia('(orientation: portrait)');
-    if (o.addEventListener) o.addEventListener('change', function () { apply(); });
+    if (o.addEventListener)
+      o.addEventListener('change', function () {
+        apply();
+      });
   }
 })();

@@ -1,17 +1,52 @@
 // Character social media: posts (text, photo, video, voice note, stream), likes, comments.
-import { html, render, api, $, $$, toast, avatar, icons, menu, modal, confirmModal, uploadImage, uploadFile, timeAgo, formatPost, askImageLink, gradAttr, looksForeign, translateText } from '../lib.js';
+import {
+  html,
+  render,
+  api,
+  $,
+  $$,
+  toast,
+  avatar,
+  icons,
+  menu,
+  modal,
+  confirmModal,
+  uploadImage,
+  uploadFile,
+  timeAgo,
+  formatPost,
+  askImageLink,
+  gradAttr,
+  looksForeign,
+  translateText,
+} from '../lib.js';
 import { state, page, myCharacters, playableCharacters, routeAlive, ensureAlive, bus, onLeave, storyNow } from '../main.js';
 import { fillLocations } from './threads.js';
 import { mentionPicker, aiEnabled, checkWriting, HANDLE_CHAR, mentionTokens, resolveMention } from '../lib.js';
 
-const KINDS = [['text', 'Text', 'text'], ['photo', 'Photo', 'image'], ['video', 'Video', 'video'], ['voice', 'Voice note', 'mic'], ['stream', 'Stream', 'live']];
-export const compact = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M` : n >= 1e4 ? `${Math.round(n / 1e3)}K` : n >= 1e3 ? `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}K` : String(n));
+const KINDS = [
+  ['text', 'Text', 'text'],
+  ['photo', 'Photo', 'image'],
+  ['video', 'Video', 'video'],
+  ['voice', 'Voice note', 'mic'],
+  ['stream', 'Stream', 'live'],
+];
+export const compact = (n) =>
+  n >= 1e6
+    ? `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`
+    : n >= 1e4
+      ? `${Math.round(n / 1e3)}K`
+      : n >= 1e3
+        ? `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}K`
+        : String(n);
 const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 // Social posts go out under the character's @username (their given name shows on their profile).
 export const handleOf = (ch) => (ch.handle ? `@${ch.handle}` : ch.name);
-export const npcBadges = (ch) => html`${ch.brand ? html`<span class="npc-badge brand" title="Brand account">BRAND</span>` : ''}${ch.npc ? html`<span class="npc-badge" title="NPC">NPC</span>` : ''}${ch.bot === 'bot' ? html`<span class="npc-badge auto" title="Posts and comments on its own">AUTO</span>` : ''}`;
-export const nameBadge = (ch) => html`<span class="sp-name">${handleOf(ch)}</span>${ch.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(ch)}`;
+export const npcBadges = (ch) =>
+  html`${ch.brand ? html`<span class="npc-badge brand" title="Brand account">BRAND</span>` : ''}${ch.npc ? html`<span class="npc-badge" title="NPC">NPC</span>` : ''}${ch.bot === 'bot' ? html`<span class="npc-badge auto" title="Posts and comments on its own">AUTO</span>` : ''}`;
+export const nameBadge = (ch) =>
+  html`<span class="sp-name">${handleOf(ch)}</span>${ch.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(ch)}`;
 
 function mediaHtml(p, { full = false } = {}) {
   if (p.kind === 'photo') {
@@ -20,10 +55,14 @@ function mediaHtml(p, { full = false } = {}) {
     return html`<div class="np-media carousel ${n > 1 ? 'multi' : ''}" data-n="${n}">
       <div class="car-track no-swipe">${p.media.map((u, i) => html`<img src="${u}" alt="" loading="${i ? 'lazy' : 'eager'}" draggable="false">`)}</div>
       ${photoTagsHtml(p)}
-      ${n > 1 ? html`<span class="car-count" aria-hidden="true">1/${n}</span>
+      ${
+        n > 1
+          ? html`<span class="car-count" aria-hidden="true">1/${n}</span>
         <button type="button" class="car-btn prev" data-car="-1" aria-label="Previous photo" hidden>${icons.chevron}</button>
         <button type="button" class="car-btn next" data-car="1" aria-label="Next photo">${icons.chevron}</button>
-        <div class="car-dots" aria-hidden="true">${p.media.map((_, i) => html`<i class="${i ? '' : 'on'}"></i>`)}</div>` : ''}
+        <div class="car-dots" aria-hidden="true">${p.media.map((_, i) => html`<i class="${i ? '' : 'on'}"></i>`)}</div>`
+          : ''
+      }
       <span class="np-burst" aria-hidden="true">${icons.heartFill}</span>
     </div>`;
   }
@@ -60,8 +99,10 @@ function photoTagsHtml(p) {
   const tags = p.photoTags || [];
   if (!tags.length) return '';
   const on = (i) => tags.some((t) => t.mediaIndex === i);
-  return html`<div class="ptag-layer" aria-label="Tagged people">${tags.map((t) => html`
-      <a class="ptag" href="#/c/${t.characterId}" data-mi="${t.mediaIndex}" data-x="${t.x}" data-y="${t.y}" ${t.mediaIndex ? 'hidden' : ''}>${t.handle ? `@${t.handle}` : t.name}</a>`)}</div>
+  return html`<div class="ptag-layer" aria-label="Tagged people">${tags.map(
+    (t) => html`
+      <a class="ptag" href="#/c/${t.characterId}" data-mi="${t.mediaIndex}" data-x="${t.x}" data-y="${t.y}" ${t.mediaIndex ? 'hidden' : ''}>${t.handle ? `@${t.handle}` : t.name}</a>`,
+  )}</div>
     <button type="button" class="ptag-btn" data-ptags aria-label="Show tagged people" ${on(0) ? '' : 'hidden'} data-on="${tags.map((t) => t.mediaIndex).join(',')}">${icons.user}</button>`;
 }
 
@@ -86,9 +127,10 @@ export function agoShort(sql) {
 }
 
 // A commenter's name: characters in their own color (or gradient), the crowd in plain grey.
-export const commenterName = (cm) => (cm.character
-  ? html`<a class="np-handle c-name" href="#/c/${cm.character.id}" data-color="${cm.character.color}"${gradAttr(cm.character)}>${handleOf(cm.character)}</a>${cm.character.verified ? html`<span class="verified sm" title="Verified">${icons.verified}</span>` : ''}`
-  : html`<span class="np-handle fan">${cm.handle}</span>`);
+export const commenterName = (cm) =>
+  cm.character
+    ? html`<a class="np-handle c-name" href="#/c/${cm.character.id}" data-color="${cm.character.color}"${gradAttr(cm.character)}>${handleOf(cm.character)}</a>${cm.character.verified ? html`<span class="verified sm" title="Verified">${icons.verified}</span>` : ''}`
+    : html`<span class="np-handle fan">${cm.handle}</span>`;
 
 // Comments: characters' own comments always come first, then the crowd's (each oldest first).
 const byTime = (a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0);
@@ -99,15 +141,21 @@ const MENTION_SPLIT = new RegExp(`((?:^|(?<=\\s))(?:@${HANDLE_CHAR}+?(?=[.,!?;:)
 // Comment text with @mentions and #hashtags picked out (in NUUVI pink; hashtags open their page).
 function tagged(text) {
   const parts = String(text).split(MENTION_SPLIT);
-  return html`${parts.map((t) => (/^@/.test(t) && t.length > 1 ? html`<span class="mention">${t}</span>`
-    : /^#(?=[\p{L}\p{N}_]*\p{L})[\p{L}\p{N}_]{2,}$/u.test(t) ? html`<a class="hashtag" href="#/nu/tag/${encodeURIComponent(t.slice(1))}">${t}</a>` : t))}`;
+  return html`${parts.map((t) =>
+    /^@/.test(t) && t.length > 1
+      ? html`<span class="mention">${t}</span>`
+      : /^#(?=[\p{L}\p{N}_]*\p{L})[\p{L}\p{N}_]{2,}$/u.test(t)
+        ? html`<a class="hashtag" href="#/nu/tag/${encodeURIComponent(t.slice(1))}">${t}</a>`
+        : t,
+  )}`;
 }
 
 // "Liked by @handle and 2,301 others", like Instagram, when characters have liked the post.
 // "Liked by @a, @b and 2,301 others" — tap it to see every character who liked the post.
 function likedLine(p) {
   const who = (p.likers || []).slice(0, 2);
-  if (!who.length) return html`<div class="np-likes"><b>${p.likes.toLocaleString()} ${p.likes === 1 ? 'like' : 'likes'}</b></div>`;
+  if (!who.length)
+    return html`<div class="np-likes"><b>${p.likes.toLocaleString()} ${p.likes === 1 ? 'like' : 'likes'}</b></div>`;
   const others = Math.max(0, p.likes - who.length);
   const name = (c) => html`<a class="np-handle c-name" href="#/c/${c.id}" data-color="${c.color}">${c.handle || c.name}</a>`;
   return html`<div class="np-likes liked-by"><span class="liked-avs">${who.map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}</span>
@@ -120,10 +168,15 @@ export async function showPeople(title, url, { note = '' } = {}) {
   await modal(html`
     <div>
       <h2>${title}</h2>
-      ${characters.length ? html`<div class="stack">${characters.map((c) => html`
+      ${
+        characters.length
+          ? html`<div class="stack">${characters.map(
+              (c) => html`
         <a class="row-item" href="#/c/${c.id}" data-close>${avatar({ name: c.name, src: c.avatar, color: c.color })}
-          <div class="grow"><strong>${c.name}</strong>${c.handle ? html`<div class="small muted">@${c.handle}</div>` : c.tagline ? html`<div class="small muted">${c.tagline}</div>` : ''}</div></a>`)}</div>`
-        : html`<p class="muted">Nobody yet.</p>`}
+          <div class="grow"><strong>${c.name}</strong>${c.handle ? html`<div class="small muted">@${c.handle}</div>` : c.tagline ? html`<div class="small muted">${c.tagline}</div>` : ''}</div></a>`,
+            )}</div>`
+          : html`<p class="muted">Nobody yet.</p>`
+      }
       ${note ? html`<p class="hint">${note}</p>` : ''}
       <div class="actions end"><button type="button" data-close>Close</button></div>
     </div>`);
@@ -138,10 +191,13 @@ function pollHtml(p) {
   const show = voted.length > 0 || p.userId === state.user?.id;
   return html`<div class="poll ${show ? 'show' : ''}">
     ${question ? html`<p class="poll-q">${question}</p>` : ''}
-    ${options.map((o, i) => { const pct = total ? Math.round((o.votes / total) * 100) : 0; return html`
+    ${options.map((o, i) => {
+      const pct = total ? Math.round((o.votes / total) * 100) : 0;
+      return html`
       <button type="button" class="poll-opt ${voted.includes(i) ? 'mine' : ''}" data-poll="${i}" data-pct="${show ? pct : 0}" aria-pressed="${voted.includes(i)}">
         <span class="poll-fill" aria-hidden="true"></span><span class="poll-text">${o.text}</span>${voted.includes(i) ? html`<span class="poll-check">${icons.check}</span>` : ''}${show ? html`<b class="poll-pct">${pct}%</b>` : ''}
-      </button>`; })}
+      </button>`;
+    })}
     <p class="poll-total small muted">${compact(total)} ${total === 1 ? 'vote' : 'votes'}${voted.length ? ' · tap your choice again to take it back' : ''}</p>
   </div>`;
 }
@@ -149,7 +205,9 @@ function pollHtml(p) {
 export function socialCard(p, { full = false } = {}) {
   const ch = p.character;
   const liked = p.likedBy.length > 0;
-  const preview = allComments(p).filter((c) => !c.parentId).slice(0, 2);
+  const preview = allComments(p)
+    .filter((c) => !c.parentId)
+    .slice(0, 2);
   return html`
     <article class="np sm-card kind-${p.kind}" data-social="${p.id}" data-color="${ch.color}"${gradAttr(ch)}>
       <header class="np-head">
@@ -171,10 +229,14 @@ export function socialCard(p, { full = false } = {}) {
       </div>
       ${likedLine(p)}
       ${p.kind !== 'text' && p.body ? html`<div class="np-caption"><a class="np-handle" href="#/c/${ch.id}">${handleOf(ch)}</a> <span class="body">${formatPost(p.body)}</span></div>` : ''}
-      ${!full ? html`
+      ${
+        !full
+          ? html`
         ${p.commentCount > preview.length ? html`<a class="np-viewall" href="#/p/${p.id}">View all ${p.commentCount.toLocaleString()} comments</a>` : ''}
         ${preview.map((c) => html`<p class="np-comment">${commenterName(c)} <span>${tagged(c.body)}</span></p>`)}
-        <a class="np-addc" href="#/p/${p.id}">Add a comment…</a>` : ''}
+        <a class="np-addc" href="#/p/${p.id}">Add a comment…</a>`
+          : ''
+      }
       <a class="np-time" href="#/p/${p.id}">${timeAgo(p.createdAt)}</a>
     </article>`;
 }
@@ -191,7 +253,9 @@ function syncCarousel(car, at = null) {
   if (count) count.textContent = `${i + 1}/${n}`;
   car.querySelectorAll('.car-dots i').forEach((d, k) => d.classList.toggle('on', k === i));
   // Only the tags on the photo showing.
-  car.querySelectorAll('.ptag[data-mi]').forEach((t) => { t.hidden = Number(t.dataset.mi) !== i; });
+  car.querySelectorAll('.ptag[data-mi]').forEach((t) => {
+    t.hidden = Number(t.dataset.mi) !== i;
+  });
   const pb = car.querySelector('[data-ptags]');
   if (pb) pb.hidden = !pb.dataset.on.split(',').map(Number).includes(i);
   const prev = car.querySelector('.car-btn.prev');
@@ -205,7 +269,8 @@ function syncCarousel(car, at = null) {
 function moveCarousel(car, step) {
   const track = car.querySelector('.car-track');
   const n = Number(car.dataset.n);
-  const from = car.dataset.i !== undefined ? Number(car.dataset.i) : Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+  const from =
+    car.dataset.i !== undefined ? Number(car.dataset.i) : Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
   const to = Math.min(n - 1, Math.max(0, from + step));
   if (to === from) return;
   car.dataset.going = '1';
@@ -224,19 +289,29 @@ function moveCarousel(car, step) {
 export function styleBars(root) {
   for (const i of root.querySelectorAll('.vn-bars i')) i.style.height = `${i.dataset.h}%`;
   for (const b of root.querySelectorAll('.poll-opt[data-pct]')) b.style.setProperty('--pct', `${b.dataset.pct}%`);
-  for (const t of root.querySelectorAll('.ptag[data-x]')) { t.style.setProperty('--x', `${Number(t.dataset.x) * 100}%`); t.style.setProperty('--y', `${Number(t.dataset.y) * 100}%`); }
+  for (const t of root.querySelectorAll('.ptag[data-x]')) {
+    t.style.setProperty('--x', `${Number(t.dataset.x) * 100}%`);
+    t.style.setProperty('--y', `${Number(t.dataset.y) * 100}%`);
+  }
 }
 
 // Wires likes, menus and voice notes inside `root`; `posts` maps id → post; `redraw(post)` re-renders one.
 // Videos on screen play (muted, looping); off screen they pause. Each video's box takes its shape
 // (between 4:5 tall and 1.91:1 wide), so nothing is squashed or boxed in black.
 const seen = new WeakSet();
-const vidObserver = 'IntersectionObserver' in window ? new IntersectionObserver((entries) => {
-  for (const en of entries) {
-    const v = en.target;
-    if (en.isIntersecting && en.intersectionRatio > 0.5) v.play().catch(() => {}); else v.pause();
-  }
-}, { threshold: [0, 0.5, 1] }) : null;
+const vidObserver =
+  'IntersectionObserver' in window
+    ? new IntersectionObserver(
+        (entries) => {
+          for (const en of entries) {
+            const v = en.target;
+            if (en.isIntersecting && en.intersectionRatio > 0.5) v.play().catch(() => {});
+            else v.pause();
+          }
+        },
+        { threshold: [0, 0.5, 1] },
+      )
+    : null;
 export function wireVideos(root) {
   for (const v of root.querySelectorAll('.np-vid video')) {
     if (seen.has(v)) continue;
@@ -256,18 +331,27 @@ export function wireVideos(root) {
 export function bindSocial(root, posts, redraw) {
   styleBars(root);
   wireVideos(root);
-  new MutationObserver(() => { wireVideos(root); styleBars(root); }).observe(root, { childList: true, subtree: true });
-  root.addEventListener('scroll', (e) => {
-    const car = e.target.closest?.('.carousel');
-    if (car) syncCarousel(car);
-  }, true);
+  new MutationObserver(() => {
+    wireVideos(root);
+    styleBars(root);
+  }).observe(root, { childList: true, subtree: true });
+  root.addEventListener(
+    'scroll',
+    (e) => {
+      const car = e.target.closest?.('.carousel');
+      if (car) syncCarousel(car);
+    },
+    true,
+  );
   // Double-tap (or double-click) a photo to like it, like Instagram.
   root.addEventListener('dblclick', async (e) => {
     const media = e.target.closest('.np-media, .np-textpost');
     const card = media?.closest('[data-social]');
     if (!card) return;
     const burst = media.querySelector('.np-burst');
-    burst?.classList.remove('go'); void burst?.offsetWidth; burst?.classList.add('go');
+    burst?.classList.remove('go');
+    void burst?.offsetWidth;
+    burst?.classList.add('go');
     const p = posts.get(Number(card.dataset.social));
     if (!p.likedBy.length) await toggleLike(p, card.querySelector('[data-sm="like"]'), redraw, { quick: true });
   });
@@ -291,7 +375,10 @@ export function bindSocial(root, posts, redraw) {
       return;
     }
     // Tagged people: the person button (or a tap on the photo) shows and hides their names.
-    if (e.target.closest('[data-ptags]') || (e.target.closest('.car-track') && e.target.closest('.carousel')?.querySelector('.ptag-layer'))) {
+    if (
+      e.target.closest('[data-ptags]') ||
+      (e.target.closest('.car-track') && e.target.closest('.carousel')?.querySelector('.ptag-layer'))
+    ) {
       e.target.closest('.carousel').classList.toggle('show-tags');
       return;
     }
@@ -301,7 +388,10 @@ export function bindSocial(root, posts, redraw) {
       // One video with sound at a time.
       const v = b.parentElement.querySelector('video');
       const on = v.muted;
-      root.querySelectorAll('.np-vid video').forEach((x) => { x.muted = true; x.parentElement.classList.remove('sound'); });
+      root.querySelectorAll('.np-vid video').forEach((x) => {
+        x.muted = true;
+        x.parentElement.classList.remove('sound');
+      });
       v.muted = !on;
       b.parentElement.classList.toggle('sound', on);
       b.setAttribute('aria-label', on ? 'Turn sound off' : 'Turn sound on');
@@ -311,24 +401,46 @@ export function bindSocial(root, posts, redraw) {
     }
     const card = b.closest('[data-social]');
     const p = posts.get(Number(card.dataset.social));
-    if (b.dataset.sm === 'like') { b.classList.add('pop'); await toggleLike(p, b, redraw); }
+    if (b.dataset.sm === 'like') {
+      b.classList.add('pop');
+      await toggleLike(p, b, redraw);
+    }
     if (b.dataset.sm === 'share') {
       const url = `${location.origin}/#/p/${p.id}`;
-      try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch { toast(url); }
+      try {
+        await navigator.clipboard.writeText(url);
+        toast('Link copied');
+      } catch {
+        toast(url);
+      }
     }
     if (b.dataset.sm === 'more') {
       const mine = p.userId === state.user.id;
       menu(b, [
-        { label: 'Open post', action: () => { location.hash = `#/p/${p.id}`; } },
+        {
+          label: 'Open post',
+          action: () => {
+            location.hash = `#/p/${p.id}`;
+          },
+        },
         mine && { label: 'Edit post (caption, song, numbers, date)', action: () => editCaption(p, redraw) },
-        mine && { label: p.pinned ? 'Unpin from profile' : 'Pin to profile', action: async () => {
-          try {
-            const { post } = await api(`/api/social/${p.id}/pin`, { method: 'POST', body: { pinned: !p.pinned } });
-            toast(post.pinned ? 'Pinned to the top of the profile' : 'Unpinned');
-            redraw(post);
-          } catch (err) { toast(err.message); }
-        } },
-        p.kind === 'stream' && mine && { label: p.meta.live === false ? 'Mark as live again' : 'End stream', action: () => updatePost(p, { meta: { ...p.meta, live: p.meta.live === false } }, redraw) },
+        mine && {
+          label: p.pinned ? 'Unpin from profile' : 'Pin to profile',
+          action: async () => {
+            try {
+              const { post } = await api(`/api/social/${p.id}/pin`, { method: 'POST', body: { pinned: !p.pinned } });
+              toast(post.pinned ? 'Pinned to the top of the profile' : 'Unpinned');
+              redraw(post);
+            } catch (err) {
+              toast(err.message);
+            }
+          },
+        },
+        p.kind === 'stream' &&
+          mine && {
+            label: p.meta.live === false ? 'Mark as live again' : 'End stream',
+            action: () => updatePost(p, { meta: { ...p.meta, live: p.meta.live === false } }, redraw),
+          },
         (mine || state.user.isAdmin) && { label: 'Delete post', danger: true, action: () => deletePost(p, card) },
       ]);
     }
@@ -337,9 +449,18 @@ export function bindSocial(root, posts, redraw) {
 
 let playing = null;
 function playVoice(el) {
-  if (playing && playing.el !== el) { playing.audio.pause(); playing.el.classList.remove('playing'); }
+  if (playing && playing.el !== el) {
+    playing.audio.pause();
+    playing.el.classList.remove('playing');
+  }
   if (playing?.el === el) {
-    if (playing.audio.paused) { playing.audio.play(); el.classList.add('playing'); } else { playing.audio.pause(); el.classList.remove('playing'); }
+    if (playing.audio.paused) {
+      playing.audio.play();
+      el.classList.add('playing');
+    } else {
+      playing.audio.pause();
+      el.classList.remove('playing');
+    }
     return;
   }
   const audio = new Audio(el.dataset.src);
@@ -350,7 +471,11 @@ function playVoice(el) {
     const done = audio.duration ? audio.currentTime / audio.duration : 0;
     bars.forEach((bar, i) => bar.classList.toggle('done', i / bars.length < done));
   });
-  audio.addEventListener('ended', () => { el.classList.remove('playing'); bars.forEach((bar) => bar.classList.remove('done')); playing = null; });
+  audio.addEventListener('ended', () => {
+    el.classList.remove('playing');
+    bars.forEach((bar) => bar.classList.remove('done'));
+    playing = null;
+  });
   playing = { el, audio };
   el.classList.add('playing');
   audio.play().catch(() => toast("Couldn't play this voice note"));
@@ -361,21 +486,37 @@ function playVoice(el) {
 async function toggleLike(p, anchor, redraw, { quick = false } = {}) {
   const mine = await playableCharacters();
   const act = async (c) => {
-    try { localStorage.setItem('nuuvi:like-as', String(c.id)); } catch { /* ignore */ }
+    try {
+      localStorage.setItem('nuuvi:like-as', String(c.id));
+    } catch {
+      /* ignore */
+    }
     const on = p.likedBy.includes(c.id);
     try {
-      const { post } = await api(`/api/social/${p.id}/${on ? 'unlike' : 'like'}`, { method: 'POST', body: { asCharacterId: c.id } });
+      const { post } = await api(`/api/social/${p.id}/${on ? 'unlike' : 'like'}`, {
+        method: 'POST',
+        body: { asCharacterId: c.id },
+      });
       redraw(post);
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   };
   if (!mine.length) return toast('Create a character first');
   if (mine.length === 1) return act(mine[0]);
   if (quick) {
     let last = null;
-    try { last = Number(localStorage.getItem('nuuvi:like-as')); } catch { /* ignore */ }
+    try {
+      last = Number(localStorage.getItem('nuuvi:like-as'));
+    } catch {
+      /* ignore */
+    }
     return act(mine.find((c) => c.id === last) || mine[0]);
   }
-  menu(anchor, mine.map((c) => ({ label: `${p.likedBy.includes(c.id) ? '♥ Unlike as' : '♡ Like as'} ${c.name}`, action: () => act(c) })));
+  menu(
+    anchor,
+    mine.map((c) => ({ label: `${p.likedBy.includes(c.id) ? '♥ Unlike as' : '♡ Like as'} ${c.name}`, action: () => act(c) })),
+  );
 }
 
 // Vote as one of your characters (with several, pick which).
@@ -386,14 +527,26 @@ async function votePoll(p, choice, anchor, redraw) {
     try {
       const { poll } = await api(`/api/social/${p.id}/vote`, { method: 'POST', body: { characterId: c.id, choice } });
       redraw({ ...p, poll });
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   };
   if (mine.length === 1) return act(mine[0]);
-  menu(anchor, mine.map((c) => ({ label: `${p.poll.mine[c.id] === choice ? 'Take back vote as' : 'Vote as'} ${c.name}`, action: () => act(c) })));
+  menu(
+    anchor,
+    mine.map((c) => ({
+      label: `${p.poll.mine[c.id] === choice ? 'Take back vote as' : 'Vote as'} ${c.name}`,
+      action: () => act(c),
+    })),
+  );
 }
 
 async function updatePost(p, body, redraw) {
-  try { redraw((await api(`/api/social/${p.id}`, { method: 'PUT', body })).post); } catch (err) { toast(err.message); }
+  try {
+    redraw((await api(`/api/social/${p.id}`, { method: 'PUT', body })).post);
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 // Song fields shared by the composer and the editor.
@@ -444,22 +597,46 @@ const extrasFrom = (data, originalWhen = null) => {
 
 // What each @mentioned person is to the poster, and whether they're in the picture: one row per
 // person in the caption. Only the fan comments use this.
-const RELATIONSHIPS = [['', 'Relationship…'], ['friend', 'Friend'], ['bestie', 'Best friend'], ['partner', 'Partner'], ['crush', 'Crush'],
-  ['situationship', 'Situationship'], ['ex', 'Ex'], ['family', 'Family'], ['sibling', 'Sibling'], ['coworker', 'Coworker'],
-  ['groupmate', 'Group / band mate'], ['rival', 'Rival'], ['enemy', 'Enemy']];
+const RELATIONSHIPS = [
+  ['', 'Relationship…'],
+  ['friend', 'Friend'],
+  ['bestie', 'Best friend'],
+  ['partner', 'Partner'],
+  ['crush', 'Crush'],
+  ['situationship', 'Situationship'],
+  ['ex', 'Ex'],
+  ['family', 'Family'],
+  ['sibling', 'Sibling'],
+  ['coworker', 'Coworker'],
+  ['groupmate', 'Group / band mate'],
+  ['rival', 'Rival'],
+  ['enemy', 'Enemy'],
+];
 // The handles @mentioned in a caption (only real characters' once the list of them has loaded).
-const captionHandles = (text, known) => [...new Set(mentionTokens(text)
-  .map((w) => (known?.size ? resolveMention(w, (h) => known.get(h.toLowerCase())?.handle) : w.replace(/[.,!?;:)\]]+$/, '')))
-  .filter(Boolean))];
+const captionHandles = (text, known) => [
+  ...new Set(
+    mentionTokens(text)
+      .map((w) => (known?.size ? resolveMention(w, (h) => known.get(h.toLowerCase())?.handle) : w.replace(/[.,!?;:)\]]+$/, '')))
+      .filter(Boolean),
+  ),
+];
 function wirePeople(box, field, edit) {
   const people = new Map();
   const saved = edit?.meta?.people || {};
   for (const p of Object.values(saved)) people.set(p.handle.toLowerCase(), { handle: p.handle, rel: p.rel || '', in: !!p.in });
   const oldTagged = edit?.meta?.tagged === true && !edit?.meta?.people; // posts from before: everyone tagged was "in the picture"
   let known = null;
-  api('/api/profiles').then((r) => { known = new Map(r.profiles.filter((c) => c.handle).map((c) => [c.handle.toLowerCase(), c])); draw(); }).catch(() => { known = new Map(); draw(); });
-  const current = () => captionHandles(field.value, known)
-    .map((h) => {
+  api('/api/profiles')
+    .then((r) => {
+      known = new Map(r.profiles.filter((c) => c.handle).map((c) => [c.handle.toLowerCase(), c]));
+      draw();
+    })
+    .catch(() => {
+      known = new Map();
+      draw();
+    });
+  const current = () =>
+    captionHandles(field.value, known).map((h) => {
       const k = h.toLowerCase();
       if (!people.has(k)) people.set(k, { handle: known?.get(k)?.handle || h, rel: '', in: oldTagged });
       return people.get(k);
@@ -467,13 +644,20 @@ function wirePeople(box, field, edit) {
   function draw() {
     const list = current();
     box.hidden = !list.length;
-    render(box, list.length ? html`
+    render(
+      box,
+      list.length
+        ? html`
       <span class="people-title">Tagged people <small class="muted">(helps the fan comments make sense)</small></span>
-      ${list.map((p) => html`<div class="person-row" data-h="${p.handle.toLowerCase()}">
+      ${list.map(
+        (p) => html`<div class="person-row" data-h="${p.handle.toLowerCase()}">
         <span class="person-name"><span class="mention">@${p.handle}</span>${known?.get(p.handle.toLowerCase())?.name ? html`<small class="muted">${known.get(p.handle.toLowerCase()).name}</small>` : ''}</span>
         <select data-rel aria-label="What @${p.handle} is to this character">${RELATIONSHIPS.map(([v, label]) => html`<option value="${v}" ${p.rel === v ? 'selected' : ''}>${label}</option>`)}</select>
         <label class="person-in"><input type="checkbox" data-in ${p.in ? 'checked' : ''}><span>In the picture</span></label>
-      </div>`)}` : html``);
+      </div>`,
+      )}`
+        : html``,
+    );
   }
   box.addEventListener('change', (e) => {
     const row = e.target.closest('[data-h]');
@@ -483,7 +667,10 @@ function wirePeople(box, field, edit) {
     if (e.target.matches('[data-in]')) p.in = e.target.checked;
   });
   let timer = null;
-  field.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 250); });
+  field.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(draw, 250);
+  });
   draw();
   return () => current().map((p) => ({ handle: p.handle, rel: p.rel, inPicture: p.in }));
 }
@@ -497,14 +684,22 @@ export async function analyzeLook(url) {
     img.src = url;
     await img.decode();
     const c = document.createElement('canvas');
-    c.width = 48; c.height = 48;
+    c.width = 48;
+    c.height = 48;
     const g = c.getContext('2d', { willReadFrequently: true });
     g.drawImage(img, 0, 0, 48, 48);
     const px = g.getImageData(0, 0, 48, 48).data;
-    let light = 0; let sat = 0; const hues = new Array(12).fill(0);
+    let light = 0;
+    let sat = 0;
+    const hues = new Array(12).fill(0);
     for (let i = 0; i < px.length; i += 4) {
-      const r = px[i] / 255, gg = px[i + 1] / 255, b = px[i + 2] / 255;
-      const max = Math.max(r, gg, b), min = Math.min(r, gg, b), l = (max + min) / 2, d = max - min;
+      const r = px[i] / 255,
+        gg = px[i + 1] / 255,
+        b = px[i + 2] / 255;
+      const max = Math.max(r, gg, b),
+        min = Math.min(r, gg, b),
+        l = (max + min) / 2,
+        d = max - min;
       light += l;
       const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
       sat += s;
@@ -515,7 +710,8 @@ export async function analyzeLook(url) {
       }
     }
     const n = px.length / 4;
-    light /= n; sat /= n;
+    light /= n;
+    sat /= n;
     const top = hues.indexOf(Math.max(...hues));
     const names = ['red', 'orange', 'gold', 'yellow', 'green', 'green', 'blue', 'blue', 'blue', 'purple', 'pink', 'pink'];
     return {
@@ -523,16 +719,23 @@ export async function analyzeLook(url) {
       bw: sat < 0.06,
       color: sat >= 0.06 && Math.max(...hues) > n * 0.04 ? names[top] : light < 0.15 ? 'black' : null,
     };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 const songFrom = (data) => {
-  const music = { title: (data.songTitle || '').trim(), artist: (data.songArtist || '').trim(), url: (data.songUrl || '').trim() };
+  const music = {
+    title: (data.songTitle || '').trim(),
+    artist: (data.songArtist || '').trim(),
+    url: (data.songUrl || '').trim(),
+  };
   return music.title || music.artist || music.url ? music : null;
 };
 
 // "Check my writing" under a caption (only when the site has Claude switched on).
-const checkBtn = (id) => html`<button type="button" class="link ai-check-btn" data-ai-check="${id}" hidden>${icons.sparkles} Check my writing</button>`;
+const checkBtn = (id) =>
+  html`<button type="button" class="link ai-check-btn" data-ai-check="${id}" hidden>${icons.sparkles} Check my writing</button>`;
 function wireCheck(root) {
   aiEnabled().then((on) => {
     for (const b of $$('[data-ai-check]', root)) {
@@ -561,12 +764,15 @@ async function deletePost(p, card) {
 // or null if cancelled.
 async function tagPhotos(media, tags, ownerId) {
   const { writers } = await api('/api/directory');
-  const everyone = writers.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w.username }))).filter((c) => c.id !== ownerId)
+  const everyone = writers
+    .flatMap((w) => w.characters.map((c) => ({ ...c, writer: w.username })))
+    .filter((c) => c.id !== ownerId)
     .sort((a, b) => a.name.localeCompare(b.name));
   let list = tags.map((t) => ({ ...t }));
   let at = 0;
   let pending = null;
-  return modal(html`
+  return modal(
+    html`
     <form class="tag-editor">
       <h2>Tag people</h2>
       <p class="hint">Tap someone in the photo, then pick who they are. Tap a name to remove it.</p>
@@ -577,66 +783,95 @@ async function tagPhotos(media, tags, ownerId) {
         <div class="pc-list" id="te-list"></div>
       </div>
       <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Done</button></div>
-    </form>`, {
-    init: (d) => {
-      const img = $('#te-img', d);
-      const pins = $('#te-pins', d);
-      const dot = $('#te-dot', d);
-      const pick = $('#te-pick', d);
-      const place = (el, x, y) => { el.style.setProperty('--x', `${x * 100}%`); el.style.setProperty('--y', `${y * 100}%`); };
-      const draw = () => {
-        img.src = media[at];
-        $('#te-count', d).textContent = `${at + 1} / ${media.length}`;
-        render(pins, html`${list.filter((t) => t.url === media[at]).map((t) => html`<button type="button" class="ptag on" data-untag="${t.characterId}" data-x="${t.x}" data-y="${t.y}">${t.handle ? `@${t.handle}` : t.name} ✕</button>`)}`);
-        pins.querySelectorAll('[data-x]').forEach((el) => place(el, Number(el.dataset.x), Number(el.dataset.y)));
-        dot.hidden = !pending;
-        if (pending) place(dot, pending.x, pending.y);
-      };
-      const drawPick = (q = '') => {
-        const shown = everyone.filter((c) => !q || `${c.name} ${c.handle} ${c.writer}`.toLowerCase().includes(q)).slice(0, 40);
-        render($('#te-list', d), shown.length ? html`${shown.map((c) => html`<button type="button" class="pc-item" data-tag="${c.id}">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span class="grow"><b>${c.name}</b><small>@${c.handle} · ${c.writer}</small></span></button>`)}`
-          : html`<p class="muted small">No one matches.</p>`);
-      };
-      draw();
-      $('#te-stage', d).addEventListener('click', (e) => {
-        if (e.target.closest('[data-untag]')) {
-          list = list.filter((t) => !(t.url === media[at] && t.characterId === Number(e.target.closest('[data-untag]').dataset.untag)));
+    </form>`,
+    {
+      init: (d) => {
+        const img = $('#te-img', d);
+        const pins = $('#te-pins', d);
+        const dot = $('#te-dot', d);
+        const pick = $('#te-pick', d);
+        const place = (el, x, y) => {
+          el.style.setProperty('--x', `${x * 100}%`);
+          el.style.setProperty('--y', `${y * 100}%`);
+        };
+        const draw = () => {
+          img.src = media[at];
+          $('#te-count', d).textContent = `${at + 1} / ${media.length}`;
+          render(
+            pins,
+            html`${list.filter((t) => t.url === media[at]).map((t) => html`<button type="button" class="ptag on" data-untag="${t.characterId}" data-x="${t.x}" data-y="${t.y}">${t.handle ? `@${t.handle}` : t.name} ✕</button>`)}`,
+          );
+          pins.querySelectorAll('[data-x]').forEach((el) => place(el, Number(el.dataset.x), Number(el.dataset.y)));
+          dot.hidden = !pending;
+          if (pending) place(dot, pending.x, pending.y);
+        };
+        const drawPick = (q = '') => {
+          const shown = everyone.filter((c) => !q || `${c.name} ${c.handle} ${c.writer}`.toLowerCase().includes(q)).slice(0, 40);
+          render(
+            $('#te-list', d),
+            shown.length
+              ? html`${shown.map((c) => html`<button type="button" class="pc-item" data-tag="${c.id}">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'sm' })}<span class="grow"><b>${c.name}</b><small>@${c.handle} · ${c.writer}</small></span></button>`)}`
+              : html`<p class="muted small">No one matches.</p>`,
+          );
+        };
+        draw();
+        $('#te-stage', d).addEventListener('click', (e) => {
+          if (e.target.closest('[data-untag]')) {
+            list = list.filter(
+              (t) => !(t.url === media[at] && t.characterId === Number(e.target.closest('[data-untag]').dataset.untag)),
+            );
+            draw();
+            return;
+          }
+          const r = img.getBoundingClientRect();
+          if (!r.width || !r.height) return;
+          pending = {
+            x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)),
+            y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
+          };
+          pick.hidden = false;
+          drawPick();
           draw();
-          return;
-        }
-        const r = img.getBoundingClientRect();
-        if (!r.width || !r.height) return;
-        pending = { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
-        pick.hidden = false;
-        drawPick();
-        draw();
-        $('#te-q', d).focus();
-      });
-      $('#te-q', d).addEventListener('input', (e) => drawPick(e.target.value.trim().toLowerCase()));
-      $('#te-list', d).addEventListener('click', (e) => {
-        const b = e.target.closest('[data-tag]');
-        if (!b || !pending) return;
-        const c = everyone.find((x) => x.id === Number(b.dataset.tag));
-        list = list.filter((t) => !(t.url === media[at] && t.characterId === c.id));
-        list.push({ url: media[at], characterId: c.id, name: c.name, handle: c.handle, x: pending.x, y: pending.y });
-        pending = null;
-        pick.hidden = true;
-        $('#te-q', d).value = '';
-        draw();
-      });
-      const go = (step) => { at = (at + step + media.length) % media.length; pending = null; pick.hidden = true; draw(); };
-      $('#te-prev', d).addEventListener('click', () => go(-1));
-      $('#te-next', d).addEventListener('click', () => go(1));
+          $('#te-q', d).focus();
+        });
+        $('#te-q', d).addEventListener('input', (e) => drawPick(e.target.value.trim().toLowerCase()));
+        $('#te-list', d).addEventListener('click', (e) => {
+          const b = e.target.closest('[data-tag]');
+          if (!b || !pending) return;
+          const c = everyone.find((x) => x.id === Number(b.dataset.tag));
+          list = list.filter((t) => !(t.url === media[at] && t.characterId === c.id));
+          list.push({ url: media[at], characterId: c.id, name: c.name, handle: c.handle, x: pending.x, y: pending.y });
+          pending = null;
+          pick.hidden = true;
+          $('#te-q', d).value = '';
+          draw();
+        });
+        const go = (step) => {
+          at = (at + step + media.length) % media.length;
+          pending = null;
+          pick.hidden = true;
+          draw();
+        };
+        $('#te-prev', d).addEventListener('click', () => go(-1));
+        $('#te-next', d).addEventListener('click', () => go(1));
+      },
+      submit: async () => list,
     },
-    submit: async () => list,
-  });
+  );
 }
 
 export async function openSocialComposer({ characterId = null, category = 'post', edit = null } = {}) {
   const mine = edit ? await myCharacters(true) : await playableCharacters(true);
-  if (!mine.length) { toast('Create a character first. Posts are made by characters'); location.hash = '#/characters'; return null; }
+  if (!mine.length) {
+    toast('Create a character first. Posts are made by characters');
+    location.hash = '#/characters';
+    return null;
+  }
   // Editing: start from the post as it is. Switching type clears the media; switching back brings it back.
-  if (edit) { characterId = edit.character.id; category = edit.category || 'post'; }
+  if (edit) {
+    characterId = edit.character.id;
+    category = edit.category || 'post';
+  }
   let kind = edit?.kind || 'text';
   let media = edit ? [...edit.media] : [];
   let duration = edit?.meta?.duration || 0;
@@ -645,14 +880,17 @@ export async function openSocialComposer({ characterId = null, category = 'post'
   // People tagged on the photos, kept with the photo's link so they follow it when photos move.
   let photoTags = edit ? (edit.photoTags || []).map((t) => ({ ...t, url: edit.media[t.mediaIndex] })) : [];
 
-  const result = await modal(html`
+  const result = await modal(
+    html`
     <form class="social-form">
       <h2>${edit ? 'Edit post' : category === 'musing' ? 'New musing' : 'New post'}</h2>
       <label for="s-char">${edit ? 'Posted by' : 'Post as'}</label>
       <select id="s-char" name="characterId" ${edit ? 'disabled' : ''}>${mine.map((c) => html`<option value="${c.id}" ${c.id === characterId ? 'selected' : ''}>${c.name}</option>`)}</select>
       ${edit ? html`<p class="hint">Tap a type to change what kind of post this is.</p>` : ''}
-      <div class="kind-picker" role="group" aria-label="Post type">${KINDS.map(([k, label, icon]) => html`
-        <button type="button" class="kind-btn" data-kind="${k}" aria-pressed="${k === kind}">${icons[icon]}<span>${label}</span></button>`)}</div>
+      <div class="kind-picker" role="group" aria-label="Post type">${KINDS.map(
+        ([k, label, icon]) => html`
+        <button type="button" class="kind-btn" data-kind="${k}" aria-pressed="${k === kind}">${icons[icon]}<span>${label}</span></button>`,
+      )}</div>
       <div id="s-media"></div>
       <div id="s-stream" hidden>
         <label for="s-title">Stream title</label>
@@ -680,152 +918,232 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       ${edit ? extraFields({ category, likes: edit.likesDisplay, comments: edit.commentsDisplay, postedAt: edit.createdAt }) : extraFields({ category })}
       <div class="error"></div>
       <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">${edit ? 'Save' : 'Post'}</button></div>
-    </form>`, {
-    init: (d) => {
-      const form = d.querySelector('form');
-      const box = $('#s-media', d);
-      const drawMedia = () => {
-        $('#s-stream', d).hidden = kind !== 'stream';
-        $('#s-body-label', d).textContent = kind === 'text' ? "What's happening?" : 'Caption (optional)';
-        if (kind === 'text') return render(box, html``);
-        if (kind === 'voice') {
-          return render(box, html`
+    </form>`,
+    {
+      init: (d) => {
+        const form = d.querySelector('form');
+        const box = $('#s-media', d);
+        const drawMedia = () => {
+          $('#s-stream', d).hidden = kind !== 'stream';
+          $('#s-body-label', d).textContent = kind === 'text' ? "What's happening?" : 'Caption (optional)';
+          if (kind === 'text') return render(box, html``);
+          if (kind === 'voice') {
+            return render(
+              box,
+              html`
             <div class="recorder">
-              ${media.length ? html`<audio src="${media[0]}" controls></audio><button type="button" class="sm" id="rec-clear">Re-record</button>`
-                : html`<button type="button" class="primary" id="rec-btn">${icons.mic} <span>Record</span></button><span class="hint" id="rec-time">up to 3 minutes</span>
-                  <label class="btn sm file-btn">Upload audio<input type="file" accept="audio/*" id="s-file" hidden></label>`}
-            </div>`);
-        }
-        const accept = kind === 'video' ? 'video/mp4,video/quicktime,video/webm' : 'image/*';
-        render(box, html`
+              ${
+                media.length
+                  ? html`<audio src="${media[0]}" controls></audio><button type="button" class="sm" id="rec-clear">Re-record</button>`
+                  : html`<button type="button" class="primary" id="rec-btn">${icons.mic} <span>Record</span></button><span class="hint" id="rec-time">up to 3 minutes</span>
+                  <label class="btn sm file-btn">Upload audio<input type="file" accept="audio/*" id="s-file" hidden></label>`
+              }
+            </div>`,
+            );
+          }
+          const accept = kind === 'video' ? 'video/mp4,video/quicktime,video/webm' : 'image/*';
+          render(
+            box,
+            html`
           <div class="media-picker">
-            ${media.map((u, i) => (kind === 'video' ? html`<video src="${u}" muted playsinline></video>` : html`<span class="thumb" draggable="${media.length > 1}" data-i="${i}"><img src="${u}" alt="" draggable="false"><button type="button" data-rm="${i}" aria-label="Remove">✕</button>
-              ${media.length > 1 ? html`<b class="thumb-n">${i + 1}</b>
-                <span class="thumb-move">${i > 0 ? html`<button type="button" data-mv="-1" data-i="${i}" aria-label="Move earlier">‹</button>` : ''}${i < media.length - 1 ? html`<button type="button" data-mv="1" data-i="${i}" aria-label="Move later">›</button>` : ''}</span>` : ''}</span>`))}
-            ${(kind === 'photo' && media.length < 10) || (!media.length) ? html`<label class="add-media">${kind === 'video' ? icons.video : icons.image}
+            ${media.map((u, i) =>
+              kind === 'video'
+                ? html`<video src="${u}" muted playsinline></video>`
+                : html`<span class="thumb" draggable="${media.length > 1}" data-i="${i}"><img src="${u}" alt="" draggable="false"><button type="button" data-rm="${i}" aria-label="Remove">✕</button>
+              ${
+                media.length > 1
+                  ? html`<b class="thumb-n">${i + 1}</b>
+                <span class="thumb-move">${i > 0 ? html`<button type="button" data-mv="-1" data-i="${i}" aria-label="Move earlier">‹</button>` : ''}${i < media.length - 1 ? html`<button type="button" data-mv="1" data-i="${i}" aria-label="Move later">›</button>` : ''}</span>`
+                  : ''
+              }</span>`,
+            )}
+            ${
+              (kind === 'photo' && media.length < 10) || !media.length
+                ? html`<label class="add-media">${kind === 'video' ? icons.video : icons.image}
               <span>${kind === 'photo' ? 'Add photos' : kind === 'video' ? 'Add a video' : 'Add a thumbnail'}</span>
-              <input type="file" accept="${accept}" id="s-file" ${kind === 'photo' ? 'multiple' : ''} hidden></label>` : ''}
+              <input type="file" accept="${accept}" id="s-file" ${kind === 'photo' ? 'multiple' : ''} hidden></label>`
+                : ''
+            }
           </div>
           ${kind !== 'video' && ((kind === 'photo' && media.length < 10) || !media.length) ? html`<button type="button" class="sm link-btn" id="s-link-pic">${icons.image} Use a picture link instead</button>` : ''}
           ${kind === 'photo' && media.length ? html`<button type="button" class="sm" id="s-tag">${icons.user} Tag people${photoTags.filter((t) => media.includes(t.url)).length ? ` (${photoTags.filter((t) => media.includes(t.url)).length})` : ''}</button>` : ''}
           ${kind === 'photo' && media.length > 1 ? html`<p class="hint">Drag the photos, or use ‹ ›, to change their order. Photo 1 shows first.</p>` : ''}
-          ${kind === 'photo' ? html`<p class="hint size-hint">Best size: 1080 × 1350 (4:5, tall) or 1080 × 1080 (square). Every photo in a post shows at the first photo's shape.</p>` : ''}`);
-      };
-      const setKind = (k) => {
-        if (recorder) { recorder.stop(); recorder = null; }
-        kind = k;
-        media = edit && k === edit.kind ? [...edit.media] : [];
-        duration = edit && k === edit.kind ? edit.meta?.duration || 0 : 0;
-        $$('.kind-btn', d).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === k)));
-        drawMedia();
-      };
-      $$('.kind-btn', d).forEach((b) => b.addEventListener('click', () => setKind(b.dataset.kind)));
-      d.addEventListener('change', async (e) => {
-        if (e.target.id !== 's-file') return;
-        const files = [...e.target.files];
-        try {
-          for (const f of files) {
-            toast('Uploading…');
-            const url = f.type.startsWith('image/') ? await uploadImage(f, kind === 'photo' ? 1600 : 1200) : await uploadFile(f);
-            if (kind === 'voice') duration = await audioDuration(url);
-            media.push(url);
+          ${kind === 'photo' ? html`<p class="hint size-hint">Best size: 1080 × 1350 (4:5, tall) or 1080 × 1080 (square). Every photo in a post shows at the first photo's shape.</p>` : ''}`,
+          );
+        };
+        const setKind = (k) => {
+          if (recorder) {
+            recorder.stop();
+            recorder = null;
           }
-          toast('Uploaded');
-        } catch (err) { toast(err.message); }
-        drawMedia();
-      });
-      // …or drag a photo onto another one's spot.
-      let dragFrom = null;
-      box.addEventListener('dragstart', (e) => { const t = e.target.closest('.thumb[data-i]'); if (t) { dragFrom = Number(t.dataset.i); e.dataTransfer.effectAllowed = 'move'; } });
-      box.addEventListener('dragover', (e) => { if (dragFrom !== null && e.target.closest('.thumb[data-i]')) e.preventDefault(); });
-      box.addEventListener('drop', (e) => {
-        const t = e.target.closest('.thumb[data-i]');
-        if (dragFrom === null || !t) return;
-        e.preventDefault();
-        const [moved] = media.splice(dragFrom, 1);
-        media.splice(Number(t.dataset.i), 0, moved);
-        dragFrom = null;
-        drawMedia();
-      });
-      box.addEventListener('dragend', () => { dragFrom = null; });
-      d.addEventListener('click', async (e) => {
-        const rm = e.target.closest('[data-rm]');
-        if (rm) { media.splice(Number(rm.dataset.rm), 1); drawMedia(); }
-        // Change the order of the photos (‹ › on each one).
-        const mv = e.target.closest('[data-mv]');
-        if (mv) {
-          const i = Number(mv.dataset.i);
-          const j = i + Number(mv.dataset.mv);
-          [media[i], media[j]] = [media[j], media[i]];
+          kind = k;
+          media = edit && k === edit.kind ? [...edit.media] : [];
+          duration = edit && k === edit.kind ? edit.meta?.duration || 0 : 0;
+          $$('.kind-btn', d).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.kind === k)));
           drawMedia();
-        }
-        if (e.target.closest('#rec-clear')) { media = []; drawMedia(); }
-        if (e.target.closest('#s-tag')) {
-          const owner = edit ? edit.character.id : Number(form.characterId.value);
-          const next = await tagPhotos(media, photoTags, owner);
-          if (next) { photoTags = next; drawMedia(); }
-        }
-        if (e.target.closest('#s-link-pic')) {
-          const url = await askImageLink();
-          if (url) { media.push(url); drawMedia(); }
-        }
-        if (e.target.closest('#rec-btn')) {
-          if (recorder) { recorder.stop(); return; }
-          recorder = await startRecording({
-            tick: (s) => { const t = $('#rec-time', d); if (t) t.textContent = `${fmtTime(s)}, tap to stop`; },
-            done: async (blob, secs) => {
-              recorder = null;
-              try {
-                media = [await uploadFile(blob)];
-                duration = secs;
-              } catch (err) { toast(err.message); }
+        };
+        $$('.kind-btn', d).forEach((b) => b.addEventListener('click', () => setKind(b.dataset.kind)));
+        d.addEventListener('change', async (e) => {
+          if (e.target.id !== 's-file') return;
+          const files = [...e.target.files];
+          try {
+            for (const f of files) {
+              toast('Uploading…');
+              const url = f.type.startsWith('image/')
+                ? await uploadImage(f, kind === 'photo' ? 1600 : 1200)
+                : await uploadFile(f);
+              if (kind === 'voice') duration = await audioDuration(url);
+              media.push(url);
+            }
+            toast('Uploaded');
+          } catch (err) {
+            toast(err.message);
+          }
+          drawMedia();
+        });
+        // …or drag a photo onto another one's spot.
+        let dragFrom = null;
+        box.addEventListener('dragstart', (e) => {
+          const t = e.target.closest('.thumb[data-i]');
+          if (t) {
+            dragFrom = Number(t.dataset.i);
+            e.dataTransfer.effectAllowed = 'move';
+          }
+        });
+        box.addEventListener('dragover', (e) => {
+          if (dragFrom !== null && e.target.closest('.thumb[data-i]')) e.preventDefault();
+        });
+        box.addEventListener('drop', (e) => {
+          const t = e.target.closest('.thumb[data-i]');
+          if (dragFrom === null || !t) return;
+          e.preventDefault();
+          const [moved] = media.splice(dragFrom, 1);
+          media.splice(Number(t.dataset.i), 0, moved);
+          dragFrom = null;
+          drawMedia();
+        });
+        box.addEventListener('dragend', () => {
+          dragFrom = null;
+        });
+        d.addEventListener('click', async (e) => {
+          const rm = e.target.closest('[data-rm]');
+          if (rm) {
+            media.splice(Number(rm.dataset.rm), 1);
+            drawMedia();
+          }
+          // Change the order of the photos (‹ › on each one).
+          const mv = e.target.closest('[data-mv]');
+          if (mv) {
+            const i = Number(mv.dataset.i);
+            const j = i + Number(mv.dataset.mv);
+            [media[i], media[j]] = [media[j], media[i]];
+            drawMedia();
+          }
+          if (e.target.closest('#rec-clear')) {
+            media = [];
+            drawMedia();
+          }
+          if (e.target.closest('#s-tag')) {
+            const owner = edit ? edit.character.id : Number(form.characterId.value);
+            const next = await tagPhotos(media, photoTags, owner);
+            if (next) {
+              photoTags = next;
               drawMedia();
-            },
-          });
-          if (recorder) $('#rec-btn span', d).textContent = 'Stop';
+            }
+          }
+          if (e.target.closest('#s-link-pic')) {
+            const url = await askImageLink();
+            if (url) {
+              media.push(url);
+              drawMedia();
+            }
+          }
+          if (e.target.closest('#rec-btn')) {
+            if (recorder) {
+              recorder.stop();
+              return;
+            }
+            recorder = await startRecording({
+              tick: (s) => {
+                const t = $('#rec-time', d);
+                if (t) t.textContent = `${fmtTime(s)}, tap to stop`;
+              },
+              done: async (blob, secs) => {
+                recorder = null;
+                try {
+                  media = [await uploadFile(blob)];
+                  duration = secs;
+                } catch (err) {
+                  toast(err.message);
+                }
+                drawMedia();
+              },
+            });
+            if (recorder) $('#rec-btn span', d).textContent = 'Stop';
+          }
+        });
+        drawMedia();
+        fillLocations($('#s-loc-list', d));
+        mentionPicker(form.body);
+        peopleOf = wirePeople($('#s-people', d), form.body, edit);
+        wireCheck(d);
+        const pollBox = $('#s-poll', d);
+        pollBox.addEventListener('toggle', () => {
+          $('#s-poll-off', d).hidden = !pollBox.open;
+        });
+        $('#s-poll-off', d).addEventListener('click', () => {
+          pollBox.open = false;
+        });
+        form.body.focus();
+      },
+      submit: async (data) => {
+        const payload = {
+          characterId: Number(edit ? edit.character.id : data.characterId),
+          kind,
+          body: data.body,
+          media,
+          location: data.location || '',
+          people: peopleOf(),
+          context: data.context || '',
+          ...extrasFrom(data, edit?.createdAt ?? null),
+        };
+        if (kind === 'photo' && media[0]) {
+          const look = await analyzeLook(media[0]);
+          if (look) payload.meta = { look };
         }
-      });
-      drawMedia();
-      fillLocations($('#s-loc-list', d));
-      mentionPicker(form.body);
-      peopleOf = wirePeople($('#s-people', d), form.body, edit);
-      wireCheck(d);
-      const pollBox = $('#s-poll', d);
-      pollBox.addEventListener('toggle', () => { $('#s-poll-off', d).hidden = !pollBox.open; });
-      $('#s-poll-off', d).addEventListener('click', () => { pollBox.open = false; });
-      form.body.focus();
+        if (kind === 'photo' || edit) {
+          payload.photoTags =
+            kind !== 'photo'
+              ? []
+              : photoTags
+                  .filter((t) => media.includes(t.url))
+                  .map((t) => ({ characterId: t.characterId, mediaIndex: media.indexOf(t.url), x: t.x, y: t.y }));
+        }
+        const music = songFrom(data);
+        if (music || edit) payload.music = music;
+        // The poll: only when its box is open and has choices; closing it on an edit takes it off.
+        const pollOn = document.querySelector('#s-poll')?.open;
+        const options = [0, 1, 2, 3].map((i) => (data[`pollO${i}`] || '').trim()).filter(Boolean);
+        if (pollOn && (options.length || data.pollQ)) {
+          if (options.length < 2) throw new Error('A poll needs at least 2 choices');
+          payload.poll = { question: (data.pollQ || '').trim(), options, crowd: !!data.pollCrowd };
+        } else if (edit?.poll) payload.poll = null;
+        if (kind === 'stream') {
+          payload.title = data.title;
+          payload.meta = { viewers: Number(String(data.viewers || '0').replace(/[,\s]/g, '')) || 0, live: true };
+        }
+        if (kind === 'voice') payload.meta = { duration };
+        if (!payload.postedAt) delete payload.postedAt;
+        if (edit) {
+          // Saving an edit always writes fresh fan comments (the old ones are deleted).
+          delete payload.characterId;
+          if (kind === 'stream' && edit.kind === 'stream') payload.meta.live = edit.meta?.live !== false;
+          return (await api(`/api/social/${edit.id}`, { method: 'PUT', body: { ...payload, freshComments: true } })).post;
+        }
+        return (await api('/api/social', { method: 'POST', body: payload })).post;
+      },
     },
-    submit: async (data) => {
-      const payload = { characterId: Number(edit ? edit.character.id : data.characterId), kind, body: data.body, media, location: data.location || '', people: peopleOf(), context: data.context || '', ...extrasFrom(data, edit?.createdAt ?? null) };
-      if (kind === 'photo' && media[0]) { const look = await analyzeLook(media[0]); if (look) payload.meta = { look }; }
-      if (kind === 'photo' || edit) {
-        payload.photoTags = kind !== 'photo' ? [] : photoTags.filter((t) => media.includes(t.url))
-          .map((t) => ({ characterId: t.characterId, mediaIndex: media.indexOf(t.url), x: t.x, y: t.y }));
-      }
-      const music = songFrom(data);
-      if (music || edit) payload.music = music;
-      // The poll: only when its box is open and has choices; closing it on an edit takes it off.
-      const pollOn = document.querySelector('#s-poll')?.open;
-      const options = [0, 1, 2, 3].map((i) => (data[`pollO${i}`] || '').trim()).filter(Boolean);
-      if (pollOn && (options.length || data.pollQ)) {
-        if (options.length < 2) throw new Error('A poll needs at least 2 choices');
-        payload.poll = { question: (data.pollQ || '').trim(), options, crowd: !!data.pollCrowd };
-      } else if (edit?.poll) payload.poll = null;
-      if (kind === 'stream') {
-        payload.title = data.title;
-        payload.meta = { viewers: Number(String(data.viewers || '0').replace(/[,\s]/g, '')) || 0, live: true };
-      }
-      if (kind === 'voice') payload.meta = { duration };
-      if (!payload.postedAt) delete payload.postedAt;
-      if (edit) {
-        // Saving an edit always writes fresh fan comments (the old ones are deleted).
-        delete payload.characterId;
-        if (kind === 'stream' && edit.kind === 'stream') payload.meta.live = edit.meta?.live !== false;
-        return (await api(`/api/social/${edit.id}`, { method: 'PUT', body: { ...payload, freshComments: true } })).post;
-      }
-      return (await api('/api/social', { method: 'POST', body: payload })).post;
-    },
-  });
+  );
   if (recorder) recorder.stop();
   if (result) toast(edit ? 'Saved' : 'Posted');
   return result;
@@ -840,9 +1158,17 @@ function audioDuration(url) {
 }
 
 async function startRecording({ tick, done }) {
-  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { toast("This browser can't record audio. Upload a file instead"); return null; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    toast("This browser can't record audio. Upload a file instead");
+    return null;
+  }
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { toast('Microphone permission was denied'); return null; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    toast('Microphone permission was denied');
+    return null;
+  }
   const type = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
   const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
   const chunks = [];
@@ -881,7 +1207,9 @@ export async function viewSocialPost(id) {
       <div class="sm-single">
         <div id="sm-post"></div>
         <section class="card np-thread">
-          ${mine.length ? html`<form id="sm-comment" class="np-cform">
+          ${
+            mine.length
+              ? html`<form id="sm-comment" class="np-cform">
             <div class="np-replying" id="np-replying" hidden></div>
             <div class="np-cform-row">
               <select name="characterId" aria-label="Comment as">${mine.map((c) => html`<option value="${c.id}">${c.name}</option>`)}</select>
@@ -894,7 +1222,9 @@ export async function viewSocialPost(id) {
               <input id="np-when-input" name="postedAt" type="datetime-local" value="${localInput(post.createdAt)}">
               <button type="button" class="link" id="np-when-clear">Now</button>
             </div>
-          </form>` : html`<p class="muted small">Create a character to comment.</p>`}
+          </form>`
+              : html`<p class="muted small">Create a character to comment.</p>`
+          }
           <div id="sm-comments"></div>
         </section>
       </div>`,
@@ -906,15 +1236,18 @@ export async function viewSocialPost(id) {
     const canDelete = ch && (c.userId === state.user.id || p.userId === state.user.id || state.user.isAdmin);
     return html`
       <div class="cm ${reply ? 'reply' : ''} ${ch ? 'by-char' : 'by-fan'}" ${ch ? html`data-cid="${c.id}"` : html`data-bid="${c.id}"`}>
-        ${ch ? html`<a href="#/c/${ch.id}" class="cm-av">${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })}</a>`
-          : html`<span class="cm-av">${avatar({ name: c.handle, color: '#8F8D8E', size: 'sm' })}</span>`}
+        ${
+          ch
+            ? html`<a href="#/c/${ch.id}" class="cm-av">${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'sm' })}</a>`
+            : html`<span class="cm-av">${avatar({ name: c.handle, color: '#8F8D8E', size: 'sm' })}</span>`
+        }
         <div class="cm-main">
           <p class="cm-text">${commenterName(c)} <span class="cm-body">${tagged(c.body)}</span></p>
           <div class="cm-tr" hidden></div>
           <div class="cm-meta">
             <span>${agoShort(c.createdAt)}</span>
             ${c.likes ? html`<span>${c.likes.toLocaleString()} ${c.likes === 1 ? 'like' : 'likes'}</span>` : ''}
-            ${mine.length ? html`<button type="button" class="link" data-reply="${ch ? c.id : ''}" data-handle="${ch ? (ch.handle || ch.name) : c.handle}">Reply</button>` : ''}
+            ${mine.length ? html`<button type="button" class="link" data-reply="${ch ? c.id : ''}" data-handle="${ch ? ch.handle || ch.name : c.handle}">Reply</button>` : ''}
             ${looksForeign(c.body) ? html`<button type="button" class="link" data-tr>See translation</button>` : ''}
             ${ch && c.userId === state.user.id ? html`<button type="button" class="link" data-edit="${c.id}">Edit</button>` : ''}
             ${canDelete ? html`<button type="button" class="link" data-del="${c.id}">Delete</button>` : ''}
@@ -931,22 +1264,37 @@ export async function viewSocialPost(id) {
     const all = allComments(p);
     const top = all.filter((c) => !c.parentId);
     const repliesOf = (c) => (c.character ? p.comments.filter((r) => r.parentId === c.id) : []);
-    const waiting = p.buzzPending ? html`<p class="muted small np-buzz-wait">${icons.sparkles || ''} Fans are looking at the post… their comments will show up here in a moment.</p>` : '';
+    const waiting = p.buzzPending
+      ? html`<p class="muted small np-buzz-wait">${icons.sparkles || ''} Fans are looking at the post… their comments will show up here in a moment.</p>`
+      : '';
     // Characters' comments come first; only the first ones show until "See more" (so you're not scrolling forever).
     const shown = showAll ? top : top.slice(0, FIRST_COMMENTS);
     const hiddenCount = top.length - shown.length;
-    const thread = (c) => html`${commentRow(c, p)}${repliesOf(c).length ? html`<div class="cm-replies">${repliesOf(c).map((r) => commentRow(r, p, true))}</div>` : ''}`;
-    render($('#sm-comments', body), top.length || waiting ? html`${waiting}${shown.map(thread)}
-      ${hiddenCount ? html`<div class="cm-more-wrap"><div class="cm-peek" aria-hidden="true">${top.slice(FIRST_COMMENTS, FIRST_COMMENTS + 2).map((c) => commentRow(c, p))}</div>
-        <button type="button" class="cm-more" id="cm-more">See ${hiddenCount.toLocaleString()} more ${hiddenCount === 1 ? 'comment' : 'comments'}</button></div>` : ''}`
-      : html`<p class="muted small np-empty">No comments yet. Start the conversation.</p>`);
+    const thread = (c) =>
+      html`${commentRow(c, p)}${repliesOf(c).length ? html`<div class="cm-replies">${repliesOf(c).map((r) => commentRow(r, p, true))}</div>` : ''}`;
+    render(
+      $('#sm-comments', body),
+      top.length || waiting
+        ? html`${waiting}${shown.map(thread)}
+      ${
+        hiddenCount
+          ? html`<div class="cm-more-wrap"><div class="cm-peek" aria-hidden="true">${top.slice(FIRST_COMMENTS, FIRST_COMMENTS + 2).map((c) => commentRow(c, p))}</div>
+        <button type="button" class="cm-more" id="cm-more">See ${hiddenCount.toLocaleString()} more ${hiddenCount === 1 ? 'comment' : 'comments'}</button></div>`
+          : ''
+      }`
+        : html`<p class="muted small np-empty">No comments yet. Start the conversation.</p>`,
+    );
   };
   draw(post);
   bindSocial($('#sm-post', body), posts, draw);
   // When the fan comments for this post are ready (written in the background), show them.
   const onBuzz = async (e) => {
     if (e.detail?.postId !== post.id || !alive()) return;
-    try { draw((await api(`/api/social/${post.id}`)).post); } catch { /* gone */ }
+    try {
+      draw((await api(`/api/social/${post.id}`)).post);
+    } catch {
+      /* gone */
+    }
   };
   bus.addEventListener('buzz', onBuzz);
   onLeave(() => bus.removeEventListener('buzz', onBuzz));
@@ -956,32 +1304,52 @@ export async function viewSocialPost(id) {
     if (!chip) return;
     chip.hidden = !r;
     if (r) {
-      render(chip, html`<span>Replying to <b>@${r.handle}</b></span><button type="button" class="icon-btn sm" id="np-cancel-reply" aria-label="Cancel reply">✕</button>`);
+      render(
+        chip,
+        html`<span>Replying to <b>@${r.handle}</b></span><button type="button" class="icon-btn sm" id="np-cancel-reply" aria-label="Cancel reply">✕</button>`,
+      );
       form.body.value = `@${r.handle} `;
       form.body.focus();
     }
   };
   $('#sm-comments', body).addEventListener('click', async (e) => {
-    if (e.target.closest('#cm-more')) { showAll = true; draw(posts.get(post.id)); return; }
+    if (e.target.closest('#cm-more')) {
+      showAll = true;
+      draw(posts.get(post.id));
+      return;
+    }
     const heart = e.target.closest('.cm-heart');
-    if (heart) { heart.classList.toggle('on'); heart.classList.add('pop'); return; }
+    if (heart) {
+      heart.classList.toggle('on');
+      heart.classList.add('pop');
+      return;
+    }
     const rep = e.target.closest('[data-reply]');
     if (rep) return setReply({ id: rep.dataset.reply ? Number(rep.dataset.reply) : null, handle: rep.dataset.handle });
     const tr = e.target.closest('[data-tr]');
     if (tr) {
       const row = tr.closest('.cm');
       const out = $('.cm-tr', row);
-      if (!out.hidden) { out.hidden = true; tr.textContent = 'See translation'; return; }
+      if (!out.hidden) {
+        out.hidden = true;
+        tr.textContent = 'See translation';
+        return;
+      }
       tr.textContent = 'Translating…';
       const text = await translateText($('.cm-body', row).textContent);
-      if (text) { out.textContent = text; out.hidden = false; tr.textContent = 'Hide translation'; } else tr.textContent = 'See translation';
+      if (text) {
+        out.textContent = text;
+        out.hidden = false;
+        tr.textContent = 'Hide translation';
+      } else tr.textContent = 'See translation';
       return;
     }
     const ed = e.target.closest('[data-edit]');
     if (ed) {
       const c = posts.get(post.id)?.comments.find((x) => x.id === Number(ed.dataset.edit));
       if (!c) return;
-      const updated = await modal(html`
+      const updated = await modal(
+        html`
         <form class="social-form">
           <h2>Edit comment</h2>
           <label for="ec-body">${c.character.name}'s comment</label>
@@ -990,15 +1358,26 @@ export async function viewSocialPost(id) {
           <input id="ec-when" name="postedAt" type="datetime-local" value="${localInput(c.createdAt)}">
           <div class="error"></div>
           <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">Save</button></div>
-        </form>`, {
-        init: (d) => { const f = $('#ec-body', d); mentionPicker(f); f.focus(); f.setSelectionRange(f.value.length, f.value.length); },
-        submit: async (data) => {
-          const payload = { body: data.body };
-          if (data.postedAt && data.postedAt !== localInput(c.createdAt)) payload.postedAt = new Date(data.postedAt).toISOString();
-          return (await api(`/api/social/comments/${c.id}`, { method: 'PUT', body: payload })).post;
+        </form>`,
+        {
+          init: (d) => {
+            const f = $('#ec-body', d);
+            mentionPicker(f);
+            f.focus();
+            f.setSelectionRange(f.value.length, f.value.length);
+          },
+          submit: async (data) => {
+            const payload = { body: data.body };
+            if (data.postedAt && data.postedAt !== localInput(c.createdAt))
+              payload.postedAt = new Date(data.postedAt).toISOString();
+            return (await api(`/api/social/comments/${c.id}`, { method: 'PUT', body: payload })).post;
+          },
         },
-      });
-      if (updated) { draw(updated); toast('Comment saved'); }
+      );
+      if (updated) {
+        draw(updated);
+        toast('Comment saved');
+      }
       return;
     }
     const del = e.target.closest('[data-del]');
@@ -1007,9 +1386,19 @@ export async function viewSocialPost(id) {
     draw((await api(`/api/social/${id}`)).post);
   });
   form?.addEventListener('click', (e) => {
-    if (e.target.closest('#np-cancel-reply')) { setReply(null); form.body.value = ''; }
-    if (e.target.closest('#np-when-btn')) { const w = $('#np-when', body); w.hidden = !w.hidden; e.target.closest('#np-when-btn').classList.toggle('on', !w.hidden); }
-    if (e.target.closest('#np-when-clear')) { $('#np-when', body).hidden = true; $('#np-when-btn', body).classList.remove('on'); }
+    if (e.target.closest('#np-cancel-reply')) {
+      setReply(null);
+      form.body.value = '';
+    }
+    if (e.target.closest('#np-when-btn')) {
+      const w = $('#np-when', body);
+      w.hidden = !w.hidden;
+      e.target.closest('#np-when-btn').classList.toggle('on', !w.hidden);
+    }
+    if (e.target.closest('#np-when-clear')) {
+      $('#np-when', body).hidden = true;
+      $('#np-when-btn', body).classList.remove('on');
+    }
   });
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1022,6 +1411,8 @@ export async function viewSocialPost(id) {
       form.body.value = '';
       setReply(null);
       draw(updated);
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   });
 }

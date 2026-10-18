@@ -29,7 +29,10 @@ Write comments the way real people comment on Instagram:
 const SCHEMA = {
   type: 'object',
   properties: {
-    scene: { type: 'string', description: 'One or two plain sentences describing what is in the pictures (empty if there are none).' },
+    scene: {
+      type: 'string',
+      description: 'One or two plain sentences describing what is in the pictures (empty if there are none).',
+    },
     comments: {
       type: 'array',
       items: {
@@ -62,16 +65,26 @@ const ANGLES = [
 
 // One line per tagged person: what they are to the poster and whether they're in the picture.
 function taggedLines(tagged, people) {
-  return `Tagged:\n${tagged.map((h) => {
-    const p = people[h.slice(1).toLowerCase()] || {};
-    return `- ${h}${p.rel ? `, the poster's ${p.rel === 'bestie' ? 'best friend' : p.rel === 'groupmate' ? 'group/band mate' : p.rel}` : ''}. ${p.in ? 'IS in the picture.' : 'is NOT in the picture (only mentioned).'}`;
-  }).join('\n')}`;
+  return `Tagged:\n${tagged
+    .map((h) => {
+      const p = people[h.slice(1).toLowerCase()] || {};
+      return `- ${h}${p.rel ? `, the poster's ${p.rel === 'bestie' ? 'best friend' : p.rel === 'groupmate' ? 'group/band mate' : p.rel}` : ''}. ${p.in ? 'IS in the picture.' : 'is NOT in the picture (only mentioned).'}`;
+    })
+    .join('\n')}`;
 }
 
 // Two comments count as the same when only emojis, punctuation, capitals or little filler words differ.
-const FILLER = /\b(ok|okay|omg|ngl|lol|lmao|fr|tbh|istg|wait|honestly|lowkey|stop|girl|bro|so|sooo+|really|literally|just|the|a|an)\b/g;
+const FILLER =
+  /\b(ok|okay|omg|ngl|lol|lmao|fr|tbh|istg|wait|honestly|lowkey|stop|girl|bro|so|sooo+|really|literally|just|the|a|an)\b/g;
 export function sameness(text) {
-  return String(text || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(FILLER, ' ').replace(/(.)\1{2,}/g, '$1$1').replace(/\s+/g, ' ').trim();
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(FILLER, ' ')
+    .replace(/(.)\1{2,}/g, '$1$1')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export function createAiBuzz({ db, hub, uploadDir, ai }) {
@@ -81,47 +94,76 @@ export function createAiBuzz({ db, hub, uploadDir, ai }) {
   async function pictureBlocks(post) {
     if (!['photo', 'stream'].includes(post.kind)) return [];
     let media = [];
-    try { media = JSON.parse(post.media || '[]'); } catch { /* none */ }
+    try {
+      media = JSON.parse(post.media || '[]');
+    } catch {
+      /* none */
+    }
     const out = [];
     for (const url of media.slice(0, MAX_IMAGES)) {
-      if (/^https:\/\//.test(url)) { out.push({ type: 'image', source: { type: 'url', url } }); continue; }
+      if (/^https:\/\//.test(url)) {
+        out.push({ type: 'image', source: { type: 'url', url } });
+        continue;
+      }
       const m = String(url).match(/^\/uploads\/([\w-]+\.([a-z0-9]+))$/);
       const type = m && IMAGE_TYPES[m[2]];
       if (!type) continue;
       const file = join(uploadDir, m[1]);
       try {
         if ((await stat(file)).size > MAX_IMAGE_BYTES) continue;
-        out.push({ type: 'image', source: { type: 'base64', media_type: type, data: (await readFile(file)).toString('base64') } });
-      } catch { /* file gone */ }
+        out.push({
+          type: 'image',
+          source: { type: 'base64', media_type: type, data: (await readFile(file)).toString('base64') },
+        });
+      } catch {
+        /* file gone */
+      }
     }
     return out;
   }
 
   function describe(post) {
-    const c = db.prepare('SELECT name, handle, pronouns, brand, COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = characters.id)) AS followers FROM characters WHERE id = ?').get(post.character_id) || {};
+    const c =
+      db
+        .prepare(
+          'SELECT name, handle, pronouns, brand, COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = characters.id)) AS followers FROM characters WHERE id = ?',
+        )
+        .get(post.character_id) || {};
     let meta = {};
-    try { meta = JSON.parse(post.meta || '{}'); } catch { /* none */ }
+    try {
+      meta = JSON.parse(post.meta || '{}');
+    } catch {
+      /* none */
+    }
     const p = pronounSet(c.pronouns);
     const tagged = mentionedHandles(db, post);
     const lines = [
-      c.brand ? `Posted by the brand account ${c.name || 'a brand'}${c.handle ? ` (@${c.handle})` : ''} (a business, not a person), ${Number(c.followers || 0).toLocaleString('en-US')} followers. The commenters are its customers and followers: they talk about the product, the shop, prices, drops, service and collabs, not about the brand as a person.`
+      c.brand
+        ? `Posted by the brand account ${c.name || 'a brand'}${c.handle ? ` (@${c.handle})` : ''} (a business, not a person), ${Number(c.followers || 0).toLocaleString('en-US')} followers. The commenters are its customers and followers: they talk about the product, the shop, prices, drops, service and collabs, not about the brand as a person.`
         : `Posted by ${c.name || 'a character'}${c.handle ? ` (@${c.handle})` : ''}, pronouns ${p.sub}/${p.obj}, ${Number(c.followers || 0).toLocaleString('en-US')} followers.`,
       `Kind of post: ${post.category === 'musing' ? 'a musing (a written thought)' : post.kind}.`,
       `Caption: ${post.body ? `"${post.body}"` : '(none)'}`,
       post.title ? `Stream title: "${post.title}"` : '',
       post.location ? `Location tag: ${post.location}` : '',
       meta.music?.title ? `Song on the post: "${meta.music.title}"${meta.music.artist ? ` by ${meta.music.artist}` : ''}` : '',
-      tagged.length ? (meta.people ? taggedLines(tagged, meta.people) : `Tagged: ${tagged.join(', ')}. ${meta.tagged ? 'They ARE in the picture.' : 'They are NOT in the picture (only mentioned).'}`) : '',
-      meta.context ? `What's really going on (a private note from the writer, so the comments make sense — never quote it or reveal it word for word): ${meta.context}` : '',
+      tagged.length
+        ? meta.people
+          ? taggedLines(tagged, meta.people)
+          : `Tagged: ${tagged.join(', ')}. ${meta.tagged ? 'They ARE in the picture.' : 'They are NOT in the picture (only mentioned).'}`
+        : '',
+      meta.context
+        ? `What's really going on (a private note from the writer, so the comments make sense — never quote it or reveal it word for word): ${meta.context}`
+        : '',
     ];
     return lines.filter(Boolean).join('\n');
   }
 
-  const ask = (content, count, angle) => ai.ask({
-    system: SYSTEM,
-    schema: SCHEMA,
-    content: [...content, { type: 'text', text: `Write exactly ${count} comments. This batch: ${angle}.` }],
-  });
+  const ask = (content, count, angle) =>
+    ai.ask({
+      system: SYSTEM,
+      schema: SCHEMA,
+      content: [...content, { type: 'text', text: `Write exactly ${count} comments. This batch: ${angle}.` }],
+    });
 
   // Writes `count` comments for a post and swaps them in for whatever it has.
   async function write(post, count) {
@@ -132,11 +174,16 @@ export function createAiBuzz({ db, hub, uploadDir, ai }) {
     const comments = [];
     const take = (list) => {
       for (const c of list || []) {
-        const body = String(c.text || '').trim().slice(0, 300);
+        const body = String(c.text || '')
+          .trim()
+          .slice(0, 300);
         const key = sameness(body);
         if (!body || !key || seen.has(key)) continue;
         seen.add(key);
-        let handle = String(c.handle || '').replace(/[^\w.]/g, '').slice(0, 30) || 'fan';
+        let handle =
+          String(c.handle || '')
+            .replace(/[^\w.]/g, '')
+            .slice(0, 30) || 'fan';
         while (handles.has(handle.toLowerCase())) handle = `${handle.slice(0, 27)}${Math.floor(Math.random() * 90) + 10}`;
         handles.add(handle.toLowerCase());
         comments.push({ handle, body, mood: c.mood });
@@ -149,8 +196,16 @@ export function createAiBuzz({ db, hub, uploadDir, ai }) {
     take(first.comments);
     const note = { type: 'text', text: scene ? `What's in the pictures: ${scene}` : 'There are no pictures.' };
     for (let i = 1, tries = 0; comments.length < count && tries < Math.ceil(count / PER_CALL) + 2; i++, tries++) {
-      const said = { type: 'text', text: `Already written (don't repeat these or say the same thing in other words):\n${comments.slice(-150).map((c) => `- ${c.body}`).join('\n')}` };
-      const more = await ask([about, note, said], Math.min(PER_CALL, count - comments.length), ANGLES[i % ANGLES.length]).catch(() => null);
+      const said = {
+        type: 'text',
+        text: `Already written (don't repeat these or say the same thing in other words):\n${comments
+          .slice(-150)
+          .map((c) => `- ${c.body}`)
+          .join('\n')}`,
+      };
+      const more = await ask([about, note, said], Math.min(PER_CALL, count - comments.length), ANGLES[i % ANGLES.length]).catch(
+        () => null,
+      );
       if (!more) break;
       take(more.comments);
     }
@@ -171,7 +226,11 @@ export function createAiBuzz({ db, hub, uploadDir, ai }) {
       const token = { count };
       const run = (async () => {
         let result = null;
-        try { result = await write(post, count); } catch (err) { console.error('AI comments failed, using the built-in writer:', err.message); }
+        try {
+          result = await write(post, count);
+        } catch (err) {
+          console.error('AI comments failed, using the built-in writer:', err.message);
+        }
         if (runs.get(post.id) !== token) return; // edited again since: that run wins
         const row = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(post.id);
         if (row) {

@@ -48,9 +48,15 @@ export function threadRoutes(r, ctx) {
   const { db, hub } = ctx;
   const storyChanged = (storyId) => hub.sendStory(storyId, 'story', { storyId });
 
-  const participants = (channelId, limit = 12) => db.prepare(`
+  const participants = (channelId, limit = 12) =>
+    db
+      .prepare(
+        `
     SELECT c.* FROM channel_characters cc JOIN characters c ON c.id = cc.character_id
-    WHERE cc.channel_id = ? ORDER BY c.name COLLATE NOCASE LIMIT ?`).all(channelId, limit).map(toCharacter);
+    WHERE cc.channel_id = ? ORDER BY c.name COLLATE NOCASE LIMIT ?`,
+      )
+      .all(channelId, limit)
+      .map(toCharacter);
 
   // A thread's event must be in the same story.
   const eventLink = (storyId, value) => {
@@ -67,9 +73,13 @@ export function threadRoutes(r, ctx) {
     const out = [];
     for (const raw of ids) {
       // Characters of people in the story — or anyone's NPC (NPCs are shared with everyone).
-      const c = db.prepare(`SELECT c.id, c.user_id FROM characters c
+      const c = db
+        .prepare(
+          `SELECT c.id, c.user_id FROM characters c
         WHERE c.id = :id AND (c.npc = 1 AND (c.bot IS NULL OR c.bot != 'gossip')
-          OR EXISTS (SELECT 1 FROM story_members m WHERE m.user_id = c.user_id AND m.story_id = :sid))`).get({ id: id(raw, 'Character'), sid: storyId });
+          OR EXISTS (SELECT 1 FROM story_members m WHERE m.user_id = c.user_id AND m.story_id = :sid))`,
+        )
+        .get({ id: id(raw, 'Character'), sid: storyId });
       if (!c) fail(400, 'You can only tag characters of people in this story, or NPCs');
       out.push(c);
     }
@@ -81,7 +91,14 @@ export function threadRoutes(r, ctx) {
     for (const c of chars) {
       const { changes } = ins.run(channel.id, c.id);
       if (changes && c.user_id !== actor.id && !isBlocked(db, c.user_id, actor.id)) {
-        ctx.notify({ userId: c.user_id, type: 'tag', actorId: actor.id, storyId: channel.story_id, channelId: channel.id, text: channel.name });
+        ctx.notify({
+          userId: c.user_id,
+          type: 'tag',
+          actorId: actor.id,
+          storyId: channel.story_id,
+          channelId: channel.id,
+          text: channel.name,
+        });
       }
     }
   }
@@ -100,12 +117,27 @@ export function threadRoutes(r, ctx) {
         canManage: !!user && canManage(channel, role, user),
         canPost: !!user && ctx.canPost(channel, role, user),
         // Posts you starred here, so you can jump back to those moments.
-        starred: user ? db.prepare(`SELECT s.post_id FROM post_stars s JOIN posts p ON p.id = s.post_id
-          WHERE s.user_id = ? AND p.channel_id = ? ORDER BY p.id`).all(user.id, channel.id).map((r) => r.post_id) : [],
+        starred: user
+          ? db
+              .prepare(
+                `SELECT s.post_id FROM post_stars s JOIN posts p ON p.id = s.post_id
+          WHERE s.user_id = ? AND p.channel_id = ? ORDER BY p.id`,
+              )
+              .all(user.id, channel.id)
+              .map((r) => r.post_id)
+          : [],
         // Your own contact names for other characters (used to title comms).
-        contacts: user ? Object.fromEntries(db.prepare(`SELECT k.character_id, k.name FROM contact_names k
-          JOIN channel_characters cc ON cc.character_id = k.character_id WHERE k.user_id = ? AND cc.channel_id = ?`)
-          .all(user.id, channel.id).map((r) => [r.character_id, r.name])) : {},
+        contacts: user
+          ? Object.fromEntries(
+              db
+                .prepare(
+                  `SELECT k.character_id, k.name FROM contact_names k
+          JOIN channel_characters cc ON cc.character_id = k.character_id WHERE k.user_id = ? AND cc.channel_id = ?`,
+                )
+                .all(user.id, channel.id)
+                .map((r) => [r.character_id, r.name]),
+            )
+          : {},
       },
     };
   });
@@ -130,8 +162,10 @@ export function threadRoutes(r, ctx) {
     if (!db.prepare('SELECT 1 FROM characters WHERE id = ?').get(params.id)) fail(404, 'Character not found');
     const name = str(body.name, 'Contact name', { max: 60 }) ?? '';
     if (name) {
-      db.prepare(`INSERT INTO contact_names (user_id, character_id, name) VALUES (?, ?, ?)
-        ON CONFLICT(user_id, character_id) DO UPDATE SET name = excluded.name`).run(user.id, params.id, name);
+      db.prepare(
+        `INSERT INTO contact_names (user_id, character_id, name) VALUES (?, ?, ?)
+        ON CONFLICT(user_id, character_id) DO UPDATE SET name = excluded.name`,
+      ).run(user.id, params.id, name);
     } else {
       db.prepare('DELETE FROM contact_names WHERE user_id = ? AND character_id = ?').run(user.id, params.id);
     }
@@ -142,10 +176,12 @@ export function threadRoutes(r, ctx) {
     requireUser(user);
     const { row, role } = storyAccess(db, params.id, user);
     if (!role && !user.isAdmin) fail(403, 'Join the story to start a thread');
-    if (db.prepare('SELECT completed_at FROM stories WHERE id = ?').get(params.id)?.completed_at) fail(403, 'This story is complete. Reopen it to add episodes');
+    if (db.prepare('SELECT completed_at FROM stories WHERE id = ?').get(params.id)?.completed_at)
+      fail(403, 'This story is complete. Reopen it to add episodes');
     const kind = oneOf(body.kind, 'Type', KINDS) ?? 'thread';
     if (OWNER_KINDS.includes(kind) && role !== 'owner' && !user.isAdmin) fail(403, 'Only the story owner can create that');
-    if (db.prepare('SELECT COUNT(*) AS n FROM channels WHERE story_id = ?').get(row.id).n >= 500) fail(400, 'This story has too many threads');
+    if (db.prepare('SELECT COUNT(*) AS n FROM channels WHERE story_id = ?').get(row.id).n >= 500)
+      fail(400, 'This story has too many threads');
     const name = str(body.name, 'Title', { min: 1, max: 80, required: true });
     const topic = str(body.topic, 'Topic', { max: 300 }) ?? '';
     const summary = str(body.summary, 'Summary', { max: 3000 }) ?? '';
@@ -160,17 +196,39 @@ export function threadRoutes(r, ctx) {
     if (kind === 'event' && !eventId) fail(400, 'Pick which event this thread is part of');
     let starter = null;
     if (body.characterId != null) {
-      starter = db.prepare('SELECT id, user_id FROM characters WHERE id = ? AND user_id = ?').get(Number(body.characterId), user.id);
+      starter = db
+        .prepare('SELECT id, user_id FROM characters WHERE id = ? AND user_id = ?')
+        .get(Number(body.characterId), user.id);
       if (!starter) fail(400, 'Choose one of your own characters');
     }
     const tagged = body.tagged !== undefined ? validTagged(row.id, body.tagged) : [];
 
     const channel = transaction(db, () => {
       const position = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM channels WHERE story_id = ?').get(row.id).p;
-      const { lastInsertRowid } = db.prepare(`INSERT INTO channels
+      const { lastInsertRowid } = db
+        .prepare(
+          `INSERT INTO channels
         (story_id, name, topic, position, kind, status, summary, tags, event_at, created_by, starter_character_id, icon, event_id, banner, season, location, last_post_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`)
-        .run(row.id, name, topic, position, kind, status, summary, tags, eventAt, user.id, starter?.id ?? null, icon, eventId, banner, season, location);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+        )
+        .run(
+          row.id,
+          name,
+          topic,
+          position,
+          kind,
+          status,
+          summary,
+          tags,
+          eventAt,
+          user.id,
+          starter?.id ?? null,
+          icon,
+          eventId,
+          banner,
+          season,
+          location,
+        );
       const ch = db.prepare('SELECT * FROM channels WHERE id = ?').get(lastInsertRowid);
       tagCharacters(ch, [...(starter ? [starter] : []), ...tagged], user);
       return ch;
@@ -185,7 +243,8 @@ export function threadRoutes(r, ctx) {
     const { channel, role } = channelAccess(db, params.id, user);
     if (!canManage(channel, role, user)) fail(403, 'Only the thread starter or story owner can change this');
     const kind = oneOf(body.kind, 'Type', KINDS) ?? channel.kind;
-    if (kind !== channel.kind && OWNER_KINDS.includes(kind) && role !== 'owner' && !user.isAdmin) fail(403, 'Only the story owner can do that');
+    if (kind !== channel.kind && OWNER_KINDS.includes(kind) && role !== 'owner' && !user.isAdmin)
+      fail(403, 'Only the story owner can do that');
     const f = {
       name: str(body.name, 'Title', { min: 1, max: 80 }) ?? channel.name,
       topic: str(body.topic, 'Topic', { max: 300 }) ?? channel.topic,
@@ -197,27 +256,48 @@ export function threadRoutes(r, ctx) {
       eventId: body.eventId === undefined ? channel.event_id : eventLink(channel.story_id, body.eventId),
       banner: body.banner === undefined || body.banner === channel.banner ? channel.banner : uploadRef(db, body.banner, user.id),
       season: body.season === undefined ? channel.season : seasonInput(body.season),
-      location: body.location === undefined ? channel.location : (str(body.location, 'Location', { max: 100 }) || null),
+      location: body.location === undefined ? channel.location : str(body.location, 'Location', { max: 100 }) || null,
     };
     let position = channel.position;
     if (body.move === 'up' || body.move === 'down') {
       if (role !== 'owner' && !user.isAdmin) fail(403, 'Only the story owner can reorder channels');
-      const neighbour = db.prepare(`SELECT * FROM channels WHERE story_id = ? AND position ${body.move === 'up' ? '<' : '>'} ?
-        ORDER BY position ${body.move === 'up' ? 'DESC' : 'ASC'} LIMIT 1`).get(channel.story_id, channel.position);
+      const neighbour = db
+        .prepare(
+          `SELECT * FROM channels WHERE story_id = ? AND position ${body.move === 'up' ? '<' : '>'} ?
+        ORDER BY position ${body.move === 'up' ? 'DESC' : 'ASC'} LIMIT 1`,
+        )
+        .get(channel.story_id, channel.position);
       if (neighbour) {
         db.prepare('UPDATE channels SET position = ? WHERE id = ?').run(channel.position, neighbour.id);
         position = neighbour.position;
       }
     }
-    db.prepare(`UPDATE channels SET name = ?, topic = ?, summary = ?, tags = ?, status = ?, event_at = ?, kind = ?, position = ?, icon = ?, event_id = ?,
-      banner = ?, season = ?, location = ? WHERE id = ?`).run(f.name, f.topic, f.summary, f.tags, f.status, f.eventAt, kind, position, f.icon, f.eventId,
-      f.banner ?? null, f.season ?? null, f.location ?? null, channel.id);
+    db.prepare(
+      `UPDATE channels SET name = ?, topic = ?, summary = ?, tags = ?, status = ?, event_at = ?, kind = ?, position = ?, icon = ?, event_id = ?,
+      banner = ?, season = ?, location = ? WHERE id = ?`,
+    ).run(
+      f.name,
+      f.topic,
+      f.summary,
+      f.tags,
+      f.status,
+      f.eventAt,
+      kind,
+      position,
+      f.icon,
+      f.eventId,
+      f.banner ?? null,
+      f.season ?? null,
+      f.location ?? null,
+      channel.id,
+    );
     if (body.tagged !== undefined) tagCharacters(channel, validTagged(channel.story_id, body.tagged), user);
     // Characters unticked in the episode's cast are taken out of it (their posts stay).
     if (Array.isArray(body.untagged)) {
       const keep = new Set((Array.isArray(body.tagged) ? body.tagged : []).map(Number));
       const del = db.prepare('DELETE FROM channel_characters WHERE channel_id = ? AND character_id = ?');
-      for (const cid of body.untagged.slice(0, 100).map(Number)) if (Number.isInteger(cid) && !keep.has(cid)) del.run(channel.id, cid);
+      for (const cid of body.untagged.slice(0, 100).map(Number))
+        if (Number.isInteger(cid) && !keep.has(cid)) del.run(channel.id, cid);
     }
     if (f.status === 'complete' && channel.status !== 'complete') ctx.bots?.onThread(channel.id, 'finished');
     storyChanged(channel.story_id);
@@ -237,15 +317,22 @@ export function threadRoutes(r, ctx) {
   // location suggestions. Only from stories the person can see.
   r.get('/api/locations', ({ user }) => {
     requireUser(user);
-    const rows = db.prepare(`SELECT location AS l, COUNT(*) AS n FROM (
+    const rows = db
+      .prepare(
+        `SELECT location AS l, COUNT(*) AS n FROM (
         SELECT c.location FROM channels c JOIN stories s ON s.id = c.story_id
           WHERE c.location IS NOT NULL AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
         UNION ALL SELECT p.location FROM posts p JOIN stories s ON s.id = p.story_id
           WHERE p.location IS NOT NULL AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
         UNION ALL SELECT location FROM social_posts WHERE location IS NOT NULL)
-      GROUP BY l COLLATE NOCASE ORDER BY n DESC, l LIMIT 200`).all({ u: user.id });
+      GROUP BY l COLLATE NOCASE ORDER BY n DESC, l LIMIT 200`,
+      )
+      .all({ u: user.id });
     // Places in the Locations directory come first.
-    const listed = db.prepare('SELECT name FROM locations ORDER BY name COLLATE NOCASE').all().map((p) => p.name);
+    const listed = db
+      .prepare('SELECT name FROM locations ORDER BY name COLLATE NOCASE')
+      .all()
+      .map((p) => p.name);
     const seen = new Set(listed.map((n) => n.toLowerCase()));
     return { data: { locations: [...listed, ...rows.map((r) => r.l).filter((l) => !seen.has(l.toLowerCase()))] } };
   });
@@ -266,9 +353,14 @@ export function threadRoutes(r, ctx) {
       if (filter === 'all') where.push("(c.kind = 'thread' AND c.status IN ('open', 'complete')) OR c.kind = 'para'");
       else if (filter === 'open') where.push("c.kind = 'thread' AND c.status IN ('open', 'complete')");
       else if (filter === 'para') where.push("c.kind = 'para'");
-      else if (filter === 'mine') where.push("c.kind != 'ooc' AND c.id IN (SELECT cc.channel_id FROM channel_characters cc JOIN characters ch ON ch.id = cc.character_id WHERE ch.user_id = :u)");
+      else if (filter === 'mine')
+        where.push(
+          "c.kind != 'ooc' AND c.id IN (SELECT cc.channel_id FROM channel_characters cc JOIN characters ch ON ch.id = cc.character_id WHERE ch.user_id = :u)",
+        );
       if (q) {
-        where.push("c.name LIKE :q ESCAPE '\\' OR c.summary LIKE :q ESCAPE '\\' OR c.tags LIKE :q ESCAPE '\\' OR s.title LIKE :q ESCAPE '\\'");
+        where.push(
+          "c.name LIKE :q ESCAPE '\\' OR c.summary LIKE :q ESCAPE '\\' OR c.tags LIKE :q ESCAPE '\\' OR s.title LIKE :q ESCAPE '\\'",
+        );
         args.q = likeArg(q);
       }
       items = ctx.threadItems({ userId: user.id, where, args });
@@ -278,7 +370,9 @@ export function threadRoutes(r, ctx) {
     // Posts and musings (musings are posts filed under their own category).
     if (['all', 'social', 'musing'].includes(filter)) {
       const category = filter === 'social' ? 'post' : filter === 'musing' ? 'musing' : null;
-      items = items.concat(ctx.socialFeed({ viewerId: user.id, q, limit: 60, category }).map((p) => ({ ...p, sortAt: p.createdAt })));
+      items = items.concat(
+        ctx.socialFeed({ viewerId: user.id, q, limit: 60, category }).map((p) => ({ ...p, sortAt: p.createdAt })),
+      );
     }
     if (filter === 'all' || filter === 'connection') items = items.concat(ctx.connectionItems({ userId: user.id, q }));
     // THE NU is chronological: everything stays in the order it was made (Home's "mine" list goes by activity).
@@ -291,7 +385,9 @@ export function threadRoutes(r, ctx) {
 
   // Threads as feed cards, limited to stories the viewer can see. `where` adds conditions on c (channel) / s (story).
   ctx.threadItems = ({ userId, where = [], args = {}, limit = 80 }) => {
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(
+        `
       SELECT c.*, s.title AS story_title, s.color AS story_color, s.icon AS story_icon, s.banner AS story_banner,
         (SELECT COUNT(*) FROM posts p WHERE p.channel_id = c.id) AS post_count,
         (SELECT MAX(p.id) FROM posts p WHERE p.channel_id = c.id) AS last_post_id,
@@ -301,7 +397,9 @@ export function threadRoutes(r, ctx) {
       FROM channels c JOIN stories s ON s.id = c.story_id
       WHERE (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
         ${where.map((w) => `AND (${w})`).join(' ')}
-      ORDER BY COALESCE(c.last_post_at, c.created_at) DESC, c.id DESC LIMIT ${Number(limit)}`).all({ ...args, u: userId });
+      ORDER BY COALESCE(c.last_post_at, c.created_at) DESC, c.id DESC LIMIT ${Number(limit)}`,
+      )
+      .all({ ...args, u: userId });
     const lastPost = db.prepare(`SELECT p.body, p.cw, p.created_at, u.display_name, ch.name AS character_name
       FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN characters ch ON ch.id = p.character_id WHERE p.id = ?`);
     const starter = db.prepare('SELECT * FROM characters WHERE id = ?');
@@ -313,12 +411,29 @@ export function threadRoutes(r, ctx) {
         type: 'thread',
         ...toChannel(row),
         postCount: row.post_count,
-        story: { id: row.story_id, title: row.story_title, color: row.story_color, icon: row.story_icon, banner: row.story_banner },
+        story: {
+          id: row.story_id,
+          title: row.story_title,
+          color: row.story_color,
+          icon: row.story_icon,
+          banner: row.story_banner,
+        },
         starter: st ? toCharacter(st) : null,
         // Who started it (episodes on THE NU show the writer, not a character).
-        author: row.created_by ? (() => { const u = writer.get(row.created_by); return u ? toUser(u) : null; })() : null,
+        author: row.created_by
+          ? (() => {
+              const u = writer.get(row.created_by);
+              return u ? toUser(u) : null;
+            })()
+          : null,
         participants: participants(row.id, 6),
-        lastPost: lp ? { by: lp.character_name || lp.display_name, text: lp.cw ? `CW: ${lp.cw}` : plainText(lp.body, 160), createdAt: lp.created_at } : null,
+        lastPost: lp
+          ? {
+              by: lp.character_name || lp.display_name,
+              text: lp.cw ? `CW: ${lp.cw}` : plainText(lp.body, 160),
+              createdAt: lp.created_at,
+            }
+          : null,
         sortAt: row.last_post_at || row.created_at,
       };
     });
@@ -333,8 +448,12 @@ export function threadRoutes(r, ctx) {
     if (channel.kind !== 'ooc' && channel.status === 'complete') return false;
     if (channel.kind === 'ooc' || canManage(channel, role, user)) return true;
     if (channel.status === 'closed') {
-      return !!db.prepare(`SELECT 1 FROM channel_characters cc JOIN characters c ON c.id = cc.character_id
-        WHERE cc.channel_id = ? AND c.user_id = ?`).get(channel.id, user.id);
+      return !!db
+        .prepare(
+          `SELECT 1 FROM channel_characters cc JOIN characters c ON c.id = cc.character_id
+        WHERE cc.channel_id = ? AND c.user_id = ?`,
+        )
+        .get(channel.id, user.id);
     }
     return true;
   };

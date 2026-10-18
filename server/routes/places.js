@@ -7,19 +7,46 @@ import { fail, str } from '../http.js';
 import { requireUser, uploadRef } from '../model.js';
 import { ARDELL_INTRO, seedArdell, seedPlacePhotos } from '../ardell.js';
 
-const picturesOf = (r) => { try { const g = JSON.parse(r.gallery || '[]'); return g.length ? g : r.picture ? [r.picture] : []; } catch { return r.picture ? [r.picture] : []; } };
+const picturesOf = (r) => {
+  try {
+    const g = JSON.parse(r.gallery || '[]');
+    return g.length ? g : r.picture ? [r.picture] : [];
+  } catch {
+    return r.picture ? [r.picture] : [];
+  }
+};
 const toPlace = (r) => ({
-  id: r.id, name: r.name, picture: picturesOf(r)[0] ?? null, pictures: picturesOf(r), borough: r.borough, venue: r.venue, description: r.description,
-  createdAt: r.created_at, owner: { id: r.user_id, username: r.username, displayName: r.display_name },
-  lat: r.lat ?? null, lng: r.lng ?? null, hours: r.hours ?? '', price: r.price ?? '', since: r.since ?? '',
+  id: r.id,
+  name: r.name,
+  picture: picturesOf(r)[0] ?? null,
+  pictures: picturesOf(r),
+  borough: r.borough,
+  venue: r.venue,
+  description: r.description,
+  createdAt: r.created_at,
+  owner: { id: r.user_id, username: r.username, displayName: r.display_name },
+  lat: r.lat ?? null,
+  lng: r.lng ?? null,
+  hours: r.hours ?? '',
+  price: r.price ?? '',
+  since: r.since ?? '',
 });
 // A pin on the map: somewhere around the city (the map doesn't go further than this).
 const BOUNDS = { lat: [40.3, 41.2], lng: [-74.6, -73.4] };
 function pinInput(lat, lng) {
   if (lat === undefined && lng === undefined) return undefined;
   if (lat === null || lng === null || lat === '' || lng === '') return null;
-  const a = Number(lat); const o = Number(lng);
-  if (!Number.isFinite(a) || !Number.isFinite(o) || a < BOUNDS.lat[0] || a > BOUNDS.lat[1] || o < BOUNDS.lng[0] || o > BOUNDS.lng[1]) fail(400, 'Pin the place somewhere in the city');
+  const a = Number(lat);
+  const o = Number(lng);
+  if (
+    !Number.isFinite(a) ||
+    !Number.isFinite(o) ||
+    a < BOUNDS.lat[0] ||
+    a > BOUNDS.lat[1] ||
+    o < BOUNDS.lng[0] ||
+    o > BOUNDS.lng[1]
+  )
+    fail(400, 'Pin the place somewhere in the city');
   return [Math.round(a * 1e6) / 1e6, Math.round(o * 1e6) / 1e6];
 }
 
@@ -56,13 +83,17 @@ export function placeRoutes(r, ctx) {
   // moved the scene, else the episode's own location) and the characters in it. A character in
   // several episodes shows at the one with the most recent post.
   function whoIsWhere(userId) {
-    const rows = db.prepare(`SELECT c.id, c.story_id, c.name, c.kind,
+    const rows = db
+      .prepare(
+        `SELECT c.id, c.story_id, c.name, c.kind,
         COALESCE((SELECT p.location FROM posts p WHERE p.channel_id = c.id AND p.location IS NOT NULL ORDER BY p.id DESC LIMIT 1), c.location) AS place,
         COALESCE(c.last_post_at, c.created_at) AS active_at
       FROM channels c JOIN stories s ON s.id = c.story_id
       WHERE c.kind IN ('thread', 'para', 'event') AND c.status = 'open' AND s.completed_at IS NULL
         AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
-      ORDER BY active_at DESC`).all({ u: userId });
+      ORDER BY active_at DESC`,
+      )
+      .all({ u: userId });
     const cast = db.prepare(`SELECT ch.id, ch.name, ch.handle, ch.avatar, ch.color, ch.gradient FROM channel_characters cc
       JOIN characters ch ON ch.id = cc.character_id WHERE cc.channel_id = ?`);
     const seen = new Set();
@@ -74,8 +105,15 @@ export function placeRoutes(r, ctx) {
         if (seen.has(ch.id)) continue;
         seen.add(ch.id);
         if (!byPlace.has(key)) byPlace.set(key, []);
-        byPlace.get(key).push({ id: ch.id, name: ch.name, handle: ch.handle, avatar: ch.avatar, color: ch.color,
-          gradient: ch.gradient ? ch.gradient.split(',') : null, episode: { id: ep.id, storyId: ep.story_id, name: ep.name } });
+        byPlace.get(key).push({
+          id: ch.id,
+          name: ch.name,
+          handle: ch.handle,
+          avatar: ch.avatar,
+          color: ch.color,
+          gradient: ch.gradient ? ch.gradient.split(',') : null,
+          episode: { id: ep.id, storyId: ep.story_id, name: ep.name },
+        });
       }
     }
     return byPlace;
@@ -90,7 +128,10 @@ export function placeRoutes(r, ctx) {
     seedArdell(db);
     seedPlacePhotos(db);
     const here = whoIsWhere(user.id);
-    const places = db.prepare(`${SELECT} ORDER BY l.name COLLATE NOCASE`).all().map((row) => ({ ...toPlace(row), here: here.get(row.name.trim().toLowerCase()) || [] }));
+    const places = db
+      .prepare(`${SELECT} ORDER BY l.name COLLATE NOCASE`)
+      .all()
+      .map((row) => ({ ...toPlace(row), here: here.get(row.name.trim().toLowerCase()) || [] }));
     const distinct = (k) => [...new Set(places.map((p) => p[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     // The boroughs: Ardell City's own first (in order, with what each is like), then any others places use.
     const known = db.prepare('SELECT name, blurb, lat, lng FROM boroughs ORDER BY position, name').all();
@@ -105,8 +146,25 @@ export function placeRoutes(r, ctx) {
     if (taken(f.name)) fail(409, `${f.name} is already in the directory`);
     const pictures = picturesInput(body, user) ?? [];
     const pin = pinInput(body.lat, body.lng) ?? [null, null];
-    const { lastInsertRowid } = db.prepare(`INSERT INTO locations (user_id, name, picture, gallery, borough, venue, description, hours, price, since, lat, lng)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(user.id, f.name, pictures[0] ?? null, JSON.stringify(pictures), f.borough, f.venue, f.description, f.hours, f.price, f.since, pin[0], pin[1]);
+    const { lastInsertRowid } = db
+      .prepare(
+        `INSERT INTO locations (user_id, name, picture, gallery, borough, venue, description, hours, price, since, lat, lng)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        user.id,
+        f.name,
+        pictures[0] ?? null,
+        JSON.stringify(pictures),
+        f.borough,
+        f.venue,
+        f.description,
+        f.hours,
+        f.price,
+        f.since,
+        pin[0],
+        pin[1],
+      );
     return { status: 201, data: { place: toPlace(load(lastInsertRowid)) } };
   });
 
@@ -118,9 +176,23 @@ export function placeRoutes(r, ctx) {
     if (taken(f.name, row.id)) fail(409, `${f.name} is already in the directory`);
     const pictures = picturesInput(body, user, row) ?? picturesOf(row);
     const pin = pinInput(body.lat, body.lng);
-    const [lat, lng] = pin === undefined ? [row.lat, row.lng] : pin ?? [null, null];
-    db.prepare('UPDATE locations SET name = ?, picture = ?, gallery = ?, borough = ?, venue = ?, description = ?, hours = ?, price = ?, since = ?, lat = ?, lng = ? WHERE id = ?')
-      .run(f.name, pictures[0] ?? null, JSON.stringify(pictures), f.borough, f.venue, f.description, f.hours, f.price, f.since, lat, lng, row.id);
+    const [lat, lng] = pin === undefined ? [row.lat, row.lng] : (pin ?? [null, null]);
+    db.prepare(
+      'UPDATE locations SET name = ?, picture = ?, gallery = ?, borough = ?, venue = ?, description = ?, hours = ?, price = ?, since = ?, lat = ?, lng = ? WHERE id = ?',
+    ).run(
+      f.name,
+      pictures[0] ?? null,
+      JSON.stringify(pictures),
+      f.borough,
+      f.venue,
+      f.description,
+      f.hours,
+      f.price,
+      f.since,
+      lat,
+      lng,
+      row.id,
+    );
     return { data: { place: toPlace(load(row.id)) } };
   });
 

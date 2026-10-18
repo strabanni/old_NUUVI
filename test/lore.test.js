@@ -13,8 +13,17 @@ test('saved lore gets the new companies once, after their parent company', async
   let app = await startApp({ dbPath });
   const admin = await app.signUp('lore_admin');
   // An edited lore from before: no new companies, the old INTRÉPIDE wording, and an admin's own edit.
-  const old = { ...LORE_PRESET, tagline: 'our own tagline', orgs: LORE_PRESET.orgs.filter((o) => !['MOSSETA', 'NOER', 'OKINE', 'MONO'].includes(o.name))
-    .map((o) => (o.name.startsWith('INTR') ? { ...o, body: o.body.replace('minimal authority intervention.', 'minimal interference.') } : o)) };
+  const old = {
+    ...LORE_PRESET,
+    tagline: 'our own tagline',
+    orgs: LORE_PRESET.orgs
+      .filter((o) => !['MOSSETA', 'NOER', 'OKINE', 'MONO'].includes(o.name))
+      .map((o) =>
+        o.name.startsWith('INTR')
+          ? { ...o, body: o.body.replace('minimal authority intervention.', 'minimal interference.') }
+          : o,
+      ),
+  };
   assert.equal((await admin('/api/lore', { method: 'PUT', body: old })).status, 200);
   app.close();
   const db = new DatabaseSync(dbPath);
