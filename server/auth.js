@@ -1,3 +1,4 @@
+// Passwords (scrypt hashing), sign-in sessions (cookies) and password rules.
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { parseProfile } from './profile.js';
 
@@ -27,10 +28,14 @@ export function createSession(db, userId) {
 
 export function userForToken(db, token) {
   if (!token) return null;
-  const row = db.prepare(`
+  const row = db
+    .prepare(
+      `
     SELECT u.*, s.expires_at
     FROM sessions s JOIN users u ON u.id = s.user_id
-    WHERE s.token = ?`).get(token);
+    WHERE s.token = ?`,
+    )
+    .get(token);
   if (!row) return null;
   if (row.expires_at < Date.now() || row.banned_at) {
     db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
@@ -42,10 +47,17 @@ export function userForToken(db, token) {
 // The signed-in user's own view of their account.
 export function toSelf(row) {
   return {
-    id: row.id, username: row.username, displayName: row.display_name, bio: row.bio,
-    avatar: row.avatar, banner: row.banner ?? null, isAdmin: !!row.is_admin,
-    profile: parseProfile(row.profile), gradient: row.gradient ? row.gradient.split(',') : null,
-    showAbout: row.show_about !== 0, usernameChangedAt: row.username_changed_at ?? null,
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    bio: row.bio,
+    avatar: row.avatar,
+    banner: row.banner ?? null,
+    isAdmin: !!row.is_admin,
+    profile: parseProfile(row.profile),
+    gradient: row.gradient ? row.gradient.split(',') : null,
+    showAbout: row.show_about !== 0,
+    usernameChangedAt: row.username_changed_at ?? null,
   };
 }
 
@@ -84,16 +96,69 @@ export function createRateLimiter({ limit, windowMs }) {
     return entry.count <= limit;
   };
   // Whether `key` is over the limit right now, without counting a try.
-  limiter.blocked = (key) => { const e = hits.get(key); return !!e && e.reset >= Date.now() && e.count >= limit; };
+  limiter.blocked = (key) => {
+    const e = hits.get(key);
+    return !!e && e.reset >= Date.now() && e.count >= limit;
+  };
   return limiter;
 }
 
 // Passwords so common they're the first ones anyone guesses (and that phones warn about).
-const COMMON = new Set(['password', 'password1', 'password12', 'password123', 'passw0rd', '12345678', '123456789', '1234567890', '11111111',
-  '00000000', '87654321', 'qwertyui', 'qwerty123', 'qwertyuiop', 'iloveyou', 'iloveyou1', 'sunshine', 'princess', 'football', 'baseball',
-  'welcome1', 'abc12345', 'abcd1234', 'letmein1', 'trustno1', 'superman', 'starwars', 'whatever', 'dragon12', 'monkey12', 'charlie1',
-  'aa123456', 'asdfghjk', 'asdf1234', 'zaq12wsx', '1q2w3e4r', '1qaz2wsx', 'qazwsxedc', 'michelle', 'jennifer', 'computer', 'internet',
-  'liverpool', 'chocolate', 'blink182', 'butterfly', 'babygirl', 'lovelove', 'loveyou1', 'nuuvi123', 'nuuvinuuvi', 'roleplay', 'roleplay1']);
+const COMMON = new Set([
+  'password',
+  'password1',
+  'password12',
+  'password123',
+  'passw0rd',
+  '12345678',
+  '123456789',
+  '1234567890',
+  '11111111',
+  '00000000',
+  '87654321',
+  'qwertyui',
+  'qwerty123',
+  'qwertyuiop',
+  'iloveyou',
+  'iloveyou1',
+  'sunshine',
+  'princess',
+  'football',
+  'baseball',
+  'welcome1',
+  'abc12345',
+  'abcd1234',
+  'letmein1',
+  'trustno1',
+  'superman',
+  'starwars',
+  'whatever',
+  'dragon12',
+  'monkey12',
+  'charlie1',
+  'aa123456',
+  'asdfghjk',
+  'asdf1234',
+  'zaq12wsx',
+  '1q2w3e4r',
+  '1qaz2wsx',
+  'qazwsxedc',
+  'michelle',
+  'jennifer',
+  'computer',
+  'internet',
+  'liverpool',
+  'chocolate',
+  'blink182',
+  'butterfly',
+  'babygirl',
+  'lovelove',
+  'loveyou1',
+  'nuuvi123',
+  'nuuvinuuvi',
+  'roleplay',
+  'roleplay1',
+]);
 export function weakPassword(password, username = '') {
   const p = password.toLowerCase();
   if (COMMON.has(p)) return true;

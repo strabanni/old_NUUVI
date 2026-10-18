@@ -1,5 +1,32 @@
-import { html, render, api, $, $$, bindForm, timeAgo, toast, uploadImage, avatar, icons, askImageLink, applyColors } from '../lib.js';
-import { state, page, refreshHome, myCharacters, routeAlive, ensureAlive, greeting, replaceHash, storyNow, storyToday } from '../main.js';
+// Home: the welcome header, the week calendar with Ardell City weather, latest notifications and your
+// episodes, cast and stories. Also Discover (public stories), starting a story and joining one by invite.
+import {
+  html,
+  render,
+  api,
+  $,
+  $$,
+  bindForm,
+  timeAgo,
+  toast,
+  uploadImage,
+  avatar,
+  icons,
+  askImageLink,
+  applyColors,
+} from '../lib.js';
+import {
+  state,
+  page,
+  refreshHome,
+  myCharacters,
+  routeAlive,
+  ensureAlive,
+  greeting,
+  replaceHash,
+  storyNow,
+  storyToday,
+} from '../main.js';
 import { feedCard, masonry } from './threads.js';
 import { forecast } from '../weather.js';
 
@@ -42,23 +69,37 @@ export async function viewHome() {
   await refreshHome();
   const { stories, stats = {} } = state.home;
   const [characters, mine, cal, notes] = await Promise.all([
-    myCharacters(true), api('/api/feed?filter=mine').catch(() => ({ items: [] })),
-    api('/api/calendar').catch(() => ({ events: [] })), api('/api/notifications').catch(() => ({ notifications: [] })),
+    myCharacters(true),
+    api('/api/feed?filter=mine').catch(() => ({ items: [] })),
+    api('/api/calendar').catch(() => ({ events: [] })),
+    api('/api/notifications').catch(() => ({ notifications: [] })),
   ]);
   const turns = [];
   // Stories where it's your turn somewhere.
-  await Promise.all(stories.filter((s) => s.mentions).map(async (s) => {
-    const d = await api(`/api/stories/${s.id}`).catch(() => null);
-    for (const c of d?.channels ?? []) if (c.turns.enabled && c.turns.current === state.user.id) turns.push({ story: s, channel: c });
-  }));
+  await Promise.all(
+    stories
+      .filter((s) => s.mentions)
+      .map(async (s) => {
+        const d = await api(`/api/stories/${s.id}`).catch(() => null);
+        for (const c of d?.channels ?? [])
+          if (c.turns.enabled && c.turns.current === state.user.id) turns.push({ story: s, channel: c });
+      }),
+  );
   const u = state.user;
   // "This week": yesterday + the next five days, with each day's events.
-  const weekDays = Array.from({ length: 7 }, (_, i) => { const d = storyToday(); d.setDate(d.getDate() + i - 1); return d; });
-  const eventsOn = (day) => cal.events.filter((e) => {
-    const s = new Date(e.startsAt); s.setHours(0, 0, 0, 0);
-    const end = new Date(e.endsAt || e.startsAt); end.setHours(0, 0, 0, 0);
-    return day >= s && day <= end;
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = storyToday();
+    d.setDate(d.getDate() + i - 1);
+    return d;
   });
+  const eventsOn = (day) =>
+    cal.events.filter((e) => {
+      const s = new Date(e.startsAt);
+      s.setHours(0, 0, 0, 0);
+      const end = new Date(e.endsAt || e.startsAt);
+      end.setHours(0, 0, 0, 0);
+      return day >= s && day <= end;
+    });
   const upcoming = cal.events.filter((e) => new Date(e.endsAt || e.startsAt) >= storyNow()).slice(0, 3);
   // Characters' birthdays (from their profiles) on the calendar.
   const birthdays = (await api('/api/birthdays').catch(() => ({ birthdays: [] }))).birthdays;
@@ -101,31 +142,52 @@ export async function viewHome() {
         <div class="bento-week card">
           <div class="bw-head"><b>${storyNow().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b><a href="#/events" class="see-all">Calendar</a></div>
           <div class="bw-weather" id="bw-weather"></div>
-          <div class="bw-days no-swipe">${weekDays.map((d, i) => { const w = forecast(d); return html`<button type="button" class="bw-day ${i === 1 ? 'today' : ''} ${eventsOn(d).length || birthdaysOn(d).length || plansOn(plans, d).length ? 'has' : ''}" data-day="${i}" aria-pressed="${i === 1}">
+          <div class="bw-days no-swipe">${weekDays.map((d, i) => {
+            const w = forecast(d);
+            return html`<button type="button" class="bw-day ${i === 1 ? 'today' : ''} ${eventsOn(d).length || birthdaysOn(d).length || plansOn(plans, d).length ? 'has' : ''}" data-day="${i}" aria-pressed="${i === 1}">
             <small>${d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2)}</small><b>${d.getDate()}</b>
-            <span class="bw-wx" title="${w.label}">${w.icon}<i>${w.hi}°</i></span></button>`; })}</div>
+            <span class="bw-wx" title="${w.label}">${w.icon}<i>${w.hi}°</i></span></button>`;
+          })}</div>
           <div class="bw-list" id="bw-list"></div>
-          ${upcoming.length ? html`<div class="bw-up"><span class="eyebrow">Coming up</span>${upcoming.map((e) => html`
+          ${
+            upcoming.length
+              ? html`<div class="bw-up"><span class="eyebrow">Coming up</span>${upcoming.map(
+                  (e) => html`
             <a class="bw-up-item" href="#/e/${e.id}"><span class="bw-up-date"><small>${new Date(e.startsAt).toLocaleDateString(undefined, { month: 'short' })}</small><b>${new Date(e.startsAt).getDate()}</b></span>
-              <span class="grow"><b>${e.title}</b><small>${e.story.title}${e.location ? ` · ${e.location}` : ''}</small></span>${icons.chevron}</a>`)}</div>` : ''}
+              <span class="grow"><b>${e.title}</b><small>${e.story.title}${e.location ? ` · ${e.location}` : ''}</small></span>${icons.chevron}</a>`,
+                )}</div>`
+              : ''
+          }
         </div>
         <div class="bento-notes card">
           <div class="bw-head"><b>Latest</b><a href="#/notifications" class="see-all">All</a></div>
-          ${notes.notifications.length ? html`<div class="bn-list">${notes.notifications.slice(0, 4).map((n) => html`
+          ${
+            notes.notifications.length
+              ? html`<div class="bn-list">${notes.notifications.slice(0, 4).map(
+                  (n) => html`
             <a class="bn-item ${n.read ? '' : 'unread'}" href="${n.url}">${avatar({ name: n.actor?.displayName || 'N', src: n.actor?.avatar, color: '#48484A', size: 'sm' })}
-              <span class="grow"><span>${n.actor?.displayName || 'NUUVI'}</span><small>${n.text || n.type}</small></span><small>${timeAgo(n.createdAt)}</small></a>`)}</div>`
-            : html`<p class="muted small">Nothing new.</p>`}
+              <span class="grow"><span>${n.actor?.displayName || 'NUUVI'}</span><small>${n.text || n.type}</small></span><small>${timeAgo(n.createdAt)}</small></a>`,
+                )}</div>`
+              : html`<p class="muted small">Nothing new.</p>`
+          }
         </div>
       </section>
       ${loreCard()}
 
-      ${turns.length ? html`<section class="stack spaced">
+      ${
+        turns.length
+          ? html`<section class="stack spaced">
         ${turns.map((t) => html`<a class="card turn-card" href="#/s/${t.story.id}/${t.channel.id}">${icons.hourglass}<span>It's your turn in <strong>#${t.channel.name}</strong> · ${t.story.title}</span></a>`)}
-      </section>` : ''}
+      </section>`
+          : ''
+      }
 
       <h2 class="section-title">Your episodes <a class="see-all" href="#/nu">See all</a></h2>
-      ${mine.items.length ? html`<div class="feed-grid">${mine.items.slice(0, 4).map(feedCard)}</div>`
-        : html`<div class="card empty small"><p>No episodes yet. Open a story and tap <b>New episode</b>, or browse <a href="#/nu">THE NU</a> for open ones.</p></div>`}
+      ${
+        mine.items.length
+          ? html`<div class="feed-grid">${mine.items.slice(0, 4).map(feedCard)}</div>`
+          : html`<div class="card empty small"><p>No episodes yet. Open a story and tap <b>New episode</b>, or browse <a href="#/nu">THE NU</a> for open ones.</p></div>`
+      }
 
       <h2 class="section-title">Your cast</h2>
       <div class="cast-row no-swipe">
@@ -134,54 +196,98 @@ export async function viewHome() {
       </div>
 
       <h2 class="section-title">Your stories</h2>
-      ${stories.length ? html`<div class="grid">${stories.map(storyCard)}</div>` : html`
+      ${
+        stories.length
+          ? html`<div class="grid">${stories.map(storyCard)}</div>`
+          : html`
         <div class="card empty">
           <p>You're not in any stories yet.</p>
           <p><a class="btn primary" href="#/new">Start one</a> &nbsp; <a class="btn" href="#/discover">Find one</a></p>
-        </div>`}`,
+        </div>`
+      }`,
   });
   masonry(homeBody);
-  api('/api/lore').then(({ overview }) => { const t = $('#lore-tagline', homeBody); if (t && overview.tagline) t.textContent = overview.tagline; }).catch(() => {});
+  api('/api/lore')
+    .then(({ overview }) => {
+      const t = $('#lore-tagline', homeBody);
+      if (t && overview.tagline) t.textContent = overview.tagline;
+    })
+    .catch(() => {});
   const drawDay = (i) => {
     $$('.bw-day', homeBody).forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.day) === i)));
     const evs = eventsOn(weekDays[i]);
     const bdays = birthdaysOn(weekDays[i]);
     const dayPlans = plansOn(plans, weekDays[i]);
     const w = forecast(weekDays[i]);
-    render($('#bw-weather', homeBody), html`<span class="bw-wx-big">${w.icon}</span>
-      <span class="grow"><b>${w.hi}° <small>/ ${w.lo}°F · ${w.hiC}°C</small></b><small>${i === 1 ? 'Today in Ardell City' : weekDays[i].toLocaleDateString(undefined, { weekday: 'long' })} · ${w.label}${w.rain > 30 ? ` · ${w.rain}% rain` : ''}</small><i>${w.line}</i></span>`);
-    render($('#bw-list', homeBody), evs.length || bdays.length || dayPlans.length ? html`${bdays.map((c) => html`
+    render(
+      $('#bw-weather', homeBody),
+      html`<span class="bw-wx-big">${w.icon}</span>
+      <span class="grow"><b>${w.hi}° <small>/ ${w.lo}°F · ${w.hiC}°C</small></b><small>${i === 1 ? 'Today in Ardell City' : weekDays[i].toLocaleDateString(undefined, { weekday: 'long' })} · ${w.label}${w.rain > 30 ? ` · ${w.rain}% rain` : ''}</small><i>${w.line}</i></span>`,
+    );
+    render(
+      $('#bw-list', homeBody),
+      evs.length || bdays.length || dayPlans.length
+        ? html`${bdays.map(
+            (c) => html`
       <a class="bw-ev bw-bday" href="#/c/${c.id}" data-color="${c.color}"><span class="bw-bar"></span>
-        <span class="grow"><b>${c.name}'s birthday</b><small>${i === 1 ? 'Today!' : 'Coming up'}</small></span>${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}</a>`)}
-      ${evs.map((e) => html`
+        <span class="grow"><b>${c.name}'s birthday</b><small>${i === 1 ? 'Today!' : 'Coming up'}</small></span>${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}</a>`,
+          )}
+      ${evs.map(
+        (e) => html`
       <a class="bw-ev" href="#/e/${e.id}" data-color="${e.story.color}"><span class="bw-bar"></span>
         <span class="grow"><b>${e.title}</b><small>${new Date(e.startsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${e.location ? ` · ${e.location}` : ''}</small></span>
-        ${e.participants.length ? html`<span class="avatar-stack">${e.participants.slice(0, 3).map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}</span>` : ''}</a>`)}
-      ${dayPlans.map((p) => html`
+        ${e.participants.length ? html`<span class="avatar-stack">${e.participants.slice(0, 3).map((c) => avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' }))}</span>` : ''}</a>`,
+      )}
+      ${dayPlans.map(
+        (p) => html`
       <button type="button" class="bw-ev bw-plan" data-plan="${p.id}" data-color="${p.character?.color || '#EE719E'}"><span class="bw-bar"></span>
         <span class="grow"><b>${kindIcon(p.kind)} ${p.title}</b><small>${planTime(p)} · ${whoOf(p)}${p.location ? ` · ${p.location}` : ''}</small></span>
-        ${p.character ? avatar({ name: p.character.name, src: p.character.avatar, color: p.character.color, size: 'xs' }) : ''}</button>`)}`
-      : html`<p class="bw-none">Nothing planned${i === 1 ? ' today' : ''}.</p>`);
+        ${p.character ? avatar({ name: p.character.name, src: p.character.avatar, color: p.character.color, size: 'xs' }) : ''}</button>`,
+      )}`
+        : html`<p class="bw-none">Nothing planned${i === 1 ? ' today' : ''}.</p>`,
+    );
     applyColors(homeBody);
   };
   drawDay(1);
   // A plan changed (edited from its card): redraw the week.
   const onPlans = async () => {
-    if (!alive()) { document.removeEventListener('nuuvi:plans', onPlans); return; }
+    if (!alive()) {
+      document.removeEventListener('nuuvi:plans', onPlans);
+      return;
+    }
     plans = await loadPlans();
     drawDay(Number($('.bw-day[aria-pressed=true]', homeBody)?.dataset.day ?? 1));
   };
   document.addEventListener('nuuvi:plans', onPlans);
   homeBody.addEventListener('click', async (e) => {
     const d = e.target.closest('.bw-day');
-    if (d) { drawDay(Number(d.dataset.day)); return; }
+    if (d) {
+      drawDay(Number(d.dataset.day));
+      return;
+    }
     const pl = e.target.closest('[data-plan]');
-    if (pl) { const p = plans.find((x) => x.id === Number(pl.dataset.plan)); if (p) showPlan(p); return; }
+    if (pl) {
+      const p = plans.find((x) => x.id === Number(pl.dataset.plan));
+      if (p) showPlan(p);
+      return;
+    }
     const q = e.target.closest('[data-quick]');
     if (!q) return;
-    if (q.dataset.quick === 'thread') { const { openThreadForm } = await import('./threads.js'); openThreadForm(); }
-    if (q.dataset.quick === 'post') { const { openSocialComposer } = await import('./social.js'); if (await openSocialComposer()) location.hash = '#/nu'; }
-    if (q.dataset.quick === 'plan') { if (await openPlanForm()) { plans = await loadPlans(); drawDay(Number($('.bw-day[aria-pressed=true]', homeBody)?.dataset.day ?? 1)); } return; }
+    if (q.dataset.quick === 'thread') {
+      const { openThreadForm } = await import('./threads.js');
+      openThreadForm();
+    }
+    if (q.dataset.quick === 'post') {
+      const { openSocialComposer } = await import('./social.js');
+      if (await openSocialComposer()) location.hash = '#/nu';
+    }
+    if (q.dataset.quick === 'plan') {
+      if (await openPlanForm()) {
+        plans = await loadPlans();
+        drawDay(Number($('.bw-day[aria-pressed=true]', homeBody)?.dataset.day ?? 1));
+      }
+      return;
+    }
     if (q.dataset.quick === 'event') {
       const { openEventForm } = await import('./events.js');
       const made = await openEventForm();
@@ -201,7 +307,12 @@ export async function viewDiscover() {
   const list = $('#list', body);
   const load = async (q = '') => {
     const { stories } = await api(`/api/stories?q=${encodeURIComponent(q)}`);
-    render(list, stories.length ? html`${stories.map(storyCard)}` : html`<div class="empty">${q ? 'No matching stories.' : 'No public stories yet.'}</div>`);
+    render(
+      list,
+      stories.length
+        ? html`${stories.map(storyCard)}`
+        : html`<div class="empty">${q ? 'No matching stories.' : 'No public stories yet.'}</div>`,
+    );
   };
   let t;
   $('#q', body).addEventListener('input', (e) => {
@@ -221,7 +332,11 @@ export function storyFields(s = {}) {
       <div><label for="genre">Genre</label><input id="genre" name="genre" maxlength="60" placeholder="Fantasy, sci-fi, slice of life…" value="${s.genre || ''}"></div>
       <div><label for="rating">Rating</label>
         <select id="rating" name="rating">
-          ${[['G', 'G: all ages'], ['T', 'T: teen'], ['M', 'M: mature']].map(([v, l]) => html`<option value="${v}" ${(s.rating || 'T') === v ? 'selected' : ''}>${l}</option>`)}
+          ${[
+            ['G', 'G: all ages'],
+            ['T', 'T: teen'],
+            ['M', 'M: mature'],
+          ].map(([v, l]) => html`<option value="${v}" ${(s.rating || 'T') === v ? 'selected' : ''}>${l}</option>`)}
         </select></div>
       <div><label for="visibility">Who can see it</label>
         <select id="visibility" name="visibility">
@@ -241,21 +356,27 @@ export function storyFields(s = {}) {
 }
 
 export function bindIconUpload(form) {
-  const hook = (inputId, field, size, label) => form.querySelector(inputId).addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      form[field].value = await uploadImage(file, size, { square: field === 'icon' });
-      toast(`${label} uploaded`);
-    } catch (err) { toast(err.message); }
-  });
+  const hook = (inputId, field, size, label) =>
+    form.querySelector(inputId).addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        form[field].value = await uploadImage(file, size, { square: field === 'icon' });
+        toast(`${label} uploaded`);
+      } catch (err) {
+        toast(err.message);
+      }
+    });
   hook('#icon-file', 'icon', 256, 'Icon');
   hook('#banner-file', 'banner', 1600, 'Banner');
   form.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-link]');
     if (!b) return;
     const url = await askImageLink();
-    if (url) { form[b.dataset.link].value = url; toast(`${b.dataset.link === 'icon' ? 'Icon' : 'Banner'} set`); }
+    if (url) {
+      form[b.dataset.link].value = url;
+      toast(`${b.dataset.link === 'icon' ? 'Icon' : 'Banner'} set`);
+    }
   });
 }
 

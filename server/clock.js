@@ -7,15 +7,31 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 export function readClock(db) {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'clock'").get();
   let c = {};
-  try { c = row ? JSON.parse(row.value) : {}; } catch { c = {}; }
+  try {
+    c = row ? JSON.parse(row.value) : {};
+  } catch {
+    c = {};
+  }
   const mode = ['fixed', 'timer'].includes(c.mode) && DATE.test(c.date || '') ? c.mode : 'real';
-  return { mode, date: mode === 'real' ? null : c.date, anchor: Number(c.anchor) || Date.now(), every: Math.min(365, Math.max(1, Number(c.every) || 2)) };
+  return {
+    mode,
+    date: mode === 'real' ? null : c.date,
+    anchor: Number(c.anchor) || Date.now(),
+    every: Math.min(365, Math.max(1, Number(c.every) || 2)),
+  };
 }
 
 export function writeClock(db, { mode, date, every }) {
-  const c = { mode: ['fixed', 'timer'].includes(mode) ? mode : 'real', date: DATE.test(date || '') ? date : null, anchor: Date.now(), every: Math.min(365, Math.max(1, Math.round(Number(every) || 2))) };
+  const c = {
+    mode: ['fixed', 'timer'].includes(mode) ? mode : 'real',
+    date: DATE.test(date || '') ? date : null,
+    anchor: Date.now(),
+    every: Math.min(365, Math.max(1, Math.round(Number(every) || 2))),
+  };
   if (c.mode !== 'real' && !c.date) throw Object.assign(new Error('Pick a date'), { status: 400 });
-  db.prepare("INSERT INTO settings (key, value) VALUES ('clock', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(JSON.stringify(c));
+  db.prepare("INSERT INTO settings (key, value) VALUES ('clock', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(
+    JSON.stringify(c),
+  );
   return readClock(db);
 }
 

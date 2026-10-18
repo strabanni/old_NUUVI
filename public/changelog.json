@@ -1,5 +1,16 @@
 [
   {
+    "code": "NV-65",
+    "date": "2026-10-18",
+    "title": "Classic profiles are back",
+    "items": [
+      "Character pages are back to the classic look: banner, picture, numbers, name, bio and buttons, with Posts, Tagged, Episodes, Ties, Timeline and About underneath. The Ties tab keeps its new family-tree chart.",
+      "The song stays: it now sits under the bio. On your own character, tap Add a song (or the pencil on the player) and paste a share link from Spotify, Apple Music, YouTube or SoundCloud.",
+      "The playlist is gone from the About tab and from Edit profile details. If a character already had a playlist with a link, its first song shows as their song.",
+      "Behind the scenes: the code has been tidied and formatted so it's easier to read, and over 400 leftover style rules from old designs were removed. Nothing should look different."
+    ]
+  },
+  {
     "code": "NV-64",
     "date": "2026-10-17",
     "title": "Song player fits its box",

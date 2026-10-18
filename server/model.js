@@ -14,21 +14,39 @@ export const toUser = (r, prefix = '') => ({
 export function gradientInput(value) {
   if (value === undefined) return undefined;
   const stops = (Array.isArray(value) ? value : String(value || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
-  if (stops.length && (stops.length < 2 || stops.length > 3 || !stops.every((x) => /^#[0-9a-f]{6}$/i.test(x)))) fail(400, 'A gradient needs 2 or 3 colors');
+  if (stops.length && (stops.length < 2 || stops.length > 3 || !stops.every((x) => /^#[0-9a-f]{6}$/i.test(x))))
+    fail(400, 'A gradient needs 2 or 3 colors');
   return stops.length ? stops.join(',') : null;
 }
 
 export function toCharacter(r) {
   return {
-    id: r.id, userId: r.user_id, name: r.name, tagline: r.tagline, bio: r.bio,
-    color: r.color, avatar: r.avatar, portrait: r.portrait ?? null, banner: r.banner ?? null,
-    details: r.details ? JSON.parse(r.details) : [], createdAt: r.created_at,
-    aka: r.aka ?? '', postAlign: r.post_align ?? 'right', verified: !!r.verified,
-    followersDisplay: r.followers_display ?? null, followingDisplay: r.following_display ?? null,
-    handle: r.handle ?? null, npc: !!r.npc, bot: r.bot ?? null,
-    gradient: r.gradient ? r.gradient.split(',') : null, npcTags: splitTags(r.npc_tags),
-    pronouns: r.pronouns ?? null, threadAvatar: r.thread_avatar ?? null,
-    status: r.status ?? null, brand: !!r.brand, private: !!r.private,
+    id: r.id,
+    userId: r.user_id,
+    name: r.name,
+    tagline: r.tagline,
+    bio: r.bio,
+    color: r.color,
+    avatar: r.avatar,
+    portrait: r.portrait ?? null,
+    banner: r.banner ?? null,
+    details: r.details ? JSON.parse(r.details) : [],
+    createdAt: r.created_at,
+    aka: r.aka ?? '',
+    postAlign: r.post_align ?? 'right',
+    verified: !!r.verified,
+    followersDisplay: r.followers_display ?? null,
+    followingDisplay: r.following_display ?? null,
+    handle: r.handle ?? null,
+    npc: !!r.npc,
+    bot: r.bot ?? null,
+    gradient: r.gradient ? r.gradient.split(',') : null,
+    npcTags: splitTags(r.npc_tags),
+    pronouns: r.pronouns ?? null,
+    threadAvatar: r.thread_avatar ?? null,
+    status: r.status ?? null,
+    brand: !!r.brand,
+    private: !!r.private,
   };
 }
 
@@ -36,24 +54,51 @@ export function toCharacter(r) {
 // played: no new posts, comments, likes, follows or texts as them until the writer switches it off.
 export const CHARACTER_STATUSES = ['deceased', 'mia'];
 export function requirePlayable(c) {
-  if (c?.status === 'deceased') fail(400, `${c.name} is deceased, so they can't be played. Their writer can change that in Edit profile.`);
-  if (c?.status === 'mia') fail(400, `${c.name} is missing in action, so they can't be played. Their writer can change that in Edit profile.`);
+  if (c?.status === 'deceased')
+    fail(400, `${c.name} is deceased, so they can't be played. Their writer can change that in Edit profile.`);
+  if (c?.status === 'mia')
+    fail(400, `${c.name} is missing in action, so they can't be played. Their writer can change that in Edit profile.`);
   return c;
 }
 
 const splitTags = (s) => (s ? s.split(',').filter(Boolean) : []);
 
-export const splitWarnings = (s) => (s ? s.split(',').map((w) => w.trim()).filter(Boolean) : []);
+export const splitWarnings = (s) =>
+  s
+    ? s
+        .split(',')
+        .map((w) => w.trim())
+        .filter(Boolean)
+    : [];
 
-const loreTagline = (json) => { try { return JSON.parse(json || '{}').tagline || ''; } catch { return ''; } };
+const loreTagline = (json) => {
+  try {
+    return JSON.parse(json || '{}').tagline || '';
+  } catch {
+    return '';
+  }
+};
 
 export function toStory(r) {
   return {
-    id: r.id, ownerId: r.owner_id, title: r.title, summary: r.summary, genre: r.genre,
-    rating: r.rating, contentWarnings: splitWarnings(r.content_warnings),
-    visibility: r.visibility, status: r.status, color: r.color, icon: r.icon, banner: r.banner ?? null,
-    createdAt: r.created_at, updatedAt: r.updated_at, completedAt: r.completed_at ?? null,
-    memberCount: r.member_count, postCount: r.post_count, ownerName: r.owner_name,
+    id: r.id,
+    ownerId: r.owner_id,
+    title: r.title,
+    summary: r.summary,
+    genre: r.genre,
+    rating: r.rating,
+    contentWarnings: splitWarnings(r.content_warnings),
+    visibility: r.visibility,
+    status: r.status,
+    color: r.color,
+    icon: r.icon,
+    banner: r.banner ?? null,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    completedAt: r.completed_at ?? null,
+    memberCount: r.member_count,
+    postCount: r.post_count,
+    ownerName: r.owner_name,
     hasOverview: !!r.overview && r.overview !== '{}',
     loreTagline: loreTagline(r.overview),
   };
@@ -70,35 +115,79 @@ export function turnState(r) {
 
 export function toChannel(r) {
   return {
-    id: r.id, storyId: r.story_id, name: r.name, topic: r.topic, position: r.position,
-    kind: r.kind ?? 'thread', status: r.status ?? 'open', summary: r.summary ?? '', tags: splitWarnings(r.tags),
-    eventAt: r.event_at ?? null, createdBy: r.created_by ?? null, starterCharacterId: r.starter_character_id ?? null,
-    icon: r.icon ?? null, eventId: r.event_id ?? null,
-    banner: r.banner ?? null, season: r.season ?? null, location: r.location ?? null,
-    createdAt: r.created_at, lastPostAt: r.last_post_at ?? null,
-    turns: turnState(r), unread: r.unread ?? 0, mentions: r.mentions ?? 0, lastPostId: r.last_post_id ?? 0,
+    id: r.id,
+    storyId: r.story_id,
+    name: r.name,
+    topic: r.topic,
+    position: r.position,
+    kind: r.kind ?? 'thread',
+    status: r.status ?? 'open',
+    summary: r.summary ?? '',
+    tags: splitWarnings(r.tags),
+    eventAt: r.event_at ?? null,
+    createdBy: r.created_by ?? null,
+    starterCharacterId: r.starter_character_id ?? null,
+    icon: r.icon ?? null,
+    eventId: r.event_id ?? null,
+    banner: r.banner ?? null,
+    season: r.season ?? null,
+    location: r.location ?? null,
+    createdAt: r.created_at,
+    lastPostAt: r.last_post_at ?? null,
+    turns: turnState(r),
+    unread: r.unread ?? 0,
+    mentions: r.mentions ?? 0,
+    lastPostId: r.last_post_id ?? 0,
   };
 }
 
 export function toPost(r) {
   return {
-    id: r.id, storyId: r.story_id, channelId: r.channel_id, userId: r.user_id, kind: r.kind,
-    body: r.body, cw: r.cw, roll: r.roll ? JSON.parse(r.roll) : null, wordCount: r.word_count,
-    createdAt: r.created_at, editedAt: r.edited_at,
+    id: r.id,
+    storyId: r.story_id,
+    channelId: r.channel_id,
+    userId: r.user_id,
+    kind: r.kind,
+    body: r.body,
+    cw: r.cw,
+    roll: r.roll ? JSON.parse(r.roll) : null,
+    wordCount: r.word_count,
+    createdAt: r.created_at,
+    editedAt: r.edited_at,
     media: r.media ? JSON.parse(r.media) : [],
     location: r.location ?? null,
-    replyTo: r.reply_to && r.reply_user_id != null
-      ? { id: r.reply_to, name: r.reply_name, color: r.reply_color ?? null, text: plainText(r.reply_body || ''), hasMedia: r.reply_media !== '[]' }
-      : null,
-    author: { id: r.user_id, username: r.username, displayName: r.display_name, avatar: r.user_avatar, gradient: r.user_gradient ? r.user_gradient.split(',') : null },
+    replyTo:
+      r.reply_to && r.reply_user_id != null
+        ? {
+            id: r.reply_to,
+            name: r.reply_name,
+            color: r.reply_color ?? null,
+            text: plainText(r.reply_body || ''),
+            hasMedia: r.reply_media !== '[]',
+          }
+        : null,
+    author: {
+      id: r.user_id,
+      username: r.username,
+      displayName: r.display_name,
+      avatar: r.user_avatar,
+      gradient: r.user_gradient ? r.user_gradient.split(',') : null,
+    },
     character: r.character_id
       ? {
-        id: r.character_id, name: r.character_name, color: r.character_color, avatar: r.character_avatar,
-        portrait: r.character_portrait ?? null, threadAvatar: r.character_thread_avatar ?? null, tagline: r.character_tagline ?? '',
-        details: r.character_details ? JSON.parse(r.character_details) : [],
-        aka: r.character_aka ?? '', postAlign: r.character_align ?? 'right', verified: !!r.character_verified,
-        gradient: r.character_gradient ? r.character_gradient.split(',') : null,
-      }
+          id: r.character_id,
+          name: r.character_name,
+          color: r.character_color,
+          avatar: r.character_avatar,
+          portrait: r.character_portrait ?? null,
+          threadAvatar: r.character_thread_avatar ?? null,
+          tagline: r.character_tagline ?? '',
+          details: r.character_details ? JSON.parse(r.character_details) : [],
+          aka: r.character_aka ?? '',
+          postAlign: r.character_align ?? 'right',
+          verified: !!r.character_verified,
+          gradient: r.character_gradient ? r.character_gradient.split(',') : null,
+        }
       : null,
   };
 }
@@ -169,7 +258,11 @@ export function requireOwner(role, user) {
 export function imageLink(value) {
   if (typeof value !== 'string' || value.length > 2000) return null;
   let u;
-  try { u = new URL(value); } catch { return null; }
+  try {
+    u = new URL(value);
+  } catch {
+    return null;
+  }
   return u.protocol === 'https:' && !u.username && !u.password ? u.href : null;
 }
 
@@ -192,8 +285,12 @@ export const CAN_SEE_ACCOUNT = `(COALESCE(c.private, 0) = 0 OR c.user_id = :view
   JOIN characters fc ON fc.id = cf.follower_id WHERE cf.followed_id = c.id AND fc.user_id = :viewer))`;
 export function canSeeAccount(db, character, viewerId) {
   if (!character?.private || character.user_id === viewerId) return true;
-  return !!db.prepare(`SELECT 1 FROM character_follows cf JOIN characters fc ON fc.id = cf.follower_id
-    WHERE cf.followed_id = ? AND fc.user_id = ?`).get(character.id, viewerId);
+  return !!db
+    .prepare(
+      `SELECT 1 FROM character_follows cf JOIN characters fc ON fc.id = cf.follower_id
+    WHERE cf.followed_id = ? AND fc.user_id = ?`,
+    )
+    .get(character.id, viewerId);
 }
 
 export function isBlocked(db, blockerId, blockedId) {

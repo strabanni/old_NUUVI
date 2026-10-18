@@ -4,7 +4,11 @@ import { fail, str, oneOf } from './http.js';
 export const STYLE_KEYS = ['communication', 'oneLiners', 'rapidFire', 'longThreads', 'development', 'plottingFirst'];
 
 export function parseProfile(json) {
-  try { return { styles: {}, ...JSON.parse(json || '{}') }; } catch { return { styles: {} }; }
+  try {
+    return { styles: {}, ...JSON.parse(json || '{}') };
+  } catch {
+    return { styles: {} };
+  }
 }
 
 // Merges allowed fields from input into the existing profile.
@@ -12,7 +16,10 @@ export function profileInput(input, existing = {}) {
   if (input === undefined) return undefined;
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail(400, 'Profile must be an object');
   const out = { ...existing };
-  const text = (key, label, max) => { const v = str(input[key], label, { max }); if (v !== undefined) out[key] = v; };
+  const text = (key, label, max) => {
+    const v = str(input[key], label, { max });
+    if (v !== undefined) out[key] = v;
+  };
   text('pronouns', 'Pronouns', 30);
   text('age', 'Age', 20);
   text('timezone', 'Time zone', 40);
@@ -28,7 +35,8 @@ export function profileInput(input, existing = {}) {
     out.styles = {};
     for (const k of STYLE_KEYS) {
       const n = Number(input.styles[k]);
-      if (input.styles[k] !== undefined && input.styles[k] !== '' && Number.isFinite(n)) out.styles[k] = Math.max(0, Math.min(100, Math.round(n)));
+      if (input.styles[k] !== undefined && input.styles[k] !== '' && Number.isFinite(n))
+        out.styles[k] = Math.max(0, Math.min(100, Math.round(n)));
     }
   }
   return out;

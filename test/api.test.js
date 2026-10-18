@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { startApp, sseReader } from './helpers.js';
 
 let app;
-before(async () => { app = await startApp(); });
+before(async () => {
+  app = await startApp();
+});
 after(() => app.close());
 
 const post = (c, channelId, body) => c(`/api/channels/${channelId}/posts`, { method: 'POST', body });
@@ -22,14 +24,20 @@ test('first user becomes admin; everyone after needs an invite', async () => {
   assert.equal(admin.user.isAdmin, true);
   assert.equal((await app.client()('/api/auth/status')).data.inviteRequired, true);
 
-  const noInvite = await app.client()('/api/auth/register', { method: 'POST', body: { username: 'gatecrasher', password: 'longenough' } });
+  const noInvite = await app.client()('/api/auth/register', {
+    method: 'POST',
+    body: { username: 'gatecrasher', password: 'longenough' },
+  });
   assert.equal(noInvite.status, 403);
 
   const { code } = (await admin('/api/admin/invites', { method: 'POST', body: { note: 'for Sam' } })).data;
   const sam = await app.signUp('sam', { invite: code });
   assert.equal(sam.user.isAdmin, false);
   // Single-use by default.
-  const reuse = await app.client()('/api/auth/register', { method: 'POST', body: { username: 'samtwin', password: 'longenough', invite: code } });
+  const reuse = await app.client()('/api/auth/register', {
+    method: 'POST',
+    body: { username: 'samtwin', password: 'longenough', invite: code },
+  });
   assert.equal(reuse.status, 403);
   // Non-admins can't create invites.
   assert.equal((await sam('/api/admin/invites', { method: 'POST', body: {} })).status, 403);
@@ -42,17 +50,34 @@ test('usernames can use any characters, are unique in any case, and @mentions fi
   const reg = await c('/api/auth/register', { method: 'POST', body: { username: '✿Rosé✿', password: 'supersecret1', invite } });
   assert.equal(reg.status, 201, JSON.stringify(reg.data));
   const invite2 = (await app.admin('/api/admin/invites', { method: 'POST', body: {} })).data.code;
-  const dup = await app.client()('/api/auth/register', { method: 'POST', body: { username: '✿ROSÉ✿', password: 'supersecret1', invite: invite2 } });
+  const dup = await app.client()('/api/auth/register', {
+    method: 'POST',
+    body: { username: '✿ROSÉ✿', password: 'supersecret1', invite: invite2 },
+  });
   assert.equal(dup.status, 409);
-  assert.equal((await app.client()('/api/auth/register', { method: 'POST', body: { username: 'has space', password: 'supersecret1', invite: invite2 } })).status, 400);
-  assert.equal((await app.client()('/api/auth/login', { method: 'POST', body: { username: '✿rosé✿', password: 'supersecret1' } })).status, 200);
+  assert.equal(
+    (
+      await app.client()('/api/auth/register', {
+        method: 'POST',
+        body: { username: 'has space', password: 'supersecret1', invite: invite2 },
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (await app.client()('/api/auth/login', { method: 'POST', body: { username: '✿rosé✿', password: 'supersecret1' } })).status,
+    200,
+  );
 
   const story = (await owner('/api/stories', { method: 'POST', body: { title: 'Names', visibility: 'public' } })).data.story;
   await c(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
   const channel = (await owner(`/api/stories/${story.id}`)).data.channels[0];
   await owner(`/api/channels/${channel.id}/posts`, { method: 'POST', body: { kind: 'ooc', body: 'hey @✿rosé✿! you around?' } });
   const notes = (await c('/api/notifications')).data.notifications;
-  assert.ok(notes.some((n) => n.type === 'mention'), JSON.stringify(notes));
+  assert.ok(
+    notes.some((n) => n.type === 'mention'),
+    JSON.stringify(notes),
+  );
 });
 
 test('login, logout, password change and validation', async () => {
@@ -61,13 +86,25 @@ test('login, logout, password change and validation', async () => {
   await c('/api/auth/logout', { method: 'POST', body: {} });
   assert.equal((await c('/api/me')).data.user, null);
   assert.equal((await c('/api/auth/login', { method: 'POST', body: { username: 'ada', password: 'nope nope' } })).status, 401);
-  assert.equal((await c('/api/auth/login', { method: 'POST', body: { username: 'ADA', password: 'correct horse' } })).status, 200);
+  assert.equal(
+    (await c('/api/auth/login', { method: 'POST', body: { username: 'ADA', password: 'correct horse' } })).status,
+    200,
+  );
 
   assert.equal((await c('/api/me/password', { method: 'PUT', body: { current: 'wrong', next: 'new password!' } })).status, 400);
-  assert.equal((await c('/api/me/password', { method: 'PUT', body: { current: 'correct horse', next: 'new password!' } })).status, 200);
-  assert.equal((await app.client()('/api/auth/login', { method: 'POST', body: { username: 'ada', password: 'new password!' } })).status, 200);
+  assert.equal(
+    (await c('/api/me/password', { method: 'PUT', body: { current: 'correct horse', next: 'new password!' } })).status,
+    200,
+  );
+  assert.equal(
+    (await app.client()('/api/auth/login', { method: 'POST', body: { username: 'ada', password: 'new password!' } })).status,
+    200,
+  );
 
-  const bad = await app.client()('/api/auth/register', { method: 'POST', body: { username: 'bad name!', password: 'longenough', invite: 'x' } });
+  const bad = await app.client()('/api/auth/register', {
+    method: 'POST',
+    body: { username: 'bad name!', password: 'longenough', invite: 'x' },
+  });
   assert.equal(bad.status, 400);
 });
 
@@ -75,7 +112,11 @@ test('requests from other sites and non-JSON bodies are rejected', async () => {
   const c = await app.signUp('csrf_target');
   const cross = await c('/api/stories', { method: 'POST', body: { title: 'x' }, headers: { Origin: 'https://evil.example' } });
   assert.equal(cross.status, 403);
-  const res = await fetch(app.base + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{}' });
+  const res = await fetch(app.base + '/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: '{}',
+  });
   assert.equal(res.status, 415);
 });
 
@@ -105,7 +146,10 @@ test('stories come with channels; members post in character, narration and OOC',
   assert.equal((await post(quill, main.id, { kind: 'roll', dice: '1d20' })).status, 400);
 
   const mainPosts = (await anon(`/api/channels/${main.id}/posts`)).data.posts;
-  assert.deepEqual(mainPosts.map((p) => p.kind), ['ic', 'ic', 'narration']);
+  assert.deepEqual(
+    mainPosts.map((p) => p.kind),
+    ['ic', 'ic', 'narration'],
+  );
   assert.equal(mainPosts[1].cw, 'spiders');
   assert.equal((await anon(`/api/channels/${ooc.id}/posts`)).data.posts.length, 1);
 
@@ -118,7 +162,10 @@ test('stories come with channels; members post in character, narration and OOC',
   const detail = (await quill(`/api/stories/${story.id}`)).data;
   assert.equal(detail.role, 'writer');
   assert.equal(detail.channels.length, 2);
-  assert.deepEqual(detail.cast.map((c) => c.name), ['Sir Aldric', 'Wren']);
+  assert.deepEqual(
+    detail.cast.map((c) => c.name),
+    ['Sir Aldric', 'Wren'],
+  );
   assert.equal(detail.story.inviteCode, undefined);
 });
 
@@ -126,7 +173,10 @@ test('channels: owner can add, rename, reorder and delete', async () => {
   const gm = await app.signUp('chan_gm');
   const other = await app.signUp('chan_other');
   const { story, main } = await makeStory(gm);
-  const created = await gm(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'Chapter 2', topic: 'The ball' } });
+  const created = await gm(`/api/stories/${story.id}/channels`, {
+    method: 'POST',
+    body: { name: 'Chapter 2', topic: 'The ball' },
+  });
   assert.equal(created.status, 201);
   assert.equal((await other(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'mine' } })).status, 403);
   await gm(`/api/channels/${created.data.channel.id}`, { method: 'PUT', body: { move: 'up' } });
@@ -152,7 +202,13 @@ test('unread counts, mentions and notifications', async () => {
 
   const notes = (await pal('/api/notifications')).data;
   // Two plain posts collapse into one notification; the mention is separate.
-  assert.deepEqual(notes.notifications.map((n) => [n.type, n.count]), [['mention', 1], ['post', 2]]);
+  assert.deepEqual(
+    notes.notifications.map((n) => [n.type, n.count]),
+    [
+      ['mention', 1],
+      ['post', 2],
+    ],
+  );
   assert.equal(notes.unread, 2);
 
   await pal(`/api/channels/${main.id}/read`, { method: 'POST', body: {} });
@@ -174,7 +230,10 @@ test('turn order passes along and notifies the next writer', async () => {
   for (const c of [a, b]) await c(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
 
   assert.equal((await a(`/api/channels/${main.id}/turns`, { method: 'PUT', body: { enabled: true } })).status, 403);
-  const set = await gm(`/api/channels/${main.id}/turns`, { method: 'PUT', body: { enabled: true, order: [a.user.id, b.user.id, gm.user.id] } });
+  const set = await gm(`/api/channels/${main.id}/turns`, {
+    method: 'PUT',
+    body: { enabled: true, order: [a.user.id, b.user.id, gm.user.id] },
+  });
   assert.equal(set.data.channel.turns.current, a.user.id);
   assert.equal((await a('/api/notifications')).data.notifications[0].type, 'turn');
 
@@ -228,13 +287,16 @@ test('owners can remove writers, who then cannot rejoin', async () => {
   assert.equal((await pest(`/api/stories/${story.id}/join`, { method: 'POST', body: {} })).status, 403);
 });
 
-test('blocking hides notifications and stops joining the blocker\'s stories', async () => {
+test("blocking hides notifications and stops joining the blocker's stories", async () => {
   const me = await app.signUp('blocker');
   const them = await app.signUp('blockee');
   const { story, main } = await makeStory(them);
   await me(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
   await me('/api/blocks', { method: 'POST', body: { userId: them.user.id } });
-  assert.deepEqual((await me('/api/blocks')).data.users.map((u) => u.username), ['blockee']);
+  assert.deepEqual(
+    (await me('/api/blocks')).data.users.map((u) => u.username),
+    ['blockee'],
+  );
 
   await post(them, main.id, { kind: 'ooc', body: '@blocker hello?' });
   assert.equal((await me('/api/notifications')).data.unread, 0);
@@ -264,9 +326,15 @@ test('reports reach admins, who can resolve them and suspend users', async () =>
 
   // Admin deletes the post, suspends the user, resolves the report.
   assert.equal((await admin(`/api/posts/${bad.id}`, { method: 'DELETE' })).status, 200);
-  assert.equal((await admin(`/api/admin/users/${troll.user.id}/ban`, { method: 'POST', body: { reason: 'harassment' } })).status, 200);
+  assert.equal(
+    (await admin(`/api/admin/users/${troll.user.id}/ban`, { method: 'POST', body: { reason: 'harassment' } })).status,
+    200,
+  );
   assert.equal((await troll('/api/me')).data.user, null);
-  assert.equal((await app.client()('/api/auth/login', { method: 'POST', body: { username: 'troll', password: 'correct horse' } })).status, 403);
+  assert.equal(
+    (await app.client()('/api/auth/login', { method: 'POST', body: { username: 'troll', password: 'correct horse' } })).status,
+    403,
+  );
   await admin(`/api/admin/reports/${report.id}`, { method: 'POST', body: { status: 'resolved' } });
   assert.ok(!(await admin('/api/admin/reports')).data.reports.some((r) => r.id === report.id));
   assert.ok((await admin('/api/admin/log')).data.entries.some((e) => e.action === 'suspend'));
@@ -286,9 +354,17 @@ test('image uploads are type-checked and usable as character pictures', async ()
   assert.equal(up.status, 201);
   assert.match(up.data.url, /^\/uploads\/[\w-]+\.png$/);
 
-  const fake = await c('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: Buffer.from('<script>') });
+  const fake = await c('/api/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/png' },
+    raw: Buffer.from('<script>'),
+  });
   assert.equal(fake.status, 400);
-  const svg = await c('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/svg+xml' }, raw: Buffer.from('<svg/>') });
+  const svg = await c('/api/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/svg+xml' },
+    raw: Buffer.from('<svg/>'),
+  });
   assert.equal(svg.status, 415);
 
   const ch = await c('/api/characters', { method: 'POST', body: { name: 'Pic', avatar: up.data.url } });
@@ -331,7 +407,10 @@ test('push subscriptions receive encrypted pushes', async () => {
     keys: { p256dh: ua.generateKeys().toString('base64url'), auth: randomBytes(16).toString('base64url') },
   };
   assert.equal((await pal('/api/push/subscribe', { method: 'POST', body: { subscription } })).status, 200);
-  assert.equal((await pal('/api/push/subscribe', { method: 'POST', body: { subscription: { endpoint: 'http://insecure' } } })).status, 400);
+  assert.equal(
+    (await pal('/api/push/subscribe', { method: 'POST', body: { subscription: { endpoint: 'http://insecure' } } })).status,
+    400,
+  );
 
   const { story, main } = await makeStory(gm);
   await pal(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
@@ -362,7 +441,17 @@ test('roleplay profiles, banners and character details', async () => {
 
   const me = await c('/api/me', {
     method: 'PUT',
-    body: { banner, profile: { pronouns: 'she/her', timezone: 'GMT-5', activity: 'low', plots: 'selective', limits: 'no gore', styles: { longThreads: 120, oneLiners: 30, bogus: 5 } } },
+    body: {
+      banner,
+      profile: {
+        pronouns: 'she/her',
+        timezone: 'GMT-5',
+        activity: 'low',
+        plots: 'selective',
+        limits: 'no gore',
+        styles: { longThreads: 120, oneLiners: 30, bogus: 5 },
+      },
+    },
   });
   assert.equal(me.status, 200, JSON.stringify(me.data));
   assert.equal(me.data.user.banner, banner);
@@ -376,7 +465,17 @@ test('roleplay profiles, banners and character details', async () => {
   assert.equal(pub.user.profile.status, 'writing!');
   assert.deepEqual(Object.keys(pub.stats).sort(), ['characters', 'posts', 'stories', 'words']);
 
-  const ch = await c('/api/characters', { method: 'POST', body: { name: 'Hide', portrait: banner, details: [{ label: 'Age', value: '21' }, { label: '', value: 'dropped' }] } });
+  const ch = await c('/api/characters', {
+    method: 'POST',
+    body: {
+      name: 'Hide',
+      portrait: banner,
+      details: [
+        { label: 'Age', value: '21' },
+        { label: '', value: 'dropped' },
+      ],
+    },
+  });
   assert.deepEqual(ch.data.character.details, [{ label: 'Age', value: '21' }]);
   assert.equal(ch.data.character.portrait, banner);
 
@@ -392,14 +491,29 @@ test('threads: members start typed threads, tag characters, and statuses control
   for (const c of [a, b]) await c(`/api/stories/${story.id}/join`, { method: 'POST', body: {} });
   const yoonoh = (await a('/api/characters', { method: 'POST', body: { name: 'Cha Yoonoh' } })).data.character;
   const daehyun = (await b('/api/characters', { method: 'POST', body: { name: 'Bang Daehyun' } })).data.character;
-  const outsider = (await (await app.signUp('thread_out'))('/api/characters', { method: 'POST', body: { name: 'Nobody' } })).data.character;
+  const outsider = (await (await app.signUp('thread_out'))('/api/characters', { method: 'POST', body: { name: 'Nobody' } })).data
+    .character;
 
   // Event threads have to belong to a calendar event.
-  assert.equal((await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'A party', kind: 'event' } })).status, 400);
-  assert.equal((await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'x', tagged: [outsider.id] } })).status, 400);
+  assert.equal(
+    (await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'A party', kind: 'event' } })).status,
+    400,
+  );
+  assert.equal(
+    (await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'x', tagged: [outsider.id] } })).status,
+    400,
+  );
   const created = await a(`/api/stories/${story.id}/channels`, {
     method: 'POST',
-    body: { name: 'childhood friends reunited', kind: 'thread', status: 'closed', characterId: yoonoh.id, tagged: [daehyun.id], summary: 'An old friend calls his old name.', tags: 'angst, Reunion' },
+    body: {
+      name: 'childhood friends reunited',
+      kind: 'thread',
+      status: 'closed',
+      characterId: yoonoh.id,
+      tagged: [daehyun.id],
+      summary: 'An old friend calls his old name.',
+      tags: 'angst, Reunion',
+    },
   });
   assert.equal(created.status, 201, JSON.stringify(created.data));
   const thread = created.data.channel;
@@ -423,13 +537,19 @@ test('threads: members start typed threads, tag characters, and statuses control
   assert.equal((await post(b, thread.id, { kind: 'ic', characterId: daehyun.id, body: 'one more' })).status, 403);
 
   // Comms threads.
-  const comms = (await b(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'group chat', kind: 'comms' } })).data.channel;
+  const comms = (await b(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'group chat', kind: 'comms' } }))
+    .data.channel;
   assert.equal(comms.kind, 'comms');
 
   // Feed lists them, filterable.
   // The feed shows open and finished episodes (finished ones with a full progress bar), self paras,
   // events and social posts — not comms.
-  const para = (await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'alone at last', kind: 'para', characterId: yoonoh.id } })).data.channel;
+  const para = (
+    await a(`/api/stories/${story.id}/channels`, {
+      method: 'POST',
+      body: { name: 'alone at last', kind: 'para', characterId: yoonoh.id },
+    })
+  ).data.channel;
   const feed = (await b('/api/feed')).data.items;
   assert.ok(feed.some((i) => i.type === 'thread' && i.id === para.id));
   assert.ok(!feed.some((i) => i.type === 'thread' && i.id === comms.id));
@@ -445,8 +565,14 @@ test('characters follow characters; profiles show followers, following and threa
   const olivia = (await a('/api/characters', { method: 'POST', body: { name: 'Olivia' } })).data.character;
   const marina = (await b('/api/characters', { method: 'POST', body: { name: 'Marina' } })).data.character;
 
-  assert.equal((await b(`/api/characters/${olivia.id}/follow`, { method: 'POST', body: { asCharacterId: olivia.id } })).status, 400);
-  assert.equal((await b(`/api/characters/${marina.id}/follow`, { method: 'POST', body: { asCharacterId: marina.id } })).status, 400);
+  assert.equal(
+    (await b(`/api/characters/${olivia.id}/follow`, { method: 'POST', body: { asCharacterId: olivia.id } })).status,
+    400,
+  );
+  assert.equal(
+    (await b(`/api/characters/${marina.id}/follow`, { method: 'POST', body: { asCharacterId: marina.id } })).status,
+    400,
+  );
   const res = await b(`/api/characters/${olivia.id}/follow`, { method: 'POST', body: { asCharacterId: marina.id } });
   assert.equal(res.data.stats.followers, 1);
   assert.ok((await a('/api/notifications')).data.notifications.some((n) => n.type === 'follow' && n.url === `#/c/${marina.id}`));
@@ -454,7 +580,10 @@ test('characters follow characters; profiles show followers, following and threa
   const profile = (await b(`/api/characters/${olivia.id}`)).data;
   assert.deepEqual(profile.followedBy, [marina.id]);
   assert.equal((await a(`/api/characters/${marina.id}`)).data.stats.following, 1);
-  assert.deepEqual((await a(`/api/characters/${olivia.id}/followers`)).data.characters.map((c) => c.name), ['Marina']);
+  assert.deepEqual(
+    (await a(`/api/characters/${olivia.id}/followers`)).data.characters.map((c) => c.name),
+    ['Marina'],
+  );
 
   await b(`/api/characters/${olivia.id}/unfollow`, { method: 'POST', body: { asCharacterId: marina.id } });
   assert.equal((await b(`/api/characters/${olivia.id}`)).data.stats.followers, 0);
@@ -463,23 +592,37 @@ test('characters follow characters; profiles show followers, following and threa
 test('character social posts: create, feed, like, comment, notifications', async () => {
   const a = await app.signUp('social_a');
   const b = await app.signUp('social_b');
-  const star = (await a('/api/characters', { method: 'POST', body: { name: 'Idol', followersDisplay: '2,400,000', verified: true } })).data.character;
+  const star = (
+    await a('/api/characters', { method: 'POST', body: { name: 'Idol', followersDisplay: '2,400,000', verified: true } })
+  ).data.character;
   const fan = (await b('/api/characters', { method: 'POST', body: { name: 'Fan' } })).data.character;
   assert.equal(star.followersDisplay, 2400000);
   assert.equal(star.verified, true);
   assert.equal((await b(`/api/characters/${star.id}`)).data.stats.followers, 2400000);
 
   assert.equal((await a('/api/social', { method: 'POST', body: { characterId: fan.id, body: 'not mine' } })).status, 400);
-  assert.equal((await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'photo', body: 'no photo' } })).status, 400);
+  assert.equal(
+    (await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'photo', body: 'no photo' } })).status,
+    400,
+  );
   const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
   const photo = (await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png })).data.url;
-  const p1 = await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'photo', body: 'tour day 1', media: [photo] } });
+  const p1 = await a('/api/social', {
+    method: 'POST',
+    body: { characterId: star.id, kind: 'photo', body: 'tour day 1', media: [photo] },
+  });
   assert.equal(p1.status, 201, JSON.stringify(p1.data));
-  const stream = await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'stream', title: 'q&a', meta: { viewers: 12000 } } });
+  const stream = await a('/api/social', {
+    method: 'POST',
+    body: { characterId: star.id, kind: 'stream', title: 'q&a', meta: { viewers: 12000 } },
+  });
   assert.equal(stream.data.post.meta.viewers, 12000);
 
   const feed = (await b('/api/feed?filter=social')).data.items;
-  assert.deepEqual(feed.filter((i) => i.character.id === star.id).map((i) => i.kind), ['stream', 'photo']);
+  assert.deepEqual(
+    feed.filter((i) => i.character.id === star.id).map((i) => i.kind),
+    ['stream', 'photo'],
+  );
 
   // Famous characters start with likes from their followers; each real like adds one.
   const before = p1.data.post.likes;
@@ -487,10 +630,16 @@ test('character social posts: create, feed, like, comment, notifications', async
   const liked = await b(`/api/social/${p1.data.post.id}/like`, { method: 'POST', body: { asCharacterId: fan.id } });
   assert.equal(liked.data.post.likes, before + 1);
   assert.deepEqual(liked.data.post.likedBy, [fan.id]);
-  const commented = await b(`/api/social/${p1.data.post.id}/comments`, { method: 'POST', body: { characterId: fan.id, body: 'omg!!' } });
+  const commented = await b(`/api/social/${p1.data.post.id}/comments`, {
+    method: 'POST',
+    body: { characterId: fan.id, body: 'omg!!' },
+  });
   assert.equal(commented.data.post.comments[0].body, 'omg!!');
   // Replies hang under the comment; the crowd chimes in on famous characters' posts.
-  const reply = await a(`/api/social/${p1.data.post.id}/comments`, { method: 'POST', body: { characterId: star.id, body: 'ty!', parentId: commented.data.post.comments[0].id } });
+  const reply = await a(`/api/social/${p1.data.post.id}/comments`, {
+    method: 'POST',
+    body: { characterId: star.id, body: 'ty!', parentId: commented.data.post.comments[0].id },
+  });
   assert.equal(reply.data.post.comments.find((c) => c.body === 'ty!').parentId, commented.data.post.comments[0].id);
   assert.ok(reply.data.post.buzz.length > 0, 'crowd comments on a famous post');
   assert.ok(reply.data.post.comments[0].likes >= 0);
@@ -548,7 +697,11 @@ test('stars, contact names and audio uploads with range requests', async () => {
   assert.equal(ranged.status, 206);
   assert.equal(ranged.headers.get('content-range'), 'bytes 0-99/2004');
   assert.equal((await ranged.arrayBuffer()).byteLength, 100);
-  const fake = await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'video/mp4' }, raw: Buffer.from('not a video at all') });
+  const fake = await a('/api/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'video/mp4' },
+    raw: Buffer.from('not a video at all'),
+  });
   assert.equal(fake.status, 400);
 });
 
@@ -574,13 +727,22 @@ test('replies, pictures and picture links in messages; comms icons; very long po
     assert.equal((await post(b, ooc.id, { kind: 'ooc', media: [bad] })).status, 400, bad);
   }
 
-  const comms = await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'dms', kind: 'comms', icon: '💌' } });
+  const comms = await a(`/api/stories/${story.id}/channels`, {
+    method: 'POST',
+    body: { name: 'dms', kind: 'comms', icon: '💌' },
+  });
   assert.equal(comms.data.channel.icon, '💌');
   const pictured = await a(`/api/channels/${comms.data.channel.id}`, { method: 'PUT', body: { icon: link } });
   assert.equal(pictured.data.channel.icon, link);
-  assert.equal((await a(`/api/channels/${comms.data.channel.id}`, { method: 'PUT', body: { icon: 'way too long icon' } })).status, 400);
+  assert.equal(
+    (await a(`/api/channels/${comms.data.channel.id}`, { method: 'PUT', body: { icon: 'way too long icon' } })).status,
+    400,
+  );
 
-  const avatarLink = await a('/api/characters', { method: 'POST', body: { name: 'Linked', avatar: link, portrait: link, banner: link } });
+  const avatarLink = await a('/api/characters', {
+    method: 'POST',
+    body: { name: 'Linked', avatar: link, portrait: link, banner: link },
+  });
   assert.equal(avatarLink.data.character.avatar, link);
 
   const novel = 'word '.repeat(60000);
@@ -597,7 +759,10 @@ test('the directory lists every writer by username with their characters', async
   await b('/api/characters', { method: 'POST', body: { name: 'Bo' } });
   const { writers } = (await b('/api/directory')).data;
   const mine = writers.find((w) => w.username === 'dir_a');
-  assert.deepEqual(mine.characters.map((c) => c.name), ['Amy', 'Zed']);
+  assert.deepEqual(
+    mine.characters.map((c) => c.name),
+    ['Amy', 'Zed'],
+  );
   assert.ok(writers.find((w) => w.username === 'dir_b').characters.some((c) => c.name === 'Bo'));
   const bId = writers.find((w) => w.username === 'dir_b').id;
   await a('/api/blocks', { method: 'POST', body: { userId: bId } });
@@ -613,16 +778,38 @@ test('calendar events: members add them, threads and comms join them, and the ev
   const outsider = await app.signUp('cal_out');
 
   assert.equal((await a(`/api/stories/${story.id}/calendar`, { method: 'POST', body: { title: 'No date' } })).status, 400);
-  const made = await a(`/api/stories/${story.id}/calendar`, { method: 'POST', body: {
-    title: 'Trinity Gala', startsAt: '2026-10-14T20:00:00Z', endsAt: '2026-10-15T02:00:00Z', location: 'The Plaza', summary: 'Black tie.' } });
+  const made = await a(`/api/stories/${story.id}/calendar`, {
+    method: 'POST',
+    body: {
+      title: 'Trinity Gala',
+      startsAt: '2026-10-14T20:00:00Z',
+      endsAt: '2026-10-15T02:00:00Z',
+      location: 'The Plaza',
+      summary: 'Black tie.',
+    },
+  });
   assert.equal(made.status, 201, JSON.stringify(made.data));
   const ev = made.data.event;
-  assert.equal((await a(`/api/stories/${story.id}/calendar`, { method: 'POST', body: { title: 'Backwards', startsAt: '2026-10-14T20:00:00Z', endsAt: '2026-10-13T20:00:00Z' } })).status, 400);
+  assert.equal(
+    (
+      await a(`/api/stories/${story.id}/calendar`, {
+        method: 'POST',
+        body: { title: 'Backwards', startsAt: '2026-10-14T20:00:00Z', endsAt: '2026-10-13T20:00:00Z' },
+      })
+    ).status,
+    400,
+  );
 
-  const t1 = await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'the ballroom', kind: 'event', eventId: ev.id } });
+  const t1 = await a(`/api/stories/${story.id}/channels`, {
+    method: 'POST',
+    body: { name: 'the ballroom', kind: 'event', eventId: ev.id },
+  });
   assert.equal(t1.status, 201, JSON.stringify(t1.data));
   assert.equal(t1.data.channel.eventId, ev.id);
-  const c1 = await a(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'gala texts', kind: 'comms', eventId: ev.id } });
+  const c1 = await a(`/api/stories/${story.id}/channels`, {
+    method: 'POST',
+    body: { name: 'gala texts', kind: 'comms', eventId: ev.id },
+  });
   assert.equal(c1.data.channel.eventId, ev.id);
 
   const detail = (await gm(`/api/calendar/${ev.id}`)).data;
@@ -650,15 +837,24 @@ test('phones: contacts, private texts between two characters, unread counts and 
   assert.match(yoonoh.handle, /^chayoonoh\d*$/); // numbered if an earlier Cha Yoonoh took it
 
   assert.equal((await b(`/api/phone/${yoonoh.id}`)).status, 404); // not your phone
-  const added = await a(`/api/phone/${yoonoh.id}/contacts`, { method: 'POST', body: { contactId: daehyun.id, name: 'daehyunie' } });
+  const added = await a(`/api/phone/${yoonoh.id}/contacts`, {
+    method: 'POST',
+    body: { contactId: daehyun.id, name: 'daehyunie' },
+  });
   assert.equal(added.data.contact.name, 'daehyunie');
   assert.equal((await a(`/api/phone/${yoonoh.id}/contacts`, { method: 'POST', body: { contactId: yoonoh.id } })).status, 400);
 
   const thread = (await a(`/api/phone/${yoonoh.id}/threads`, { method: 'POST', body: { withId: daehyun.id } })).data.thread;
   assert.equal(thread.name, 'daehyunie');
-  const sent = await a(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: yoonoh.id, body: 'are you free tonight?' } });
+  const sent = await a(`/api/phone/threads/${thread.id}/messages`, {
+    method: 'POST',
+    body: { as: yoonoh.id, body: 'are you free tonight?' },
+  });
   assert.equal(sent.status, 201);
-  const pic = await b(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: daehyun.id, media: ['https://i.pinimg.com/x.jpg'], replyTo: sent.data.message.id } });
+  const pic = await b(`/api/phone/threads/${thread.id}/messages`, {
+    method: 'POST',
+    body: { as: daehyun.id, media: ['https://i.pinimg.com/x.jpg'], replyTo: sent.data.message.id },
+  });
   assert.equal(pic.data.message.replyTo.text, 'are you free tonight?');
 
   // Only the two writers can see it.
@@ -681,7 +877,8 @@ test('phones: contacts, private texts between two characters, unread counts and 
   assert.equal((await a(`/api/phone/${yoonoh.id}`)).data.threads[0].unread, 0);
 
   // Tapbacks: one per character, tap the same again to take it off; only emoji.
-  const react = (who, as, emoji) => who(`/api/phone/messages/${sent.data.message.id}/react`, { method: 'POST', body: { as, emoji } });
+  const react = (who, as, emoji) =>
+    who(`/api/phone/messages/${sent.data.message.id}/react`, { method: 'POST', body: { as, emoji } });
   assert.deepEqual((await react(b, daehyun.id, '❤️')).data.reactions, [{ characterId: daehyun.id, emoji: '❤️' }]);
   assert.deepEqual((await react(b, daehyun.id, '😂')).data.reactions, [{ characterId: daehyun.id, emoji: '😂' }]);
   assert.deepEqual((await react(b, daehyun.id, '😂')).data.reactions, []);
@@ -700,7 +897,10 @@ test('phones: contacts, private texts between two characters, unread counts and 
 
   // Blocking ends it.
   await b('/api/blocks', { method: 'POST', body: { userId: (await a('/api/me')).data.user.id } });
-  assert.equal((await a(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: yoonoh.id, body: 'hello?' } })).status, 403);
+  assert.equal(
+    (await a(`/api/phone/threads/${thread.id}/messages`, { method: 'POST', body: { as: yoonoh.id, body: 'hello?' } })).status,
+    403,
+  );
   assert.equal((await a(`/api/phone/${yoonoh.id}`)).data.threads.length, 0);
 });
 
@@ -712,7 +912,8 @@ test('phones: group texts with three or more characters', async () => {
   const mk = async (who, name) => (await who('/api/characters', { method: 'POST', body: { name } })).data.character;
   const [ann, bo, cy, dee] = [await mk(a, 'Ann Grp'), await mk(b, 'Bo Grp'), await mk(c, 'Cy Grp'), await mk(out, 'Dee Grp')];
   assert.equal((await a(`/api/phone/${ann.id}/groups`, { method: 'POST', body: { memberIds: [bo.id] } })).status, 400); // needs two others
-  const g = (await a(`/api/phone/${ann.id}/groups`, { method: 'POST', body: { memberIds: [bo.id, cy.id], title: 'Crew' } })).data.thread;
+  const g = (await a(`/api/phone/${ann.id}/groups`, { method: 'POST', body: { memberIds: [bo.id, cy.id], title: 'Crew' } })).data
+    .thread;
   assert.equal(g.group, true);
   assert.equal(g.name, 'Crew');
   assert.equal(g.members.length, 2);
@@ -720,14 +921,19 @@ test('phones: group texts with three or more characters', async () => {
   const forBo = (await b('/api/notifications')).data.notifications.find((n) => n.type === 'dm');
   assert.equal(forBo.group.title, 'Crew');
   assert.equal(forBo.to.name, 'Bo Grp');
-  assert.ok((await c('/api/notifications')).data.notifications.some((n) => n.type === 'dm' && n.url === `#/phone/${cy.id}/t/${g.id}`));
+  assert.ok(
+    (await c('/api/notifications')).data.notifications.some((n) => n.type === 'dm' && n.url === `#/phone/${cy.id}/t/${g.id}`),
+  );
   const boPhone = (await b(`/api/phone/${bo.id}`)).data;
   assert.equal(boPhone.threads[0].group, true);
   assert.equal(boPhone.threads[0].last.text, 'Ann: meeting at 9');
   assert.equal((await out(`/api/phone/threads/${g.id}?as=${dee.id}`)).status, 404);
   // Anyone in it can rename it or add people; only the starter can remove others; anyone can leave.
   assert.equal((await b(`/api/phone/threads/${g.id}`, { method: 'PUT', body: { as: bo.id, title: 'Crew 🖤' } })).status, 200);
-  assert.equal((await b(`/api/phone/threads/${g.id}/members`, { method: 'POST', body: { as: bo.id, memberIds: [dee.id] } })).data.added, 1);
+  assert.equal(
+    (await b(`/api/phone/threads/${g.id}/members`, { method: 'POST', body: { as: bo.id, memberIds: [dee.id] } })).data.added,
+    1,
+  );
   assert.equal((await out(`/api/phone/threads/${g.id}?as=${dee.id}`)).data.thread.name, 'Crew 🖤');
   assert.equal((await b(`/api/phone/threads/${g.id}/members/${cy.id}?as=${bo.id}`, { method: 'DELETE' })).status, 403);
   assert.equal((await a(`/api/phone/threads/${g.id}/members/${cy.id}?as=${ann.id}`, { method: 'DELETE' })).status, 200);
@@ -745,30 +951,47 @@ test('story overview: owners write the lore page, members read it', async () => 
   assert.deepEqual(empty.overview, {});
   assert.equal(empty.canEdit, false);
   const body = {
-    tagline: 'nobody meets by accident.', intro: 'every introduction can be traced…',
-    sections: [{ title: 'ownership', body: 'someone funded it.' }, { title: '', body: '' }],
-    orgs: [{ name: 'FOYAEN INC.', kind: 'conglomerate', founded: '2019' }, { name: 'AUURA', kind: 'subsidiary', parent: 'FOYAEN INC.' }, { name: '' }],
+    tagline: 'nobody meets by accident.',
+    intro: 'every introduction can be traced…',
+    sections: [
+      { title: 'ownership', body: 'someone funded it.' },
+      { title: '', body: '' },
+    ],
+    orgs: [
+      { name: 'FOYAEN INC.', kind: 'conglomerate', founded: '2019' },
+      { name: 'AUURA', kind: 'subsidiary', parent: 'FOYAEN INC.' },
+      { name: '' },
+    ],
   };
   assert.equal((await a(`/api/stories/${story.id}/overview`, { method: 'PUT', body })).status, 403);
   const saved = (await gm(`/api/stories/${story.id}/overview`, { method: 'PUT', body })).data.overview;
   assert.equal(saved.sections.length, 1);
-  assert.deepEqual(saved.orgs.map((o) => o.name), ['FOYAEN INC.', 'AUURA']);
+  assert.deepEqual(
+    saved.orgs.map((o) => o.name),
+    ['FOYAEN INC.', 'AUURA'],
+  );
   const read = (await a(`/api/stories/${story.id}/overview`)).data;
   assert.equal(read.overview.tagline, 'nobody meets by accident.');
   assert.equal(read.stats.writers, 2);
   assert.equal((await a(`/api/stories/${story.id}`)).data.story.hasOverview, true);
-  assert.equal((await gm(`/api/stories/${story.id}/overview`, { method: 'PUT', body: { intro: 'x'.repeat(30001) } })).status, 400);
+  assert.equal(
+    (await gm(`/api/stories/${story.id}/overview`, { method: 'PUT', body: { intro: 'x'.repeat(30001) } })).status,
+    400,
+  );
 });
 
 test('gradient colors, shared NPCs with categories, header pictures, and no pushes while active', async () => {
   const a = await app.signUp('grad_a');
   const b = await app.signUp('grad_b');
-  const c = (await a('/api/characters', { method: 'POST', body: { name: 'Gradient Girl', gradient: ['#EE719E', '#B8A6DB'] } })).data.character;
+  const c = (await a('/api/characters', { method: 'POST', body: { name: 'Gradient Girl', gradient: ['#EE719E', '#B8A6DB'] } }))
+    .data.character;
   assert.deepEqual(c.gradient, ['#EE719E', '#B8A6DB']);
   assert.equal((await a(`/api/characters/${c.id}`, { method: 'PUT', body: { gradient: ['#EE719E'] } })).status, 400);
   assert.equal((await a(`/api/characters/${c.id}`, { method: 'PUT', body: { gradient: '' } })).data.character.gradient, null);
 
-  const npc = (await a('/api/characters', { method: 'POST', body: { name: 'Doorman Lee', npc: true, npcTags: 'Staff, #FOYAEN, staff' } })).data.character;
+  const npc = (
+    await a('/api/characters', { method: 'POST', body: { name: 'Doorman Lee', npc: true, npcTags: 'Staff, #FOYAEN, staff' } })
+  ).data.character;
   assert.deepEqual(npc.npcTags, ['staff', 'foyaen']);
   const listed = (await b('/api/npcs')).data;
   assert.ok(listed.npcs.some((x) => x.id === npc.id && x.owner.username === 'grad_a'));
@@ -777,13 +1000,19 @@ test('gradient colors, shared NPCs with categories, header pictures, and no push
   const story = (await b('/api/stories', { method: 'POST', body: { title: 'NPC land', visibility: 'public' } })).data.story;
   const ch = await b(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'lobby', tagged: [npc.id] } });
   assert.equal(ch.status, 201, JSON.stringify(ch.data));
-  assert.equal((await b(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'no', tagged: [c.id] } })).status, 400);
+  assert.equal(
+    (await b(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'no', tagged: [c.id] } })).status,
+    400,
+  );
 
   // Until an admin picks some, the pictures that ship in public/headers/ are used.
   const bundled = (await a('/api/headers')).data.headers;
   assert.ok(bundled.length > 0 && bundled.every((h) => /^\/headers\/[\w.-]+\.jpg$/.test(h)));
   assert.equal((await b('/api/headers', { method: 'PUT', body: { headers: ['/headers/one.jpg'] } })).status, 403);
-  const set = await app.admin('/api/headers', { method: 'PUT', body: { headers: ['/headers/one.jpg', 'https://i.pinimg.com/x.jpg'] } });
+  const set = await app.admin('/api/headers', {
+    method: 'PUT',
+    body: { headers: ['/headers/one.jpg', 'https://i.pinimg.com/x.jpg'] },
+  });
   assert.deepEqual(set.data.headers, ['/headers/one.jpg', 'https://i.pinimg.com/x.jpg']);
   assert.equal((await app.admin('/api/headers', { method: 'PUT', body: { headers: ['/etc/passwd'] } })).status, 400);
 });
@@ -797,7 +1026,10 @@ test('push pop-ups are skipped while the person has NUUVI open in front of them'
     const fanChar = (await fan('/api/characters', { method: 'POST', body: { name: 'Fan' } })).data.character;
     const { createECDH, randomBytes } = await import('node:crypto');
     const ua = createECDH('prime256v1');
-    const subscription = { endpoint: 'https://push.example.com/send/vis', keys: { p256dh: ua.generateKeys().toString('base64url'), auth: randomBytes(16).toString('base64url') } };
+    const subscription = {
+      endpoint: 'https://push.example.com/send/vis',
+      keys: { p256dh: ua.generateKeys().toString('base64url'), auth: randomBytes(16).toString('base64url') },
+    };
     assert.equal((await owner('/api/push/subscribe', { method: 'POST', body: { subscription } })).status, 200);
     const post = (await owner('/api/social', { method: 'POST', body: { characterId: ownerChar.id, body: 'hi' } })).data.post;
     // Owner has a visible tab open.
@@ -812,15 +1044,21 @@ test('push pop-ups are skipped while the person has NUUVI open in front of them'
     await fan(`/api/social/${post.id}/comments`, { method: 'POST', body: { characterId: fanChar.id, body: 'yay' } });
     await new Promise((r) => setTimeout(r, 100));
     assert.ok(p.pushes.length >= 1);
-    ctrl.abort(); void res;
-  } finally { p.close(); }
+    ctrl.abort();
+    void res;
+  } finally {
+    p.close();
+  }
 });
 
-test('a writer\'s own gradient, and like/comment numbers set on a character\'s post', async () => {
+test("a writer's own gradient, and like/comment numbers set on a character's post", async () => {
   const a = await app.signUp('colors_a');
   const b = await app.signUp('colors_b');
   assert.equal((await a('/api/me')).data.user.gradient, null);
-  const me = await a('/api/me', { method: 'PUT', body: { displayName: 'Colors A', gradient: ['#EE719E', '#C79AD8', '#B8A6DB'] } });
+  const me = await a('/api/me', {
+    method: 'PUT',
+    body: { displayName: 'Colors A', gradient: ['#EE719E', '#C79AD8', '#B8A6DB'] },
+  });
   assert.deepEqual(me.data.user.gradient, ['#EE719E', '#C79AD8', '#B8A6DB']);
   assert.equal((await a('/api/me', { method: 'PUT', body: { gradient: ['red', 'blue'] } })).status, 400);
   // Saving the profile without colors keeps them.
@@ -832,7 +1070,8 @@ test('a writer\'s own gradient, and like/comment numbers set on a character\'s p
   const post = (await a('/api/social', { method: 'POST', body: { characterId: star.id, body: 'hello world' } })).data.post;
   assert.equal(post.likes, 0);
   assert.equal((await b(`/api/social/${post.id}`, { method: 'PUT', body: { likesDisplay: 5 } })).status, 404);
-  const set = (await a(`/api/social/${post.id}`, { method: 'PUT', body: { likesDisplay: 1200000, commentsDisplay: 3400 } })).data.post;
+  const set = (await a(`/api/social/${post.id}`, { method: 'PUT', body: { likesDisplay: 1200000, commentsDisplay: 3400 } })).data
+    .post;
   assert.equal(set.likes, 1200000);
   assert.equal(set.commentCount, 3400);
   assert.equal(set.editedAt, null, 'changing the numbers does not mark the post as edited');
@@ -859,7 +1098,10 @@ test('connections: post an idea, someone picks it up for their muse, it locks', 
   const b = await app.signUp('conn_b');
   const mine = (await a('/api/characters', { method: 'POST', body: { name: 'Seo Jin' } })).data.character;
   const theirs = (await b('/api/characters', { method: 'POST', body: { name: 'Han Eli' } })).data.character;
-  const made = await a('/api/connections', { method: 'POST', body: { characterId: mine.id, title: 'the ex who kept my hoodie', body: 'looking for…', tags: 'Ex, #angst' } });
+  const made = await a('/api/connections', {
+    method: 'POST',
+    body: { characterId: mine.id, title: 'the ex who kept my hoodie', body: 'looking for…', tags: 'Ex, #angst' },
+  });
   assert.equal(made.status, 201, JSON.stringify(made.data));
   const k = made.data.connection;
   assert.deepEqual(k.tags, ['ex', 'angst']);
@@ -902,7 +1144,10 @@ test('saving a character without choosing bot or NPC keeps them in your own cast
   const a = await app.signUp('cast_saver');
   const c = (await a('/api/characters', { method: 'POST', body: { name: 'Plain Jane', npc: false, bot: null } })).data.character;
   assert.equal(c.npc, false);
-  const saved = await a(`/api/characters/${c.id}`, { method: 'PUT', body: { name: 'Plain Jane', npc: false, bot: null, botLines: {} } });
+  const saved = await a(`/api/characters/${c.id}`, {
+    method: 'PUT',
+    body: { name: 'Plain Jane', npc: false, bot: null, botLines: {} },
+  });
   assert.equal(saved.status, 200, JSON.stringify(saved.data));
   assert.equal(saved.data.character.bot, null);
   assert.equal((await a(`/api/characters/${c.id}`, { method: 'PUT', body: { bot: '' } })).status, 200);
@@ -931,7 +1176,7 @@ test('each writer can drag their stories into their own sidebar order', async ()
   assert.equal((await a('/api/home/order', { method: 'PUT', body: { storyIds: 'nope' } })).status, 400);
 });
 
-test('admins can see every writer\'s private story, but not another admin\'s unless added', async () => {
+test("admins can see every writer's private story, but not another admin's unless added", async () => {
   const admin = app.admin;
   // A regular writer's private story: admins can open it, list it and moderate it.
   const writer = await app.signUp('private_writer');
@@ -958,14 +1203,22 @@ test('admins can see every writer\'s private story, but not another admin\'s unl
   assert.equal((await admin(`/api/admin/stories/${story.id}`, { method: 'DELETE' })).status, 404);
   // The owner adds people by username.
   const adminName = (await admin('/api/me')).data.user.username;
-  assert.equal((await stranger(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status, 404);
-  assert.equal((await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: 'nobody_here' } })).status, 404);
+  assert.equal(
+    (await stranger(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status,
+    404,
+  );
+  assert.equal(
+    (await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: 'nobody_here' } })).status,
+    404,
+  );
   const added = await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: `@${adminName}` } });
   assert.equal(added.status, 201, JSON.stringify(added.data));
   assert.equal((await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status, 400);
   assert.equal((await admin(`/api/stories/${story.id}`)).status, 200);
   assert.equal((await admin('/api/admin/stories')).data.stories.find((s) => s.id === story.id).title, 'Secret Garden');
-  assert.ok((await admin('/api/notifications')).data.notifications.some((n) => n.type === 'added' && n.url === `#/s/${story.id}`));
+  assert.ok(
+    (await admin('/api/notifications')).data.notifications.some((n) => n.type === 'added' && n.url === `#/s/${story.id}`),
+  );
 });
 
 test('any channel can be deleted, even the last one', async () => {
@@ -990,7 +1243,10 @@ test('a story marked complete goes to the Archive: read-only until reopened', as
   assert.equal((await owner(`/api/channels/${main.id}`)).status, 200);
   assert.equal((await owner(`/api/channels/${main.id}`)).data.canPost, false);
   assert.equal((await post(owner, main.id, { kind: 'ooc', body: 'one more?' })).status, 403);
-  assert.equal((await owner(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'sequel', kind: 'thread' } })).status, 403);
+  assert.equal(
+    (await owner(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'sequel', kind: 'thread' } })).status,
+    403,
+  );
   // Reopen it.
   await owner(`/api/stories/${story.id}`, { method: 'PUT', body: { complete: false } });
   assert.equal((await owner('/api/home')).data.stories.find((s) => s.id === story.id).completedAt, null);
@@ -1005,11 +1261,18 @@ test('character profiles: anyone reads, the writer (or an admin) edits; pronouns
   assert.equal(empty.status, 200);
   assert.equal(empty.data.canEdit, false);
   assert.equal((await other(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { quote: 'nope' } } })).status, 404);
-  const saved = await w(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: {
-    quote: 'bass first, questions later', traits: ['loyal', 'reckless'],
-    facts: { age: '25', pronouns: 'he/him', occupation: 'bassist', bogus: 'x' },
-    sections: { history: 'Born in **Portland**.' }, playlist: [{ title: 'Ditto', artist: 'NewJeans' }, { title: '' }],
-  } } });
+  const saved = await w(`/api/profiles/${c.id}`, {
+    method: 'PUT',
+    body: {
+      dossier: {
+        quote: 'bass first, questions later',
+        traits: ['loyal', 'reckless'],
+        facts: { age: '25', pronouns: 'he/him', occupation: 'bassist', bogus: 'x' },
+        sections: { history: 'Born in **Portland**.' },
+        playlist: [{ title: 'Ditto', artist: 'NewJeans' }, { title: '' }],
+      },
+    },
+  });
   assert.equal(saved.status, 200, JSON.stringify(saved.data));
   assert.equal(saved.data.dossier.facts.bogus, undefined);
   assert.equal(saved.data.dossier.playlist.length, 1);
@@ -1024,16 +1287,27 @@ test('episodes carry a picture, a season and a location; posts and social posts 
   const w = await app.signUp('ep_maker');
   const { story } = await makeStory(w);
   const ch = (await w('/api/characters', { method: 'POST', body: { name: 'Mina', color: '#c97a96' } })).data.character;
-  const made = await w(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'the rooftop', kind: 'thread', season: 2, location: 'Gangnam rooftop', banner: 'https://example.com/a.jpg' } });
+  const made = await w(`/api/stories/${story.id}/channels`, {
+    method: 'POST',
+    body: { name: 'the rooftop', kind: 'thread', season: 2, location: 'Gangnam rooftop', banner: 'https://example.com/a.jpg' },
+  });
   assert.equal(made.status, 201, JSON.stringify(made.data));
   assert.equal(made.data.channel.season, 2);
   assert.equal(made.data.channel.location, 'Gangnam rooftop');
   assert.equal(made.data.channel.banner, 'https://example.com/a.jpg');
   assert.equal((await w(`/api/stories/${story.id}/channels`, { method: 'POST', body: { name: 'bad', season: 0 } })).status, 400);
-  const p = await post(w, made.data.channel.id, { kind: 'ic', characterId: ch.id, body: 'She followed him downstairs.', location: 'The basement bar' });
+  const p = await post(w, made.data.channel.id, {
+    kind: 'ic',
+    characterId: ch.id,
+    body: 'She followed him downstairs.',
+    location: 'The basement bar',
+  });
   assert.equal(p.status, 201, JSON.stringify(p.data));
   assert.equal(p.data.post.location, 'The basement bar');
-  const sp = await w('/api/social', { method: 'POST', body: { characterId: ch.id, kind: 'text', body: 'coffee run', location: 'Seongsu' } });
+  const sp = await w('/api/social', {
+    method: 'POST',
+    body: { characterId: ch.id, kind: 'text', body: 'coffee run', location: 'Seongsu' },
+  });
   assert.equal(sp.data.post.location, 'Seongsu');
   const feed = (await w('/api/feed?filter=all')).data.items.find((i) => i.type === 'thread' && i.id === made.data.channel.id);
   assert.equal(feed.banner, 'https://example.com/a.jpg');
@@ -1052,46 +1326,83 @@ test('username changes have a 3-hour cool-off, and About can be hidden', async (
   assert.match(again.data.error, /again in/);
   await app.signUp('taken_name');
   // Saving other things with the same username is fine.
-  assert.equal((await u('/api/me', { method: 'PUT', body: { username: 'renamed_once', bio: 'hi there', showAbout: false } })).status, 200);
+  assert.equal(
+    (await u('/api/me', { method: 'PUT', body: { username: 'renamed_once', bio: 'hi there', showAbout: false } })).status,
+    200,
+  );
   const id = first.data.user.id;
   const seen = (await (await app.signUp('about_viewer'))(`/api/users/${id}`)).data.user;
   assert.equal(seen.showAbout, false);
   assert.equal(seen.bio, '');
 });
 
-test('crowd comments use the poster\'s pronouns and react to the post', async () => {
+test("crowd comments use the poster's pronouns and react to the post", async () => {
   const { sampleBuzz, pronounSet } = await import('../server/buzz.js');
   assert.equal(pronounSet('she/her').sub, 'she');
   assert.equal(pronounSet('he/him').obj, 'him');
   assert.equal(pronounSet('').sub, 'they');
   assert.equal(pronounSet('they/them').pos, 'their');
   let seed = 1;
-  const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  const lines = sampleBuzz({ body: 'new fit tonight', kind: 'photo', location: 'Paris' }, { name: 'Mina Park', pronouns: 'she/her' }, 300, rand);
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  const lines = sampleBuzz(
+    { body: 'new fit tonight', kind: 'photo', location: 'Paris' },
+    { name: 'Mina Park', pronouns: 'she/her' },
+    300,
+    rand,
+  );
   assert.ok(!lines.some((l) => /\b(he|him|his)\b/i.test(l)), 'no wrong pronouns');
-  assert.ok(lines.some((l) => /fit|jacket|shoes|stylist/i.test(l)), 'reacts to the outfit');
-  assert.ok(lines.some((l) => /overrated|trying|unfollow|stylist|crime|didn't need|desperation|pr team|filter/i.test(l)), 'some critics too');
+  assert.ok(
+    lines.some((l) => /fit|jacket|shoes|stylist/i.test(l)),
+    'reacts to the outfit',
+  );
+  assert.ok(
+    lines.some((l) => /overrated|trying|unfollow|stylist|crime|didn't need|desperation|pr team|filter/i.test(l)),
+    'some critics too',
+  );
 });
 
 test('fan comments only say a tagged person is in the picture when the writer says so', async () => {
   const { sampleBuzz } = await import('../server/buzz.js');
   let seed = 7;
-  const rand = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  const inPic = /@yoon (looks so good here|in the pics|photobombing|in the background|is in it)|why is @yoon in this|is @yoon there too|and @yoon in one frame/;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  const inPic =
+    /@yoon (looks so good here|in the pics|photobombing|in the background|is in it)|why is @yoon in this|is @yoon there too|and @yoon in one frame/;
   const post = { body: 'night out with @yoon', kind: 'photo' };
   const apart = sampleBuzz(post, { name: 'Mina Park' }, 400, rand, ['@yoon']);
-  assert.ok(apart.some((l) => l.includes('@yoon')), 'still mentions them');
+  assert.ok(
+    apart.some((l) => l.includes('@yoon')),
+    'still mentions them',
+  );
   assert.ok(!apart.some((l) => inPic.test(l)), 'never says they are in it');
   const together = sampleBuzz({ ...post, meta: JSON.stringify({ tagged: true }) }, { name: 'Mina Park' }, 400, rand, ['@yoon']);
-  assert.ok(together.some((l) => inPic.test(l)), 'says so when they are');
+  assert.ok(
+    together.some((l) => inPic.test(l)),
+    'says so when they are',
+  );
 });
 
 test('THE : NU posts: musings, back-dating, numbers set when posting, liked-by, fresh comments after edits', async () => {
   const w = await app.signUp('nu_poster');
   const c = (await w('/api/characters', { method: 'POST', body: { name: 'Cha Yoonoh', color: '#8fa3c9' } })).data.character;
   const liker = (await w('/api/characters', { method: 'POST', body: { name: 'Mina Park', color: '#c97a96' } })).data.character;
-  const made = await w('/api/social', { method: 'POST', body: { characterId: c.id, kind: 'text', body: 'studio all night #TrinityTour', category: 'musing',
-    likesDisplay: '12,000', commentsDisplay: 400, postedAt: '2025-03-01T20:30:00.000Z' } });
+  const made = await w('/api/social', {
+    method: 'POST',
+    body: {
+      characterId: c.id,
+      kind: 'text',
+      body: 'studio all night #TrinityTour',
+      category: 'musing',
+      likesDisplay: '12,000',
+      commentsDisplay: 400,
+      postedAt: '2025-03-01T20:30:00.000Z',
+    },
+  });
   assert.equal(made.status, 201, JSON.stringify(made.data));
   const p = made.data.post;
   assert.equal(p.category, 'musing');
@@ -1127,18 +1438,24 @@ test('group connections: several people can join, the writer edits it, and it lo
   const b = await app.signUp('conn_one');
   const c = await app.signUp('conn_two');
   const d = await app.signUp('conn_three');
-  const mk = async (who, name) => (await who('/api/characters', { method: 'POST', body: { name, color: '#8fa3c9' } })).data.character;
+  const mk = async (who, name) =>
+    (await who('/api/characters', { method: 'POST', body: { name, color: '#8fa3c9' } })).data.character;
   const [ca, cb, cc, cd] = [await mk(a, 'Lead'), await mk(b, 'One'), await mk(c, 'Two'), await mk(d, 'Three')];
-  const k = (await a('/api/connections', { method: 'POST', body: { characterId: ca.id, title: 'the band', slots: 2 } })).data.connection;
+  const k = (await a('/api/connections', { method: 'POST', body: { characterId: ca.id, title: 'the band', slots: 2 } })).data
+    .connection;
   assert.equal(k.slots, 2);
-  assert.equal((await b(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: cb.id } })).data.connection.full, false);
+  assert.equal(
+    (await b(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: cb.id } })).data.connection.full,
+    false,
+  );
   const full = (await c(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: cc.id } })).data.connection;
   assert.equal(full.full, true);
   assert.equal(full.takers.length, 2);
   assert.equal((await d(`/api/connections/${k.id}/take`, { method: 'POST', body: { characterId: cd.id } })).status, 409);
   // The writer makes room for one more and renames it.
   assert.equal((await a(`/api/connections/${k.id}`, { method: 'PUT', body: { slots: 1 } })).status, 400);
-  const edited = (await a(`/api/connections/${k.id}`, { method: 'PUT', body: { slots: 3, title: 'the whole band' } })).data.connection;
+  const edited = (await a(`/api/connections/${k.id}`, { method: 'PUT', body: { slots: 3, title: 'the whole band' } })).data
+    .connection;
   assert.equal(edited.title, 'the whole band');
   assert.equal(edited.full, false);
   assert.equal((await b(`/api/connections/${k.id}`, { method: 'PUT', body: { title: 'mine now' } })).status, 403);
@@ -1167,18 +1484,46 @@ test('birthdays come from character profiles; only the site owner gets update no
 test('photo tags: tag people on photos, they hear about it, fan comments know they are in it, Tagged tab', async () => {
   const a = await app.signUp('ptag_a');
   const b = await app.signUp('ptag_b');
-  const mk = async (who, name, extra = {}) => (await who('/api/characters', { method: 'POST', body: { name, ...extra } })).data.character;
+  const mk = async (who, name, extra = {}) =>
+    (await who('/api/characters', { method: 'POST', body: { name, ...extra } })).data.character;
   const mina = await mk(a, 'Mina Ptag');
   const ivy = await mk(b, 'Ivy Ptag');
   const leo = await mk(b, 'Leo Ptag');
   const pics = ['https://i.pinimg.com/originals/a/b/1.jpg', 'https://i.pinimg.com/originals/a/b/2.jpg'];
   // A tag off the photo, or on a photo that isn't there, isn't kept.
-  assert.equal((await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'photo', media: pics, photoTags: [{ characterId: ivy.id, mediaIndex: 0, x: 1.5, y: 0.2 }] } })).status, 400);
-  const res = await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'photo', body: 'pier day', media: pics,
-    photoTags: [{ characterId: ivy.id, mediaIndex: 1, x: 0.25, y: 0.5 }, { characterId: leo.id, mediaIndex: 7, x: 0.5, y: 0.5 }] } });
+  assert.equal(
+    (
+      await a('/api/social', {
+        method: 'POST',
+        body: {
+          characterId: mina.id,
+          kind: 'photo',
+          media: pics,
+          photoTags: [{ characterId: ivy.id, mediaIndex: 0, x: 1.5, y: 0.2 }],
+        },
+      })
+    ).status,
+    400,
+  );
+  const res = await a('/api/social', {
+    method: 'POST',
+    body: {
+      characterId: mina.id,
+      kind: 'photo',
+      body: 'pier day',
+      media: pics,
+      photoTags: [
+        { characterId: ivy.id, mediaIndex: 1, x: 0.25, y: 0.5 },
+        { characterId: leo.id, mediaIndex: 7, x: 0.5, y: 0.5 },
+      ],
+    },
+  });
   assert.equal(res.status, 201);
   const post = res.data.post;
-  assert.deepEqual(post.photoTags.map((t) => [t.name, t.mediaIndex, t.x, t.y]), [['Ivy Ptag', 1, 0.25, 0.5]]);
+  assert.deepEqual(
+    post.photoTags.map((t) => [t.name, t.mediaIndex, t.x, t.y]),
+    [['Ivy Ptag', 1, 0.25, 0.5]],
+  );
   const note = (await b('/api/notifications')).data.notifications.find((n) => n.type === 'socialtag');
   assert.match(note.text, /Mina Ptag tagged Ivy Ptag in a photo/);
   assert.equal(note.from.name, 'Mina Ptag'); // the picture is the character who tagged
@@ -1187,14 +1532,25 @@ test('photo tags: tag people on photos, they hear about it, fan comments know th
   assert.equal(meta.people[ivy.handle.toLowerCase()].in, true);
   // Ivy's Tagged tab has it (and @mentions too); Mina's own posts don't show on her own Tagged tab.
   await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: `coffee with @${leo.handle}!!` } });
-  await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: `@${leo.handle}xyz is someone else` } });
-  assert.deepEqual((await b(`/api/social?tagged=${ivy.id}`)).data.posts.map((p) => p.id), [post.id]);
-  assert.deepEqual((await b(`/api/social?tagged=${leo.id}`)).data.posts.map((p) => p.body), [`coffee with @${leo.handle}!!`]);
+  await a('/api/social', {
+    method: 'POST',
+    body: { characterId: mina.id, kind: 'text', body: `@${leo.handle}xyz is someone else` },
+  });
+  assert.deepEqual(
+    (await b(`/api/social?tagged=${ivy.id}`)).data.posts.map((p) => p.id),
+    [post.id],
+  );
+  assert.deepEqual(
+    (await b(`/api/social?tagged=${leo.id}`)).data.posts.map((p) => p.body),
+    [`coffee with @${leo.handle}!!`],
+  );
   assert.equal((await a(`/api/social?tagged=${mina.id}`)).data.posts.length, 0);
   // Editing without photoTags keeps them; swapping a photo drops the tags on the old one; [] clears.
   const kept = (await a(`/api/social/${post.id}`, { method: 'PUT', body: { body: 'pier day 🌊' } })).data.post;
   assert.equal(kept.photoTags.length, 1);
-  const swapped = (await a(`/api/social/${post.id}`, { method: 'PUT', body: { media: [pics[0], 'https://i.pinimg.com/originals/a/b/3.jpg'] } })).data.post;
+  const swapped = (
+    await a(`/api/social/${post.id}`, { method: 'PUT', body: { media: [pics[0], 'https://i.pinimg.com/originals/a/b/3.jpg'] } })
+  ).data.post;
   assert.equal(swapped.photoTags.length, 0);
   assert.equal((await a(`/api/social/${post.id}`)).data.post.meta.people, undefined);
   // Brand accounts.
@@ -1202,7 +1558,9 @@ test('photo tags: tag people on photos, they hear about it, fan comments know th
   assert.equal(shop.brand, true);
   const dir = (await b('/api/directory')).data.writers.flatMap((w) => w.characters);
   assert.equal(dir.find((c) => c.id === shop.id).brand, true);
-  const bp = (await a('/api/social', { method: 'POST', body: { characterId: shop.id, kind: 'text', body: 'new matcha drop 🍵' } })).data.post;
+  const bp = (
+    await a('/api/social', { method: 'POST', body: { characterId: shop.id, kind: 'text', body: 'new matcha drop 🍵' } })
+  ).data.post;
   assert.equal(bp.character.brand, true);
   await a(`/api/characters/${shop.id}`, { method: 'PUT', body: { brand: false } });
   assert.equal((await a(`/api/characters/${shop.id}`)).data.character.brand, false);
@@ -1213,17 +1571,44 @@ test('stories on THE NU: post a photo or text story, it shows for 24 hours, seen
   const b = await app.signUp('sto_b');
   const mina = (await a('/api/characters', { method: 'POST', body: { name: 'Mina Story' } })).data.character;
   const ivy = (await b('/api/characters', { method: 'POST', body: { name: 'Ivy Story' } })).data.character;
-  assert.equal((await b('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'hi' } })).status, 400); // not yours
-  assert.equal((await a('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: '  ' } })).status, 400);
-  assert.equal((await a('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'video', media: '/uploads/nope.mp4' } })).status, 400);
-  const s1 = (await a('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'photo', media: 'https://i.pinimg.com/originals/s/1.jpg' } })).data.story;
-  const s2 = (await a('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'pier at 9 🌊', bg: '#c93d72' } })).data.story;
+  assert.equal(
+    (await b('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'hi' } })).status,
+    400,
+  ); // not yours
+  assert.equal(
+    (await a('/api/social-stories', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: '  ' } })).status,
+    400,
+  );
+  assert.equal(
+    (
+      await a('/api/social-stories', {
+        method: 'POST',
+        body: { characterId: mina.id, kind: 'video', media: '/uploads/nope.mp4' },
+      })
+    ).status,
+    400,
+  );
+  const s1 = (
+    await a('/api/social-stories', {
+      method: 'POST',
+      body: { characterId: mina.id, kind: 'photo', media: 'https://i.pinimg.com/originals/s/1.jpg' },
+    })
+  ).data.story;
+  const s2 = (
+    await a('/api/social-stories', {
+      method: 'POST',
+      body: { characterId: mina.id, kind: 'text', body: 'pier at 9 🌊', bg: '#c93d72' },
+    })
+  ).data.story;
   assert.equal(s2.bg, '#c93d72');
   await b('/api/social-stories', { method: 'POST', body: { characterId: ivy.id, kind: 'text', body: 'bored' } });
   let groups = (await b('/api/social-stories')).data.groups;
   const minaG = groups.find((g) => g.character.id === mina.id);
   assert.equal(groups[0].character.id, ivy.id); // your own first
-  assert.deepEqual(minaG.stories.map((s) => s.id), [s1.id, s2.id]);
+  assert.deepEqual(
+    minaG.stories.map((s) => s.id),
+    [s1.id, s2.id],
+  );
   assert.equal(minaG.allSeen, false);
   assert.equal(minaG.stories[0].views, undefined); // only the poster sees views
   await b(`/api/social-stories/${s1.id}/seen`, { method: 'POST', body: {} });
@@ -1233,10 +1618,16 @@ test('stories on THE NU: post a photo or text story, it shows for 24 hours, seen
   assert.equal((await a('/api/social-stories')).data.groups.find((g) => g.character.id === mina.id).stories[0].views, 1);
   // Older than 24 hours: gone from the strip.
   app.server.ctx.db.prepare("UPDATE social_stories SET created_at = datetime('now', '-25 hours') WHERE id = ?").run(s1.id);
-  assert.deepEqual((await b('/api/social-stories')).data.groups.find((g) => g.character.id === mina.id).stories.map((s) => s.id), [s2.id]);
+  assert.deepEqual(
+    (await b('/api/social-stories')).data.groups.find((g) => g.character.id === mina.id).stories.map((s) => s.id),
+    [s2.id],
+  );
   assert.equal((await b(`/api/social-stories/${s2.id}`, { method: 'DELETE' })).status, 404);
   assert.equal((await a(`/api/social-stories/${s2.id}`, { method: 'DELETE' })).status, 200);
-  assert.equal((await b('/api/social-stories')).data.groups.some((g) => g.character.id === mina.id), false);
+  assert.equal(
+    (await b('/api/social-stories')).data.groups.some((g) => g.character.id === mina.id),
+    false,
+  );
 });
 
 test('Ardell City date: admins set a fixed date or a timer; new posts default to it', async () => {
@@ -1253,7 +1644,8 @@ test('Ardell City date: admins set a fixed date or a timer; new posts default to
   // A timer: one city day every 2 real days. Pretend it was set 5 real days ago.
   await admin('/api/admin/clock', { method: 'PUT', body: { mode: 'timer', date: '2025-03-01', every: 2 } });
   const row = app.server.ctx.db.prepare("SELECT value FROM settings WHERE key = 'clock'").get();
-  const v = JSON.parse(row.value); v.anchor -= 5 * 86400000;
+  const v = JSON.parse(row.value);
+  v.anchor -= 5 * 86400000;
   app.server.ctx.db.prepare("UPDATE settings SET value = ? WHERE key = 'clock'").run(JSON.stringify(v));
   assert.equal((await w('/api/clock')).data.clock.today, '2025-03-03');
   await admin('/api/admin/clock', { method: 'PUT', body: { mode: 'real' } });
@@ -1266,16 +1658,40 @@ test('phone: texts and calls can be given a time; calls can be answered (with a 
   const x = (await a('/api/characters', { method: 'POST', body: { name: 'Caller X' } })).data.character;
   const y = (await b('/api/characters', { method: 'POST', body: { name: 'Callee Y' } })).data.character;
   const t = (await a(`/api/phone/${x.id}/threads`, { method: 'POST', body: { withId: y.id } })).data.thread;
-  const later = (await a(`/api/phone/threads/${t.id}/messages`, { method: 'POST', body: { as: x.id, body: 'later', at: '2025-05-02T21:10:00.000Z' } })).data.message;
+  const later = (
+    await a(`/api/phone/threads/${t.id}/messages`, {
+      method: 'POST',
+      body: { as: x.id, body: 'later', at: '2025-05-02T21:10:00.000Z' },
+    })
+  ).data.message;
   assert.equal(later.createdAt, '2025-05-02 21:10:00');
-  await a(`/api/phone/threads/${t.id}/messages`, { method: 'POST', body: { as: x.id, body: 'earlier', at: '2025-05-02T20:00:00.000Z' } });
+  await a(`/api/phone/threads/${t.id}/messages`, {
+    method: 'POST',
+    body: { as: x.id, body: 'earlier', at: '2025-05-02T20:00:00.000Z' },
+  });
   assert.equal((await a(`/api/phone/${x.id}`)).data.threads[0].last.text, 'later'); // the latest by time
-  assert.equal((await a(`/api/phone/threads/${t.id}/messages`, { method: 'POST', body: { as: x.id, body: 'x', at: 'nope' } })).status, 400);
-  const answered = (await a(`/api/phone/threads/${t.id}/call`, { method: 'POST', body: { as: x.id, answered: true, video: true, duration: 754, at: '2025-05-02T22:00:00.000Z' } })).data.message;
+  assert.equal(
+    (await a(`/api/phone/threads/${t.id}/messages`, { method: 'POST', body: { as: x.id, body: 'x', at: 'nope' } })).status,
+    400,
+  );
+  const answered = (
+    await a(`/api/phone/threads/${t.id}/call`, {
+      method: 'POST',
+      body: { as: x.id, answered: true, video: true, duration: 754, at: '2025-05-02T22:00:00.000Z' },
+    })
+  ).data.message;
   assert.deepEqual(answered.call, { answered: true, video: true, duration: 754 });
-  assert.equal((await b('/api/notifications')).data.notifications.some((n) => n.type === 'call'), false); // answered: no missed call
+  assert.equal(
+    (await b('/api/notifications')).data.notifications.some((n) => n.type === 'call'),
+    false,
+  ); // answered: no missed call
   assert.equal((await a(`/api/phone/${x.id}`)).data.threads[0].last.text, 'FaceTime · 13 min');
-  const missed = (await a(`/api/phone/threads/${t.id}/call`, { method: 'POST', body: { as: x.id, answered: false, at: '2025-05-02T23:00:00.000Z' } })).data.message;
+  const missed = (
+    await a(`/api/phone/threads/${t.id}/call`, {
+      method: 'POST',
+      body: { as: x.id, answered: false, at: '2025-05-02T23:00:00.000Z' },
+    })
+  ).data.message;
   assert.equal(missed.call.answered, false);
   assert.ok((await b('/api/notifications')).data.notifications.some((n) => n.type === 'call'));
   assert.equal((await a(`/api/phone/${x.id}`)).data.threads[0].last.text, 'Missed call');
@@ -1288,17 +1704,24 @@ test('private accounts: follow requests, approve or decline, and only followers 
   assert.equal(star.private, true);
   const fan = (await b('/api/characters', { method: 'POST', body: { name: 'Fan One' } })).data.character;
   const fan2 = (await b('/api/characters', { method: 'POST', body: { name: 'Fan Two' } })).data.character;
-  const post = (await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'text', body: 'secret' } })).data.post;
+  const post = (await a('/api/social', { method: 'POST', body: { characterId: star.id, kind: 'text', body: 'secret' } })).data
+    .post;
   await a('/api/social-stories', { method: 'POST', body: { characterId: star.id, kind: 'text', body: 'secret story' } });
   // Locked for b.
   let prof = (await b(`/api/characters/${star.id}`)).data;
   assert.equal(prof.locked, true);
   assert.equal((await b(`/api/social?character=${star.id}`)).data.posts.length, 0);
   assert.equal((await b(`/api/social/${post.id}`)).status, 403);
-  assert.equal((await b('/api/social-stories')).data.groups.some((g) => g.character.id === star.id), false);
+  assert.equal(
+    (await b('/api/social-stories')).data.groups.some((g) => g.character.id === star.id),
+    false,
+  );
   assert.equal((await a(`/api/social?character=${star.id}`)).data.posts.length, 1); // the writer still sees them
   // Follow = request.
-  assert.equal((await b(`/api/characters/${star.id}/follow`, { method: 'POST', body: { asCharacterId: fan.id } })).data.requested, true);
+  assert.equal(
+    (await b(`/api/characters/${star.id}/follow`, { method: 'POST', body: { asCharacterId: fan.id } })).data.requested,
+    true,
+  );
   await b(`/api/characters/${star.id}/follow`, { method: 'POST', body: { asCharacterId: fan2.id } });
   prof = (await b(`/api/characters/${star.id}`)).data;
   assert.deepEqual(prof.requested.sort(), [fan.id, fan2.id].sort());
@@ -1325,14 +1748,18 @@ test('private accounts: follow requests, approve or decline, and only followers 
 test('ties, timelines, the Ardell Daily and polls', async () => {
   const a = await app.signUp('world_a');
   const b = await app.signUp('world_b');
-  const mk = async (who, name, extra = {}) => (await who('/api/characters', { method: 'POST', body: { name, ...extra } })).data.character;
+  const mk = async (who, name, extra = {}) =>
+    (await who('/api/characters', { method: 'POST', body: { name, ...extra } })).data.character;
   const mina = await mk(a, 'Mina World');
   await a(`/api/profiles/${mina.id}`, { method: 'PUT', body: { dossier: { facts: { birthday: 'March 3' } } } });
   const ivy = await mk(b, 'Ivy World');
   // Ties: Mina calls Ivy her best friend; Ivy hasn't said back yet.
   assert.equal((await b(`/api/characters/${mina.id}/ties/${ivy.id}`, { method: 'PUT', body: { kind: 'friend' } })).status, 404); // not b's
   assert.equal((await a(`/api/characters/${mina.id}/ties/${ivy.id}`, { method: 'PUT', body: { kind: 'wizard' } })).status, 400);
-  await a(`/api/characters/${mina.id}/ties/${ivy.id}`, { method: 'PUT', body: { kind: 'bestfriend', label: 'ride or die', note: 'since college', since: '2024-09-01' } });
+  await a(`/api/characters/${mina.id}/ties/${ivy.id}`, {
+    method: 'PUT',
+    body: { kind: 'bestfriend', label: 'ride or die', note: 'since college', since: '2024-09-01' },
+  });
   let ties = (await b(`/api/characters/${ivy.id}/ties`)).data;
   assert.equal(ties.ties.length, 0);
   assert.equal(ties.incoming[0].from.name, 'Mina World');
@@ -1343,14 +1770,26 @@ test('ties, timelines, the Ardell Daily and polls', async () => {
   // Names start with capitals however they're typed.
   assert.equal((await mk(a, 'jo de la cruz')).name, 'Jo De La Cruz');
   // Timeline: only the events the writer adds, oldest first. Only the writer can change it.
-  const ev = (await a(`/api/characters/${mina.id}/timeline`, { method: 'POST', body: { date: '2021-09-01', title: 'Moved to Ardell', note: 'with two suitcases' } }));
+  const ev = await a(`/api/characters/${mina.id}/timeline`, {
+    method: 'POST',
+    body: { date: '2021-09-01', title: 'Moved to Ardell', note: 'with two suitcases' },
+  });
   assert.equal(ev.status, 201);
   await a(`/api/characters/${mina.id}/timeline`, { method: 'POST', body: { date: '2019-05-20', title: 'Graduated' } });
-  assert.equal((await a(`/api/characters/${mina.id}/timeline`, { method: 'POST', body: { date: 'someday', title: 'x' } })).status, 400);
-  assert.equal((await b(`/api/characters/${mina.id}/timeline`, { method: 'POST', body: { date: '2020-01-01', title: 'nope' } })).status, 404);
+  assert.equal(
+    (await a(`/api/characters/${mina.id}/timeline`, { method: 'POST', body: { date: 'someday', title: 'x' } })).status,
+    400,
+  );
+  assert.equal(
+    (await b(`/api/characters/${mina.id}/timeline`, { method: 'POST', body: { date: '2020-01-01', title: 'nope' } })).status,
+    404,
+  );
   let tl = (await b(`/api/characters/${mina.id}/timeline`)).data;
   assert.deepEqual([tl.events.map((e) => e.title), tl.canEdit], [['Graduated', 'Moved to Ardell'], false]);
-  await a(`/api/characters/${mina.id}/timeline/${ev.data.event.id}`, { method: 'PUT', body: { date: '2018-01-01', title: 'Moved to Ardell', note: '' } });
+  await a(`/api/characters/${mina.id}/timeline/${ev.data.event.id}`, {
+    method: 'PUT',
+    body: { date: '2018-01-01', title: 'Moved to Ardell', note: '' },
+  });
   tl = (await a(`/api/characters/${mina.id}/timeline`)).data;
   assert.deepEqual([tl.events[0].title, tl.events[0].date, tl.canEdit], ['Moved to Ardell', '2018-01-01', true]);
   await a(`/api/characters/${mina.id}/timeline/${ev.data.event.id}`, { method: 'DELETE' });
@@ -1366,8 +1805,27 @@ test('ties, timelines, the Ardell Daily and polls', async () => {
   assert.equal(fam.members.find((m) => m.character.id === mum.id).relation.label, 'mum');
   assert.equal(fam.links.length, 2);
   // Polls: 2–4 choices; characters vote once each (again to change); fans can vote too.
-  assert.equal((await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'q', poll: { question: 'q?', options: ['only one'] } } })).status, 400);
-  const p = (await a('/api/social', { method: 'POST', body: { characterId: mina.id, kind: 'text', body: 'which bag?', likesDisplay: 100, poll: { question: 'Which bag?', options: ['Black', 'Red', 'Both'], crowd: true } } })).data.post;
+  assert.equal(
+    (
+      await a('/api/social', {
+        method: 'POST',
+        body: { characterId: mina.id, kind: 'text', body: 'q', poll: { question: 'q?', options: ['only one'] } },
+      })
+    ).status,
+    400,
+  );
+  const p = (
+    await a('/api/social', {
+      method: 'POST',
+      body: {
+        characterId: mina.id,
+        kind: 'text',
+        body: 'which bag?',
+        likesDisplay: 100,
+        poll: { question: 'Which bag?', options: ['Black', 'Red', 'Both'], crowd: true },
+      },
+    })
+  ).data.post;
   assert.equal(p.poll.options.length, 3);
   assert.equal(p.poll.total, 40); // 4 in 10 of the likes vote
   let poll = (await b(`/api/social/${p.id}/vote`, { method: 'POST', body: { characterId: ivy.id, choice: 1 } })).data.poll;
@@ -1393,7 +1851,11 @@ test('notifications: opening the tab clears the badge; answering clears the high
   await b(`/api/social/${post.id}/comments`, { method: 'POST', body: { characterId: kai.id, body: 'hi back' } });
   await b(`/api/characters/${kai.id}/ties/${mia.id}`, { method: 'PUT', body: { kind: 'friend' } });
   const badge = async () => (await a('/api/home')).data.notificationsUnread;
-  const unread = async () => (await a('/api/notifications')).data.notifications.filter((n) => !n.read).map((n) => n.type).sort();
+  const unread = async () =>
+    (await a('/api/notifications')).data.notifications
+      .filter((n) => !n.read)
+      .map((n) => n.type)
+      .sort();
   assert.equal(await badge(), 2);
   await a('/api/notifications/seen', { method: 'POST', body: {} });
   assert.equal(await badge(), 0);
@@ -1403,32 +1865,27 @@ test('notifications: opening the tab clears the badge; answering clears the high
   assert.deepEqual(await unread(), []);
 });
 
-test('profile headlines rotate through lines with the same energy', async () => {
-  const a = await app.signUp('head_a');
-  const c = (await a('/api/characters', { method: 'POST', body: { name: 'Aedan Head' } })).data.character;
-  let d = (await a(`/api/profiles/${c.id}`)).data.dossier;
-  assert.equal(d.headlines[0], "IT'S"); // nothing set yet: plain lines
-  await a(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...d, headline: "ohh shit it's" } } });
-  d = (await a(`/api/profiles/${c.id}`)).data.dossier;
-  assert.equal(d.headlines[0], "OHH SHIT IT'S");
-  assert.ok(d.headlines.includes('AYO IT\'S') && d.headlines.length >= 8); // hyped stays hyped
-  await a(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...d, headline: 'look who it is' } } });
-  d = (await a(`/api/profiles/${c.id}`)).data.dossier;
-  assert.ok(d.headlines.includes('WELL WELL WELL IT\'S') && !d.headlines.includes('AYO IT\'S')); // smug stays smug
-});
-
 test('profile song: share links and embed codes from every service', async () => {
   const a = await app.signUp('song_a');
   const c = (await a('/api/characters', { method: 'POST', body: { name: 'Song Head' } })).data.character;
   const put = async (song) => a(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { song } } });
   const got = async () => (await a(`/api/profiles/${c.id}`)).data.dossier.song;
   await put('https://open.spotify.com/track/2Kerz9H9IejzeIpjhDJoYG?si=abc');
-  assert.deepEqual([(await got()).service, (await got()).embed], ['spotify', 'https://open.spotify.com/embed/track/2Kerz9H9IejzeIpjhDJoYG']);
-  await put('<iframe style="border-radius:12px" src="https://open.spotify.com/embed/album/1DFixLWuPkv3KT3TnV35m3?utm_source=generator" width="100%" height="352" frameBorder="0"></iframe>');
+  assert.deepEqual(
+    [(await got()).service, (await got()).embed],
+    ['spotify', 'https://open.spotify.com/embed/track/2Kerz9H9IejzeIpjhDJoYG'],
+  );
+  await put(
+    '<iframe style="border-radius:12px" src="https://open.spotify.com/embed/album/1DFixLWuPkv3KT3TnV35m3?utm_source=generator" width="100%" height="352" frameBorder="0"></iframe>',
+  );
   assert.equal((await got()).embed, 'https://open.spotify.com/embed/album/1DFixLWuPkv3KT3TnV35m3');
-  await put('<iframe width="560" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ?si=x" title="YouTube video player"></iframe>');
+  await put(
+    '<iframe width="560" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ?si=x" title="YouTube video player"></iframe>',
+  );
   assert.equal((await got()).embed, 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
-  await put('<iframe width="100%" height="166" src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/artist/track-name&amp;color=%23ff5500"></iframe>');
+  await put(
+    '<iframe width="100%" height="166" src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/artist/track-name&amp;color=%23ff5500"></iframe>',
+  );
   assert.equal((await got()).service, 'soundcloud');
   await put('https://music.apple.com/us/album/bleach/1234567890?i=1234567891');
   assert.equal((await got()).service, 'apple');

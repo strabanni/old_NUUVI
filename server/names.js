@@ -6,18 +6,70 @@ export const MAX_USERNAME = 100;
 
 // Matched anywhere inside a name once it's lowercased, de-accented and de-leetspeaked.
 const BLOCKED_ANYWHERE = [
-  'nigger', 'nigga', 'faggot', 'tranny', 'wetback', 'raghead', 'towelhead', 'whore', 'molest', 'hentai', 'hitler',
-  'kkk', 'cocksuck', 'motherfuck', 'fuck', 'bitch', 'pussy', 'blowjob', 'handjob', 'dildo', 'jizz',
+  'nigger',
+  'nigga',
+  'faggot',
+  'tranny',
+  'wetback',
+  'raghead',
+  'towelhead',
+  'whore',
+  'molest',
+  'hentai',
+  'hitler',
+  'kkk',
+  'cocksuck',
+  'motherfuck',
+  'fuck',
+  'bitch',
+  'pussy',
+  'blowjob',
+  'handjob',
+  'dildo',
+  'jizz',
 ];
 // Matched only as a whole word, so ordinary names that happen to contain them are fine
 // ("Ashitaka", "Cassandra", "Semenov", "therapist").
 const BLOCKED_WORDS = [
-  'cunt', 'slut', 'dick', 'cock', 'cum', 'ass', 'spic', 'coon', 'dyke', 'fag', 'sex', 'rape', 'rapist', 'tits', 'anal', 'hoe',
-  'shit', 'retard', 'kike', 'chink', 'beaner', 'pedo', 'paedo', 'porn', 'nazi', 'nude', 'naked', 'penis', 'vagina', 'semen',
+  'cunt',
+  'slut',
+  'dick',
+  'cock',
+  'cum',
+  'ass',
+  'spic',
+  'coon',
+  'dyke',
+  'fag',
+  'sex',
+  'rape',
+  'rapist',
+  'tits',
+  'anal',
+  'hoe',
+  'shit',
+  'retard',
+  'kike',
+  'chink',
+  'beaner',
+  'pedo',
+  'paedo',
+  'porn',
+  'nazi',
+  'nude',
+  'naked',
+  'penis',
+  'vagina',
+  'semen',
 ];
 
 const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b', '@': 'a', $: 's', '!': 'i', '|': 'i' };
-const simplify = (s) => s.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[013457 8@$!|]/g, (c) => LEET[c] ?? c);
+const simplify = (s) =>
+  s
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[013457 8@$!|]/g, (c) => LEET[c] ?? c);
 
 export function isInappropriate(name) {
   const plain = simplify(name);
@@ -52,16 +104,21 @@ const HANDLE_RE = new RegExp(`^${HANDLE_CHAR}{1,30}$`, 'u');
 export const MAX_HANDLE = 30;
 
 export function validHandle(value) {
-  const handle = String(value ?? '').normalize('NFC').trim().replace(/^@/, '');
+  const handle = String(value ?? '')
+    .normalize('NFC')
+    .trim()
+    .replace(/^@/, '');
   if (!handle) fail(400, 'Add a username');
   if ([...handle].length > MAX_HANDLE) fail(400, `Usernames can be up to ${MAX_HANDLE} characters`);
-  if (!HANDLE_RE.test(handle) && !new RegExp(`^${HANDLE_CHAR}+$`, 'u').test(handle)) fail(400, 'Usernames can’t have spaces, @, # or < > & " \' ` / \\');
+  if (!HANDLE_RE.test(handle) && !new RegExp(`^${HANDLE_CHAR}+$`, 'u').test(handle))
+    fail(400, 'Usernames can’t have spaces, @, # or < > & " \' ` / \\');
   if (isInappropriate(handle)) fail(400, 'Please pick a different username');
   return handle;
 }
 
 // The @words in some text, as typed (may carry punctuation after them: "@mina♡!!").
-export const mentionTokens = (text) => [...String(text || '').matchAll(new RegExp(`@(${HANDLE_CHAR}{1,60})`, 'gu'))].map((m) => m[1]);
+export const mentionTokens = (text) =>
+  [...String(text || '').matchAll(new RegExp(`@(${HANDLE_CHAR}{1,60})`, 'gu'))].map((m) => m[1]);
 
 // Which handle an @word means: the whole thing if it's a handle, else with the punctuation or emoji
 // on the end dropped one at a time ("@mina!!" → mina, "@mina♡" stays mina♡ when that's the handle).

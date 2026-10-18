@@ -1,6 +1,17 @@
 // Posts inside channels, plus reporting posts and users.
 import { fail, str, oneOf, countWords } from '../http.js';
-import { toPost, POST_SELECT, requireUser, channelAccess, storyAccess, membership, turnState, uploadRef, isBlocked, requirePlayable } from '../model.js';
+import {
+  toPost,
+  POST_SELECT,
+  requireUser,
+  channelAccess,
+  storyAccess,
+  membership,
+  turnState,
+  uploadRef,
+  isBlocked,
+  requirePlayable,
+} from '../model.js';
 import { plainText } from '../text.js';
 
 // No practical limit on how long a post can be (about 170,000 words); the cap only guards the server.
@@ -27,8 +38,10 @@ export function postRoutes(r, ctx) {
     if (after) {
       rows = db.prepare(`${POST_SELECT} WHERE p.channel_id = ? AND p.id > ? ORDER BY p.id LIMIT 500`).all(channel.id, after);
     } else {
-      rows = db.prepare(`${POST_SELECT} WHERE p.channel_id = ? AND p.id < ? ORDER BY p.id DESC LIMIT ?`)
-        .all(channel.id, before || Number.MAX_SAFE_INTEGER, PAGE + 1).reverse();
+      rows = db
+        .prepare(`${POST_SELECT} WHERE p.channel_id = ? AND p.id < ? ORDER BY p.id DESC LIMIT ?`)
+        .all(channel.id, before || Number.MAX_SAFE_INTEGER, PAGE + 1)
+        .reverse();
     }
     const hasMore = !after && rows.length > PAGE;
     if (hasMore) rows.shift();
@@ -40,7 +53,14 @@ export function postRoutes(r, ctx) {
     const { channel, story, role } = channelAccess(db, params.id, user);
     if (!role) fail(403, 'Join the story to write in it');
     if (!ctx.canPost(channel, role, user)) {
-      fail(403, story.completed_at ? 'This story is complete and archived' : channel.status === 'complete' ? 'This thread is complete' : 'This thread is private to the characters in it');
+      fail(
+        403,
+        story.completed_at
+          ? 'This story is complete and archived'
+          : channel.status === 'complete'
+            ? 'This thread is complete'
+            : 'This thread is private to the characters in it',
+      );
     }
     const kind = oneOf(body.kind, 'Kind', ['ic', 'ooc', 'narration']) ?? 'ic';
     const media = pictures(body.media, user.id);
@@ -51,7 +71,9 @@ export function postRoutes(r, ctx) {
     const location = str(body.location, 'Location', { max: 100 }) || null;
     let replyTo = null;
     if (body.replyTo != null) {
-      const target = db.prepare('SELECT id, user_id FROM posts WHERE id = ? AND channel_id = ?').get(Number(body.replyTo), channel.id);
+      const target = db
+        .prepare('SELECT id, user_id FROM posts WHERE id = ? AND channel_id = ?')
+        .get(Number(body.replyTo), channel.id);
       if (!target) fail(400, 'That message is gone');
       replyTo = target;
     }
@@ -59,27 +81,58 @@ export function postRoutes(r, ctx) {
     let characterId = null;
     if (kind === 'ic' && body.characterId == null) fail(400, 'Pick a character to write in-character');
     if (kind === 'ic') {
-      const c = db.prepare('SELECT id, name, status FROM characters WHERE id = ? AND user_id = ?').get(Number(body.characterId), user.id);
+      const c = db
+        .prepare('SELECT id, name, status FROM characters WHERE id = ? AND user_id = ?')
+        .get(Number(body.characterId), user.id);
       if (!c) fail(400, 'Choose one of your own characters');
       requirePlayable(c);
       characterId = c.id;
     }
 
-    const { lastInsertRowid } = db.prepare(`INSERT INTO posts (story_id, channel_id, user_id, character_id, kind, body, cw, word_count, reply_to, media, location)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(story.id, channel.id, user.id, characterId, kind, text, cw, countWords(text), replyTo?.id ?? null, JSON.stringify(media), location);
+    const { lastInsertRowid } = db
+      .prepare(
+        `INSERT INTO posts (story_id, channel_id, user_id, character_id, kind, body, cw, word_count, reply_to, media, location)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        story.id,
+        channel.id,
+        user.id,
+        characterId,
+        kind,
+        text,
+        cw,
+        countWords(text),
+        replyTo?.id ?? null,
+        JSON.stringify(media),
+        location,
+      );
     const postId = Number(lastInsertRowid);
     db.prepare("UPDATE stories SET updated_at = datetime('now') WHERE id = ?").run(story.id);
     db.prepare("UPDATE channels SET last_post_at = datetime('now') WHERE id = ?").run(channel.id);
-    if (characterId) db.prepare('INSERT OR IGNORE INTO channel_characters (channel_id, character_id) VALUES (?, ?)').run(channel.id, characterId);
-    db.prepare(`INSERT INTO channel_reads (user_id, channel_id, last_read_id) VALUES (?, ?, ?)
-      ON CONFLICT(user_id, channel_id) DO UPDATE SET last_read_id = excluded.last_read_id`).run(user.id, channel.id, postId);
+    if (characterId)
+      db.prepare('INSERT OR IGNORE INTO channel_characters (channel_id, character_id) VALUES (?, ?)').run(
+        channel.id,
+        characterId,
+      );
+    db.prepare(
+      `INSERT INTO channel_reads (user_id, channel_id, last_read_id) VALUES (?, ?, ?)
+      ON CONFLICT(user_id, channel_id) DO UPDATE SET last_read_id = excluded.last_read_id`,
+    ).run(user.id, channel.id, postId);
 
     const post = loadPost(postId);
     hub.sendStory(story.id, 'post', post);
     ctx.notifyPost(post, story, channel);
     if (replyTo && replyTo.user_id !== user.id && !isBlocked(db, replyTo.user_id, user.id)) {
-      ctx.notify({ userId: replyTo.user_id, type: 'reply', actorId: user.id, storyId: story.id, channelId: channel.id, postId,
-        text: plainText(text) || 'sent a picture' });
+      ctx.notify({
+        userId: replyTo.user_id,
+        type: 'reply',
+        actorId: user.id,
+        storyId: story.id,
+        channelId: channel.id,
+        postId,
+        text: plainText(text) || 'sent a picture',
+      });
     }
 
     // Writing your scene post passes the turn along.
@@ -96,8 +149,13 @@ export function postRoutes(r, ctx) {
     const media = body.media === undefined ? JSON.parse(existing.media || '[]') : pictures(body.media, user.id);
     if (!text && !media.length) fail(400, 'Write something or add a picture');
     const cw = str(body.cw, 'Content warning', { max: 100 }) ?? existing.cw;
-    db.prepare("UPDATE posts SET body = ?, cw = ?, word_count = ?, media = ?, edited_at = datetime('now') WHERE id = ?")
-      .run(text, cw, countWords(text), JSON.stringify(media), existing.id);
+    db.prepare("UPDATE posts SET body = ?, cw = ?, word_count = ?, media = ?, edited_at = datetime('now') WHERE id = ?").run(
+      text,
+      cw,
+      countWords(text),
+      JSON.stringify(media),
+      existing.id,
+    );
     const post = loadPost(existing.id);
     hub.sendStory(existing.story_id, 'edit', post);
     return { data: { post } };
@@ -110,7 +168,8 @@ export function postRoutes(r, ctx) {
     const isOwner = membership(db, existing.story_id, user.id) === 'owner';
     if (existing.user_id !== user.id && !isOwner && !user.isAdmin) fail(404, 'Post not found');
     db.prepare('DELETE FROM posts WHERE id = ?').run(existing.id);
-    if (existing.user_id !== user.id && !isOwner) ctx.modLog(user.id, 'delete-post', `#${existing.id} in story #${existing.story_id}`);
+    if (existing.user_id !== user.id && !isOwner)
+      ctx.modLog(user.id, 'delete-post', `#${existing.id} in story #${existing.story_id}`);
     hub.sendStory(existing.story_id, 'delete', { id: existing.id, channelId: existing.channel_id });
     return { data: { ok: true } };
   });
@@ -123,9 +182,15 @@ export function postRoutes(r, ctx) {
     storyAccess(db, row.story_id, user); // must be able to see it
     const reason = str(body.reason, 'Reason', { min: 1, max: 1000, required: true });
     const post = loadPost(row.id);
-    const snapshot = JSON.stringify({ body: post.body, kind: post.kind, character: post.character?.name ?? null, createdAt: post.createdAt });
-    db.prepare('INSERT INTO reports (reporter_id, post_id, target_user, story_id, reason, snapshot) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(user.id, row.id, row.user_id, row.story_id, reason, snapshot);
+    const snapshot = JSON.stringify({
+      body: post.body,
+      kind: post.kind,
+      character: post.character?.name ?? null,
+      createdAt: post.createdAt,
+    });
+    db.prepare(
+      'INSERT INTO reports (reporter_id, post_id, target_user, story_id, reason, snapshot) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(user.id, row.id, row.user_id, row.story_id, reason, snapshot);
     ctx.notifyAdmins(user.id, `${user.displayName} reported a post by ${post.author.displayName}`);
     return { status: 201, data: { ok: true } };
   });

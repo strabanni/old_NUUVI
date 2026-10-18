@@ -1,3 +1,4 @@
+// Starts NUUVI: reads the settings from the environment and opens the web server.
 import { createApp } from './app.js';
 
 const env = process.env;

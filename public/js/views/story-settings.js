@@ -1,6 +1,6 @@
 // Owner tools for a story: details, channels, turn order, invites, members.
 import { html, render, api, $, bindForm, toast, avatar, icons, confirmModal, promptModal } from '../lib.js';
-import { state, page, loadStory, refreshHome, copyText, routeAlive, ensureAlive , replaceHash } from '../main.js';
+import { state, page, loadStory, refreshHome, copyText, routeAlive, ensureAlive, replaceHash } from '../main.js';
 import { storyFields, bindIconUpload } from './home.js';
 import { openThreadForm } from './threads.js';
 
@@ -59,7 +59,7 @@ export async function viewStorySettings(idStr) {
 
         <section class="card">
           <h2>Writers</h2>
-          <p class="muted small">${story.visibility === 'private' ? "This story is private: only the writers here can see it (admins too, unless you add them)." : 'Add someone straight in by their username.'}</p>
+          <p class="muted small">${story.visibility === 'private' ? 'This story is private: only the writers here can see it (admins too, unless you add them).' : 'Add someone straight in by their username.'}</p>
           <form class="add-writer" id="add-writer">
             <input name="username" placeholder="@username" autocomplete="off" aria-label="Username" required>
             <button class="primary" type="submit">Add</button>
@@ -87,7 +87,10 @@ export async function viewStorySettings(idStr) {
   // ----- Channels -----
   const channelsEl = $('#channels', body);
   function drawChannels() {
-    render(channelsEl, html`${state.story.channels.map((c, i) => html`
+    render(
+      channelsEl,
+      html`${state.story.channels.map(
+        (c, i) => html`
       <div class="row-item" data-id="${c.id}">
         <span class="hash">${icons.hash}</span>
         <div class="grow"><strong>${c.name}</strong>${c.topic ? html`<div class="small muted">${c.topic}</div>` : ''}</div>
@@ -95,7 +98,9 @@ export async function viewStorySettings(idStr) {
         <button class="icon-btn sm" data-act="down" ${i === state.story.channels.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
         <button class="sm" data-act="edit">Edit</button>
         <button class="sm danger" data-act="delete">Delete</button>
-      </div>`)}`);
+      </div>`,
+      )}`,
+    );
   }
   drawChannels();
   channelsEl.addEventListener('click', async (e) => {
@@ -116,7 +121,9 @@ export async function viewStorySettings(idStr) {
       await loadStory(id);
       drawChannels();
       drawTurnChannels();
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   });
   $('#add-channel', body).addEventListener('click', () => openThreadForm({ storyId: id }));
 
@@ -139,10 +146,13 @@ export async function viewStorySettings(idStr) {
     const members = state.story.members;
     const byId = (uid) => members.find((m) => m.id === uid);
     const outside = members.filter((m) => !draftOrder.includes(m.id));
-    render(turnsEl, html`
+    render(
+      turnsEl,
+      html`
       <label class="check"><input type="checkbox" id="turns-on" ${draftEnabled ? 'checked' : ''}> Use turn order in #${c.name}</label>
       <ol class="turn-list">
-        ${draftOrder.filter(byId).map((uid, i) => html`
+        ${draftOrder.filter(byId).map(
+          (uid, i) => html`
           <li data-uid="${uid}">
             ${avatar({ name: byId(uid).displayName, src: byId(uid).avatar, size: 'xs' })}
             <span class="grow">${byId(uid).displayName}${c.turns.enabled && c.turns.current === uid ? html` <span class="tag">current</span>` : ''}</span>
@@ -150,23 +160,35 @@ export async function viewStorySettings(idStr) {
             <button class="icon-btn sm" data-t="down" aria-label="Later">↓</button>
             <button class="sm" data-t="current">Make current</button>
             <button class="icon-btn sm" data-t="remove" aria-label="Remove">✕</button>
-          </li>`)}
+          </li>`,
+        )}
       </ol>
       ${outside.length ? html`<p class="small muted">Not in the order: ${outside.map((m) => html`<button class="link" data-add="${m.id}">+ ${m.displayName}</button> `)}</p>` : ''}
-      <div class="actions"><button class="primary" id="save-turns">Save turn order</button></div>`);
+      <div class="actions"><button class="primary" id="save-turns">Save turn order</button></div>`,
+    );
   }
-  turnSelect.addEventListener('change', () => { draftOrder = null; draftEnabled = null; drawTurns(); });
-  turnsEl.addEventListener('change', (e) => { if (e.target.id === 'turns-on') draftEnabled = e.target.checked; });
+  turnSelect.addEventListener('change', () => {
+    draftOrder = null;
+    draftEnabled = null;
+    drawTurns();
+  });
+  turnsEl.addEventListener('change', (e) => {
+    if (e.target.id === 'turns-on') draftEnabled = e.target.checked;
+  });
   turnsEl.addEventListener('click', async (e) => {
     const add = e.target.closest('[data-add]');
-    if (add) { draftOrder.push(Number(add.dataset.add)); return drawTurns(); }
+    if (add) {
+      draftOrder.push(Number(add.dataset.add));
+      return drawTurns();
+    }
     const b = e.target.closest('[data-t]');
     const cid = Number(turnSelect.value);
     if (b) {
       const uid = Number(b.closest('[data-uid]').dataset.uid);
       const i = draftOrder.indexOf(uid);
       if (b.dataset.t === 'up' && i > 0) [draftOrder[i - 1], draftOrder[i]] = [draftOrder[i], draftOrder[i - 1]];
-      if (b.dataset.t === 'down' && i < draftOrder.length - 1) [draftOrder[i + 1], draftOrder[i]] = [draftOrder[i], draftOrder[i + 1]];
+      if (b.dataset.t === 'down' && i < draftOrder.length - 1)
+        [draftOrder[i + 1], draftOrder[i]] = [draftOrder[i], draftOrder[i + 1]];
       if (b.dataset.t === 'remove') draftOrder.splice(i, 1);
       if (b.dataset.t === 'current') {
         await saveTurns(cid, { current: uid, enabled: true });
@@ -184,7 +206,9 @@ export async function viewStorySettings(idStr) {
       draftEnabled = null;
       drawTurns();
       toast('Turn order saved');
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   }
   drawTurns();
 
@@ -200,12 +224,17 @@ export async function viewStorySettings(idStr) {
   // ----- Members -----
   const membersEl = $('#member-list', body);
   function drawMembers() {
-    render(membersEl, html`${state.story.members.map((m) => html`
+    render(
+      membersEl,
+      html`${state.story.members.map(
+        (m) => html`
       <div class="row-item">
         ${avatar({ name: m.displayName, src: m.avatar })}
         <div class="grow"><a href="#/u/${m.id}">${m.displayName}</a> <span class="small muted">@${m.username}</span></div>
         ${m.role === 'owner' ? html`<span class="tag">Owner</span>` : html`<button class="sm danger" data-kick="${m.id}">Remove</button>`}
-      </div>`)}`);
+      </div>`,
+      )}`,
+    );
   }
   drawMembers();
   $('#add-writer', body).addEventListener('submit', async (e) => {
@@ -217,13 +246,21 @@ export async function viewStorySettings(idStr) {
       toast(`${member.displayName} was added`);
       await loadStory(id);
       drawMembers();
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   });
   membersEl.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-kick]');
     if (!b) return;
     const m = state.story.members.find((x) => x.id === Number(b.dataset.kick));
-    if (!(await confirmModal(`Remove ${m.displayName} from this story? They won't be able to rejoin. Their posts stay.`, { ok: 'Remove', danger: true }))) return;
+    if (
+      !(await confirmModal(`Remove ${m.displayName} from this story? They won't be able to rejoin. Their posts stay.`, {
+        ok: 'Remove',
+        danger: true,
+      }))
+    )
+      return;
     try {
       await api(`/api/stories/${id}/kick`, { method: 'POST', body: { userId: m.id } });
       await loadStory(id);
@@ -231,13 +268,22 @@ export async function viewStorySettings(idStr) {
       draftOrder = null;
       draftEnabled = null;
       drawTurns();
-    } catch (err) { toast(err.message); }
+    } catch (err) {
+      toast(err.message);
+    }
   });
 
   // ----- Delete -----
   $('#delete', body).addEventListener('click', async () => {
-    const typed = await promptModal('Delete story', { label: `Type the title to confirm: ${story.title}`, ok: 'Delete forever', maxlength: 120 });
-    if (typed !== story.title) { if (typed !== null) toast("Title didn't match"); return; }
+    const typed = await promptModal('Delete story', {
+      label: `Type the title to confirm: ${story.title}`,
+      ok: 'Delete forever',
+      maxlength: 120,
+    });
+    if (typed !== story.title) {
+      if (typed !== null) toast("Title didn't match");
+      return;
+    }
     await api(`/api/stories/${id}`, { method: 'DELETE' });
     await refreshHome();
     toast('Story deleted');

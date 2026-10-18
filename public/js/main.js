@@ -1,6 +1,27 @@
 // App shell: Discord-style chrome (story rail, sidebar, members panel, mobile drawer + tab bar),
 // routing, and the live event connection.
-import { html, raw, render, api, $, $$, store, toast, avatar, icons, menu, modal, confirmModal, logoMark, wordmark, userGrad, uploadImage, uploadBanner, askImageLink, openLightbox } from './lib.js';
+import {
+  html,
+  raw,
+  render,
+  api,
+  $,
+  $$,
+  store,
+  toast,
+  avatar,
+  icons,
+  menu,
+  modal,
+  confirmModal,
+  logoMark,
+  wordmark,
+  userGrad,
+  uploadImage,
+  uploadBanner,
+  askImageLink,
+  openLightbox,
+} from './lib.js';
 import { viewLanding, viewReset } from './views/auth.js';
 import { viewHome, viewDiscover, viewNewStory, viewJoin } from './views/home.js';
 import { viewChannel } from './views/channel.js';
@@ -54,8 +75,18 @@ export function storyNow() {
   const [y, m, d] = day.split('-').map(Number);
   return new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
 }
-export const storyToday = () => { const d = storyNow(); d.setHours(0, 0, 0, 0); return d; };
-export const loadClock = () => api('/api/clock').then((r) => { state.clock = r.clock; return r.clock; }).catch(() => state.clock);
+export const storyToday = () => {
+  const d = storyNow();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+export const loadClock = () =>
+  api('/api/clock')
+    .then((r) => {
+      state.clock = r.clock;
+      return r.clock;
+    })
+    .catch(() => state.clock);
 
 // Views subscribe to live events through this bus.
 export const bus = new EventTarget();
@@ -115,8 +146,17 @@ export async function loadOnline() {
 
 async function showOnline(anchor) {
   const { users } = await api('/api/online');
-  menu(anchor, users.length ? users.map((u) => ({ label: `● ${u.displayName}${u.id === state.user.id ? ' (you)' : ''}`, action: () => { location.hash = `#/u/${u.id}`; } }))
-    : [{ label: 'Nobody else is online', action: () => {} }]);
+  menu(
+    anchor,
+    users.length
+      ? users.map((u) => ({
+          label: `● ${u.displayName}${u.id === state.user.id ? ' (you)' : ''}`,
+          action: () => {
+            location.hash = `#/u/${u.id}`;
+          },
+        }))
+      : [{ label: 'Nobody else is online', action: () => {} }],
+  );
 }
 
 export async function refreshBlocks() {
@@ -125,7 +165,11 @@ export async function refreshBlocks() {
 }
 
 // ---------- Look & feel ----------
-export const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
+export const THEMES = [
+  ['auto', 'Auto'],
+  ['light', 'Light'],
+  ['dark', 'Dark'],
+];
 const THEME_COLORS = { light: '#FFFFFF', dark: '#0E0E0F' };
 // The user bar's theme button flips between these.
 const THEME_CYCLE = { light: 'dark', dark: 'light' };
@@ -148,7 +192,10 @@ export function applyTheme(pick = currentThemePick()) {
   document.documentElement.dataset.accent = 'neutral';
   document.documentElement.dataset.brand = 'pink';
   document.querySelector('meta[name=theme-color]')?.setAttribute('content', THEME_COLORS[theme]);
-  if (state.user) { renderUserbar(); renderRail(); }
+  if (state.user) {
+    renderUserbar();
+    renderRail();
+  }
 }
 
 // The blurred picture behind everything (a story's banner, a profile's portrait…).
@@ -163,9 +210,8 @@ function updateTitle() {
 }
 
 // ---------- Chrome ----------
-const storyIcon = (s) => (s.icon
-  ? html`<img src="${s.icon}" alt="">`
-  : html`<span data-color="${s.color}">${s.title.trim().slice(0, 2)}</span>`);
+const storyIcon = (s) =>
+  s.icon ? html`<img src="${s.icon}" alt="">` : html`<span data-color="${s.color}">${s.title.trim().slice(0, 2)}</span>`;
 
 const fmt = (n) => Number(n || 0).toLocaleString();
 
@@ -183,8 +229,11 @@ function userTiles({ vertical = false } = {}) {
       ${tile({ act: 'theme' }, `Switch to ${THEME_NAMES[next]}`, { light: icons.sun, dark: icons.moon }[next])}
       ${tile({ href: '#/nu' }, 'THE NU', icons.apps)}
       ${tile({ href: '#/notifications' }, 'Notifications', icons.bell, n)}
-      ${vertical ? html`${tile({ href: '#/phone' }, 'Phone', icons.smartphone)}${tile({ href: '#/directory' }, 'Directory', icons.users)}`
-        : tile({ href: '#/characters' }, 'Your characters', icons.user)}
+      ${
+        vertical
+          ? html`${tile({ href: '#/phone' }, 'Phone', icons.smartphone)}${tile({ href: '#/directory' }, 'Directory', icons.users)}`
+          : tile({ href: '#/characters' }, 'Your characters', icons.user)
+      }
       ${tile({ act: 'logout' }, 'Sign out', icons.power)}
     </nav>`;
 }
@@ -200,8 +249,16 @@ const GREETINGS = {
   afternoon: ['Good afternoon, {n}', 'Afternoon, {n}', 'Hey {n}, how’s your day?'],
   evening: ['Good evening, {n}', 'Evening, {n}', 'Cozy writing hours, {n}'],
   night: ['Up late, {n}?', 'Hello, night owl {n}', 'Midnight muse, {n}?'],
-  quirky: ['Plot twist: it’s {n}', 'The muse has arrived, {n}', 'Pen’s ready, {n}', 'Main character energy, {n}',
-    'Your characters missed you, {n}', 'Cue the entrance, {n}', 'Ready for the next arc, {n}?', 'Hi {n}, spill the plot'],
+  quirky: [
+    'Plot twist: it’s {n}',
+    'The muse has arrived, {n}',
+    'Pen’s ready, {n}',
+    'Main character energy, {n}',
+    'Your characters missed you, {n}',
+    'Cue the entrance, {n}',
+    'Ready for the next arc, {n}?',
+    'Hi {n}, spill the plot',
+  ],
 };
 let greetingPick = null;
 function greetingFor(name) {
@@ -217,7 +274,15 @@ function greetingFor(name) {
     else if (away > 7 * day) pool = GREETINGS.long;
     else if (Math.random() < 0.3) pool = GREETINGS.quirky;
     else if (away > day && Math.random() < 0.5) pool = GREETINGS.back;
-    else pool = hour < 5 || hour >= 22 ? GREETINGS.night : hour < 12 ? GREETINGS.morning : hour < 17 ? GREETINGS.afternoon : GREETINGS.evening;
+    else
+      pool =
+        hour < 5 || hour >= 22
+          ? GREETINGS.night
+          : hour < 12
+            ? GREETINGS.morning
+            : hour < 17
+              ? GREETINGS.afternoon
+              : GREETINGS.evening;
     greetingPick = pool[Math.floor(Math.random() * pool.length)];
   }
   const [before, after] = greetingPick.split('{n}');
@@ -240,13 +305,16 @@ function renderUserbar() {
   if (!state.user) return render(bar, html``);
   const u = state.user;
   const crumb = $('#crumb')?.textContent || '';
-  render(bar, html`
+  render(
+    bar,
+    html`
     <div class="ub-crumb"><a href="#/home">NUUVI</a><i>···</i><span id="crumb">${crumb}</span></div>
     <div class="ub-main">
       <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'square' })}</a>
       ${welcomeText()}
       ${userTiles()}
-    </div>`);
+    </div>`,
+  );
 }
 
 function renderRail() {
@@ -260,7 +328,9 @@ function renderRail() {
   const inArchive = /^#\/archive/.test(location.hash) || !!activeStory?.completedAt;
   const inMessages = /^#\/messages/.test(location.hash);
   const active = inArchive ? null : state.route.storyId;
-  render(rail, html`
+  render(
+    rail,
+    html`
     <button type="button" class="rail-item rail-logo ${state.online.length > 1 ? 'others' : ''}" id="online-btn"
       title="NUUVI · ${state.online.length} online" aria-label="NUUVI, ${state.online.length} people online">
       ${logoMark}<span class="online-badge"><span class="pulse"></span>${state.online.length || ''}</span>
@@ -271,29 +341,44 @@ function renderRail() {
     <a href="#/archive" class="rail-item archive-link desk-only ${inArchive ? 'active' : ''}" title="Archive: completed stories" aria-label="Archive">${icons.archive}${archivedCount ? html`<i class="rail-count">${archivedCount}</i>` : ''}</a>
     <a href="#/messages" class="rail-item messages-link phone-only-flex ${inMessages ? 'active' : ''}" title="Messages" aria-label="Messages">${icons.chat}${state.home.messagesUnread ? html`<span class="badge">${state.home.messagesUnread}</span>` : ''}</a>
     <div class="rail-sep rail-sep-stories"></div>
-    ${state.home.stories.filter((s) => !s.completedAt).map((s) => html`
+    ${state.home.stories
+      .filter((s) => !s.completedAt)
+      .map(
+        (s) => html`
       <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" data-story-id="${s.id}" draggable="false" title="${s.title}" aria-label="${s.title}">
         <span class="pill"></span>${storyIcon(s)}
         ${s.mentions ? html`<span class="badge">${s.mentions}</span>` : ''}
-      </a>`)}
+      </a>`,
+      )}
     <a href="#/new" class="rail-item action" title="Start a story" aria-label="Start a story">${icons.plus}</a>
     <a href="#/discover" class="rail-item action" title="Discover stories" aria-label="Discover stories">${icons.compass}</a>
     <div class="rail-user only-mobile">
       <div class="rail-sep"></div>
       ${userTiles({ vertical: true })}
       <a class="ub-avatar" href="#/u/${u.id}" aria-label="Your profile">${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'square' })}</a>
-    </div>`);
+    </div>`,
+  );
 }
 
 export const KIND_LABELS = { thread: 'Episodes', para: 'Self paras', comms: 'Comms', event: 'Events', ooc: 'Out of character' };
-export const kindIcon = (kind) => ({ thread: icons.episode, para: icons.feather, comms: icons.chat, event: icons.calendar, ooc: icons.hash })[kind] || icons.hash;
+export const kindIcon = (kind) =>
+  ({ thread: icons.episode, para: icons.feather, comms: icons.chat, event: icons.calendar, ooc: icons.hash })[kind] || icons.hash;
 // A channel's own icon (set per comms thread): a picture, an emoji, or the icon for its type.
-export const channelIcon = (c) => (!c.icon ? kindIcon(c.kind)
-  : /^(\/|https:)/.test(c.icon) ? html`<img class="ch-icon-img" src="${c.icon}" alt="">`
-    : html`<span class="ch-emoji">${c.icon}</span>`);
+export const channelIcon = (c) =>
+  !c.icon
+    ? kindIcon(c.kind)
+    : /^(\/|https:)/.test(c.icon)
+      ? html`<img class="ch-icon-img" src="${c.icon}" alt="">`
+      : html`<span class="ch-emoji">${c.icon}</span>`;
 
 // How episodes are ordered in a story's sidebar (each person picks; remembered on this device).
-const EP_SORTS = [['custom', 'Story order'], ['last', 'Latest post first'], ['new', 'Newest first'], ['old', 'Oldest first'], ['name', 'Name (A–Z)']];
+const EP_SORTS = [
+  ['custom', 'Story order'],
+  ['last', 'Latest post first'],
+  ['new', 'Newest first'],
+  ['old', 'Oldest first'],
+  ['name', 'Name (A–Z)'],
+];
 const epSort = () => (EP_SORTS.some(([k]) => k === store.get('nuuvi:ep-sort')) ? store.get('nuuvi:ep-sort') : 'custom');
 function sortEpisodes(list) {
   const by = epSort();
@@ -315,21 +400,31 @@ function renderSidebar() {
   if (state.route.storyId && s && s.story.id === state.route.storyId) {
     // Comms became the Phone (and OOC became private Messages, in the main menu). Older comms/OOC
     // channels stay readable under "Old chats".
-    const groups = ['thread', 'para', 'event'].map((k) => [k, sortEpisodes(s.channels.filter((c) => c.kind === k))]).filter(([, list]) => list.length);
+    const groups = ['thread', 'para', 'event']
+      .map((k) => [k, sortEpisodes(s.channels.filter((c) => c.kind === k))])
+      .filter(([, list]) => list.length);
     const archived = s.channels.filter((c) => c.kind === 'comms' || c.kind === 'ooc');
-    render(side, html`
+    render(
+      side,
+      html`
       ${mobileWelcome}
       <button class="side-head story-head-btn ${s.story.banner ? 'has-banner' : ''}" id="story-menu">
         ${s.story.banner ? html`<img src="${s.story.banner}" alt="">` : ''}
         <span>${s.story.title}</span>${icons.chevron}
       </button>
       <div class="side-scroll">
-        ${!s.role ? html`<div class="join-hint">
+        ${
+          !s.role
+            ? html`<div class="join-hint">
             <p>You're reading as a guest.</p>
             ${s.story.status === 'open' ? html`<button class="primary block" id="side-join">Join this story</button>` : html`<p class="muted small">Closed to new writers.</p>`}
-          </div>` : s.story.completedAt ? html`<a class="side-archived" href="#/archive">${icons.archive}<span>Complete · in the Archive</span></a>`
-          : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New episode</button>`}
-        ${groups.map(([kind, list], gi) => html`
+          </div>`
+            : s.story.completedAt
+              ? html`<a class="side-archived" href="#/archive">${icons.archive}<span>Complete · in the Archive</span></a>`
+              : html`<button class="block new-thread-btn" id="new-thread">${icons.plus} New episode</button>`
+        }
+        ${groups.map(
+          ([kind, list], gi) => html`
           <div class="side-section"><span>${KIND_LABELS[kind]}</span>${gi === 0 ? html`<button type="button" class="icon-btn xs ep-sort-btn" id="ep-sort" title="Order: ${EP_SORTS.find(([k]) => k === epSort())[1]}" aria-label="Change the order of episodes">${icons.sliders}</button>` : ''}</div>
           ${list.map((c) => {
             const myTurn = c.turns.enabled && c.turns.current === state.user.id;
@@ -340,17 +435,33 @@ function renderSidebar() {
               ${myTurn ? html`<span class="turn-dot" title="Your turn">${icons.hourglass}</span>` : ''}
               ${c.mentions ? html`<span class="badge">${c.mentions}</span>` : ''}
             </a>`;
-          })}`)}
+          })}`,
+        )}
         <div class="side-section"><span>Texts</span></div>
         <a href="#/s/${s.story.id}/phone" class="chan ${/^#\/s\/\d+\/phone/.test(hash) ? 'active' : ''}">${icons.smartphone}<span class="name">Phone</span></a>
-        ${archived.length ? html`<details class="side-archive"><summary class="side-section"><span>Old chats</span></summary>${archived.map((c) => html`
-          <a href="#/s/${s.story.id}/${c.id}" class="chan ${state.route.channelId === c.id ? 'active' : ''} ${c.unread ? 'unread' : ''}"><span class="hash">${channelIcon(c)}</span><span class="name">${c.name}</span></a>`)}</details>` : ''}
-      </div>`);
+        ${
+          archived.length
+            ? html`<details class="side-archive"><summary class="side-section"><span>Old chats</span></summary>${archived.map(
+                (c) => html`
+          <a href="#/s/${s.story.id}/${c.id}" class="chan ${state.route.channelId === c.id ? 'active' : ''} ${c.unread ? 'unread' : ''}"><span class="hash">${channelIcon(c)}</span><span class="name">${c.name}</span></a>`,
+              )}</details>`
+            : ''
+        }
+      </div>`,
+    );
     $('#story-menu').addEventListener('click', (e) => storyMenu(e.currentTarget));
-    $('#ep-sort')?.addEventListener('click', (e) => menu(e.currentTarget, EP_SORTS.map(([k, label]) => ({
-      label: `${k === epSort() ? '✓ ' : ''}${label}`,
-      action: () => { store.set('nuuvi:ep-sort', k === 'custom' ? null : k); renderSidebar(); },
-    }))));
+    $('#ep-sort')?.addEventListener('click', (e) =>
+      menu(
+        e.currentTarget,
+        EP_SORTS.map(([k, label]) => ({
+          label: `${k === epSort() ? '✓ ' : ''}${label}`,
+          action: () => {
+            store.set('nuuvi:ep-sort', k === 'custom' ? null : k);
+            renderSidebar();
+          },
+        })),
+      ),
+    );
     $('#side-join')?.addEventListener('click', joinCurrentStory);
     $('#new-thread')?.addEventListener('click', async () => {
       openThreadForm({ storyId: s.story.id });
@@ -358,7 +469,9 @@ function renderSidebar() {
   } else {
     const link = (href, label, icon, badge = 0) => html`
       <a href="${href}" class="nav-link ${hash === href ? 'active' : ''}">${icon}<span>${label}</span>${badge ? html`<span class="badge">${badge}</span>` : ''}</a>`;
-    render(side, html`
+    render(
+      side,
+      html`
       ${mobileWelcome}
       <div class="side-head"><a href="#/home" class="side-brand" aria-label="NUUVI home">${wordmark}</a></div>
       <div class="side-scroll">
@@ -374,31 +487,61 @@ function renderSidebar() {
         ${link('#/discover', 'Discover', icons.compass)}
         ${state.user.isAdmin ? link('#/admin', 'Admin', icons.shield, state.home.reportsOpen) : ''}
         <div class="side-section"><span>Your stories</span><a href="#/new" class="icon-btn sm" title="Start a story" aria-label="Start a story">${icons.plus}</a></div>
-        ${state.home.stories.length ? state.home.stories.map((st) => html`
+        ${
+          state.home.stories.length
+            ? state.home.stories.map(
+                (st) => html`
           <a href="#/s/${st.id}" class="nav-link story-link ${st.unread ? 'unread' : ''}">
             <span class="mini-icon">${storyIcon(st)}</span><span>${st.title}</span>
             ${st.mentions ? html`<span class="badge">${st.mentions}</span>` : ''}
-          </a>`) : html`<p class="muted small pad">No stories yet.</p>`}
-      </div>`);
+          </a>`,
+              )
+            : html`<p class="muted small pad">No stories yet.</p>`
+        }
+      </div>`,
+    );
   }
 }
 
 function renderMembers() {
   const panel = $('#members');
   const s = state.story;
-  if (!state.route.storyId || !s) { document.body.classList.remove('has-members'); return render(panel, html``); }
+  if (!state.route.storyId || !s) {
+    document.body.classList.remove('has-members');
+    return render(panel, html``);
+  }
   document.body.classList.add('has-members');
-  const group = (title, list) => (list.length ? html`
+  const group = (title, list) =>
+    list.length
+      ? html`
     <div class="side-section"><span>${title} · ${list.length}</span></div>
-    ${list.map((m) => html`<a class="member ${state.online.includes(m.id) ? 'is-online' : ''}" href="#/u/${m.id}"><span class="av-wrap">${avatar({ name: m.displayName, src: m.avatar, color: '#48484A' })}<i class="online-dot"></i></span>
-      <span><span class="u-grad"${userGrad(m)}>${m.displayName}</span>${state.blocks.has(m.id) ? html` <small class="muted">(blocked)</small>` : ''}</span></a>`)}` : '');
-  render(panel, html`
+    ${list.map(
+      (
+        m,
+      ) => html`<a class="member ${state.online.includes(m.id) ? 'is-online' : ''}" href="#/u/${m.id}"><span class="av-wrap">${avatar({ name: m.displayName, src: m.avatar, color: '#48484A' })}<i class="online-dot"></i></span>
+      <span><span class="u-grad"${userGrad(m)}>${m.displayName}</span>${state.blocks.has(m.id) ? html` <small class="muted">(blocked)</small>` : ''}</span></a>`,
+    )}`
+      : '';
+  render(
+    panel,
+    html`
     <div class="side-scroll">
-      ${group('Owner', s.members.filter((m) => m.role === 'owner'))}
-      ${group('Writers', s.members.filter((m) => m.role !== 'owner'))}
-      ${s.cast.length ? html`<div class="side-section"><span>Cast · ${s.cast.length}</span></div>
-        ${s.cast.map((c) => html`<a class="member" href="#/c/${c.id}">${avatar({ name: c.name, src: c.avatar, color: c.color })}<span data-color="${c.color}" class="cast-name">${c.name}</span></a>`)}` : ''}
-    </div>`);
+      ${group(
+        'Owner',
+        s.members.filter((m) => m.role === 'owner'),
+      )}
+      ${group(
+        'Writers',
+        s.members.filter((m) => m.role !== 'owner'),
+      )}
+      ${
+        s.cast.length
+          ? html`<div class="side-section"><span>Cast · ${s.cast.length}</span></div>
+        ${s.cast.map((c) => html`<a class="member" href="#/c/${c.id}">${avatar({ name: c.name, src: c.avatar, color: c.color })}<span data-color="${c.color}" class="cast-name">${c.name}</span></a>`)}`
+          : ''
+      }
+    </div>`,
+  );
 }
 
 async function joinCurrentStory() {
@@ -408,7 +551,9 @@ async function joinCurrentStory() {
     toast('Welcome to the story!');
     await refreshHome();
     router();
-  } catch (err) { toast(err.message); }
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 // Story owners and admins can change a story.
@@ -416,39 +561,76 @@ export const canManageStory = (s) => s?.role === 'owner' || !!state.user?.isAdmi
 
 // Change a story's header picture or icon straight from its menu (upload or link).
 async function changeStoryPicture(id, field, anchor) {
-  const pick = () => new Promise((resolve) => {
-    menu(anchor && anchor.isConnected ? anchor : $('#main .main-head') || document.body, [
-      { label: field === 'banner' ? 'Upload a header picture' : 'Upload an icon', action: () => {
-        const f = document.createElement('input'); f.type = 'file'; f.accept = 'image/*';
-        f.onchange = async () => { try { resolve(field === 'banner' ? await uploadBanner(f.files[0]) : await uploadImage(f.files[0], 400, { square: true })); } catch (err) { toast(err.message); resolve(null); } };
-        f.click();
-      } },
-      { label: 'Use a picture link', action: async () => resolve(await askImageLink(field === 'banner' ? 'Header picture link' : 'Icon link')) },
-      { label: field === 'banner' ? 'Remove the header picture' : 'Remove the icon', danger: true, action: () => resolve('') },
-    ]);
-  });
+  const pick = () =>
+    new Promise((resolve) => {
+      menu(anchor && anchor.isConnected ? anchor : $('#main .main-head') || document.body, [
+        {
+          label: field === 'banner' ? 'Upload a header picture' : 'Upload an icon',
+          action: () => {
+            const f = document.createElement('input');
+            f.type = 'file';
+            f.accept = 'image/*';
+            f.onchange = async () => {
+              try {
+                resolve(
+                  field === 'banner' ? await uploadBanner(f.files[0]) : await uploadImage(f.files[0], 400, { square: true }),
+                );
+              } catch (err) {
+                toast(err.message);
+                resolve(null);
+              }
+            };
+            f.click();
+          },
+        },
+        {
+          label: 'Use a picture link',
+          action: async () => resolve(await askImageLink(field === 'banner' ? 'Header picture link' : 'Icon link')),
+        },
+        { label: field === 'banner' ? 'Remove the header picture' : 'Remove the icon', danger: true, action: () => resolve('') },
+      ]);
+    });
   const value = await pick();
   if (value === null || value === undefined) return;
   try {
     await api(`/api/stories/${id}`, { method: 'PUT', body: { [field]: value } });
-    toast(field === 'banner' ? (value ? 'Header picture changed' : 'Header picture removed') : (value ? 'Icon changed' : 'Icon removed'));
+    toast(
+      field === 'banner'
+        ? value
+          ? 'Header picture changed'
+          : 'Header picture removed'
+        : value
+          ? 'Icon changed'
+          : 'Icon removed',
+    );
     await refreshHome();
     if (state.story?.story.id === id) await loadStory(id);
-    renderRail(); renderSidebar();
-  } catch (err) { toast(err.message); }
+    renderRail();
+    renderSidebar();
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 // Completing a story moves it to the Archive: still readable, but nobody can post in it.
 export async function setStoryComplete(id, complete) {
-  if (complete && !(await confirmModal('Mark this story complete? It moves to the Archive and becomes read-only. You can reopen it any time.', { ok: 'Mark complete' }))) return;
+  if (
+    complete &&
+    !(await confirmModal('Mark this story complete? It moves to the Archive and becomes read-only. You can reopen it any time.', {
+      ok: 'Mark complete',
+    }))
+  )
+    return;
   try {
     await api(`/api/stories/${id}`, { method: 'PUT', body: { complete } });
     await refreshHome();
     if (state.story?.story.id === id) await loadStory(id);
     renderRail();
-    toast(complete ? 'Moved to the Archive' : 'Reopened. It\'s back in your stories');
+    toast(complete ? 'Moved to the Archive' : "Reopened. It's back in your stories");
     if (/^#\/s\//.test(location.hash)) router();
-  } catch (err) { toast(err.message); }
+  } catch (err) {
+    toast(err.message);
+  }
 }
 
 function storyMenu(anchor) {
@@ -457,21 +639,36 @@ function storyMenu(anchor) {
   const setNotify = async (level) => {
     await api(`/api/stories/${id}/notify`, { method: 'PUT', body: { level } });
     s.notify = level;
-    toast({ all: 'Notifying you about every post', mentions: 'Only @mentions and your turns', none: 'Muted (turns still notify)' }[level]);
+    toast(
+      { all: 'Notifying you about every post', mentions: 'Only @mentions and your turns', none: 'Muted (turns still notify)' }[
+        level
+      ],
+    );
   };
   menu(anchor, [
-    canManageStory(s) && { label: 'Story settings', action: () => { location.hash = `#/s/${id}/settings`; } },
+    canManageStory(s) && {
+      label: 'Story settings',
+      action: () => {
+        location.hash = `#/s/${id}/settings`;
+      },
+    },
     canManageStory(s) && { label: 'Change header picture', action: () => changeStoryPicture(id, 'banner', anchor) },
     canManageStory(s) && { label: 'Change icon', action: () => changeStoryPicture(id, 'icon', anchor) },
-    canManageStory(s) && (s.story.completedAt
-      ? { label: 'Reopen story (take it out of the Archive)', action: () => setStoryComplete(id, false) }
-      : { label: 'Mark story complete (move to the Archive)', action: () => setStoryComplete(id, true) }),
-    canManageStory(s) && s.story.inviteCode && { label: 'Copy invite link', action: () => copyText(`${location.origin}/#/join/${id}/${s.story.inviteCode}`, 'Invite link copied') },
+    canManageStory(s) &&
+      (s.story.completedAt
+        ? { label: 'Reopen story (take it out of the Archive)', action: () => setStoryComplete(id, false) }
+        : { label: 'Mark story complete (move to the Archive)', action: () => setStoryComplete(id, true) }),
+    canManageStory(s) &&
+      s.story.inviteCode && {
+        label: 'Copy invite link',
+        action: () => copyText(`${location.origin}/#/join/${id}/${s.story.inviteCode}`, 'Invite link copied'),
+      },
     s.role && { label: `${s.notify === 'all' ? '✓ ' : ''}Notify: every post`, action: () => setNotify('all') },
     s.role && { label: `${s.notify === 'mentions' ? '✓ ' : ''}Notify: mentions & turns`, action: () => setNotify('mentions') },
     s.role && { label: `${s.notify === 'none' ? '✓ ' : ''}Notify: nothing`, action: () => setNotify('none') },
     s.role === 'writer' && {
-      label: 'Leave story', danger: true,
+      label: 'Leave story',
+      danger: true,
       action: async () => {
         if (!(await confirmModal('Leave this story? Your posts will stay.', { ok: 'Leave', danger: true }))) return;
         await api(`/api/stories/${id}/leave`, { method: 'POST', body: {} });
@@ -483,7 +680,12 @@ function storyMenu(anchor) {
 }
 
 export async function copyText(text, message = 'Copied') {
-  try { await navigator.clipboard.writeText(text); toast(message); } catch { window.prompt('Copy this:', text); }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(message);
+  } catch {
+    window.prompt('Copy this:', text);
+  }
 }
 
 // ---------- Page scaffold ----------
@@ -508,7 +710,12 @@ function startBanner(main) {
       if (!imgs[n]) {
         const slide = document.createElement('div');
         slide.className = 'pb-slide';
-        const img = new Image(); img.alt = ''; img.decoding = 'async'; img.className = 'pb-fg'; img.src = pics[n]; slide.append(img);
+        const img = new Image();
+        img.alt = '';
+        img.decoding = 'async';
+        img.className = 'pb-fg';
+        img.src = pics[n];
+        slide.append(img);
         slide.img = slide.lastChild;
         banner.prepend(slide);
         imgs[n] = slide;
@@ -518,15 +725,18 @@ function startBanner(main) {
     get(i).classList.add('on');
     if (pics.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     get((i + 1) % pics.length);
-    const timer = setInterval(() => {
-      if (!banner.isConnected) return clearInterval(timer);
-      const next = get((i + 1) % pics.length);
-      if (!next.img.complete) return; // still loading: try again next time
-      imgs[i].classList.remove('on');
-      i = (i + 1) % pics.length;
-      next.classList.add('on');
-      get((i + 1) % pics.length);
-    }, 4 * 60 * 1000); // a new header picture every 4 minutes
+    const timer = setInterval(
+      () => {
+        if (!banner.isConnected) return clearInterval(timer);
+        const next = get((i + 1) % pics.length);
+        if (!next.img.complete) return; // still loading: try again next time
+        imgs[i].classList.remove('on');
+        i = (i + 1) % pics.length;
+        next.classList.add('on');
+        get((i + 1) % pics.length);
+      },
+      4 * 60 * 1000,
+    ); // a new header picture every 4 minutes
     onLeave(() => clearInterval(timer));
   };
   loadHeaders().then(show);
@@ -540,15 +750,20 @@ export function page({ title, subtitle = '', actions = '', body, className = '',
   }
   // Phones: a back arrow on every page but Home. The menu (☰) lives in the rail on the left.
   const atHome = /^#\/(home)?$/.test(location.hash || '#/');
-  render(main, html`
+  render(
+    main,
+    html`
     <header class="main-head">
       ${atHome ? '' : html`<button class="icon-btn only-mobile back-btn" data-back aria-label="Back">${icons.back}</button>`}
       <div class="head-title"><h1>${title}</h1>${subtitle ? html`<span class="topic">${subtitle}</span>` : ''}</div>
       <div class="head-actions">${actions}${state.route.storyId ? html`<button class="icon-btn" data-members aria-label="Members" title="Members">${icons.users}</button>` : ''}</div>
     </header>
-    <div class="main-body ${className}">${body}</div>`);
+    <div class="main-body ${className}">${body}</div>`,
+  );
   // Replay the page's entrance animation (see "Motion" in styles.css).
-  main.classList.remove('enter'); void main.offsetWidth; main.classList.add('enter');
+  main.classList.remove('enter');
+  void main.offsetWidth;
+  main.classList.add('enter');
   const crumb = $('#crumb');
   if (crumb) crumb.textContent = $('.head-title h1', main)?.textContent.trim() || '';
   if (banner) startBanner(main);
@@ -567,8 +782,16 @@ let currentPrev = history.state?.prev ?? null;
 window.addEventListener('hashchange', (e) => {
   const before = currentHash;
   currentHash = location.hash || '#/';
-  if (replacing) { replacing = false; stamp(navDepth, currentPrev); return; }
-  if (Number.isInteger(history.state?.nv)) { navDepth = history.state.nv; currentPrev = history.state.prev ?? null; return; } // back or forward
+  if (replacing) {
+    replacing = false;
+    stamp(navDepth, currentPrev);
+    return;
+  }
+  if (Number.isInteger(history.state?.nv)) {
+    navDepth = history.state.nv;
+    currentPrev = history.state.prev ?? null;
+    return;
+  } // back or forward
   navDepth += 1;
   currentPrev = new URL(e.oldURL).hash || before;
   stamp(navDepth, currentPrev);
@@ -582,7 +805,8 @@ export function replaceHash(hash) {
 // The page Back would return to (null at the first page).
 export const previousHash = () => (navDepth > 0 ? currentPrev : null);
 export function goBack(fallback = '#/home') {
-  if (navDepth > 0) history.back(); else location.hash = fallback;
+  if (navDepth > 0) history.back();
+  else location.hash = fallback;
 }
 
 // Pictures people send (in messages, texts, chats, episodes and formatted posts) open in the
@@ -595,7 +819,10 @@ document.addEventListener('click', (e) => {
   e.preventDefault();
   if (link) {
     const all = [...link.closest('.b-pics, .ds-flow-track').querySelectorAll('a')];
-    openLightbox(all.map((a) => a.getAttribute('href')), all.indexOf(link));
+    openLightbox(
+      all.map((a) => a.getAttribute('href')),
+      all.indexOf(link),
+    );
   } else {
     openLightbox([inline.getAttribute('src')]);
   }
@@ -607,27 +834,47 @@ document.addEventListener('click', (e) => {
 let pressTimer = null;
 let pressFired = false;
 let pressStart = null;
-document.addEventListener('touchstart', (e) => {
-  if (e.touches.length !== 1) return;
-  const t = e.touches[0];
-  pressFired = false;
-  pressStart = [t.clientX, t.clientY];
-  const target = e.target;
-  clearTimeout(pressTimer);
-  pressTimer = setTimeout(() => {
-    pressFired = true;
-    navigator.vibrate?.(12);
-    target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: t.clientX, clientY: t.clientY }));
-  }, 480);
-}, { passive: true });
-document.addEventListener('touchmove', (e) => {
-  const t = e.touches[0];
-  if (pressStart && t && Math.hypot(t.clientX - pressStart[0], t.clientY - pressStart[1]) > 10) clearTimeout(pressTimer);
-}, { passive: true });
+document.addEventListener(
+  'touchstart',
+  (e) => {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    pressFired = false;
+    pressStart = [t.clientX, t.clientY];
+    const target = e.target;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      pressFired = true;
+      navigator.vibrate?.(12);
+      target.dispatchEvent(
+        new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: t.clientX, clientY: t.clientY }),
+      );
+    }, 480);
+  },
+  { passive: true },
+);
+document.addEventListener(
+  'touchmove',
+  (e) => {
+    const t = e.touches[0];
+    if (pressStart && t && Math.hypot(t.clientX - pressStart[0], t.clientY - pressStart[1]) > 10) clearTimeout(pressTimer);
+  },
+  { passive: true },
+);
 document.addEventListener('touchend', () => clearTimeout(pressTimer));
 document.addEventListener('touchcancel', () => clearTimeout(pressTimer));
 // The tap that ends a long-press shouldn't also open the link underneath.
-document.addEventListener('click', (e) => { if (pressFired) { e.preventDefault(); e.stopPropagation(); pressFired = false; } }, true);
+document.addEventListener(
+  'click',
+  (e) => {
+    if (pressFired) {
+      e.preventDefault();
+      e.stopPropagation();
+      pressFired = false;
+    }
+  },
+  true,
+);
 
 // ---------- Drag stories in the sidebar to put them in your own order ----------
 // Computers: press and drag a story icon. Phones: hold a story (its menu opens), then slide your
@@ -649,7 +896,10 @@ function railDragMove(y) {
   const { item, rail } = d;
   const others = [...rail.querySelectorAll('.rail-item[data-story-id]')].filter((x) => x !== item);
   // Move the icon in the list once the finger/pointer passes the middle of a neighbour.
-  const before = others.find((x) => { const r = x.getBoundingClientRect(); return y < r.top + r.height / 2; });
+  const before = others.find((x) => {
+    const r = x.getBoundingClientRect();
+    return y < r.top + r.height / 2;
+  });
   const firstAfter = before ?? others.at(-1)?.nextElementSibling ?? null;
   if (firstAfter !== item && item.nextElementSibling !== firstAfter) {
     const top = item.getBoundingClientRect().top;
@@ -658,7 +908,8 @@ function railDragMove(y) {
   }
   // Scroll the sidebar when dragging near its top or bottom edge.
   const rr = rail.getBoundingClientRect();
-  if (y < rr.top + 40) rail.scrollTop -= 8; else if (y > rr.bottom - 40) rail.scrollTop += 8;
+  if (y < rr.top + 40) rail.scrollTop -= 8;
+  else if (y > rr.bottom - 40) rail.scrollTop += 8;
   item.style.transform = `translateY(${(y - d.grabY) / railZoom()}px) scale(1.08)`;
 }
 async function railDragEnd() {
@@ -668,12 +919,18 @@ async function railDragEnd() {
   d.item.classList.remove('dragging');
   d.item.style.transform = '';
   d.rail.classList.remove('sorting');
-  setTimeout(() => { railDragged = false; }, 0);
+  setTimeout(() => {
+    railDragged = false;
+  }, 0);
   const ids = [...d.rail.querySelectorAll('.rail-item[data-story-id]')].map((x) => Number(x.dataset.storyId));
   if (ids.join() === state.home.stories.map((x) => x.id).join()) return;
   const byId = new Map(state.home.stories.map((x) => [x.id, x]));
   state.home.stories = ids.map((id) => byId.get(id)).filter(Boolean);
-  try { await api('/api/home/order', { method: 'PUT', body: { storyIds: ids } }); } catch (err) { toast(err.message); }
+  try {
+    await api('/api/home/order', { method: 'PUT', body: { storyIds: ids } });
+  } catch (err) {
+    toast(err.message);
+  }
   renderRail();
 }
 // Mouse
@@ -683,26 +940,71 @@ document.addEventListener('mousedown', (e) => {
   if (item) railPress = { item, y: e.clientY };
 });
 document.addEventListener('mousemove', (e) => {
-  if (railDrag) { e.preventDefault(); railDragMove(e.clientY); return; }
-  if (railPress && Math.abs(e.clientY - railPress.y) > 6) { railDragStart(railPress.item, railPress.y); railPress = null; railDragMove(e.clientY); }
+  if (railDrag) {
+    e.preventDefault();
+    railDragMove(e.clientY);
+    return;
+  }
+  if (railPress && Math.abs(e.clientY - railPress.y) > 6) {
+    railDragStart(railPress.item, railPress.y);
+    railPress = null;
+    railDragMove(e.clientY);
+  }
 });
-document.addEventListener('mouseup', () => { railPress = null; railDragEnd(); });
-document.addEventListener('dragstart', (e) => { if (e.target.closest?.('#rail')) e.preventDefault(); });
+document.addEventListener('mouseup', () => {
+  railPress = null;
+  railDragEnd();
+});
+document.addEventListener('dragstart', (e) => {
+  if (e.target.closest?.('#rail')) e.preventDefault();
+});
 // Touch: after the long-press, sliding the finger starts the drag (and keeps the page from scrolling).
 let railTouch = null;
-document.addEventListener('touchstart', (e) => {
-  const item = e.touches.length === 1 && e.target.closest('#rail .rail-item[data-story-id]');
-  railTouch = item ? { item, y: e.touches[0].clientY, at: Date.now() } : null;
-}, { passive: true });
-document.addEventListener('touchmove', (e) => {
-  const y = e.touches[0]?.clientY;
-  if (railDrag) { e.preventDefault(); railDragMove(y); return; }
-  if (railTouch && pressFired && Math.abs(y - railTouch.y) > 8) { e.preventDefault(); railDragStart(railTouch.item, railTouch.y); railTouch = null; railDragMove(y); }
-}, { passive: false });
-document.addEventListener('touchend', () => { railTouch = null; railDragEnd(); });
-document.addEventListener('touchcancel', () => { railTouch = null; railDragEnd(); });
+document.addEventListener(
+  'touchstart',
+  (e) => {
+    const item = e.touches.length === 1 && e.target.closest('#rail .rail-item[data-story-id]');
+    railTouch = item ? { item, y: e.touches[0].clientY, at: Date.now() } : null;
+  },
+  { passive: true },
+);
+document.addEventListener(
+  'touchmove',
+  (e) => {
+    const y = e.touches[0]?.clientY;
+    if (railDrag) {
+      e.preventDefault();
+      railDragMove(y);
+      return;
+    }
+    if (railTouch && pressFired && Math.abs(y - railTouch.y) > 8) {
+      e.preventDefault();
+      railDragStart(railTouch.item, railTouch.y);
+      railTouch = null;
+      railDragMove(y);
+    }
+  },
+  { passive: false },
+);
+document.addEventListener('touchend', () => {
+  railTouch = null;
+  railDragEnd();
+});
+document.addEventListener('touchcancel', () => {
+  railTouch = null;
+  railDragEnd();
+});
 // A drop shouldn't also open the story underneath.
-document.addEventListener('click', (e) => { if (railDragged && e.target.closest('#rail')) { e.preventDefault(); e.stopPropagation(); } }, true);
+document.addEventListener(
+  'click',
+  (e) => {
+    if (railDragged && e.target.closest('#rail')) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  },
+  true,
+);
 
 document.addEventListener('contextmenu', async (e) => {
   if (!state.user) return;
@@ -711,25 +1013,39 @@ document.addEventListener('contextmenu', async (e) => {
   const chan = e.target.closest('.side-scroll a.chan[href^="#/s/"]');
   if (!railStory && !head && !chan) return;
   e.preventDefault();
-  if (head) { storyMenu(head); return; }
+  if (head) {
+    storyMenu(head);
+    return;
+  }
   if (chan) {
     const id = Number(chan.getAttribute('href').split('/')[3]);
     const c = state.story?.channels.find((x) => x.id === id);
     if (!c) return;
     const mineToManage = canManageStory(state.story) || c.createdBy === state.user.id;
     menu(chan, [
-      { label: 'Open', action: () => { location.hash = chan.getAttribute('href'); } },
+      {
+        label: 'Open',
+        action: () => {
+          location.hash = chan.getAttribute('href');
+        },
+      },
       mineToManage && { label: 'Edit episode', action: () => openThreadForm({ storyId: state.story.story.id, channel: c }) },
-      mineToManage && { label: 'Delete', danger: true, action: async () => {
-        if (!(await confirmModal(`Delete "${c.name}" and every post in it?`, { ok: 'Delete', danger: true }))) return;
-        try {
-          await api(`/api/channels/${c.id}`, { method: 'DELETE' });
-          const sid = state.story.story.id;
-          await loadStory(sid);
-          renderSidebar();
-          if (state.route.channelId === c.id) location.hash = `#/s/${sid}`;
-        } catch (err) { toast(err.message); }
-      } },
+      mineToManage && {
+        label: 'Delete',
+        danger: true,
+        action: async () => {
+          if (!(await confirmModal(`Delete "${c.name}" and every post in it?`, { ok: 'Delete', danger: true }))) return;
+          try {
+            await api(`/api/channels/${c.id}`, { method: 'DELETE' });
+            const sid = state.story.story.id;
+            await loadStory(sid);
+            renderSidebar();
+            if (state.route.channelId === c.id) location.hash = `#/s/${sid}`;
+          } catch (err) {
+            toast(err.message);
+          }
+        },
+      },
       { label: 'Copy link', action: () => copyText(`${location.origin}/${chan.getAttribute('href')}`, 'Link copied') },
     ]);
     return;
@@ -738,8 +1054,18 @@ document.addEventListener('contextmenu', async (e) => {
   const st = state.home.stories.find((x) => x.id === id);
   const manage = st?.role === 'owner' || st?.ownerId === state.user.id || state.user.isAdmin;
   menu(railStory, [
-    { label: 'Open', action: () => { location.hash = `#/s/${id}`; } },
-    manage && { label: 'Story settings', action: () => { location.hash = `#/s/${id}/settings`; } },
+    {
+      label: 'Open',
+      action: () => {
+        location.hash = `#/s/${id}`;
+      },
+    },
+    manage && {
+      label: 'Story settings',
+      action: () => {
+        location.hash = `#/s/${id}/settings`;
+      },
+    },
     manage && { label: 'Change header picture', action: () => changeStoryPicture(id, 'banner', railStory) },
     manage && { label: 'Change icon', action: () => changeStoryPicture(id, 'icon', railStory) },
     manage && { label: 'Mark story complete (move to the Archive)', action: () => setStoryComplete(id, true) },
@@ -753,8 +1079,13 @@ function setupDrawer() {
     // The NUUVI logo: on phones it opens Messages (your conversations and people to talk to);
     // on computers, who's online.
     if (e.target.closest('#online-btn')) {
-      if (window.matchMedia('(max-width: 899px)').matches) { closeDrawers(); location.hash = '#/messages'; return; }
-      showOnline(e.target.closest('#online-btn')); return;
+      if (window.matchMedia('(max-width: 899px)').matches) {
+        closeDrawers();
+        location.hash = '#/messages';
+        return;
+      }
+      showOnline(e.target.closest('#online-btn'));
+      return;
     }
     if (e.target.closest('[data-back]')) {
       // Back to the previous page in NUUVI, or Home if this was the first page opened.
@@ -774,7 +1105,10 @@ function setupDrawer() {
       signedOut();
       return;
     }
-    if (e.target.closest('[data-drawer]')) { document.body.classList.toggle('drawer-open'); return; }
+    if (e.target.closest('[data-drawer]')) {
+      document.body.classList.toggle('drawer-open');
+      return;
+    }
     if (e.target.closest('[data-members]')) {
       const wide = window.matchMedia('(min-width: 1200px)').matches;
       if (wide) {
@@ -797,7 +1131,9 @@ function setupDrawer() {
   if (store.get('nuuvi:members-hidden')) document.body.classList.add('members-hidden');
 
   // Cards marked data-tilt lean gently toward the pointer (mouse / trackpad only, not when motion is reduced).
-  const canTilt = window.matchMedia('(hover: hover) and (pointer: fine)').matches && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const canTilt =
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
+    !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (canTilt) {
     document.addEventListener('pointermove', (e) => {
       const card = e.target.closest?.('[data-tilt]');
@@ -808,32 +1144,43 @@ function setupDrawer() {
     });
     document.addEventListener('pointerout', (e) => {
       const card = e.target.closest?.('[data-tilt]');
-      if (card && !card.contains(e.relatedTarget)) { card.style.removeProperty('--rx'); card.style.removeProperty('--ry'); }
+      if (card && !card.contains(e.relatedTarget)) {
+        card.style.removeProperty('--rx');
+        card.style.removeProperty('--ry');
+      }
     });
   }
 
   // Swipe right to open the drawer, left to close it.
   let start = null;
-  document.addEventListener('touchstart', (e) => {
-    const t = e.touches[0];
-    start = { x: t.clientX, y: t.clientY, time: Date.now() };
-  }, { passive: true });
-  document.addEventListener('touchend', (e) => {
-    if (!start || window.matchMedia('(min-width: 900px)').matches) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - start.x;
-    const dy = t.clientY - start.y;
-    const quick = Date.now() - start.time < 600;
-    if (quick && Math.abs(dx) > 70 && Math.abs(dy) < 50 && !e.target.closest('textarea, input, .no-swipe')) {
-      const body = document.body.classList;
-      if (dx > 0) {
-        if (body.contains('members-open')) body.remove('members-open');
-        else if (state.user) body.add('drawer-open');
-      } else if (body.contains('drawer-open')) body.remove('drawer-open');
-      else if (state.route.storyId) body.add('members-open');
-    }
-    start = null;
-  }, { passive: true });
+  document.addEventListener(
+    'touchstart',
+    (e) => {
+      const t = e.touches[0];
+      start = { x: t.clientX, y: t.clientY, time: Date.now() };
+    },
+    { passive: true },
+  );
+  document.addEventListener(
+    'touchend',
+    (e) => {
+      if (!start || window.matchMedia('(min-width: 900px)').matches) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      const quick = Date.now() - start.time < 600;
+      if (quick && Math.abs(dx) > 70 && Math.abs(dy) < 50 && !e.target.closest('textarea, input, .no-swipe')) {
+        const body = document.body.classList;
+        if (dx > 0) {
+          if (body.contains('members-open')) body.remove('members-open');
+          else if (state.user) body.add('drawer-open');
+        } else if (body.contains('drawer-open')) body.remove('drawer-open');
+        else if (state.route.storyId) body.add('members-open');
+      }
+      start = null;
+    },
+    { passive: true },
+  );
 }
 
 // ---------- Live events ----------
@@ -844,7 +1191,9 @@ let sourceKey = null;
 const TAB_ID = Math.random().toString(36).slice(2, 12);
 document.addEventListener('visibilitychange', () => {
   if (!state.user) return;
-  api('/api/live/visible', { method: 'POST', body: { tab: TAB_ID, visible: document.visibilityState === 'visible' } }).catch(() => {});
+  api('/api/live/visible', { method: 'POST', body: { tab: TAB_ID, visible: document.visibilityState === 'visible' } }).catch(
+    () => {},
+  );
 });
 
 function connectLive() {
@@ -859,12 +1208,37 @@ function connectLive() {
   if (storyId) params.set('story', storyId);
   source = new EventSource(`/api/events?${params}`);
   let opened = false;
-  source.addEventListener('open', () => { if (opened) emit('reconnect'); opened = true; });
+  source.addEventListener('open', () => {
+    if (opened) emit('reconnect');
+    opened = true;
+  });
   // If the browser gives up on the connection (phones do, after sleeping), start a new one.
   source.addEventListener('error', () => {
-    if (source?.readyState === EventSource.CLOSED) setTimeout(() => { sourceKey = null; connectLive(); }, 3000);
+    if (source?.readyState === EventSource.CLOSED)
+      setTimeout(() => {
+        sourceKey = null;
+        connectLive();
+      }, 3000);
   });
-  for (const type of ['post', 'edit', 'delete', 'channel', 'story', 'notification', 'kicked', 'presence', 'dm', 'dm-delete', 'dm-react', 'dm-read', 'dm-thread', 'message', 'message-edit', 'message-delete', 'buzz']) {
+  for (const type of [
+    'post',
+    'edit',
+    'delete',
+    'channel',
+    'story',
+    'notification',
+    'kicked',
+    'presence',
+    'dm',
+    'dm-delete',
+    'dm-react',
+    'dm-read',
+    'dm-thread',
+    'message',
+    'message-edit',
+    'message-delete',
+    'buzz',
+  ]) {
     source.addEventListener(type, (e) => handleLive(type, JSON.parse(e.data)));
   }
 }
@@ -889,12 +1263,22 @@ function handleLive(type, data) {
   }
   if (type === 'channel' && state.story?.story.id === data.storyId) {
     const i = state.story.channels.findIndex((c) => c.id === data.id);
-    if (i >= 0) state.story.channels[i] = { ...state.story.channels[i], ...data, unread: state.story.channels[i].unread, mentions: state.story.channels[i].mentions };
+    if (i >= 0)
+      state.story.channels[i] = {
+        ...state.story.channels[i],
+        ...data,
+        unread: state.story.channels[i].unread,
+        mentions: state.story.channels[i].mentions,
+      };
     renderSidebar();
   }
   if (type === 'story') {
     if (state.story?.story.id === data.storyId) {
-      loadStory(data.storyId).then(() => emit('story-updated')).catch(() => { location.hash = '#/home'; });
+      loadStory(data.storyId)
+        .then(() => emit('story-updated'))
+        .catch(() => {
+          location.hash = '#/home';
+        });
     }
     refreshHome().catch(() => {});
   }
@@ -971,7 +1355,11 @@ export async function router() {
   renderMembers();
   connectLive();
 
-  if (!found) return page({ title: 'Not found', body: html`<div class="empty"><p>That page doesn't exist.</p><a href="#/home">Go home</a></div>` });
+  if (!found)
+    return page({
+      title: 'Not found',
+      body: html`<div class="empty"><p>That page doesn't exist.</p><a href="#/home">Go home</a></div>`,
+    });
   const [re, fn, needsUser] = found;
   if (needsUser && !state.user) {
     store.set('nuuvi:after-login', hash);
@@ -980,7 +1368,9 @@ export async function router() {
   // A thin bar at the top while a page is loading (only if it takes a moment), so a tap always
   // shows something happening.
   const seq = routeSeq;
-  const busy = setTimeout(() => { if (seq === routeSeq) document.body.classList.add('routing'); }, 150);
+  const busy = setTimeout(() => {
+    if (seq === routeSeq) document.body.classList.add('routing');
+  }, 150);
   try {
     await fn(...hash.match(re).slice(1));
   } catch (err) {
@@ -989,7 +1379,10 @@ export async function router() {
       store.set('nuuvi:after-login', hash);
       return replaceHash('#/');
     }
-    page({ title: err.status === 404 ? 'Not found' : 'Something went wrong', body: html`<div class="empty"><p>${err.message}</p><a href="#/home">Go home</a></div>` });
+    page({
+      title: err.status === 404 ? 'Not found' : 'Something went wrong',
+      body: html`<div class="empty"><p>${err.message}</p><a href="#/home">Go home</a></div>`,
+    });
   } finally {
     clearTimeout(busy);
     if (seq === routeSeq) document.body.classList.remove('routing');
@@ -1021,10 +1414,13 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-64';
+export const APP_BUILD = 'NV-65';
 let changelog = null;
 export async function loadChangelog() {
-  if (!changelog) changelog = await fetch('/changelog.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => []);
+  if (!changelog)
+    changelog = await fetch('/changelog.json', { cache: 'no-store' })
+      .then((r) => r.json())
+      .catch(() => []);
   return changelog;
 }
 export async function showWhatsNew(entry) {
@@ -1052,7 +1448,10 @@ async function checkForUpdate() {
     const bar = document.createElement('div');
     bar.id = 'update-bar';
     bar.className = 'update-bar';
-    render(bar, html`<span>NUUVI was updated <b>(${latest.code})</b></span><button type="button" class="primary sm">Refresh</button>`);
+    render(
+      bar,
+      html`<span>NUUVI was updated <b>(${latest.code})</b></span><button type="button" class="primary sm">Refresh</button>`,
+    );
     bar.querySelector('button').addEventListener('click', () => location.reload());
     document.body.append(bar);
     return;
@@ -1072,7 +1471,10 @@ async function boot() {
   window.addEventListener('hashchange', router);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && state.user) {
-      if (!source || source.readyState === EventSource.CLOSED) { sourceKey = null; connectLive(); }
+      if (!source || source.readyState === EventSource.CLOSED) {
+        sourceKey = null;
+        connectLive();
+      }
       refreshHome().catch(() => {});
       emit('reconnect');
     }
@@ -1085,7 +1487,9 @@ async function boot() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
     // Clicking a push notification while the app is open navigates here.
-    navigator.serviceWorker.addEventListener('message', (e) => { if (e.data?.url) location.hash = e.data.url.replace(/^\/?/, ''); });
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data?.url) location.hash = e.data.url.replace(/^\/?/, '');
+    });
   }
 }
 

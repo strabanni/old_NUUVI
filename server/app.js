@@ -1,3 +1,5 @@
+// Builds the NUUVI web server: static files, the API router, live updates, notifications and push.
+// Every feature's routes live in server/routes/ and are registered here.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { mkdirSync, mkdtempSync, createReadStream } from 'node:fs';
@@ -98,19 +100,39 @@ function createHub(db) {
     add(stream) {
       streams.add(stream);
       announcePresence();
-      return () => { streams.delete(stream); announcePresence(); };
+      return () => {
+        streams.delete(stream);
+        announcePresence();
+      };
     },
     sendUser(userId, event, data) {
       for (const s of streams) if (s.userId === userId) write(s, event, data);
     },
     sendStory(storyId, event, data) {
       const story = db.prepare('SELECT * FROM stories WHERE id = ?').get(storyId);
-      const members = new Set(db.prepare('SELECT user_id FROM story_members WHERE story_id = ?').all(storyId).map((m) => m.user_id));
+      const members = new Set(
+        db
+          .prepare('SELECT user_id FROM story_members WHERE story_id = ?')
+          .all(storyId)
+          .map((m) => m.user_id),
+      );
       // Admins reading a writer's private story get live updates too (not another admin's private story).
-      const adminsSee = story?.visibility === 'private' && !db.prepare('SELECT is_admin FROM users WHERE id = ?').get(story.owner_id)?.is_admin;
-      const admins = adminsSee ? new Set(db.prepare('SELECT id FROM users WHERE is_admin = 1').all().map((u) => u.id)) : new Set();
+      const adminsSee =
+        story?.visibility === 'private' && !db.prepare('SELECT is_admin FROM users WHERE id = ?').get(story.owner_id)?.is_admin;
+      const admins = adminsSee
+        ? new Set(
+            db
+              .prepare('SELECT id FROM users WHERE is_admin = 1')
+              .all()
+              .map((u) => u.id),
+          )
+        : new Set();
       for (const s of streams) {
-        if ((s.userId && members.has(s.userId)) || (s.storyId === storyId && (story?.visibility === 'public' || admins.has(s.userId)))) write(s, event, data);
+        if (
+          (s.userId && members.has(s.userId)) ||
+          (s.storyId === storyId && (story?.visibility === 'public' || admins.has(s.userId)))
+        )
+          write(s, event, data);
       }
     },
     // A tab tells us when it's in front of the user; while one is, we don't push to their devices.
@@ -159,11 +181,16 @@ export function createApp({
     storyNow: () => storyNowSql(readClock(db)),
   };
 
-  ctx.userStats = (userId) => db.prepare(`SELECT
+  ctx.userStats = (userId) =>
+    db
+      .prepare(
+        `SELECT
       (SELECT COUNT(*) FROM posts WHERE user_id = :u) AS posts,
       (SELECT COALESCE(SUM(word_count), 0) FROM posts WHERE user_id = :u) AS words,
       (SELECT COUNT(*) FROM characters WHERE user_id = :u) AS characters,
-      (SELECT COUNT(*) FROM story_members WHERE user_id = :u) AS stories`).get({ u: userId });
+      (SELECT COUNT(*) FROM story_members WHERE user_id = :u) AS stories`,
+      )
+      .get({ u: userId });
 
   // ---------- Notifications ----------
   // Every notification is read with its writer, story, channel and the characters involved: the one
@@ -184,7 +211,12 @@ export function createApp({
     LEFT JOIN phone_threads pt ON pt.id = n.phone_thread_id`;
   const phoneUrl = (row) => `#/phone/${row.character_id}${row.phone_thread_id ? `/t/${row.phone_thread_id}` : ''}`;
   ctx.toNotification = (row) => ({
-    id: row.id, type: row.type, count: row.count, text: row.text, createdAt: row.created_at, read: !!row.read_at,
+    id: row.id,
+    type: row.type,
+    count: row.count,
+    text: row.text,
+    createdAt: row.created_at,
+    read: !!row.read_at,
     actor: row.a_id ? toUser(row, 'a_') : null,
     story: row.story_id ? { id: row.story_id, title: row.story_title } : null,
     channel: row.channel_id ? { id: row.channel_id, name: row.channel_name } : null,
@@ -194,11 +226,24 @@ export function createApp({
     from: row.ac_id ? { id: row.ac_id, name: row.ac_name, avatar: row.ac_avatar, color: row.ac_color } : null,
     to: row.rc_name ? { id: row.character_id, name: row.rc_name } : null,
     group: row.pt_group ? { title: row.pt_title || '' } : null,
-    url: row.type === 'report' ? '#/admin' : row.type === 'dm' || row.type === 'call' ? phoneUrl(row) : row.social_id ? `#/p/${row.social_id}`
-      : row.type === 'message' ? `#/messages/${row.actor_id}` : row.type === 'connection' ? '#/nu'
-      : ['follow', 'followreq', 'tie'].includes(row.type) && row.character_id ? `#/c/${row.character_id}`
-      : row.type === 'added' && row.story_id ? `#/s/${row.story_id}`
-      : row.story_id && row.channel_id ? `#/s/${row.story_id}/${row.channel_id}` : '#/notifications',
+    url:
+      row.type === 'report'
+        ? '#/admin'
+        : row.type === 'dm' || row.type === 'call'
+          ? phoneUrl(row)
+          : row.social_id
+            ? `#/p/${row.social_id}`
+            : row.type === 'message'
+              ? `#/messages/${row.actor_id}`
+              : row.type === 'connection'
+                ? '#/nu'
+                : ['follow', 'followreq', 'tie'].includes(row.type) && row.character_id
+                  ? `#/c/${row.character_id}`
+                  : row.type === 'added' && row.story_id
+                    ? `#/s/${row.story_id}`
+                    : row.story_id && row.channel_id
+                      ? `#/s/${row.story_id}/${row.channel_id}`
+                      : '#/notifications',
   });
 
   const snippet = (post) => {
@@ -206,22 +251,58 @@ export function createApp({
     return plainText(post.body) || (post.media?.length ? 'sent a picture' : '');
   };
 
-  function createNotification({ userId, type, actorId = null, storyId = null, channelId = null, postId = null, characterId = null, socialId = null, fromCharacterId = null, phoneThreadId = null, text = '' }) {
+  function createNotification({
+    userId,
+    type,
+    actorId = null,
+    storyId = null,
+    channelId = null,
+    postId = null,
+    characterId = null,
+    socialId = null,
+    fromCharacterId = null,
+    phoneThreadId = null,
+    text = '',
+  }) {
     let notificationId;
     // Unread posts in one channel (or texts to one phone) pile up into a single notification.
-    const existing = (type === 'post' && db.prepare(`SELECT id FROM notifications
-      WHERE user_id = ? AND type = 'post' AND channel_id = ? AND read_at IS NULL`).get(userId, channelId))
-      || (type === 'dm' && db.prepare(`SELECT id FROM notifications
-      WHERE user_id = ? AND type = 'dm' AND character_id = ? AND phone_thread_id IS ? AND read_at IS NULL`).get(userId, characterId, phoneThreadId))
-      || (type === 'message' && db.prepare(`SELECT id FROM notifications
-      WHERE user_id = ? AND type = 'message' AND actor_id = ? AND read_at IS NULL`).get(userId, actorId));
+    const existing =
+      (type === 'post' &&
+        db
+          .prepare(
+            `SELECT id FROM notifications
+      WHERE user_id = ? AND type = 'post' AND channel_id = ? AND read_at IS NULL`,
+          )
+          .get(userId, channelId)) ||
+      (type === 'dm' &&
+        db
+          .prepare(
+            `SELECT id FROM notifications
+      WHERE user_id = ? AND type = 'dm' AND character_id = ? AND phone_thread_id IS ? AND read_at IS NULL`,
+          )
+          .get(userId, characterId, phoneThreadId)) ||
+      (type === 'message' &&
+        db
+          .prepare(
+            `SELECT id FROM notifications
+      WHERE user_id = ? AND type = 'message' AND actor_id = ? AND read_at IS NULL`,
+          )
+          .get(userId, actorId));
     if (existing) {
-      db.prepare(`UPDATE notifications SET count = count + 1, actor_id = ?, post_id = ?, from_character_id = ?, text = ?, created_at = datetime('now') WHERE id = ?`)
-        .run(actorId, postId, fromCharacterId, text, existing.id);
+      db.prepare(
+        `UPDATE notifications SET count = count + 1, actor_id = ?, post_id = ?, from_character_id = ?, text = ?, created_at = datetime('now') WHERE id = ?`,
+      ).run(actorId, postId, fromCharacterId, text, existing.id);
       notificationId = existing.id;
     } else {
-      notificationId = Number(db.prepare(`INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, character_id, social_id, from_character_id, phone_thread_id, text)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(userId, type, actorId, storyId, channelId, postId, characterId, socialId, fromCharacterId, phoneThreadId, text).lastInsertRowid);
+      notificationId = Number(
+        db
+          .prepare(
+            `INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, character_id, social_id, from_character_id, phone_thread_id, text)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(userId, type, actorId, storyId, channelId, postId, characterId, socialId, fromCharacterId, phoneThreadId, text)
+          .lastInsertRowid,
+      );
     }
     const n = ctx.toNotification(db.prepare(`${ctx.notificationSql} WHERE n.id = ?`).get(notificationId));
     hub.sendUser(userId, 'notification', n);
@@ -241,16 +322,23 @@ export function createApp({
       socialtag: () => ({ title: 'Tagged on THE NU', body: text }),
       tag: () => ({ title: `${n.actor?.displayName} tagged you in a thread`, body: `${where} · ${n.story?.title}` }),
       dm: () => ({ title: ctx.textTitle(n), body: text }),
-      call: () => ({ title: `${n.to?.name ?? 'You'} missed a ${text === 'facetime' ? 'FaceTime' : 'call'}`, body: `${n.from?.name ?? 'Someone'} called${n.group ? ` ${n.group.title || 'the group'}` : ''}` }),
+      call: () => ({
+        title: `${n.to?.name ?? 'You'} missed a ${text === 'facetime' ? 'FaceTime' : 'call'}`,
+        body: `${n.from?.name ?? 'Someone'} called${n.group ? ` ${n.group.title || 'the group'}` : ''}`,
+      }),
       followreq: () => ({ title: 'Follow request', body: text }),
       tie: () => ({ title: 'New tie', body: text }),
       reply: () => ({ title: `${n.actor?.displayName} replied to you`, body: `${where} · ${text}` }),
-      message: () => ({ title: n.count > 1 ? `${n.count} messages from ${n.actor?.displayName}` : `Message from ${n.actor?.displayName}`, body: text }),
+      message: () => ({
+        title: n.count > 1 ? `${n.count} messages from ${n.actor?.displayName}` : `Message from ${n.actor?.displayName}`,
+        body: text,
+      }),
       connection: () => ({ title: 'Connection picked up', body: text }),
       added: () => ({ title: `Added to ${n.story?.title ?? 'a story'}`, body: `${n.actor?.displayName} added you` }),
     }[type]?.() ?? { title: 'NUUVI', body: text };
     // Phone/desktop pop-ups only when they're not actively using NUUVI.
-    if (!hub.isActive(userId)) ctx.pusher.send(userId, { ...push, url: `/${n.url}`, tag: n.channel ? `channel-${n.channel.id}` : `n-${n.id}` });
+    if (!hub.isActive(userId))
+      ctx.pusher.send(userId, { ...push, url: `/${n.url}`, tag: n.channel ? `channel-${n.channel.id}` : `n-${n.id}` });
   }
 
   ctx.notify = createNotification;
@@ -264,9 +352,18 @@ export function createApp({
   };
 
   ctx.notifyPost = (post, story, channel) => {
-    const members = db.prepare(`SELECT m.user_id, m.notify, u.username FROM story_members m JOIN users u ON u.id = m.user_id
-      WHERE m.story_id = ? AND m.user_id != ?`).all(story.id, post.userId);
-    const blockers = new Set(db.prepare('SELECT blocker_id FROM blocks WHERE blocked_id = ?').all(post.userId).map((b) => b.blocker_id));
+    const members = db
+      .prepare(
+        `SELECT m.user_id, m.notify, u.username FROM story_members m JOIN users u ON u.id = m.user_id
+      WHERE m.story_id = ? AND m.user_id != ?`,
+      )
+      .all(story.id, post.userId);
+    const blockers = new Set(
+      db
+        .prepare('SELECT blocker_id FROM blocks WHERE blocked_id = ?')
+        .all(post.userId)
+        .map((b) => b.blocker_id),
+    );
     // @name ends at a space; trailing punctuation ("@rose!") is tried both with and without.
     const mentioned = new Set();
     for (const [, raw] of post.body.matchAll(/@([^\s@]+)/g)) {
@@ -328,7 +425,16 @@ export function createApp({
   // Fan comments by Claude, looking at the pictures (only when an API key is set).
   ctx.ai = createAi(aiOptions);
   ctx.aiBuzz = createAiBuzz({ db, hub, uploadDir, ai: ctx.ai });
-  const botTimer = setInterval(() => { try { ctx.bots.tick(); } catch (err) { console.error('bots', err); } }, 15 * 60 * 1000);
+  const botTimer = setInterval(
+    () => {
+      try {
+        ctx.bots.tick();
+      } catch (err) {
+        console.error('bots', err);
+      }
+    },
+    15 * 60 * 1000,
+  );
   botTimer.unref?.();
   threadRoutes(router, ctx);
   eventRoutes(router, ctx);
@@ -350,8 +456,18 @@ export function createApp({
   router.put('/api/admin/clock', ({ user, body }) => {
     requireAdmin(user);
     let clock;
-    try { clock = writeClock(db, body || {}); } catch (err) { fail(err.status || 400, err.message); }
-    ctx.modLog(user.id, 'set-clock', clock.mode === 'real' ? 'real date' : `${clock.mode} ${clock.date}${clock.mode === 'timer' ? `, +1 day every ${clock.every} days` : ''}`);
+    try {
+      clock = writeClock(db, body || {});
+    } catch (err) {
+      fail(err.status || 400, err.message);
+    }
+    ctx.modLog(
+      user.id,
+      'set-clock',
+      clock.mode === 'real'
+        ? 'real date'
+        : `${clock.mode} ${clock.date}${clock.mode === 'timer' ? `, +1 day every ${clock.every} days` : ''}`,
+    );
     return { data: { clock: publicClock(clock) } };
   });
 
@@ -387,7 +503,12 @@ export function createApp({
       fail(404, 'Not found');
     }
     if (!info.isFile()) fail(404, 'Not found');
-    const headers = { 'Content-Type': MIME[extname(file)] || 'application/octet-stream', 'Cache-Control': cacheControl, 'Accept-Ranges': 'bytes', ...SECURITY_HEADERS };
+    const headers = {
+      'Content-Type': MIME[extname(file)] || 'application/octet-stream',
+      'Cache-Control': cacheControl,
+      'Accept-Ranges': 'bytes',
+      ...SECURITY_HEADERS,
+    };
     const range = req?.headers.range?.match(/^bytes=(\d*)-(\d*)$/);
     if (range && (range[1] || range[2])) {
       let start = range[1] ? Number(range[1]) : Math.max(0, info.size - Number(range[2]));
@@ -397,7 +518,11 @@ export function createApp({
         res.writeHead(416, { 'Content-Range': `bytes */${info.size}`, ...SECURITY_HEADERS });
         return res.end();
       }
-      res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${info.size}`, 'Content-Length': end - start + 1 });
+      res.writeHead(206, {
+        ...headers,
+        'Content-Range': `bytes ${start}-${end}/${info.size}`,
+        'Content-Length': end - start + 1,
+      });
       return createReadStream(file, { start, end }).pipe(res);
     }
     res.writeHead(200, { ...headers, 'Content-Length': info.size });
@@ -409,7 +534,11 @@ export function createApp({
     const upload = pathname.match(/^\/uploads\/([\w-]+\.(?:png|jpg|webp|gif|mp4|mov|webm|m4a|weba|ogg|mp3|wav))$/);
     if (upload) return sendFile(res, join(uploadDir, upload[1]), 'private, max-age=31536000, immutable', req);
     let rel;
-    try { rel = decodeURIComponent(pathname); } catch { fail(400, 'Bad path'); }
+    try {
+      rel = decodeURIComponent(pathname);
+    } catch {
+      fail(400, 'Bad path');
+    }
     if (rel === '/' || !extname(rel)) rel = '/index.html'; // SPA fallback
     const file = normalize(join(PUBLIC_DIR, rel));
     if (!file.startsWith(PUBLIC_DIR.endsWith(sep) ? PUBLIC_DIR : PUBLIC_DIR + sep)) fail(404, 'Not found');
@@ -430,13 +559,22 @@ export function createApp({
   function parseJson(buf) {
     if (!buf.length) return {};
     let parsed;
-    try { parsed = JSON.parse(buf.toString('utf8')); } catch { fail(400, 'Invalid JSON'); }
+    try {
+      parsed = JSON.parse(buf.toString('utf8'));
+    } catch {
+      fail(400, 'Invalid JSON');
+    }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) fail(400, 'Expected a JSON object');
     return parsed;
   }
 
   function sendJson(res, status, data, extraHeaders = {}) {
-    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...SECURITY_HEADERS, ...extraHeaders });
+    res.writeHead(status, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+      ...SECURITY_HEADERS,
+      ...extraHeaders,
+    });
     res.end(JSON.stringify(data));
   }
 
@@ -474,8 +612,20 @@ export function createApp({
 
       const cookies = [];
       const result = await route.handler({
-        user, token, body, rawBody, params: route.params, query: url.searchParams, headers: req.headers,
-        ip: trustProxy ? (req.headers['fly-client-ip'] || String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress) : req.socket.remoteAddress,
+        user,
+        token,
+        body,
+        rawBody,
+        params: route.params,
+        query: url.searchParams,
+        headers: req.headers,
+        ip: trustProxy
+          ? req.headers['fly-client-ip'] ||
+            String(req.headers['x-forwarded-for'] || '')
+              .split(',')[0]
+              .trim() ||
+            req.socket.remoteAddress
+          : req.socket.remoteAddress,
         setSession: ({ token: t, maxAge }) => cookies.push(sessionCookie(t, maxAge, secureCookies)),
         clearSession: () => cookies.push(sessionCookie('', 0, secureCookies)),
       });

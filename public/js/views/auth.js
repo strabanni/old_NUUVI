@@ -1,3 +1,4 @@
+// Signing in and signing up: the landing page form, plus the reset-password page.
 import { html, render, api, $, $$, bindForm, logoMark, wordmark } from '../lib.js';
 import { signedIn, routeAlive, ensureAlive } from '../main.js';
 
@@ -7,7 +8,9 @@ export async function viewLanding({ invite = '' } = {}) {
   ensureAlive(alive);
   let mode = invite || status.firstUser ? 'register' : 'login';
   const main = $('#main');
-  render(main, html`
+  render(
+    main,
+    html`
     <div class="landing">
       <div class="hero-logo">${logoMark}${wordmark}</div>
       <section class="card auth">
@@ -22,9 +25,13 @@ export async function viewLanding({ invite = '' } = {}) {
           <div class="register-only">
             <label for="displayName">Display name <span class="muted small">(optional)</span></label>
             <input id="displayName" name="displayName" maxlength="40">
-            ${status.inviteRequired ? html`
+            ${
+              status.inviteRequired
+                ? html`
               <label for="invite">Invite code</label>
-              <input id="invite" name="invite" value="${invite}" autocomplete="off" placeholder="Ask the admin for one">` : ''}
+              <input id="invite" name="invite" value="${invite}" autocomplete="off" placeholder="Ask the admin for one">`
+                : ''
+            }
           </div>
           <label for="password">Password</label>
           <input id="password" name="password" type="password" autocomplete="current-password" required minlength="8">
@@ -32,7 +39,8 @@ export async function viewLanding({ invite = '' } = {}) {
           <button type="submit" class="primary block">Sign in</button>
         </form>
       </section>
-    </div>`);
+    </div>`,
+  );
 
   const form = $('#auth-form');
   const setMode = (m) => {
@@ -45,14 +53,19 @@ export async function viewLanding({ invite = '' } = {}) {
   $$('[data-tab]').forEach((t) => t.addEventListener('click', () => setMode(t.dataset.tab)));
   setMode(mode);
   bindForm(form, async (data) => {
-    if (mode === 'login') { delete data.displayName; delete data.invite; }
+    if (mode === 'login') {
+      delete data.displayName;
+      delete data.invite;
+    }
     const { user } = await api(`/api/auth/${mode}`, { method: 'POST', body: data });
     await signedIn(user);
   });
 }
 
 export function viewReset(token) {
-  render($('#main'), html`
+  render(
+    $('#main'),
+    html`
     <div class="landing">
       <section class="card auth">
         <h2>Choose a new password</h2>
@@ -63,7 +76,8 @@ export function viewReset(token) {
           <button type="submit" class="primary block">Save and sign in</button>
         </form>
       </section>
-    </div>`);
+    </div>`,
+  );
   bindForm($('#reset-form'), async ({ password }) => {
     const { user } = await api('/api/auth/reset', { method: 'POST', body: { token, password } });
     await signedIn(user);

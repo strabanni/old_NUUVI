@@ -3,13 +3,52 @@
 // thunderstorms in summer, crisp autumn days).
 
 // Typical New York highs and lows by month, in °F.
-const CLIMATE = [[39, 27], [42, 29], [50, 35], [62, 45], [72, 55], [80, 64], [85, 70], [84, 69], [76, 61], [65, 50], [54, 41], [44, 32]];
+const CLIMATE = [
+  [39, 27],
+  [42, 29],
+  [50, 35],
+  [62, 45],
+  [72, 55],
+  [80, 64],
+  [85, 70],
+  [84, 69],
+  [76, 61],
+  [65, 50],
+  [54, 41],
+  [44, 32],
+];
 // How likely each kind of sky is, by season.
 const SKIES = {
-  winter: [['sunny', 3], ['partly', 3], ['cloudy', 3], ['snow', 2], ['rain', 1], ['fog', 1]],
-  spring: [['sunny', 4], ['partly', 4], ['cloudy', 2], ['rain', 3], ['fog', 1]],
-  summer: [['sunny', 6], ['partly', 3], ['storm', 2], ['rain', 1], ['hot', 2]],
-  autumn: [['sunny', 4], ['partly', 4], ['cloudy', 2], ['rain', 2], ['wind', 1], ['fog', 1]],
+  winter: [
+    ['sunny', 3],
+    ['partly', 3],
+    ['cloudy', 3],
+    ['snow', 2],
+    ['rain', 1],
+    ['fog', 1],
+  ],
+  spring: [
+    ['sunny', 4],
+    ['partly', 4],
+    ['cloudy', 2],
+    ['rain', 3],
+    ['fog', 1],
+  ],
+  summer: [
+    ['sunny', 6],
+    ['partly', 3],
+    ['storm', 2],
+    ['rain', 1],
+    ['hot', 2],
+  ],
+  autumn: [
+    ['sunny', 4],
+    ['partly', 4],
+    ['cloudy', 2],
+    ['rain', 2],
+    ['wind', 1],
+    ['fog', 1],
+  ],
 };
 export const SKY = {
   sunny: { icon: '☀️', label: 'Sunny' },
@@ -36,7 +75,14 @@ const LINES = {
 
 function rand(seed) {
   let x = (seed * 2654435761) >>> 0;
-  return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; };
+  return () => {
+    x ^= x << 13;
+    x >>>= 0;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    x >>>= 0;
+    return x / 4294967296;
+  };
 }
 const season = (m) => (m === 11 || m <= 1 ? 'winter' : m <= 4 ? 'spring' : m <= 7 ? 'summer' : 'autumn');
 
@@ -44,18 +90,36 @@ const season = (m) => (m === 11 || m <= 1 ? 'winter' : m <= 4 ? 'spring' : m <= 
 export function forecast(date) {
   const d = new Date(date);
   const r = rand(d.getFullYear() * 1000 + d.getMonth() * 40 + d.getDate());
-  r(); r();
+  r();
+  r();
   const m = d.getMonth();
   const options = SKIES[season(m)];
   let total = options.reduce((t, [, w]) => t + w, 0) * r();
   let sky = options[0][0];
-  for (const [k, w] of options) { if ((total -= w) < 0) { sky = k; break; } }
+  for (const [k, w] of options) {
+    if ((total -= w) < 0) {
+      sky = k;
+      break;
+    }
+  }
   const [hi0, lo0] = CLIMATE[m];
   const swing = Math.round((r() - 0.5) * 14);
   let hi = hi0 + swing + (sky === 'hot' ? 8 : 0) - (sky === 'rain' || sky === 'storm' ? 3 : 0);
   let lo = lo0 + Math.round(swing * 0.7);
-  if (sky === 'snow') { hi = Math.min(hi, 34); lo = Math.min(lo, 26); }
-  const toC = (f) => Math.round((f - 32) * 5 / 9);
+  if (sky === 'snow') {
+    hi = Math.min(hi, 34);
+    lo = Math.min(lo, 26);
+  }
+  const toC = (f) => Math.round(((f - 32) * 5) / 9);
   const lines = LINES[sky];
-  return { sky, ...SKY[sky], hi, lo, hiC: toC(hi), loC: toC(lo), line: lines[Math.floor(r() * lines.length)], rain: sky === 'rain' || sky === 'storm' ? 60 + Math.round(r() * 35) : Math.round(r() * 20) };
+  return {
+    sky,
+    ...SKY[sky],
+    hi,
+    lo,
+    hiC: toC(hi),
+    loC: toC(lo),
+    line: lines[Math.floor(r() * lines.length)],
+    rain: sky === 'rain' || sky === 'storm' ? 60 + Math.round(r() * 35) : Math.round(r() * 20),
+  };
 }
