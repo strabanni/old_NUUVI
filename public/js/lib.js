@@ -1192,7 +1192,7 @@ export function mentionPicker(field) {
       list,
       html`${items.map(
         (c, i) => html`<button type="button" class="mention-opt ${i === active ? 'on' : ''}" data-i="${i}">
-      ${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}<b>@${c.handle}</b><small>${c.name}${c.npc ? ' · NPC' : ''}</small></button>`,
+      ${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}<b>@${c.handle}</b><small>${c.name}${c.npc ? ' · supporting cast' : ''}</small></button>`,
       )}`,
     );
     list.hidden = !items.length;

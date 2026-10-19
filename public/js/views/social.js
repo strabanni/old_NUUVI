@@ -44,7 +44,7 @@ const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padSt
 // Social posts go out under the character's @username (their given name shows on their profile).
 export const handleOf = (ch) => (ch.handle ? `@${ch.handle}` : ch.name);
 export const npcBadges = (ch) =>
-  html`${ch.brand ? html`<span class="npc-badge brand" title="Brand account">BRAND</span>` : ''}${ch.npc ? html`<span class="npc-badge" title="NPC">NPC</span>` : ''}${ch.bot === 'bot' ? html`<span class="npc-badge auto" title="Posts and comments on its own">AUTO</span>` : ''}`;
+  html`${ch.brand ? html`<span class="npc-badge brand" title="Brand account">BRAND</span>` : ''}${ch.npc ? html`<span class="npc-badge" title="Supporting cast">SUPPORTING</span>` : ''}${ch.bot === 'bot' ? html`<span class="npc-badge auto" title="Posts and comments on its own">AUTO</span>` : ''}`;
 export const nameBadge = (ch) =>
   html`<span class="sp-name">${handleOf(ch)}</span>${ch.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(ch)}`;
 
@@ -106,14 +106,113 @@ function photoTagsHtml(p) {
     <button type="button" class="ptag-btn" data-ptags aria-label="Show tagged people" ${on(0) ? '' : 'hidden'} data-on="${tags.map((t) => t.mediaIndex).join(',')}">${icons.user}</button>`;
 }
 
-// The song attached to a post, under the poster's name (like Instagram). Links open in a new tab.
-export function songLine(m) {
+// The song attached to a post, under the poster's name (like Instagram), with a sound button that
+// plays a short preview of it. Links open in a new tab.
+export function songLine(m, postId = null) {
   if (!m?.title) return '';
   const label = html`${icons.music}<span class="song-t">${m.title}</span>${m.artist ? html`<span class="song-a"> · ${m.artist}</span>` : ''}`;
-  return m.url
+  const line = m.url
     ? html`<a class="song" href="${m.url}" target="_blank" rel="noopener noreferrer nofollow" title="Listen: ${m.title}${m.artist ? ` by ${m.artist}` : ''}">${label}</a>`
     : html`<span class="song">${label}</span>`;
+  if (!postId || (m.previewFor === `${m.title}|${m.artist || ''}` && !m.preview)) return line;
+  const on = player.post === postId && !player.audio.paused;
+  return html`<span class="song-row">${line}<button type="button" class="song-sound" data-song="${postId}" data-preview="${m.preview || ''}" aria-pressed="${on}" aria-label="${on ? 'Mute the song' : 'Play the song'}" title="Song preview from Apple Music">${on ? icons.sound : icons.mute}</button></span>`;
 }
+
+// The song player: one shared audio for the whole app. Sound starts off; tapping a post's speaker
+// plays its song, and while sound is on, the song follows you to whichever post you scroll to.
+const player = { audio: new Audio(), post: null, soundOn: false, previews: new Map() };
+player.audio.loop = true;
+player.audio.preload = 'none';
+
+const songButtons = () => $$('[data-song]').filter((b) => b.isConnected);
+function showSound() {
+  for (const b of songButtons()) {
+    const on = Number(b.dataset.song) === player.post && player.soundOn;
+    b.setAttribute('aria-pressed', on);
+    b.setAttribute('aria-label', on ? 'Mute the song' : 'Play the song');
+    render(b, on ? icons.sound : icons.mute);
+  }
+}
+async function previewOf(b) {
+  const id = Number(b.dataset.song);
+  if (b.dataset.preview) return b.dataset.preview;
+  if (!player.previews.has(id)) {
+    player.previews.set(
+      id,
+      api(`/api/social/${id}/song`)
+        .then((r) => r.preview || '')
+        .catch(() => ''),
+    );
+  }
+  return player.previews.get(id);
+}
+async function playSong(b) {
+  const id = Number(b.dataset.song);
+  player.post = id;
+  showSound();
+  const src = await previewOf(b);
+  if (player.post !== id || !player.soundOn) return;
+  if (!src) {
+    b.hidden = true;
+    muteSong();
+    return toast("Couldn't find a preview of that song");
+  }
+  if (player.audio.src !== src) player.audio.src = src;
+  try {
+    await player.audio.play();
+  } catch {
+    player.soundOn = false;
+    player.post = null;
+  }
+  showSound();
+}
+function muteSong() {
+  player.soundOn = false;
+  player.post = null;
+  player.audio.pause();
+  showSound();
+}
+// While sound is on: play the song of the post most in view, and stop when none is.
+function followSong() {
+  if (!player.soundOn) return;
+  const vh = window.innerHeight;
+  let best = null;
+  let most = 0.35;
+  for (const b of songButtons()) {
+    const r = (b.closest('article') || b).getBoundingClientRect();
+    const seen = Math.max(0, Math.min(r.bottom, vh) - Math.max(r.top, 0)) / Math.max(1, Math.min(r.height, vh));
+    if (seen > most) [best, most] = [b, seen];
+  }
+  if (!best) {
+    player.audio.pause();
+    player.post = null;
+    showSound();
+  } else if (Number(best.dataset.song) !== player.post || player.audio.paused) playSong(best);
+}
+let following = 0;
+document.addEventListener(
+  'scroll',
+  () => {
+    if (player.soundOn && !following) following = requestAnimationFrame(() => ((following = 0), followSong()));
+  },
+  { capture: true, passive: true },
+);
+document.addEventListener(
+  'click',
+  (e) => {
+    const b = e.target.closest?.('[data-song]');
+    if (!b) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (player.soundOn && Number(b.dataset.song) === player.post) return muteSong();
+    player.soundOn = true;
+    playSong(b);
+  },
+  true,
+);
+document.addEventListener('visibilitychange', () => document.hidden && player.audio.pause());
+window.addEventListener('hashchange', () => setTimeout(followSong, 400));
 
 // Short Instagram-style times: "5m", "3h", "2d", then the date.
 export function agoShort(sql) {
@@ -216,7 +315,7 @@ export function socialCard(p, { full = false } = {}) {
           <div class="np-line"><a href="#/c/${ch.id}" class="np-who">${nameBadge(ch)}</a><span class="np-dot">•</span><a class="np-ago" href="#/p/${p.id}">${agoShort(p.createdAt)}</a></div>
           ${p.category === 'musing' ? html`<span class="np-sub musing-tag">${icons.quill} musing</span>` : ''}
           ${p.location ? html`<span class="np-sub loc-tag">${icons.pin} ${p.location}</span>` : ''}
-          ${songLine(p.meta.music)}
+          ${songLine(p.meta.music, p.id)}
         </div>
         <button class="icon-btn sm np-more" data-sm="more" aria-label="Post options">${icons.more}</button>
       </header>

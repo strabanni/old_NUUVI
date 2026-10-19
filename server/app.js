@@ -32,6 +32,8 @@ import { worldRoutes } from './routes/world.js';
 import { nameKey } from './names.js';
 import { plainText } from './text.js';
 import { createBots } from './bots.js';
+import { createSongs } from './songs.js';
+import { batchRoutes } from './routes/batches.js';
 import { createAiBuzz } from './ai-buzz.js';
 import { createAi } from './ai.js';
 
@@ -73,7 +75,7 @@ const SECURITY_HEADERS = {
   'Cross-Origin-Resource-Policy': 'same-origin',
   'X-Permitted-Cross-Domain-Policies': 'none',
   'Content-Security-Policy':
-    "upgrade-insecure-requests; default-src 'self'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' blob:; style-src 'self'; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self'; frame-src https://open.spotify.com https://embed.music.apple.com https://www.youtube-nocookie.com https://w.soundcloud.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    "upgrade-insecure-requests; default-src 'self'; object-src 'none'; img-src 'self' data: blob: https:; media-src 'self' blob: https://*.itunes.apple.com https://*.mzstatic.com https://*.apple.com; style-src 'self'; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self'; frame-src https://open.spotify.com https://embed.music.apple.com https://www.youtube-nocookie.com https://w.soundcloud.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 
 // Live connections (Server-Sent Events). Each stream belongs to a user (or an anonymous
@@ -159,6 +161,7 @@ export function createApp({
   pushFetch,
   bots: botOptions = {},
   ai: aiOptions = {},
+  songFetch,
 } = {}) {
   const db = openDb(dbPath);
   // In production (always HTTPS): browsers remember to only ever use HTTPS for this site.
@@ -237,7 +240,7 @@ export function createApp({
               ? `#/messages/${row.actor_id}`
               : row.type === 'connection'
                 ? '#/nu'
-                : ['follow', 'followreq', 'tie'].includes(row.type) && row.character_id
+                : ['follow', 'followreq', 'tie', 'batch'].includes(row.type) && row.character_id
                   ? `#/c/${row.character_id}`
                   : row.type === 'added' && row.story_id
                     ? `#/s/${row.story_id}`
@@ -422,6 +425,8 @@ export function createApp({
   postRoutes(router, ctx);
   adminRoutes(router, ctx);
   ctx.bots = createBots(ctx, botOptions);
+  // Song previews for posts (from Apple Music's free search).
+  ctx.songs = createSongs(songFetch ? { fetch: songFetch } : {});
   // Fan comments by Claude, looking at the pictures (only when an API key is set).
   ctx.ai = createAi(aiOptions);
   ctx.aiBuzz = createAiBuzz({ db, hub, uploadDir, ai: ctx.ai });
@@ -429,6 +434,7 @@ export function createApp({
     () => {
       try {
         ctx.bots.tick();
+        ctx.batches?.tick();
       } catch (err) {
         console.error('bots', err);
       }
@@ -441,6 +447,7 @@ export function createApp({
   phoneRoutes(router, ctx);
   overviewRoutes(router, ctx);
   socialRoutes(router, ctx);
+  batchRoutes(router, ctx, botOptions);
   socialPostRoutes(router, ctx);
   connectionRoutes(router, ctx);
   profileRoutes(router, ctx);

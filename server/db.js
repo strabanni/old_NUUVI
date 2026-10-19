@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { capitalizeName } from './text.js';
 
-const SCHEMA_VERSION = 29;
+const SCHEMA_VERSION = 30;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -674,6 +674,20 @@ export const MIGRATIONS = [
    -- (tapped, answered, or Mark all read, so it stops being highlighted).
    ALTER TABLE notifications ADD COLUMN seen_at TEXT;
    UPDATE notifications SET seen_at = read_at;`,
+  // v30: a writer's own colour for a tie, and photo batches: a set of pictures a supporting-cast
+  // character posts by themselves, one every few days, until their writer gives a new set.
+  `ALTER TABLE character_ties ADD COLUMN color TEXT;
+   CREATE TABLE photo_batches (
+     character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
+     photos       TEXT NOT NULL DEFAULT '[]',
+     next_index   INTEGER NOT NULL DEFAULT 0,
+     posted       INTEGER NOT NULL DEFAULT 0,
+     min_days     INTEGER NOT NULL DEFAULT 3,
+     max_days     INTEGER NOT NULL DEFAULT 7,
+     next_at      TEXT NOT NULL,
+     paused       INTEGER NOT NULL DEFAULT 0,
+     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+   );`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

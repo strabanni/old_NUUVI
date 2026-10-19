@@ -294,7 +294,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
               ? html`${all.map(
                   (ch) => html`
           <label class="tag-option"><input type="checkbox" value="${ch.id}" ${pre.has(ch.id) ? 'checked' : ''}>
-            ${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'xs' })}<span>${ch.name}</span><small>${ch.npc ? `NPC · ${ch.ownerName}` : ch.ownerName}</small></label>`,
+            ${avatar({ name: ch.name, src: ch.avatar, color: ch.color, size: 'xs' })}<span>${ch.name}</span><small>${ch.npc ? `Supporting cast · ${ch.ownerName}` : ch.ownerName}</small></label>`,
                 )}`
               : html`<span class="muted small">No characters in this story yet.</span>`,
           );

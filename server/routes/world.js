@@ -2,7 +2,7 @@
 // - Ties: how one character relates to another (best friend, ex, rival, family…), drawn as one
 //   family-tree-style chart on profiles.
 // - Timeline: the important events in a character's life, added by their writer.
-import { fail, str, oneOf } from '../http.js';
+import { fail, str, oneOf, color } from '../http.js';
 import { toCharacter, requireUser, isBlocked } from '../model.js';
 
 export const TIE_KINDS = [
@@ -66,6 +66,7 @@ export function worldRoutes(r, ctx) {
   const toTie = (t, other, mirror) => ({
     kind: t.kind,
     label: t.label,
+    color: t.color ?? null,
     note: t.note,
     since: t.since,
     createdAt: t.created_at,
@@ -96,6 +97,7 @@ export function worldRoutes(r, ctx) {
       .map(({ t, other }) => ({
         kind: t.kind,
         label: t.label,
+        color: t.color ?? null,
         note: t.note,
         since: t.since,
         createdAt: t.created_at,
@@ -114,6 +116,8 @@ export function worldRoutes(r, ctx) {
     const kind = oneOf(body.kind, 'Kind of tie', TIE_KINDS) ?? 'friend';
     const label = (str(body.label, 'Label', { max: 40 }) ?? '').trim();
     const note = (str(body.note, 'Note', { max: 300 }) ?? '').trim();
+    // Their own colour for the tie (a hex like #e0446a), or empty for the kind's colour.
+    const tint = body.color ? color(body.color) : null;
     const since = body.since
       ? DATE.test(String(body.since))
         ? String(body.since)
@@ -121,9 +125,9 @@ export function worldRoutes(r, ctx) {
       : null;
     const had = db.prepare('SELECT 1 FROM character_ties WHERE character_id = ? AND other_id = ?').get(c.id, other.id);
     db.prepare(
-      `INSERT INTO character_ties (character_id, other_id, kind, label, note, since, created_at) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))
-      ON CONFLICT(character_id, other_id) DO UPDATE SET kind = excluded.kind, label = excluded.label, note = excluded.note, since = excluded.since`,
-    ).run(c.id, other.id, kind, label, note, since, ctx.storyNow());
+      `INSERT INTO character_ties (character_id, other_id, kind, label, note, since, color, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))
+      ON CONFLICT(character_id, other_id) DO UPDATE SET kind = excluded.kind, label = excluded.label, note = excluded.note, since = excluded.since, color = excluded.color`,
+    ).run(c.id, other.id, kind, label, note, since, tint, ctx.storyNow());
     // Adding them back answers their "added you to their ties" notification.
     db.prepare(
       "UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND type = 'tie' AND character_id = ? AND from_character_id = ? AND read_at IS NULL",
@@ -238,7 +242,7 @@ export function worldRoutes(r, ctx) {
             next.push(otherId);
           }
           const key = [Math.min(from, to), Math.max(from, to)].join('-');
-          if (!links.has(key)) links.set(key, { from, to, kind: t.kind, label: t.label });
+          if (!links.has(key)) links.set(key, { from, to, kind: t.kind, label: t.label, color: t.color ?? null });
         }
       }
       frontier = next;
@@ -247,8 +251,9 @@ export function worldRoutes(r, ctx) {
     // writer (or theirs) has said.
     const direct = new Map();
     for (const t of tiesOf.all(c.id, c.id, ...kinds)) {
-      if (t.character_id === c.id) direct.set(t.other_id, { kind: t.kind, label: t.label });
-      else if (!direct.has(t.character_id)) direct.set(t.character_id, { kind: t.kind, label: t.label, theirs: true });
+      if (t.character_id === c.id) direct.set(t.other_id, { kind: t.kind, label: t.label, color: t.color ?? null });
+      else if (!direct.has(t.character_id))
+        direct.set(t.character_id, { kind: t.kind, label: t.label, color: t.color ?? null, theirs: true });
     }
     const members = [...people.values()].map((p) => ({
       character: toCharacter(p),

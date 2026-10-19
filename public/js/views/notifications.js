@@ -130,7 +130,7 @@ export async function viewNotifications() {
         <span class="notif-icon">${iconFor(n)}</span>
         <span class="grow">
           <span>${describe(n)}</span>
-          ${n.text && !['report', 'follow', 'followreq', 'tie', 'call', 'tag', 'added'].includes(n.type) ? html`<span class="notif-text">${n.text}</span>` : ''}
+          ${n.text && !['report', 'follow', 'followreq', 'tie', 'call', 'tag', 'added', 'batch'].includes(n.type) ? html`<span class="notif-text">${n.text}</span>` : ''}
         </span>
         <span class="notif-when">${timeAgo(n.createdAt)}</span>
       </a>`,

@@ -1,5 +1,18 @@
 [
   {
+    "code": "NV-66",
+    "date": "2026-10-19",
+    "title": "Supporting cast, songs that play, and photo batches",
+    "items": [
+      "NPCs are now called Supporting Cast. They have their own tab in the Directory and no longer show up under your own characters or in Meet The Cast (the new name for By writer).",
+      "Songs on posts can play now. Tap the little speaker next to the song name on a post to hear a short preview, and tap it again to mute. While sound is on, the song changes as you scroll to other posts with songs. Previews come from Apple Music.",
+      "The Spotify player is gone from under the follower counts on profiles.",
+      "Ties can have their own colour. When you add or change a tie, pick a colour or type a hex code like #e0446a. Tap Usual to go back to the normal colour for that kind of tie.",
+      "Character details are now just two things: Shipping status and Permission to kill. Pick them in Edit profile.",
+      "Photo batches for supporting cast: on a supporting-cast character's page, tap Photo batch and add 10 to 100 pictures. They post one by themselves every 3 to 7 days (you can change the gap), going round the set until you give them a new batch. Tap a picture to give it a caption, or leave it empty and one is written for you."
+    ]
+  },
+  {
     "code": "NV-65",
     "date": "2026-10-18",
     "title": "Classic profiles are back",

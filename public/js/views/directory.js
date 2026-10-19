@@ -23,8 +23,12 @@ import { characterCard, editCharacter } from './characters.js';
 
 export async function viewDirectory() {
   const alive = routeAlive();
-  const [{ writers, anonymous = [] }, mine] = await Promise.all([api('/api/directory'), myCharacters(true)]);
+  const [{ writers: everyone, anonymous = [] }, myAll] = await Promise.all([api('/api/directory'), myCharacters(true)]);
   ensureAlive(alive);
+  // The supporting cast (NPCs) only appears under Supporting Cast: Me, Meet The Cast and All
+  // characters show the main cast.
+  const mine = myAll.filter((c) => !c.npc);
+  const writers = everyone.map((w) => ({ ...w, characters: w.characters.filter((c) => !c.npc) }));
   // Other writers (you're under "Me").
   const others = writers.filter((w) => w.id !== state.user.id);
   const all = writers
@@ -51,9 +55,9 @@ export async function viewDirectory() {
         <input type="search" class="search" id="dir-q" placeholder="Search names, usernames, taglines…" aria-label="Search the directory">
         <div class="seg dir-tabs no-swipe" role="group" aria-label="Show">
           <button type="button" data-view="me">Me</button>
-          <button type="button" data-view="writers">By writer</button>
+          <button type="button" data-view="writers">Meet The Cast</button>
           <button type="button" data-view="characters">All characters</button>
-          <button type="button" data-view="npcs">NPCs</button>
+          <button type="button" data-view="npcs">Supporting Cast</button>
           <button type="button" data-view="brands">Brands</button>
           <button type="button" data-view="places">Locations</button>
         </div>
@@ -120,7 +124,7 @@ export async function viewDirectory() {
       );
     } else if (view === 'brands') {
       // Brand accounts: shops, labels, cafés, magazines… that post on THE NU.
-      const brands = all.filter((c) => c.brand);
+      const brands = everyone.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w }))).filter((c) => c.brand);
       const shown = brands.filter((c) => match(c.name, c.handle, c.tagline, c.writer.username));
       render(
         list,
@@ -141,7 +145,7 @@ export async function viewDirectory() {
     } else if (view === 'npcs') {
       // NPCs: everyone's shared background characters, by category.
       if (!npcData) {
-        render(list, html`<p class="muted small">Loading NPCs…</p>`);
+        render(list, html`<p class="muted small">Loading the supporting cast…</p>`);
         api('/api/npcs')
           .then((r) => {
             npcData = r;
@@ -159,11 +163,11 @@ export async function viewDirectory() {
       render(
         list,
         html`
-        <div class="npc-head"><div class="chips no-swipe">${html`<button type="button" class="chip-btn" data-tag="" aria-pressed="${!npcTag}">All NPCs</button>`}
+        <div class="npc-head"><div class="chips no-swipe">${html`<button type="button" class="chip-btn" data-tag="" aria-pressed="${!npcTag}">Everyone</button>`}
           ${tags.map((t) => html`<button type="button" class="chip-btn" data-tag="${t}" aria-pressed="${npcTag === t}">#${t}</button>`)}</div>
-          <button type="button" class="primary sm" id="new-npc">${icons.plus} Add an NPC</button></div>
-        <p class="hint">Anyone can tag these NPCs into their episodes. Mark your own characters as NPCs in their editor.</p>
-        ${npcTag ? html`<h2 class="cat-title"><span>${npcTag}</span><small>${shown.length} ${shown.length === 1 ? 'NPC' : 'NPCs'}</small></h2>` : ''}
+          <button type="button" class="primary sm" id="new-npc">${icons.plus} Add supporting cast</button></div>
+        <p class="hint">The supporting cast: background characters anyone can tag into their episodes. To move one of your characters here, tick “This is supporting cast” in their editor.</p>
+        ${npcTag ? html`<h2 class="cat-title"><span>${npcTag}</span><small>${shown.length} ${shown.length === 1 ? 'character' : 'characters'}</small></h2>` : ''}
         ${
           shown.length
             ? html`<div class="char-grid npc-grid">${shown.map(
@@ -174,7 +178,7 @@ export async function viewDirectory() {
               ${n.npcTags.map((t) => html`<button type="button" class="tag" data-tag="${t}">#${t}</button>`)}</div>
           </div>`,
               )}</div>`
-            : html`<div class="empty"><p>${npcs.length ? 'No NPCs match.' : 'No NPCs yet.'}</p></div>`
+            : html`<div class="empty"><p>${npcs.length ? 'Nobody in the supporting cast matches.' : 'No supporting cast yet.'}</p></div>`
         }`,
       );
     } else if (view === 'places') {

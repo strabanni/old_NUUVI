@@ -11,6 +11,20 @@ export async function startApp(options = {}) {
       pushes.push({ url, init });
       return new Response(null, { status: 201 });
     },
+    // Song previews: a pretend Apple Music search, so tests never go online.
+    songFetch: async (url) => {
+      const term = new URL(url).searchParams.get('term');
+      const results = term.startsWith('Espresso')
+        ? [
+            {
+              trackName: 'Espresso',
+              artistName: 'Sabrina Carpenter',
+              previewUrl: 'https://audio-ssl.itunes.apple.com/espresso.m4a',
+            },
+          ]
+        : [];
+      return Response.json({ results });
+    },
     ...options,
   });
   await new Promise((resolve) => server.listen(0, resolve));

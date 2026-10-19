@@ -15,7 +15,7 @@ A guide to where everything lives, in plain words. If you want to change somethi
 
 | …this | Open this file |
 |---|---|
-| How a character's page looks (banner, picture, bio, song, tabs) | `public/js/views/characters.js` |
+| How a character's page looks (banner, picture, bio, tabs) | `public/js/views/characters.js` |
 | The Ties chart or the Timeline | `public/js/views/world.js` (screen) and `server/routes/world.js` (saving) |
 | The About tab and "Edit profile details" | `public/js/views/profiles.js` (screen) and `server/routes/profiles.js` (saving) |
 | THE NU feed | `public/js/views/nu.js` |
@@ -26,7 +26,7 @@ A guide to where everything lives, in plain words. If you want to change somethi
 | Notifications | `public/js/views/notifications.js` (screen), `server/app.js` (how each one is worded and where it links) |
 | Episodes and story chats | `public/js/views/channel.js`, `public/js/views/threads.js`, `server/routes/threads.js`, `server/routes/posts.js` |
 | Home | `public/js/views/home.js` |
-| Directory, NPCs and Locations | `public/js/views/directory.js`, `npcs.js`, `map.js` |
+| Directory, Supporting Cast and Locations | `public/js/views/directory.js`, `npcs.js`, `map.js` |
 | Calendar events and plans | `public/js/views/events.js`, `plans.js` |
 | Settings and user profiles | `public/js/views/people.js` |
 | Admin tools | `public/js/views/admin.js` and `server/routes/admin.js` |
@@ -37,6 +37,8 @@ A guide to where everything lives, in plain words. If you want to change somethi
 | The version number | `APP_BUILD` in `public/js/main.js`, and `CACHE` in `public/sw.js` (bump both together) |
 | The database tables | `server/db.js` (add a new step at the end of `MIGRATIONS` and raise `SCHEMA_VERSION`) |
 | Things Claude writes (fan comments, recaps, translations) | `server/ai.js`, `server/ai-buzz.js`, `server/routes/ai.js` |
+| Songs that play on posts | `server/songs.js` (finding the preview) and `songLine` in `public/js/views/social.js` (the speaker button) |
+| Photo batches (supporting cast posting by themselves) | `public/js/views/batches.js` (screen) and `server/routes/batches.js` (saving and posting) |
 
 ## Every file, one line each
 
@@ -59,6 +61,7 @@ A guide to where everything lives, in plain words. If you want to change somethi
 | `ai-buzz.js` | Fan comments written by Claude. |
 | `buzz.js` | Built-in fan comments (used when Claude is off). |
 | `bots.js` | Automatic NPCs that comment and post. |
+| `songs.js` | Finds a 30-second preview of a post's song on Apple Music. |
 | `ardell.js` | The Ardell City guide (boroughs and places). |
 | `admin-cli.js` | Admin tools you run from the command line if you're locked out. |
 | `routes/account.js` | Accounts, characters, uploads, notifications. |
@@ -69,8 +72,9 @@ A guide to where everything lives, in plain words. If you want to change somethi
 | `routes/social-stories.js` | Stories (the circles) on THE NU. |
 | `routes/phone.js` | Character phones: contacts, texts, groups, calls. |
 | `routes/messages.js` | Messages between writers. |
-| `routes/profiles.js` | Character profiles (About tab) and their song. |
-| `routes/world.js` | Ties, the family-tree chart and the Timeline. |
+| `routes/profiles.js` | Character profiles (About tab). |
+| `routes/world.js` | Ties (with their colours), the family-tree chart and the Timeline. |
+| `routes/batches.js` | Photo batches: pictures supporting cast post by themselves every few days. |
 | `routes/events.js` | Calendar events. |
 | `routes/plans.js` | Character plans on the calendar. |
 | `routes/places.js` | Locations in Ardell City. |

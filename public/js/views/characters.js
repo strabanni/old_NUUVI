@@ -1,5 +1,5 @@
 // Characters: the create/edit form, the character cards in lists, and a character's own page
-// (banner, picture, numbers, bio, their song, and the Posts / Tagged / Episodes / Ties / Timeline / About tabs).
+// (banner, picture, numbers, bio, and the Posts / Tagged / Episodes / Ties / Timeline / About tabs).
 import {
   html,
   esc,
@@ -24,7 +24,6 @@ import {
   BRAND_GRADIENT,
   GRADIENT_PRESETS,
   akaHtml,
-  promptModal,
 } from '../lib.js';
 import { state, page, myCharacters, routeAlive, ensureAlive, kindIcon, replaceHash } from '../main.js';
 import { openThreadForm } from './threads.js';
@@ -32,20 +31,17 @@ import { compact, openSocialComposer, handleOf, npcBadges, showPeople } from './
 import { dossierAbout, editDossier, wireGallery } from './profiles.js';
 import { loadStoryGroups, openStoryViewer, openStoryComposer } from './stories.js';
 import { drawTies, drawTimeline } from './world.js';
+import { openBatch } from './batches.js';
 
-const DETAIL_SUGGESTIONS = ['Age', 'Pronouns', 'Face claim', 'Occupation', 'Species', 'Height', 'Birthday', 'Alignment'];
-
-function detailRow(d = {}) {
-  return html`
-    <div class="detail-row">
-      <input class="d-label" maxlength="30" placeholder="Label" value="${d.label || ''}" list="detail-suggestions" aria-label="Detail name">
-      <input class="d-value" maxlength="200" placeholder="Value" value="${d.value || ''}" aria-label="Detail value">
-      <button type="button" class="icon-btn sm" data-remove aria-label="Remove detail">✕</button>
-    </div>`;
-}
+// The two details every character has, each picked from a short list.
+const DETAILS = [
+  { key: 'ship', label: 'Shipping status', choices: ['Open to ships', 'Taken', 'Closed to ships', 'Ask the writer'] },
+  { key: 'kill', label: 'Permission to kill', choices: ['Yes', 'No', 'Ask first'] },
+];
+const detailOf = (c, label) => (c.details || []).find((d) => d.label === label)?.value || '';
+const shownDetails = (c) => DETAILS.map((d) => ({ label: d.label, value: detailOf(c, d.label) })).filter((d) => d.value);
 
 function characterForm(c = {}) {
-  const details = c.details?.length ? c.details : [{ label: 'Age' }, { label: 'Pronouns' }];
   return html`
     <form class="char-form">
       <span class="script muted">${c.id ? 'edit' : 'a new'} character</span>
@@ -92,10 +88,14 @@ function characterForm(c = {}) {
       </div>
       <label for="c-tag">Tagline</label>
       <input id="c-tag" name="tagline" maxlength="140" placeholder="A wandering bard with a debt to pay" value="${c.tagline || ''}">
-      <label>Details</label>
-      <div id="details">${details.map(detailRow)}</div>
-      <datalist id="detail-suggestions">${DETAIL_SUGGESTIONS.map((d) => html`<option value="${d}">`)}</datalist>
-      <button type="button" class="sm" id="add-detail">${icons.plus} Add detail</button>
+      <div class="detail-picks">${DETAILS.map(
+        (d) => html`<div>
+        <label for="d-${d.key}">${d.label}</label>
+        <select id="d-${d.key}" name="detail-${d.key}">
+          <option value="">Not set</option>
+          ${d.choices.map((v) => html`<option ${detailOf(c, d.label) === v ? 'selected' : ''}>${v}</option>`)}
+        </select></div>`,
+      )}</div>
       <label for="c-aka">AKA line <span class="muted small">(shown under their name in episodes). Wrap words in **double stars** to show them in the character's color.</span></label>
       <input id="c-aka" name="aka" maxlength="200" value="${c.aka || ''}" placeholder="aka **the prodigy**, (he / him) ; twenty8 ; ceo of trinity healthcare">
       <div class="row">
@@ -121,9 +121,9 @@ function characterForm(c = {}) {
       <label class="check"><input type="checkbox" name="private" ${c.private ? 'checked' : ''}> Private account <span class="muted small">(only followers see their posts and stories; others have to ask to follow)</span></label>
       <label class="check"><input type="checkbox" name="brand" ${c.brand ? 'checked' : ''}> This is a brand account <span class="muted small">(a shop, label, café, magazine… gets a Brand badge and shows under Directory → Brands)</span></label>
       <fieldset class="npc-box">
-        <label class="check"><input type="checkbox" name="npc" ${c.npc ? 'checked' : ''}> This is an NPC <span class="muted small">(gets an NPC badge)</span></label>
+        <label class="check"><input type="checkbox" name="npc" ${c.npc ? 'checked' : ''}> This is supporting cast (an NPC) <span class="muted small">(listed under Supporting Cast, not with the main cast)</span></label>
         <div class="npc-auto" ${c.npc ? '' : 'hidden'}>
-          <label for="c-npc-tags">Categories <span class="muted small">(so others can find them on the NPCs page, comma separated)</span></label>
+          <label for="c-npc-tags">Categories <span class="muted small">(so others can find them under Supporting Cast, comma separated)</span></label>
           <input id="c-npc-tags" name="npcTags" maxlength="300" value="${(c.npcTags || []).join(', ')}" placeholder="staff, foyaen, nightlife">
           <label class="check"><input type="radio" name="bot" value="" ${!c.bot ? 'checked' : ''}> I post for them myself</label>
           <label class="check"><input type="radio" name="bot" value="bot" ${c.bot === 'bot' ? 'checked' : ''}> They post and comment on their own</label>
@@ -249,15 +249,6 @@ export function editCharacter(c = {}) {
         $('.npc-gossip', d).hidden = bot !== 'gossip';
       };
       npcBox.addEventListener('change', drawNpc);
-      const list = $('#details', d);
-      $('#add-detail', d).addEventListener('click', () => {
-        if (list.children.length >= 16) return toast('16 details at most');
-        list.insertAdjacentHTML('beforeend', detailRow().v);
-        list.lastElementChild.querySelector('input').focus();
-      });
-      list.addEventListener('click', (e) => {
-        if (e.target.closest('[data-remove]')) e.target.closest('.detail-row').remove();
-      });
       $('#char-delete', d)?.addEventListener('click', async () => {
         if (!(await confirmModal(`Delete ${c.name}? Their posts will remain, without a name.`, { ok: 'Delete', danger: true })))
           return;
@@ -288,9 +279,8 @@ export function editCharacter(c = {}) {
         ]),
       );
       if (!data.handle) delete data.handle;
-      data.details = $$('.detail-row', form)
-        .map((r) => ({ label: r.querySelector('.d-label').value, value: r.querySelector('.d-value').value }))
-        .filter((x) => x.label.trim() && x.value.trim());
+      data.details = DETAILS.map((x) => ({ label: x.label, value: data[`detail-${x.key}`] || '' })).filter((x) => x.value);
+      for (const x of DETAILS) delete data[`detail-${x.key}`];
       await api(c.id ? `/api/characters/${c.id}` : '/api/characters', { method: c.id ? 'PUT' : 'POST', body: data });
       return true;
     },
@@ -364,42 +354,6 @@ export async function viewCharacter(id) {
   const following = followedBy.length > 0;
   const followable = mine.filter((m) => m.id !== c.id && !m.status);
   let tab = sessionStorage.getItem('nuuvi:char-tab') || 'posts';
-  // ---- Their song: a share link shown as that service's own player ----
-  const dossier = prof0?.dossier || {};
-  const song = dossier.song || (dossier.playlist || []).find((t) => t.link?.embed)?.link || null;
-  function songBox() {
-    if (song) {
-      return html`<div class="ig-song song-${song.service}">
-        <iframe class="ig-player" src="${song.embed}" title="${c.name}'s song" loading="lazy"
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
-        ${own ? html`<button type="button" class="ig-song-edit" id="song-edit" aria-label="Change the song">${icons.pencil}</button>` : ''}
-      </div>`;
-    }
-    return own && !c.status
-      ? html`<button type="button" class="ig-song-add" id="song-edit">${icons.music}<span><b>Add a song</b><small>Paste a share link from Spotify, Apple Music, YouTube or SoundCloud</small></span></button>`
-      : '';
-  }
-  function wireSong() {
-    $('#song-edit', body)?.addEventListener('click', async () => {
-      const v = await promptModal('Their song', {
-        value: dossier.song?.url || '',
-        placeholder: 'https://open.spotify.com/track/…',
-        maxlength: 2000,
-        required: false,
-        multiline: true,
-        label:
-          'Paste a share link (or the Embed code) from Spotify, Apple Music, YouTube or SoundCloud. Leave it empty to remove the song.',
-      });
-      if (v === null) return;
-      try {
-        await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier: { ...dossier, song: v.trim() || null } } });
-        reload();
-      } catch (err) {
-        toast(err.message);
-      }
-    });
-  }
-
   const body = page({
     alive,
     title: c.name,
@@ -429,16 +383,16 @@ export async function viewCharacter(id) {
             <button type="button" data-tab-go="threads"><b>${compact(stats.threads)}</b><span>Threads</span></button>
           </div>
         </header>
-        ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not an NPC'}</span></div>` : ''}
+        ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not supporting cast'}</span></div>` : ''}
         <div class="ig-id">
           <h1 class="ig-name">${c.private ? html`<span class="ig-lock" title="Private account" aria-label="Private account">${icons.lock}</span>` : ''}${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(c)}</h1>
           ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
-          ${songBox()}
         </div>
         <div class="ig-actions">
           ${
             own
               ? html`<button id="edit">Edit profile</button>${c.status ? '' : html`<button class="primary" id="new-post">${icons.plus} New post</button>`}
+              ${c.npc && !c.status ? html`<button id="photo-batch">${icons.image} Photo batch</button>` : ''}
               ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}
               ${c.private ? html`<button id="follow-requests">${icons.users} Requests${requestCount ? html` <span class="badge">${requestCount}</span>` : ''}</button>` : ''}`
               : html`<button class="${following || requested.length ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : requested.length ? html`${icons.hourglass} Requested` : html`${icons.userAdd} Follow`}</button>
@@ -458,7 +412,6 @@ export async function viewCharacter(id) {
   });
   const pane = $('#ig-pane', body);
   let profile = prof0;
-  wireSong();
   let tagged = null; // other characters' posts this character is tagged in (loaded when the tab opens)
   const thumb = (p) => html`
     <a class="ig-tile kind-${p.kind}" href="#/p/${p.id}">
@@ -538,7 +491,7 @@ export async function viewCharacter(id) {
           pane,
           html`
           ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div class="aka-text">${raw(akaHtml(c.aka))}</div></div>` : ''}
-          ${c.details.length ? html`<div class="info-grid">${c.details.map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
+          ${shownDetails(c).length ? html`<div class="info-grid">${shownDetails(c).map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
           <div class="small-stats"><span><b>${compact(stats.posts)}</b> episode posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
           ${prof ? dossierAbout(c, prof.dossier, { canEdit: prof.canEdit }) : html`<p class="muted small">Loading profile…</p>`}`,
         );
@@ -632,6 +585,7 @@ export async function viewCharacter(id) {
     }
   }
   $('#new-post', body)?.addEventListener('click', newPost);
+  $('#photo-batch', body)?.addEventListener('click', () => openBatch(c));
   $('#edit', body)?.addEventListener('click', async () => {
     if (await editCharacter(c)) {
       state.characters = null;

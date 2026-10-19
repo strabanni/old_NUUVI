@@ -214,6 +214,8 @@ export function createAiBuzz({ db, hub, uploadDir, ai }) {
 
   return {
     enabled,
+    // A post's pictures, ready to show Claude (also used to caption supporting-cast photo batches).
+    pictures: pictureBlocks,
     pending: (id) => runs.has(id),
     // How many comments the run in progress is writing (0 when none is).
     pendingCount: (id) => runs.get(id)?.count ?? 0,

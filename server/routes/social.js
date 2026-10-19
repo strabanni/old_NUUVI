@@ -576,6 +576,16 @@ export function socialPostRoutes(r, ctx) {
     if (ctx.aiBuzz?.enabled) ctx.aiBuzz.queue(post, count, { followers });
     else setBuzz(db, post, count, { followers });
   }
+  // Fan comments for a post made outside these routes (a supporting-cast photo batch).
+  ctx.buzzFor = (postId) => {
+    const post = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(postId);
+    const fame = db
+      .prepare(
+        `SELECT COALESCE(followers_display, (SELECT COUNT(*) FROM character_follows WHERE followed_id = ?)) AS n FROM characters WHERE id = ?`,
+      )
+      .get(post.character_id, post.character_id).n;
+    newBuzz(post, buzzTarget(null, fame), fame);
+  };
 
   function metaInput(kind, meta) {
     if (!meta || typeof meta !== 'object') return {};
@@ -665,9 +675,37 @@ export function socialPostRoutes(r, ctx) {
   }
   const withMusic = (meta, music) => {
     if (music === undefined) return meta;
-    const { music: _old, ...rest } = meta;
-    return music ? { ...rest, music } : rest;
+    const { music: old, ...rest } = meta;
+    if (!music) return rest;
+    // The same song keeps the preview already found for it.
+    const same = old?.previewFor && old.title === music.title && (old.artist || '') === (music.artist || '');
+    return { ...rest, music: same ? { ...music, preview: old.preview, previewFor: old.previewFor } : music };
   };
+
+  // Finds the 30-second preview of a post's song and keeps it on the post, so the song can play.
+  // Returns the preview link ('' if there's none, null if the search didn't work this time).
+  async function songPreview(postId) {
+    const row = db.prepare('SELECT meta FROM social_posts WHERE id = ?').get(postId);
+    const music = row && JSON.parse(row.meta).music;
+    if (!music?.title || !ctx.songs) return '';
+    const key = `${music.title}|${music.artist || ''}`;
+    if (music.previewFor === key) return music.preview || '';
+    const preview = await ctx.songs.find(music.title, music.artist);
+    if (preview === null) return null;
+    // Only if the song is still the same one (it may have been edited meanwhile).
+    db.prepare(
+      `UPDATE social_posts SET meta = json_set(meta, '$.music.preview', ?, '$.music.previewFor', ?)
+      WHERE id = ? AND json_extract(meta, '$.music.title') = ? AND COALESCE(json_extract(meta, '$.music.artist'), '') = ?`,
+    ).run(preview, key, postId, music.title, music.artist || '');
+    return preview;
+  }
+  const findSong = (postId) => songPreview(postId).catch((err) => console.error('song preview', err));
+
+  r.get('/api/social/:id/song', async ({ user, params }) => {
+    requireUser(user);
+    const row = load(params.id, user);
+    return { data: { preview: (await songPreview(row.id)) || null } };
+  });
 
   r.get('/api/social', ({ user, query }) => {
     requireUser(user);
@@ -810,6 +848,7 @@ export function socialPostRoutes(r, ctx) {
     savePhotoTags(Number(lastInsertRowid), photoTags, user, c);
     syncPhotoPeople(Number(lastInsertRowid));
     ctx.bots?.onSocialPost(Number(lastInsertRowid));
+    findSong(Number(lastInsertRowid));
     notifyTags(user, c, Number(lastInsertRowid), text, 'post', photoTagUsers(Number(lastInsertRowid)));
     const fresh = db.prepare('SELECT * FROM social_posts WHERE id = ?').get(lastInsertRowid);
     const fame = db
@@ -885,6 +924,7 @@ export function socialPostRoutes(r, ctx) {
       ${onlyCounts ? '' : ", edited_at = datetime('now')"} WHERE id = ?`,
     ).run(kind, JSON.stringify(media), text, title, meta, likesShown, commentsShown, location, category, postedAt, row.id);
     notifyTags(user, { id: row.character_id, name: row.c_name }, row.id, text, 'post', photoTagUsers(row.id), row.body);
+    findSong(row.id);
     // Crowd comments follow the post: a changed caption (or place, song, pictures) gets fresh comments
     // that fit it, and a new comment number gets at least a quarter of it written out.
     const have = db.prepare('SELECT COUNT(*) AS n FROM social_buzz WHERE post_id = ?').get(row.id).n;

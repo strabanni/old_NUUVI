@@ -98,6 +98,10 @@ const niceDate = (d) => {
 };
 
 // ---------- Ties ----------
+// A tie's own colour if its writer picked one, otherwise the colour for that kind of tie.
+const HEX = /^#[0-9a-f]{6}$/i;
+const tieColor = (kind, own) => (HEX.test(own || '') ? own : TIE_COLORS[kind] || '#2E9E6E');
+
 // Each person's picture is the icon they use in threads (or their profile picture if they have none).
 const iconOf = (x) => avatar({ name: x.name, src: x.threadAvatar || x.avatar, color: x.color, size: 'sm' });
 
@@ -129,6 +133,12 @@ async function tieForm(c, tie = null) {
       <select id="tf-kind" name="kind">${TIE_GROUPS.map(([g, kinds]) => html`<optgroup label="${g}">${kinds.map(([k, v]) => html`<option value="${k}" ${(tie?.kind ?? 'friend') === k ? 'selected' : ''}>${v}</option>`)}</optgroup>`)}</select>
       <label for="tf-label">Your own word for it <span class="muted small">(optional)</span></label>
       <input id="tf-label" name="label" maxlength="40" value="${tie?.label ?? ''}" placeholder="e.g. ride or die, the one that got away">
+      <label for="tf-hex">Line colour <span class="muted small">(optional)</span></label>
+      <div class="tf-color">
+        <input type="color" id="tf-pick" value="${tieColor(tie?.kind ?? 'friend', tie?.color)}" aria-label="Pick a colour">
+        <input id="tf-hex" name="color" maxlength="7" value="${tie?.color ?? ''}" placeholder="#hex, or empty for the usual colour" autocomplete="off" spellcheck="false">
+        <button type="button" class="ghost small-btn" id="tf-reset">Usual</button>
+      </div>
       <label for="tf-since">Since <span class="muted small">(optional)</span></label>
       <input id="tf-since" name="since" type="date" value="${tie?.since ?? ''}">
       <label for="tf-note">A note <span class="muted small">(optional)</span></label>
@@ -138,6 +148,20 @@ async function tieForm(c, tie = null) {
     </form>`,
     {
       init: (d) => {
+        // The colour picker and the hex box follow each other; an empty hex box means the kind's colour.
+        const [pickIn, hexIn, kindIn] = [$('#tf-pick', d), $('#tf-hex', d), $('#tf-kind', d)];
+        pickIn.addEventListener('input', () => (hexIn.value = pickIn.value));
+        hexIn.addEventListener('input', () => {
+          const v = hexIn.value.trim();
+          const full = v.startsWith('#') ? v : `#${v}`;
+          if (HEX.test(full)) pickIn.value = full.toLowerCase();
+          else if (!v) pickIn.value = tieColor(kindIn.value);
+        });
+        kindIn.addEventListener('change', () => !hexIn.value.trim() && (pickIn.value = tieColor(kindIn.value)));
+        $('#tf-reset', d).addEventListener('click', () => {
+          hexIn.value = '';
+          pickIn.value = tieColor(kindIn.value);
+        });
         const list = $('#tf-list', d);
         if (!list) return;
         const draw = (q = '') => {
@@ -164,9 +188,12 @@ async function tieForm(c, tie = null) {
       },
       submit: async (data) => {
         if (!pick) throw new Error('Pick who the tie is with');
+        let hex = String(data.color || '').trim();
+        if (hex && !hex.startsWith('#')) hex = `#${hex}`;
+        if (hex && !HEX.test(hex)) throw new Error('Colours look like #e0446a (a # and 6 letters or numbers)');
         await api(`/api/characters/${c.id}/ties/${pick.id}`, {
           method: 'PUT',
-          body: { kind: data.kind, label: data.label, note: data.note, since: data.since || null },
+          body: { kind: data.kind, label: data.label, note: data.note, since: data.since || null, color: hex || null },
         });
         return true;
       },
@@ -182,14 +209,21 @@ function tieChart(c, fam, ties, incoming) {
   const circle = [
     ...ties
       .filter((t) => !inTree.has(t.other.id))
-      .map((t) => ({ character: t.other, kind: t.kind, label: t.label, oneWay: !t.mutual })),
+      .map((t) => ({ character: t.other, kind: t.kind, label: t.label, color: t.color, oneWay: !t.mutual })),
     ...incoming
       .filter((t) => !inTree.has(t.from.id))
-      .map((t) => ({ character: t.from, kind: FLIP[t.kind] || t.kind, label: '', oneWay: true, theirs: true })),
+      .map((t) => ({ character: t.from, kind: FLIP[t.kind] || t.kind, label: '', color: t.color, oneWay: true, theirs: true })),
   ];
   const links = [
     ...fam.links,
-    ...circle.map((m) => ({ from: fam.center, to: m.character.id, kind: m.kind, oneWay: m.oneWay, circle: true })),
+    ...circle.map((m) => ({
+      from: fam.center,
+      to: m.character.id,
+      kind: m.kind,
+      color: m.color,
+      oneWay: m.oneWay,
+      circle: true,
+    })),
   ];
   const rows = new Map();
   for (const m of fam.members) {
@@ -199,7 +233,7 @@ function tieChart(c, fam, ties, incoming) {
   const relOf = (m) => {
     if (!m.relation) return null;
     const kind = m.relation.theirs ? FLIP[m.relation.kind] || m.relation.kind : m.relation.kind;
-    return { kind, name: (!m.relation.theirs && m.relation.label) || TIE_NAMES[kind] || kind };
+    return { kind, color: m.relation.color, name: (!m.relation.theirs && m.relation.label) || TIE_NAMES[kind] || kind };
   };
   const GEN = {
     '-3': 'Great-grandparents',
@@ -224,7 +258,7 @@ function tieChart(c, fam, ties, incoming) {
   const node = (x, rel, { center = false, oneWay = false } = {}) => html`
     <a class="ftree-node ${center ? 'center' : ''} ${oneWay ? 'one-way' : ''}" href="#/c/${x.id}" data-fid="${x.id}" title="${x.name}">
       ${avatar({ name: x.name, src: x.threadAvatar || x.avatar, color: x.color, size: center ? 'lg' : '' })}
-      <b>${x.name}</b>${rel ? html`<span class="tie-chip" data-tie="${rel.kind}">${rel.name}</span>` : ''}
+      <b>${x.name}</b>${rel ? html`<span class="tie-chip" data-tie="${rel.kind}" data-tc="${rel.color ?? ''}">${rel.name}</span>` : ''}
     </a>`;
   return html`<div class="ftree" data-links="${JSON.stringify(links)}">
     <svg class="ftree-lines" aria-hidden="true"></svg>
@@ -239,7 +273,7 @@ function tieChart(c, fam, ties, incoming) {
       circle.length
         ? html`<div class="ftree-row ftree-circle">
       <span class="ftree-gen">Friends, loves &amp; rivals</span>
-      <div class="ftree-people">${circle.sort((x, y) => x.character.name.localeCompare(y.character.name)).map((m) => node(m.character, { kind: m.kind, name: m.label || TIE_NAMES[m.kind] || m.kind }, { oneWay: m.oneWay }))}</div></div>`
+      <div class="ftree-people">${circle.sort((x, y) => x.character.name.localeCompare(y.character.name)).map((m) => node(m.character, { kind: m.kind, color: m.color, name: m.label || TIE_NAMES[m.kind] || m.kind }, { oneWay: m.oneWay }))}</div></div>`
         : ''
     }
   </div>`;
@@ -274,7 +308,7 @@ function layoutTree(tree) {
         let a = at(l.from),
           b = at(l.to);
         if (!a || !b) return '';
-        const color = TIE_COLORS[l.kind] || '#2E9E6E';
+        const color = tieColor(l.kind, l.color);
         if (a.row === b.row) {
           // Same row: partners side by side get a straight line; siblings and cousins a bracket above.
           const [left, right] = a.x < b.x ? [a, b] : [b, a];
@@ -378,7 +412,7 @@ export function drawTies(pane, c, { own, isAlive = () => true }) {
             <a href="#/c/${t.other.id}">${iconOf(t.other)}</a>
             <div class="grow">
               <a class="tie-who" href="#/c/${t.other.id}"><b>${t.other.name}</b></a>
-              <div class="tie-what"><span class="tie-chip" data-tie="${t.kind}">${tieName(t)}</span>
+              <div class="tie-what"><span class="tie-chip" data-tie="${t.kind}" data-tc="${t.color ?? ''}">${tieName(t)}</span>
                 ${t.mutual ? html`<span class="small muted">${t.mutual.kind === t.kind && !t.mutual.label ? 'both ways' : `they say: ${tieName(t.mutual)}`}</span>` : html`<span class="small muted">one way</span>`}
                 ${t.since ? html`<span class="small muted">· since ${niceDate(t.since)}</span>` : ''}</div>
               ${t.note ? html`<p class="small tie-note">${t.note}</p>` : ''}
@@ -390,7 +424,7 @@ export function drawTies(pane, c, { own, isAlive = () => true }) {
             (t) => html`<li class="tie-row">
             <a href="#/c/${t.from.id}">${iconOf(t.from)}</a>
             <div class="grow"><a class="tie-who" href="#/c/${t.from.id}"><b>${t.from.name}</b></a>
-              <div class="tie-what"><span class="small muted">calls ${c.name} their</span> <span class="tie-chip" data-tie="${t.kind}">${tieName(t)}</span></div></div>
+              <div class="tie-what"><span class="small muted">calls ${c.name} their</span> <span class="tie-chip" data-tie="${t.kind}" data-tc="${t.color ?? ''}">${tieName(t)}</span></div></div>
             ${own ? html`<button class="ghost small-btn" data-tie-back="${t.from.id}">Add back</button>` : ''}
           </li>`,
           )}</ul>
@@ -432,7 +466,7 @@ export function drawTies(pane, c, { own, isAlive = () => true }) {
       }
     });
     // Chip colours come from data attributes (no inline styles allowed).
-    $$('[data-tie]', pane).forEach((n) => n.style.setProperty('--tc', TIE_COLORS[n.dataset.tie] || '#999'));
+    $$('[data-tie]', pane).forEach((n) => n.style.setProperty('--tc', tieColor(n.dataset.tie, n.dataset.tc)));
     $('#tie-add', pane)?.addEventListener('click', async () => {
       if (await tieForm(c)) {
         toast('Tie added');

@@ -37,7 +37,7 @@ const TABS = [
   ['invites', 'Invites'],
   ['stories', 'Stories'],
   ['log', 'Log'],
-  ['npcs', 'NPCs & bots'],
+  ['npcs', 'Supporting cast & bots'],
   ['headers', 'Headers'],
 ];
 
@@ -357,12 +357,12 @@ async function npcs(pane) {
     <section class="card">
       <h3>Automation</h3>
       <form id="bot-settings" class="stack">
-        <label class="check"><input type="checkbox" name="enabled" ${s.enabled ? 'checked' : ''}> NPCs post and comment on their own</label>
+        <label class="check"><input type="checkbox" name="enabled" ${s.enabled ? 'checked' : ''}> Supporting cast post and comment on their own</label>
         <div class="row">
-          <div><label for="b-chance">Chance an NPC comments on a new post</label>
+          <div><label for="b-chance">Chance a supporting character comments on a new post</label>
             <select id="b-chance" name="commentChance">${[0.1, 0.2, 0.35, 0.5, 0.75, 1].map((v) => html`<option value="${v}" ${Math.abs(s.commentChance - v) < 0.001 ? 'selected' : ''}>${Math.round(v * 100)}%</option>`)}</select></div>
-          <div><label for="b-max">Most NPC comments per post</label><input id="b-max" type="number" name="maxCommentsPerPost" min="0" max="10" value="${s.maxCommentsPerPost}"></div>
-          <div><label for="b-every">Each NPC posts about every</label>
+          <div><label for="b-max">Most supporting-cast comments per post</label><input id="b-max" type="number" name="maxCommentsPerPost" min="0" max="10" value="${s.maxCommentsPerPost}"></div>
+          <div><label for="b-every">Each supporting character posts about every</label>
             <select id="b-every" name="postEveryHours">${[
               [3, '3 hours'],
               [6, '6 hours'],
@@ -381,7 +381,7 @@ async function npcs(pane) {
       </form>
     </section>
     <section class="card">
-      <h3>Automatic NPCs and gossip accounts</h3>
+      <h3>Automatic supporting cast and gossip accounts</h3>
       ${
         characters.length
           ? html`<div class="stack">${characters.map(
@@ -394,7 +394,7 @@ async function npcs(pane) {
           ${c.bot === 'bot' ? html`<button class="sm" data-run="${c.id}" data-what="comment">Comment now</button>` : ''}
         </div>`,
             )}</div>`
-          : html`<p class="muted">None yet. Open any character → Edit → tick <b>This is an NPC</b> and choose <b>They post and comment on their own</b> (or, for you as admin, <b>Anonymous gossip account</b>), then give them lines.</p>`
+          : html`<p class="muted">None yet. Open any character → Edit → tick <b>This is supporting cast</b> and choose <b>They post and comment on their own</b> (or, for you as admin, <b>Anonymous gossip account</b>), then give them lines.</p>`
       }
     </section>`,
   );

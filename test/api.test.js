@@ -662,7 +662,23 @@ test('songs on social posts and optional character banners', async () => {
     assert.equal((await a('/api/social', { method: 'POST', body: { characterId: c.id, body: 'x', music: bad } })).status, 400);
   }
   const edited = await a(`/api/social/${p.data.post.id}`, { method: 'PUT', body: { body: 'still on repeat' } });
-  assert.deepEqual(edited.data.post.meta.music, song);
+  const { title, artist, url } = edited.data.post.meta.music;
+  assert.deepEqual({ title, artist, url }, song);
+  // The song's preview is found (on Apple Music) so it can play on the feed; none for unknown songs.
+  assert.equal((await a(`/api/social/${p.data.post.id}/song`)).data.preview, null);
+  const sung = await a('/api/social', {
+    method: 'POST',
+    body: { characterId: c.id, body: "that's that me espresso", music: { title: 'Espresso', artist: 'Sabrina Carpenter' } },
+  });
+  assert.equal(
+    (await a(`/api/social/${sung.data.post.id}/song`)).data.preview,
+    'https://audio-ssl.itunes.apple.com/espresso.m4a',
+  );
+  const kept = await a(`/api/social/${sung.data.post.id}`, {
+    method: 'PUT',
+    body: { body: 'again', music: { title: 'Espresso', artist: 'Sabrina Carpenter' } },
+  });
+  assert.equal(kept.data.post.meta.music.preview, 'https://audio-ssl.itunes.apple.com/espresso.m4a');
   const cleared = await a(`/api/social/${p.data.post.id}`, { method: 'PUT', body: { music: null } });
   assert.equal(cleared.data.post.meta.music, undefined);
 
@@ -1767,6 +1783,12 @@ test('ties, timelines, the Ardell Daily and polls', async () => {
   await b(`/api/characters/${ivy.id}/ties/${mina.id}`, { method: 'PUT', body: { kind: 'bestfriend' } });
   ties = (await a(`/api/characters/${mina.id}/ties`)).data.ties;
   assert.deepEqual([ties[0].other.name, ties[0].label, ties[0].mutual.kind], ['Ivy World', 'ride or die', 'bestfriend']);
+  // A tie can have its own colour (a hex); empty goes back to the kind's colour.
+  const tieAt = `/api/characters/${mina.id}/ties/${ivy.id}`;
+  assert.equal((await a(tieAt, { method: 'PUT', body: { kind: 'bestfriend', color: 'pink' } })).status, 400);
+  await a(tieAt, { method: 'PUT', body: { kind: 'bestfriend', label: 'ride or die', color: '#E0446A' } });
+  assert.equal((await a(`/api/characters/${mina.id}/ties`)).data.ties[0].color, '#e0446a');
+  assert.equal((await b(`/api/characters/${ivy.id}/family`)).data.members.length, 1); // friends aren't family
   // Names start with capitals however they're typed.
   assert.equal((await mk(a, 'jo de la cruz')).name, 'Jo De La Cruz');
   // Timeline: only the events the writer adds, oldest first. Only the writer can change it.
@@ -1892,4 +1914,53 @@ test('profile song: share links and embed codes from every service', async () =>
   assert.equal((await put('https://example.com/song')).status, 400);
   await put(null);
   assert.equal(await got(), null);
+});
+
+test('supporting cast post photo batches by themselves', async () => {
+  const a = await app.signUp('batch_a');
+  const b = await app.signUp('batch_b');
+  const main = (await a('/api/characters', { method: 'POST', body: { name: 'Lead Batch' } })).data.character;
+  const npc = (await a('/api/characters', { method: 'POST', body: { name: 'Barista Batch', npc: true } })).data.character;
+  const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
+  const img = (await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png })).data.url;
+  const ten = Array.from({ length: 10 }, (_, i) => ({ url: img, caption: i === 0 ? 'first one' : '' }));
+  // Only supporting cast, only their writer, and 10 to 100 pictures.
+  assert.equal((await a(`/api/characters/${main.id}/batch`, { method: 'PUT', body: { photos: ten } })).status, 400);
+  assert.equal((await b(`/api/characters/${npc.id}/batch`, { method: 'PUT', body: { photos: ten } })).status, 404);
+  assert.equal((await a(`/api/characters/${npc.id}/batch`, { method: 'PUT', body: { photos: ten.slice(0, 9) } })).status, 400);
+  assert.equal(
+    (await a(`/api/characters/${npc.id}/batch`, { method: 'PUT', body: { photos: ten, minDays: 5, maxDays: 2 } })).status,
+    400,
+  );
+  const set = await a(`/api/characters/${npc.id}/batch`, { method: 'PUT', body: { photos: ten } });
+  assert.equal(set.status, 200, JSON.stringify(set.data));
+  assert.deepEqual([set.data.batch.photos.length, set.data.batch.minDays, set.data.batch.maxDays], [10, 3, 7]);
+  // Nothing is due yet; an hour later the first picture goes up, then the next waits 3 to 7 days.
+  const { ctx } = app.server;
+  const posts = () => ctx.db.prepare('SELECT * FROM social_posts WHERE character_id = ? ORDER BY id').all(npc.id);
+  ctx.batches.tick();
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(posts().length, 0);
+  ctx.batches.tick(Date.now() + 3600e3);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(
+    posts().map((p) => [p.kind, p.body, JSON.parse(p.media)[0]]),
+    [['photo', 'first one', img]],
+  );
+  const batch = (await a(`/api/characters/${npc.id}/batch`)).data.batch;
+  const gap = Date.parse(`${batch.nextAt}Z`) - Date.now();
+  assert.ok(gap > 3600e3 * 24 * 3 - 60e3 && gap < 3600e3 * 24 * 8, String(gap));
+  assert.equal(batch.nextIndex, 1);
+  // Posting the rest by hand goes round to the first again, and the writer hears about it.
+  for (let i = 0; i < 9; i++) await a(`/api/characters/${npc.id}/batch/post`, { method: 'POST', body: {} });
+  assert.equal(posts().length, 10);
+  assert.equal((await a(`/api/characters/${npc.id}/batch`)).data.batch.nextIndex, 0);
+  assert.ok((await a('/api/notifications')).data.notifications.some((n) => n.type === 'batch'));
+  // Pausing stops it; a new batch starts over.
+  await a(`/api/characters/${npc.id}/batch`, { method: 'PUT', body: { paused: true } });
+  ctx.batches.tick(Date.now() + 30 * 86400e3);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(posts().length, 10);
+  assert.equal((await a(`/api/characters/${npc.id}/batch`, { method: 'DELETE' })).status, 200);
+  assert.equal((await a(`/api/characters/${npc.id}/batch`)).data.batch, null);
 });
