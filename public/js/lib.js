@@ -667,6 +667,15 @@ export function promptModal(
   ).then((v) => (v ? v.value : null));
 }
 
+// The nearest box around an element that scrolls (the page itself if none does).
+function scrollParent(el) {
+  for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+    const o = getComputedStyle(n).overflowY;
+    if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
 // A small popover menu anchored to a button. items: [{ label, action, danger }]
 export function menu(anchor, items) {
   document.querySelector('.popover')?.remove();
@@ -686,11 +695,24 @@ export function menu(anchor, items) {
   }
   // Positions are measured on screen, then divided by the interface zoom (Settings → Interface size).
   const z = Number(getComputedStyle(document.documentElement).zoom) || 1;
-  const r = anchor.getBoundingClientRect();
+  let r = anchor.getBoundingClientRect();
   const w = pop.offsetWidth * z;
   const h = pop.offsetHeight * z;
   const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
-  const top = r.bottom + 4 + h > window.innerHeight - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4;
+  const screenH = window.visualViewport?.height || window.innerHeight;
+  let top;
+  if (window.matchMedia('(max-width: 899px)').matches) {
+    // Phones: always just below the button. Without room, the page scrolls up a little to make
+    // some, and a menu taller than the space left scrolls inside itself.
+    const short = r.bottom + 4 + h - (screenH - 12);
+    if (short > 0) {
+      scrollParent(anchor).scrollBy(0, Math.min(short, r.top - 60));
+      r = anchor.getBoundingClientRect();
+    }
+    top = r.bottom + 4;
+    pop.style.maxHeight = `${Math.max(120, screenH - top - 12) / z}px`;
+    pop.style.overflowY = 'auto';
+  } else top = r.bottom + 4 + h > screenH - 8 ? Math.max(8, r.top - h - 4) : r.bottom + 4;
   pop.style.left = `${left / z}px`;
   pop.style.top = `${top / z}px`;
   const list = items.filter(Boolean);

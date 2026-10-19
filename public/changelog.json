@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-67",
+    "date": "2026-10-19",
+    "title": "Menus open below the button on phones",
+    "items": [
+      "On phones, menus (like the ••• menu on posts) now always open just below the button you tapped, instead of jumping above it.",
+      "If the button is near the bottom of the screen, the page scrolls up a little to make room. A long menu scrolls inside itself."
+    ]
+  },
+  {
     "code": "NV-66",
     "date": "2026-10-19",
     "title": "Supporting cast, songs that play, and photo batches",
