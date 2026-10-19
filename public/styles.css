@@ -4400,6 +4400,8 @@ svg.fi {
   width: 148px;
   height: 148px;
   border-radius: 34px;
+  /* Drawn above the banner it overlaps, on every profile (not only your own). */
+  position: relative;
 }
 .ig-avatar .avatar {
   border-radius: 0;

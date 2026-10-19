@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-68",
+    "date": "2026-10-19",
+    "title": "Profile pictures no longer hidden by banners",
+    "items": [
+      "On phones, the profile picture on other writers' characters was cut off by the banner. It now shows in full on top of the banner, the same as on your own characters."
+    ]
+  },
+  {
     "code": "NV-67",
     "date": "2026-10-19",
     "title": "Menus open below the button on phones",
