@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-75",
+    "date": "2026-10-20",
+    "title": "A new look for Messages and updates",
+    "items": [
+      "Phone Messages now looks like iPhone Messages: your pinned conversations as big circles at the top, then everyone else with the time and a little arrow, and a floating search bar with a compose button at the bottom.",
+      "Tap Edit to pin or unpin conversations (up to 9). Until you pick your own, your six most recent conversations are pinned.",
+      "Update notes like this one now open in a soft pink and lilac card: Our newest additions."
+    ]
+  },
+  {
     "code": "NV-74",
     "date": "2026-10-20",
     "title": "Owner role, close buttons and tidier lists",

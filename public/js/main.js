@@ -1417,7 +1417,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-74';
+export const APP_BUILD = 'NV-75';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog)
@@ -1430,14 +1430,23 @@ export async function showWhatsNew(entry) {
   const list = await loadChangelog();
   const e = entry || list[0];
   if (!e) return;
-  modal(html`
-    <div class="whats-new">
-      <span class="wn-code">Update ${e.code}</span>
-      <h2>${e.title}</h2>
-      <p class="muted small">${new Date(`${e.date}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-      <ul>${e.items.map((it) => html`<li>${it}</li>`)}</ul>
-      <div class="actions end"><button type="button" class="primary" data-close>Got it</button></div>
-    </div>`).then(() => store.set('nuuvi:seen-update', e.code));
+  // Looks like a little welcome card: soft lilac-to-pink, a glowing flower, and what's new.
+  const flower =
+    '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="currentColor"><circle cx="50" cy="27" r="20"/><circle cx="72" cy="43" r="20"/><circle cx="64" cy="69" r="20"/><circle cx="36" cy="69" r="20"/><circle cx="28" cy="43" r="20"/></g></svg>';
+  modal(
+    html`
+    <div class="whats-new wn">
+      <div class="wn-card">
+        <h2 class="wn-title"><span>OUR NEWEST</span><span class="wn-grad">ADDITIONS</span></h2>
+        <p class="wn-sub">Update ${e.code} · ${new Date(`${e.date}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+        <div class="wn-orb" aria-hidden="true"><i class="r3"></i><i class="r2"></i><i class="r1"></i><span class="wn-flower">${raw(flower)}</span></div>
+        <span class="wn-pill"><i></i>${e.title}</span>
+        <ul class="wn-list">${e.items.map((it) => html`<li>${it}</li>`)}</ul>
+      </div>
+      <button type="button" class="wn-continue" data-close>Continue</button>
+    </div>`,
+    { init: (d) => d.classList.add('wn-modal') },
+  ).then(() => store.set('nuuvi:seen-update', e.code));
 }
 async function checkForUpdate() {
   // Only the site's owner gets told about updates (everyone else just gets the new version).

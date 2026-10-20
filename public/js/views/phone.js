@@ -370,22 +370,64 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     );
   }
 
+  // Pinned conversations (the big circles at the top, like iPhone Messages), kept on this device for
+  // each phone. Until someone picks their own, the six most recent conversations are pinned.
+  const pinKey = `nuuvi:ph-pins:${cid}`;
+  let editing = false;
+  const readPins = () => {
+    try {
+      const v = JSON.parse(localStorage.getItem(pinKey));
+      return Array.isArray(v) ? v : null;
+    } catch {
+      return null;
+    }
+  };
+  const savePins = (ids) => {
+    try {
+      localStorage.setItem(pinKey, JSON.stringify(ids.slice(0, 9)));
+    } catch {
+      /* ignore */
+    }
+  };
+  const pinnedIds = () => readPins() ?? data.threads.slice(0, 6).map((t) => t.id);
+
   function draw() {
     if (view === 'contacts') return card ? drawCard() : drawContacts();
     const contacts = data.contacts.filter((c) => !q || c.name.toLowerCase().includes(q));
     // The conversation that's open beside the list has just been read.
-    const threads = data.threads
-      .map((t) => (t.id === activeTid ? { ...t, unread: 0 } : t))
+    const all = data.threads.map((t) => (t.id === activeTid ? { ...t, unread: 0 } : t));
+    const pins = pinnedIds();
+    const byId = new Map(all.map((t) => [t.id, t]));
+    const pinned = q ? [] : pins.map((id) => byId.get(id)).filter(Boolean);
+    const threads = all
+      .filter((t) => q || !pins.includes(t.id))
       .filter((t) => !q || t.name.toLowerCase().includes(q) || (t.last?.text || '').toLowerCase().includes(q));
+    const picOfThread = (t, size = '') =>
+      t.group ? groupAvatar(t, size) : avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color, size });
+    const href = (t) => `${phoneBase()}/${me.id}/t/${t.id}`;
     render(
       root,
       html`
-      <section class="ph-hero">
-        <div class="ph-top">
-          <label class="ph-search">${icons.search}<input type="search" id="ph-q" placeholder="Search…" value="${q}" aria-label="Search contacts and messages"></label>
-          <button type="button" class="ph-switch ${otherUnread() ? 'has-dot' : ''}" id="ph-switch" aria-label="Switch phone${otherUnread() ? ' (another phone has new texts)' : ''}" title="Switch phone">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'xs' })}${icons.chevron}<i class="ph-dot" aria-hidden="true"></i></button>
-        </div>
-        <div class="ph-title-row"><h1>Messages</h1><button type="button" class="ph-compose-btn" id="ph-compose" aria-label="New message" title="New message">${icons.edit}</button></div>
+      <section class="pm-app">
+        <header class="pm-top">
+          <button type="button" class="pm-pill" id="pm-edit" aria-pressed="${editing}">${editing ? 'Done' : 'Edit'}</button>
+          <h1 class="pm-title">Messages</h1>
+          <button type="button" class="ph-switch pm-round ${otherUnread() ? 'has-dot' : ''}" id="ph-switch" aria-label="Switch phone${otherUnread() ? ' (another phone has new texts)' : ''}" title="Switch phone">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'xs' })}<i class="ph-dot" aria-hidden="true"></i></button>
+        </header>
+        ${
+          pinned.length
+            ? html`<div class="pm-pins">${pinned.map(
+                (t) => html`
+          <div class="pm-pin ${t.unread ? 'unread' : ''}">
+            <a class="pm-pin-link" href="${href(t)}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
+              <span class="pm-pin-av">${picOfThread(t, 'xxl')}</span>
+              <span class="pm-pin-name">${t.unread ? html`<i class="pm-dot"></i>` : ''}${t.name}</span>
+            </a>
+            ${editing ? html`<button type="button" class="pm-unpin" data-unpin="${t.id}" aria-label="Unpin ${t.name}">−</button>` : ''}
+          </div>`,
+              )}</div>`
+            : ''
+        }
         ${
           q && contacts.length
             ? html`<div class="ph-contacts no-swipe">${contacts.map(
@@ -394,20 +436,33 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
               )}</div>`
             : ''
         }
-      </section>
-      <section class="ph-list">
+        <div class="pm-list">
         ${
           threads.length
             ? threads.map(
                 (t) => html`
-          <a class="ph-row ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}" href="${phoneBase()}/${me.id}/t/${t.id}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
-            <span class="ph-row-av">${t.group ? groupAvatar(t) : avatar({ name: t.other.name, src: t.other.avatar, color: t.other.color })}</span>
-            <span class="grow"><b>${t.name}</b><small>${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'No messages yet'}</small></span>
-            <span class="ph-meta">${t.last?.at || t.lastAt ? html`<small>${shortWhen(t.last?.at || t.lastAt)}</small>` : ''}${t.unread ? html`<span class="badge">${t.unread}</span>` : ''}</span>
-          </a>`,
+          <div class="pm-item ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}">
+            <a class="pm-row" href="${href(t)}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
+              <i class="pm-dot" aria-hidden="true"></i>
+              <span class="pm-av">${picOfThread(t)}</span>
+              <span class="pm-text">
+                <span class="pm-line"><b>${t.name}</b><small>${t.last?.at || t.lastAt ? shortWhen(t.last?.at || t.lastAt) : ''}</small>${icons.chevron}</span>
+                <span class="pm-prev">${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'No messages yet'}</span>
+              </span>
+            </a>
+            ${editing && !q ? html`<button type="button" class="pm-pinbtn" data-pin="${t.id}" aria-label="Pin ${t.name}" title="Pin">${icons.pushpin}</button>` : ''}
+          </div>`,
               )
-            : html`<div class="ph-empty"><p>No messages yet.</p><p class="small">Tap the pencil to text one of your contacts, or open <b>Contacts</b> to save someone's number.</p></div>`
+            : pinned.length
+              ? ''
+              : html`<div class="ph-empty"><p>${q ? 'No results' : 'No messages yet.'}</p>${q ? '' : html`<p class="small">Tap the pencil to text one of your contacts, or open <b>Contacts</b> to save someone's number.</p>`}</div>`
         }
+        </div>
+        ${editing ? html`<p class="pm-hint">Tap ${icons.pushpin} to pin a conversation to the top, or − to unpin it. Up to 9.</p>` : ''}
+        <div class="pm-dock">
+          <label class="pm-search">${icons.search}<input type="search" id="ph-q" placeholder="Search" value="${q}" aria-label="Search contacts and messages">${icons.mic}</label>
+          <button type="button" class="pm-compose" id="ph-compose" aria-label="New message" title="New message">${icons.edit}</button>
+        </div>
       </section>${tabBar()}`,
     );
     applyColors(root);
@@ -442,6 +497,22 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     input.setSelectionRange(pos, pos);
   });
   root.addEventListener('click', async (e) => {
+    if (e.target.closest('#pm-edit')) {
+      editing = !editing;
+      draw();
+      return;
+    }
+    const pin = e.target.closest('[data-pin], [data-unpin]');
+    if (pin) {
+      e.preventDefault();
+      const ids = pinnedIds();
+      if (pin.dataset.pin) {
+        if (ids.length >= 9) return toast('Up to 9 pinned conversations');
+        savePins([...ids, Number(pin.dataset.pin)]);
+      } else savePins(ids.filter((x) => x !== Number(pin.dataset.unpin)));
+      draw();
+      return;
+    }
     const tab = e.target.closest('[data-view]');
     if (tab) {
       setView(tab.dataset.view);
