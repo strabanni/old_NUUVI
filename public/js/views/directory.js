@@ -21,6 +21,34 @@ import { mountCityMap, placeCard, dropMap as dropMapOf } from './map.js';
 import { state, page, routeAlive, ensureAlive, onLeave, myCharacters } from '../main.js';
 import { characterCard, editCharacter } from './characters.js';
 
+// Characters A to Z under letter headings, four across, each with their thread icon (what they look
+// like in episodes; their profile picture if they have none) and a line under the name. Used by
+// Me, Meet The Cast and Supporting Cast, so they all look the same.
+function castAtoZ(chars, sub, empty) {
+  if (!chars.length) return html`<div class="empty"><p>${empty}</p></div>`;
+  const groups = new Map();
+  for (const c of chars) {
+    const letter = /^[a-z]/i.test(c.name) ? c.name[0].toUpperCase() : '#';
+    if (!groups.has(letter)) groups.set(letter, []);
+    groups.get(letter).push(c);
+  }
+  const pic = (c) => c.threadAvatar || c.avatar || c.portrait;
+  const tile = (c) => html`
+    <a class="cast-tile" href="#/c/${c.id}" data-color="${c.color}">
+      <span class="ct-pic">${pic(c) ? html`<img src="${pic(c)}" alt="" loading="lazy">` : html`<span class="ct-initial">${c.name.charAt(0).toUpperCase()}</span>`}</span>
+      <b class="ct-name">${c.name}</b>
+      <small class="ct-writer">${sub(c)}</small>
+    </a>`;
+  return html`<nav class="cast-letters no-swipe" aria-label="Jump to a letter">${[...groups.keys()].map(
+    (l) => html`<a href="#" data-letter="${l}">${l}</a>`,
+  )}</nav>
+    ${[...groups].map(
+      ([letter, list]) => html`
+    <h2 class="cast-letter" id="cast-${letter === '#' ? 'num' : letter}">${letter}</h2>
+    <div class="cast-four">${list.map(tile)}</div>`,
+    )}`;
+}
+
 export async function viewDirectory() {
   const alive = routeAlive();
   const [{ writers: everyone, anonymous = [] }, myAll] = await Promise.all([api('/api/directory'), myCharacters(true)]);
@@ -74,51 +102,29 @@ export async function viewDirectory() {
     dropMap();
     $$('[data-view]', body).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
     if (view === 'me') {
-      // Your own characters (your muses), to open, edit or add to. Lots of them: smaller cards on phones.
-      const shown = mine.filter((c) => match(c.name, c.handle, c.tagline));
+      // Your own characters (your muses), A to Z. Open one to edit it, or add a new one.
+      const shown = mine.filter((c) => match(c.name, c.handle, c.tagline)).sort(byName);
       render(
         list,
         html`
         <div class="npc-head"><span class="muted small">${mine.length} ${mine.length === 1 ? 'character' : 'characters'} in your cast</span>
           <button type="button" class="primary sm" id="new-char">${icons.plus} New character</button></div>
         ${
-          shown.length
-            ? html`<div class="char-grid me-grid ${mine.length > 10 ? 'dense' : ''}">${shown.map((c) => characterCard(c, { editable: true }))}</div>`
-            : mine.length
-              ? html`<div class="empty"><p>Nobody matches “${q}”.</p></div>`
-              : html`<div class="card empty"><p class="script">every story needs a cast</p><p>Create your first character to start writing in character.</p></div>`
+          mine.length
+            ? castAtoZ(shown, (c) => `@${c.handle || c.name}`, `Nobody matches “${q}”.`)
+            : html`<div class="card empty"><p class="script">every story needs a cast</p><p>Create your first character to start writing in character.</p></div>`
         }`,
       );
     } else if (view === 'writers') {
-      // Meet The Cast: every main character (yours included) A to Z under letter headings, four
-      // across, each with their thread icon and the writer who plays them.
+      // Meet The Cast: every main character (yours included) and the writer who plays them.
       const shown = cast.filter((c) => match(c.name, c.handle, c.tagline, c.writer?.username, c.writer?.displayName));
-      const groups = new Map();
-      for (const c of shown) {
-        const letter = /^[a-z]/i.test(c.name) ? c.name[0].toUpperCase() : '#';
-        if (!groups.has(letter)) groups.set(letter, []);
-        groups.get(letter).push(c);
-      }
-      // Their thread icon (what they look like in episodes), or their profile picture if they have none.
-      const pic = (c) => c.threadAvatar || c.avatar || c.portrait;
-      const tile = (c) => html`
-        <a class="cast-tile" href="#/c/${c.id}" data-color="${c.color}">
-          <span class="ct-pic">${pic(c) ? html`<img src="${pic(c)}" alt="" loading="lazy">` : html`<span class="ct-initial">${c.name.charAt(0).toUpperCase()}</span>`}</span>
-          <b class="ct-name">${c.name}</b>
-          <small class="ct-writer">${c.writer ? (c.writer.id === state.user.id ? 'You' : `@${c.writer.username}`) : 'Anonymous'}</small>
-        </a>`;
       render(
         list,
-        shown.length
-          ? html`<nav class="cast-letters no-swipe" aria-label="Jump to a letter">${[...groups.keys()].map(
-              (l) => html`<a href="#" data-letter="${l}">${l}</a>`,
-            )}</nav>
-        ${[...groups].map(
-          ([letter, chars]) => html`
-        <h2 class="cast-letter" id="cast-${letter === '#' ? 'num' : letter}">${letter}</h2>
-        <div class="cast-four">${chars.map(tile)}</div>`,
-        )}`
-          : html`<div class="empty"><p>${q ? `Nobody matches “${q}”.` : 'No characters yet.'}</p></div>`,
+        castAtoZ(
+          shown,
+          (c) => (c.writer ? (c.writer.id === state.user.id ? 'You' : `@${c.writer.username}`) : 'Anonymous'),
+          q ? `Nobody matches “${q}”.` : 'No characters yet.',
+        ),
       );
     } else if (view === 'brands') {
       // Brand accounts: shops, labels, cafés, magazines… that post on THE NU.
@@ -166,18 +172,11 @@ export async function viewDirectory() {
           <button type="button" class="primary sm" id="new-npc">${icons.plus} Add supporting cast</button></div>
         <p class="hint">The supporting cast: background characters anyone can tag into their episodes. To move one of your characters here, tick “This is supporting cast” in their editor.</p>
         ${npcTag ? html`<h2 class="cat-title"><span>${npcTag}</span><small>${shown.length} ${shown.length === 1 ? 'character' : 'characters'}</small></h2>` : ''}
-        ${
-          shown.length
-            ? html`<div class="char-grid npc-grid">${shown.map(
-                (n) => html`
-          <div class="npc-item">
-            ${characterCard(n, { editable: n.owner.id === state.user.id })}
-            <div class="npc-meta"><span class="muted small">by @${n.owner.username}</span>
-              ${n.npcTags.map((t) => html`<button type="button" class="tag" data-tag="${t}">#${t}</button>`)}</div>
-          </div>`,
-              )}</div>`
-            : html`<div class="empty"><p>${npcs.length ? 'Nobody in the supporting cast matches.' : 'No supporting cast yet.'}</p></div>`
-        }`,
+        ${castAtoZ(
+          [...shown].sort(byName),
+          (n) => (n.owner.id === state.user.id ? 'You' : `@${n.owner.username}`),
+          npcs.length ? 'Nobody in the supporting cast matches.' : 'No supporting cast yet.',
+        )}`,
       );
     } else if (view === 'places') {
       // Locations: the guide to Ardell City. The map on top, then the boroughs and their spots.

@@ -7,7 +7,7 @@ import {
   requireUser,
   isBlocked,
   imageLink,
-  adminCanSee,
+  ownerCanSee,
   requirePlayable,
   CAN_SEE_ACCOUNT,
   canSeeAccount,
@@ -252,7 +252,7 @@ export function socialRoutes(r, ctx) {
     // Members only, plus admins (except another admin's private story they aren't in).
     const st = db.prepare('SELECT * FROM stories WHERE id = ?').get(params.id);
     const member = db.prepare('SELECT 1 FROM story_members WHERE story_id = ? AND user_id = ?').get(params.id, user.id);
-    if (!st || (!member && !(user.isAdmin && (st.visibility === 'public' || adminCanSee(db, st, user)))))
+    if (!st || (!member && !(user.isAdmin && (st.visibility === 'public' || ownerCanSee(db, st, user)))))
       fail(404, 'Story not found');
     return { data: { characters: rows.map((c) => ({ ...toCharacter(c), ownerName: c.owner_name })) } };
   });
@@ -501,10 +501,7 @@ export function socialPostRoutes(r, ctx) {
   const load = (postId, user) => {
     const row = db.prepare(`${SELECT} WHERE p.id = ?`).get(postId);
     if (!row || isBlocked(db, row.user_id, user.id) || isBlocked(db, user.id, row.user_id)) fail(404, 'Post not found');
-    if (
-      !user.isAdmin &&
-      !canSeeAccount(db, db.prepare('SELECT id, user_id, private FROM characters WHERE id = ?').get(row.character_id), user.id)
-    )
+    if (!canSeeAccount(db, db.prepare('SELECT id, user_id, private FROM characters WHERE id = ?').get(row.character_id), user.id))
       fail(403, 'This account is private');
     return row;
   };

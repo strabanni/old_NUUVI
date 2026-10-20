@@ -53,7 +53,9 @@ export function toSelf(row) {
     bio: row.bio,
     avatar: row.avatar,
     banner: row.banner ?? null,
-    isAdmin: !!row.is_admin,
+    // The site owner has every admin power too, plus seeing everything (see ownerCanSee).
+    isAdmin: !!row.is_admin || !!row.is_owner,
+    isOwner: !!row.is_owner,
     profile: parseProfile(row.profile),
     gradient: row.gradient ? row.gradient.split(',') : null,
     showAbout: row.show_about !== 0,

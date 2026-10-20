@@ -119,17 +119,16 @@ function createHub(db) {
           .all(storyId)
           .map((m) => m.user_id),
       );
-      // Admins reading a writer's private story get live updates too (not another admin's private story).
-      const adminsSee =
-        story?.visibility === 'private' && !db.prepare('SELECT is_admin FROM users WHERE id = ?').get(story.owner_id)?.is_admin;
-      const admins = adminsSee
-        ? new Set(
-            db
-              .prepare('SELECT id FROM users WHERE is_admin = 1')
-              .all()
-              .map((u) => u.id),
-          )
-        : new Set();
+      // The site owner reading a private story they're not in gets live updates too.
+      const admins =
+        story?.visibility === 'private'
+          ? new Set(
+              db
+                .prepare('SELECT id FROM users WHERE is_owner = 1')
+                .all()
+                .map((u) => u.id),
+            )
+          : new Set();
       for (const s of streams) {
         if (
           (s.userId && members.has(s.userId)) ||

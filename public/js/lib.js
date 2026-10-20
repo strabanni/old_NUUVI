@@ -624,6 +624,14 @@ export function modal(content, opts = {}) {
     dialog.addEventListener('click', (e) => {
       if (e.target === dialog) close(null);
     });
+    // Every window has an ✕ in its corner (on every device) to get out without changing anything,
+    // unless it already has its own close button.
+    if (!dialog.querySelector('[aria-label="Close"]')) {
+      dialog.insertAdjacentHTML(
+        'afterbegin',
+        '<button type="button" class="modal-x" data-close aria-label="Close" title="Close">✕</button>',
+      );
+    }
     for (const b of dialog.querySelectorAll('[data-close]')) b.addEventListener('click', () => close(null));
     const form = dialog.querySelector('form');
     if (form) bindForm(form, async (data) => close(opts.submit ? await opts.submit(data) : data));

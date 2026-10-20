@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { capitalizeName } from './text.js';
 
-const SCHEMA_VERSION = 31;
+const SCHEMA_VERSION = 32;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -713,6 +713,15 @@ export const MIGRATIONS = [
    CREATE INDEX dev_comments_note_idx ON dev_comments(note_id, id);
    -- Notifications about a Development note (a comment on it) link straight to it.
    ALTER TABLE notifications ADD COLUMN dev_id INTEGER;`,
+  // v32: (1) an upload's fingerprint, so the same picture uploaded again reuses the copy already
+  // there instead of piling up duplicates; (2) the site owner, a role of its own above admin: Coi's
+  // account (or, failing that, the first admin).
+  `ALTER TABLE uploads ADD COLUMN hash TEXT;
+   CREATE INDEX uploads_hash_idx ON uploads(user_id, hash);
+   ALTER TABLE users ADD COLUMN is_owner INTEGER NOT NULL DEFAULT 0;
+   UPDATE users SET is_owner = 1 WHERE id = COALESCE(
+     (SELECT id FROM users WHERE username = 'coi' COLLATE NOCASE),
+     (SELECT MIN(id) FROM users WHERE is_admin = 1));`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

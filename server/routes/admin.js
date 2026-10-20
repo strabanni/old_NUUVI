@@ -1,7 +1,7 @@
 // Site moderation for admin accounts: reports, users, invites, stories and the mod log.
 import { randomBytes } from 'node:crypto';
 import { fail, str, oneOf } from '../http.js';
-import { toUser, requireAdmin, STORY_SELECT, toStory, adminCanSee } from '../model.js';
+import { toUser, requireAdmin, STORY_SELECT, toStory, ownerCanSee } from '../model.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -85,7 +85,8 @@ export function adminRoutes(r, ctx) {
       data: {
         users: rows.map((u) => ({
           ...toUser(u),
-          isAdmin: !!u.is_admin,
+          isAdmin: !!u.is_admin || !!u.is_owner,
+          isOwner: !!u.is_owner,
           suspended: !!u.banned_at,
           banReason: u.ban_reason,
           joinedAt: u.created_at,
@@ -99,6 +100,7 @@ export function adminRoutes(r, ctx) {
     requireAdmin(user);
     const t = target(params.id);
     if (t.id === user.id) fail(400, "You can't suspend yourself");
+    if (t.is_owner) fail(403, "The site owner can't be suspended");
     const reason = str(body.reason, 'Reason', { max: 500 }) ?? '';
     db.prepare("UPDATE users SET banned_at = datetime('now'), ban_reason = ? WHERE id = ?").run(reason, t.id);
     db.prepare('DELETE FROM sessions WHERE user_id = ?').run(t.id);
@@ -120,6 +122,9 @@ export function adminRoutes(r, ctx) {
     requireAdmin(user);
     const t = target(params.id);
     if (t.id === user.id) fail(400, "You can't change your own admin status");
+    // Only the site owner gives or takes away admin rights, and nobody changes the owner's.
+    if (!user.isOwner) fail(403, 'Only the site owner can change who is an admin');
+    if (t.is_owner) fail(403, "The site owner's role can't be changed");
     db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(body.isAdmin ? 1 : 0, t.id);
     log(user.id, body.isAdmin ? 'make-admin' : 'remove-admin', `@${t.username}`);
     return { data: { ok: true } };
@@ -187,8 +192,9 @@ export function adminRoutes(r, ctx) {
     return { data: { ok: true } };
   });
 
-  // Admins see every story, except another admin's private stories they haven't been added to:
-  // those show as "Private story" with their owner, nothing more, and can't be deleted from here.
+  // Admins see every public story and the private ones they're in; other private stories show as
+  // "Private story" with their owner, nothing more, and can't be deleted from here. The site owner
+  // sees them all.
   r.get('/api/admin/stories', ({ user }) => {
     requireAdmin(user);
     const mine = new Set(
@@ -200,7 +206,7 @@ export function adminRoutes(r, ctx) {
     const rows = db.prepare(`${STORY_SELECT} ORDER BY s.updated_at DESC`).all();
     const stories = rows.map((r) => {
       const st = toStory(r);
-      return r.visibility !== 'private' || mine.has(r.id) || adminCanSee(db, r, user)
+      return r.visibility !== 'private' || mine.has(r.id) || ownerCanSee(db, r, user)
         ? st
         : {
             ...st,
@@ -221,7 +227,7 @@ export function adminRoutes(r, ctx) {
     requireAdmin(user);
     const s = db.prepare('SELECT * FROM stories WHERE id = ?').get(params.id) ?? fail(404, 'Story not found');
     const inIt = db.prepare('SELECT 1 FROM story_members WHERE story_id = ? AND user_id = ?').get(s.id, user.id);
-    if (s.visibility === 'private' && !inIt && !adminCanSee(db, s, user)) fail(404, 'Story not found');
+    if (s.visibility === 'private' && !inIt && !ownerCanSee(db, s, user)) fail(404, 'Story not found');
     hub.sendStory(s.id, 'story', { storyId: s.id });
     db.prepare('DELETE FROM stories WHERE id = ?').run(s.id);
     log(user.id, 'delete-story', `#${s.id} "${s.title}"`);

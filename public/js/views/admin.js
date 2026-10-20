@@ -224,15 +224,15 @@ async function users(pane) {
       ${avatar({ name: u.displayName, src: u.avatar })}
       <div class="grow">
         <a href="#/u/${u.id}"><strong>${u.displayName}</strong></a> <span class="small muted">@${u.username}</span>
-        ${u.isAdmin ? html`<span class="tag">Admin</span>` : ''} ${u.suspended ? html`<span class="tag closed" title="${u.banReason || ''}">Suspended</span>` : ''}
+        ${u.isOwner ? html`<span class="tag owner-tag">Owner</span>` : u.isAdmin ? html`<span class="tag">Admin</span>` : ''} ${u.suspended ? html`<span class="tag closed" title="${u.banReason || ''}">Suspended</span>` : ''}
         <div class="small muted">joined ${timeAgo(u.joinedAt)} · ${u.postCount} posts</div>
       </div>
       ${
         u.id !== state.user.id
           ? html`
         <button class="sm" data-act="reset">Reset link</button>
-        <button class="sm" data-act="admin">${u.isAdmin ? 'Remove admin' : 'Make admin'}</button>
-        ${u.suspended ? html`<button class="sm" data-act="unban">Lift suspension</button>` : html`<button class="sm danger" data-act="ban">Suspend</button>`}`
+        ${state.user.isOwner && !u.isOwner ? html`<button class="sm" data-act="admin">${u.isAdmin ? 'Remove admin' : 'Make admin'}</button>` : ''}
+        ${u.isOwner ? '' : u.suspended ? html`<button class="sm" data-act="unban">Lift suspension</button>` : html`<button class="sm danger" data-act="ban">Suspend</button>`}`
           : html`<span class="small muted">you</span>`
       }
     </div>`,

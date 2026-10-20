@@ -1192,49 +1192,64 @@ test('each writer can drag their stories into their own sidebar order', async ()
   assert.equal((await a('/api/home/order', { method: 'PUT', body: { storyIds: 'nope' } })).status, 400);
 });
 
-test("admins can see every writer's private story, but not another admin's unless added", async () => {
-  const admin = app.admin;
-  // A regular writer's private story: admins can open it, list it and moderate it.
+test('only the site owner sees every private story; admins only see the ones they are in', async () => {
+  const owner = app.admin; // the first account is the site owner (and an admin)
+  assert.equal((await owner('/api/me')).data.user.isOwner, true);
+  // A regular writer's private story: the owner can open it, list it and moderate it.
   const writer = await app.signUp('private_writer');
   const { story: wStory, main: wMain } = await makeStory(writer, { title: 'Writer Secret', visibility: 'private' });
-  assert.equal((await admin(`/api/stories/${wStory.id}`)).status, 200);
-  assert.equal((await admin(`/api/channels/${wMain.id}`)).status, 200);
-  assert.equal((await admin('/api/admin/stories')).data.stories.find((s) => s.id === wStory.id).title, 'Writer Secret');
+  assert.equal((await owner(`/api/stories/${wStory.id}`)).status, 200);
+  assert.equal((await owner(`/api/channels/${wMain.id}`)).status, 200);
+  assert.equal((await owner('/api/admin/stories')).data.stories.find((s) => s.id === wStory.id).title, 'Writer Secret');
   // Ordinary writers still can't.
   const stranger = await app.signUp('private_stranger');
   assert.equal((await stranger(`/api/stories/${wStory.id}`)).status, 404);
 
-  // A private story that belongs to an admin stays theirs: other admins can't get in.
+  // Another admin can't see private stories they're not in, and can't hand out admin rights.
   const boss = await app.signUp('private_boss');
   const bossId = (await boss('/api/me')).data.user.id;
-  await admin(`/api/admin/users/${bossId}/role`, { method: 'PUT', body: { isAdmin: true } });
-  const { story, main } = await makeStory(boss, { title: 'Secret Garden', visibility: 'private' });
-  assert.equal((await admin(`/api/stories/${story.id}`)).status, 404);
-  assert.equal((await admin(`/api/channels/${main.id}`)).status, 404);
-  assert.equal((await admin(`/api/stories/${story.id}/characters`)).status, 404);
-  assert.equal((await admin(`/api/stories/${story.id}/join`, { method: 'POST', body: {} })).status, 404);
-  const listed = (await admin('/api/admin/stories')).data.stories.find((s) => s.id === story.id);
-  assert.equal(listed.title, 'Private story');
-  assert.equal(listed.hidden, true);
-  assert.equal((await admin(`/api/admin/stories/${story.id}`, { method: 'DELETE' })).status, 404);
-  // The owner adds people by username.
-  const adminName = (await admin('/api/me')).data.user.username;
+  await owner(`/api/admin/users/${bossId}/role`, { method: 'PUT', body: { isAdmin: true } });
+  assert.deepEqual([(await boss('/api/me')).data.user.isAdmin, (await boss('/api/me')).data.user.isOwner], [true, false]);
+  assert.equal((await boss(`/api/stories/${wStory.id}`)).status, 404);
+  assert.equal((await boss(`/api/channels/${wMain.id}`)).status, 404);
+  assert.equal((await boss(`/api/stories/${wStory.id}/join`, { method: 'POST', body: {} })).status, 404);
+  const listed = (await boss('/api/admin/stories')).data.stories.find((s) => s.id === wStory.id);
+  assert.deepEqual([listed.title, listed.hidden], ['Private story', true]);
+  assert.equal((await boss(`/api/admin/stories/${wStory.id}`, { method: 'DELETE' })).status, 404);
+  const strangerId = (await stranger('/api/me')).data.user.id;
+  assert.equal((await boss(`/api/admin/users/${strangerId}/role`, { method: 'PUT', body: { isAdmin: true } })).status, 403);
+  // Nobody suspends the owner or changes their role.
+  const ownerId = (await owner('/api/me')).data.user.id;
+  assert.equal((await boss(`/api/admin/users/${ownerId}/ban`, { method: 'POST', body: {} })).status, 403);
+  // The owner sees an admin's private story too.
+  const { story } = await makeStory(boss, { title: 'Secret Garden', visibility: 'private' });
+  assert.equal((await owner(`/api/stories/${story.id}`)).status, 200);
+  // The story's owner adds people by username.
+  const writerName = (await writer('/api/me')).data.user.username;
   assert.equal(
-    (await stranger(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status,
+    (await stranger(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: writerName } })).status,
     404,
   );
   assert.equal(
     (await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: 'nobody_here' } })).status,
     404,
   );
-  const added = await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: `@${adminName}` } });
+  const added = await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: `@${writerName}` } });
   assert.equal(added.status, 201, JSON.stringify(added.data));
-  assert.equal((await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: adminName } })).status, 400);
-  assert.equal((await admin(`/api/stories/${story.id}`)).status, 200);
-  assert.equal((await admin('/api/admin/stories')).data.stories.find((s) => s.id === story.id).title, 'Secret Garden');
+  assert.equal((await boss(`/api/stories/${story.id}/members`, { method: 'POST', body: { username: writerName } })).status, 400);
+  assert.equal((await writer(`/api/stories/${story.id}`)).status, 200);
   assert.ok(
-    (await admin('/api/notifications')).data.notifications.some((n) => n.type === 'added' && n.url === `#/s/${story.id}`),
+    (await writer('/api/notifications')).data.notifications.some((n) => n.type === 'added' && n.url === `#/s/${story.id}`),
   );
+});
+
+test('the same picture uploaded twice is stored once', async () => {
+  const a = await app.signUp('dup_pics');
+  const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000020000000208060000', 'hex');
+  const one = await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png });
+  const two = await a('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'image/png' }, raw: png });
+  assert.equal(one.status, 201);
+  assert.equal(two.data.url, one.data.url);
 });
 
 test('any channel can be deleted, even the last one', async () => {

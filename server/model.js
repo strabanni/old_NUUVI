@@ -228,17 +228,17 @@ export function membership(db, storyId, userId) {
 // Can this person see a private story they aren't in? Admins can see every regular writer's
 // stories (for moderation); a private story that belongs to an admin stays that admin's own:
 // other admins only get in when they're added.
-export function adminCanSee(db, story, user) {
-  if (!user?.isAdmin || story.owner_id === user.id) return !!user?.isAdmin;
-  return !db.prepare('SELECT is_admin FROM users WHERE id = ?').get(story.owner_id)?.is_admin;
+// Only the site owner can see every story, private ones included (admins see the stories they're in).
+export function ownerCanSee(db, story, user) {
+  return !!user?.isOwner;
 }
 
-// Loads a story the user may read; private stories are invisible to non-members (see adminCanSee).
+// Loads a story the user may read; private stories are invisible to non-members (see ownerCanSee).
 export function storyAccess(db, storyId, user) {
   const row = db.prepare(`${STORY_SELECT} WHERE s.id = ?`).get(storyId);
   if (!row) fail(404, 'Story not found');
   const role = membership(db, storyId, user?.id);
-  if (row.visibility === 'private' && !role && !adminCanSee(db, row, user)) fail(404, 'Story not found');
+  if (row.visibility === 'private' && !role && !ownerCanSee(db, row, user)) fail(404, 'Story not found');
   return { row, role };
 }
 
@@ -280,11 +280,14 @@ export function uploadRef(db, value, userId) {
 }
 
 // Private accounts: who may see a character's posts and stories. SQL for a character aliased `c`
-// (with :viewer bound), and the same check in code. Their own writer and followers can.
+// (with :viewer bound), and the same check in code. Their own writer, their followers and the site
+// owner can.
 export const CAN_SEE_ACCOUNT = `(COALESCE(c.private, 0) = 0 OR c.user_id = :viewer OR EXISTS (SELECT 1 FROM character_follows cf
-  JOIN characters fc ON fc.id = cf.follower_id WHERE cf.followed_id = c.id AND fc.user_id = :viewer))`;
+  JOIN characters fc ON fc.id = cf.follower_id WHERE cf.followed_id = c.id AND fc.user_id = :viewer)
+  OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = :viewer AND ou.is_owner = 1))`;
 export function canSeeAccount(db, character, viewerId) {
   if (!character?.private || character.user_id === viewerId) return true;
+  if (db.prepare('SELECT is_owner FROM users WHERE id = ?').get(viewerId)?.is_owner) return true;
   return !!db
     .prepare(
       `SELECT 1 FROM character_follows cf JOIN characters fc ON fc.id = cf.follower_id

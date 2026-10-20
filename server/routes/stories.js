@@ -17,7 +17,7 @@ import {
   uploadRef,
   isBlocked,
   modLog,
-  adminCanSee,
+  ownerCanSee,
 } from '../model.js';
 
 const inviteCode = () => randomBytes(6).toString('base64url');
@@ -108,7 +108,7 @@ export function storyRoutes(r, ctx) {
         reportsOpen,
         messagesUnread: ctx.messageUnread?.(user.id) ?? 0,
         // The site's owner (the first admin): the only one who gets the "What's new" update notices.
-        isOwner: user.id === db.prepare('SELECT MIN(id) AS id FROM users WHERE is_admin = 1').get().id,
+        isOwner: !!user.isOwner,
         stats: ctx.userStats(user.id),
       },
     };
@@ -201,7 +201,7 @@ export function storyRoutes(r, ctx) {
       .all(row.id)
       .map(toCharacter);
     const story = toStory(row);
-    if (role === 'owner' || user?.isAdmin) story.inviteCode = row.invite_code;
+    if (role === 'owner' || user?.isOwner) story.inviteCode = row.invite_code;
     const notify = role
       ? db.prepare('SELECT notify FROM story_members WHERE story_id = ? AND user_id = ?').get(row.id, user.id).notify
       : null;
@@ -272,7 +272,7 @@ export function storyRoutes(r, ctx) {
     if (!row) fail(404, 'Story not found');
     if (membership(db, row.id, user.id)) return { data: { ok: true } };
     const codeMatches = typeof body.inviteCode === 'string' && body.inviteCode === row.invite_code;
-    const asAdmin = adminCanSee(db, row, user);
+    const asAdmin = ownerCanSee(db, row, user);
     if (row.visibility === 'private' && !codeMatches && !asAdmin) fail(404, 'Story not found');
     if (
       db.prepare('SELECT 1 FROM story_bans WHERE story_id = ? AND user_id = ?').get(row.id, user.id) ||

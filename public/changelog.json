@@ -1,5 +1,19 @@
 [
   {
+    "code": "NV-74",
+    "date": "2026-10-20",
+    "title": "Owner role, close buttons and tidier lists",
+    "items": [
+      "Every pop-up window now has an ✕ in its corner, on phones and computers, so you can always get out without changing anything.",
+      "The same picture uploaded twice is only stored once, so nothing piles up and pages load faster.",
+      "There's now a site Owner role, separate from admin. Only the owner can see every private story and private account, and only the owner can make or remove admins. Nobody can suspend the owner.",
+      "On THE NU, the tabs now start with All, then Feed.",
+      "Connections and episodes without a picture now show as text posts instead of an empty picture box.",
+      "In the Directory, Me and Supporting Cast now look like Meet The Cast: A to Z, four across.",
+      "In Locations, REALLY and WALLETS are now in bold in the Ardell City intro."
+    ]
+  },
+  {
     "code": "NV-73",
     "date": "2026-10-20",
     "title": "Pictures always fit their shape",

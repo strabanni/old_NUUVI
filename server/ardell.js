@@ -8,7 +8,7 @@
 export const ARDELL_INTRO = {
   title: "where's that at ?¿",
   tagline: 'can\'t keep saying "they met somewhere downtown." be serious.',
-  body: "welcome, this is your guide to **ARDELL CITY**. compiled of the five well known boroughs, ardell city finds itself lacking nothing but more hours in the day for its people and visitors to *wander* throughout. make sure you REALLY love it here, because there's always a cost to living in the city that never sleeps, whether that be your WALLETS or your mental taking a dent to pay up!\n\nif you're wondering where an episode should happen, chances are you'll find the answer here.",
+  body: "welcome, this is your guide to **ARDELL CITY**. compiled of the five well known boroughs, ardell city finds itself lacking nothing but more hours in the day for its people and visitors to *wander* throughout. make sure you **REALLY** love it here, because there's always a cost to living in the city that never sleeps, whether that be your **WALLETS** or your mental taking a dent to pay up!\n\nif you're wondering where an episode should happen, chances are you'll find the answer here.",
   note: "got a location your muse owns? add it here, pin it on the map, and it's part of the city.",
 };
 

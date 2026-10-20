@@ -15894,3 +15894,85 @@ body.ph-full .ph-tabbar,
     font-size: 0.68rem;
   }
 }
+
+/* Connections and episodes without a picture: a text post (no empty picture box). */
+.np-ep-text,
+.np-conn-text {
+  display: block;
+  color: var(--text);
+  overflow: hidden;
+}
+.np-ep-text:hover {
+  text-decoration: none;
+}
+.np-text-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.np-text-kicker svg {
+  width: 13px;
+  height: 13px;
+}
+.np-text-title {
+  display: block;
+  font-size: 1.3rem;
+  line-height: 1.3;
+}
+.np-text-more {
+  display: block;
+  margin-top: 8px;
+  font-size: 1rem;
+  font-weight: 400;
+}
+.np-ep-text .np-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  background: var(--glass-3);
+}
+.np-ep-text .np-progress i {
+  display: block;
+  height: 100%;
+  width: calc(var(--p, 0) * 100%);
+  background: linear-gradient(90deg, #ee719e, #c79ad8);
+  transition: width 1.2s ease;
+}
+
+/* Admin → Users: the site owner's label. */
+.tag.owner-tag {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* The ✕ in the corner of every window: stays in view while the window scrolls. */
+.modal-x {
+  position: sticky;
+  top: 0;
+  float: right;
+  z-index: 5;
+  width: 34px;
+  height: 34px;
+  margin: -8px -8px 4px 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--text);
+  background: var(--glass-2);
+}
+.modal-x:hover {
+  background: var(--glass-3);
+}

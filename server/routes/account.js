@@ -1,6 +1,6 @@
 // Accounts, profiles, blocking, uploads, notifications and push subscriptions.
-import { randomBytes } from 'node:crypto';
-import { writeFile } from 'node:fs/promises';
+import { randomBytes, createHash } from 'node:crypto';
+import { writeFile, readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fail, str, id, color, oneOf } from '../http.js';
 import { hashPassword, verifyPassword, createSession, destroySession, toSelf, weakPassword } from '../auth.js';
@@ -107,8 +107,8 @@ export function accountRoutes(r, ctx) {
       }
       if (findByUsername(username)) fail(409, 'That username is taken');
       const { lastInsertRowid } = db
-        .prepare('INSERT INTO users (username, display_name, password_hash, is_admin) VALUES (?, ?, ?, ?)')
-        .run(username, displayName, hashPassword(password), firstUser ? 1 : 0);
+        .prepare('INSERT INTO users (username, display_name, password_hash, is_admin, is_owner) VALUES (?, ?, ?, ?, ?)')
+        .run(username, displayName, hashPassword(password), firstUser ? 1 : 0, firstUser ? 1 : 0);
       if (invite) db.prepare('UPDATE site_invites SET uses = uses + 1 WHERE id = ?').run(invite.id);
       return db.prepare('SELECT * FROM users WHERE id = ?').get(lastInsertRowid);
     });
@@ -322,6 +322,23 @@ export function accountRoutes(r, ctx) {
   });
 
   // ---------- Image uploads ----------
+  // Uploads from before fingerprints: work theirs out in the background, a few at a time, so a
+  // picture uploaded again later is recognised.
+  (async function fingerprintOldUploads() {
+    for (;;) {
+      const rows = db.prepare('SELECT name FROM uploads WHERE hash IS NULL LIMIT 20').all();
+      if (!rows.length) return;
+      for (const r of rows) {
+        const data = await readFile(join(config.uploadDir, r.name)).catch(() => null);
+        db.prepare('UPDATE uploads SET hash = ? WHERE name = ?').run(
+          data ? createHash('sha256').update(data).digest('base64url') : 'missing',
+          r.name,
+        );
+      }
+      await new Promise((done) => setTimeout(done, 200).unref?.());
+    }
+  })().catch((err) => console.error('fingerprinting uploads', err));
+
   r.post(
     '/api/uploads',
     async ({ user, rawBody, headers }) => {
@@ -331,13 +348,25 @@ export function accountRoutes(r, ctx) {
       if (rawBody && rawBody.length > type.max) fail(413, `That file is too large (max ${type.max / MB} MB)`);
       if (!rawBody?.length) fail(400, 'Empty upload');
       if (!type.magic(rawBody)) fail(400, "That file doesn't look like the image type it claims to be");
+      // The same picture (or file) uploaded again reuses the copy already there: no duplicate files
+      // piling up, and phones that already downloaded it use the one they have.
+      const hash = createHash('sha256').update(rawBody).digest('base64url');
+      for (const old of db.prepare('SELECT name FROM uploads WHERE user_id = ? AND hash = ?').all(user.id, hash)) {
+        if (
+          await access(join(config.uploadDir, old.name)).then(
+            () => true,
+            () => false,
+          )
+        )
+          return { status: 200, data: { url: `/uploads/${old.name}` } };
+      }
       const count = db.prepare('SELECT COUNT(*) AS n FROM uploads WHERE user_id = ?').get(user.id).n;
       if (count >= 2000) fail(400, 'Upload limit reached');
       const used = db.prepare('SELECT COALESCE(SUM(size), 0) AS n FROM uploads WHERE user_id = ?').get(user.id).n;
       if (used + rawBody.length > 2048 * MB) fail(400, 'You have used all of your 2 GB of storage');
       const name = `${randomBytes(16).toString('base64url')}.${type.ext}`;
       await writeFile(join(config.uploadDir, name), rawBody, { flag: 'wx' });
-      db.prepare('INSERT INTO uploads (name, user_id, size) VALUES (?, ?, ?)').run(name, user.id, rawBody.length);
+      db.prepare('INSERT INTO uploads (name, user_id, size, hash) VALUES (?, ?, ?, ?)').run(name, user.id, rawBody.length, hash);
       return { status: 201, data: { url: `/uploads/${name}` } };
     },
     { raw: MAX_UPLOAD_BYTES },

@@ -38,14 +38,14 @@ import { socialCard, bindSocial, openSocialComposer, styleBars, handleOf, nameBa
 import { mountStoryStrip } from './stories.js';
 
 const ONE = { thread: 'Episode', para: 'Self para', event: 'Event', comms: 'Comms', ooc: 'OOC' };
-// The social feed comes first; episodes and the rest are a tap away.
+// All comes first, then the social feed (where THE NU opens); episodes and the rest follow.
 const FILTERS = [
+  ['all', 'All'],
   ['social', 'Feed'],
   ['open', 'Episodes'],
   ['musing', 'Musings'],
   ['connection', 'Connections'],
   ['event', 'Events'],
-  ['all', 'Everything'],
 ];
 const parseDate = (d) => new Date(String(d).includes('T') ? d : `${String(d).replace(' ', 'T')}Z`);
 
@@ -64,8 +64,9 @@ const progressOf = (it) =>
   it.status === 'complete' ? 1 : Math.min(0.92, 0.04 + 0.9 * (1 - Math.exp(-(it.postCount || 0) / 30)));
 
 function threadPost(it) {
-  // The episode's own picture first; the story's header only when the episode has none.
-  const pic = it.banner || it.story.banner || it.starter?.portrait || it.starter?.avatar;
+  // An episode with its own picture shows it; one without is a text post (its name and what it's about).
+  const pic = it.banner;
+  const progress = html`<span class="np-progress ${it.status === 'complete' ? 'done' : ''}" data-p="${progressOf(it).toFixed(3)}" role="progressbar" aria-label="Episode progress" aria-valuenow="${Math.round(progressOf(it) * 100)}" aria-valuemin="0" aria-valuemax="100"><i></i></span>`;
   return html`
     <article class="np np-thread-post" data-color="${it.story.color}">
       <header class="np-head">
@@ -83,14 +84,22 @@ function threadPost(it) {
         </div>`
         }
       </header>
-      <a class="np-media np-cover ${pic ? '' : 'no-img'}" href="#/s/${it.storyId}/${it.id}">
-        ${pic ? html`<img src="${pic}" alt="" loading="lazy">` : ''}
+      ${
+        pic
+          ? html`<a class="np-media np-cover" href="#/s/${it.storyId}/${it.id}">
+        <img src="${pic}" alt="" loading="lazy">
         <span class="np-cover-title"><small>${it.season ? `Season ${it.season} · ` : ''}${ONE[it.kind] || 'Episode'}</small>${it.name}</span>
         ${it.location ? html`<span class="np-loc">${icons.pin} ${it.location}</span>` : ''}
         ${it.unread ? html`<span class="car-count">${it.unread} new</span>` : ''}
         ${it.status === 'complete' ? html`<span class="np-finished">${icons.check} Finished</span>` : ''}
-        <span class="np-progress ${it.status === 'complete' ? 'done' : ''}" data-p="${progressOf(it).toFixed(3)}" role="progressbar" aria-label="Episode progress" aria-valuenow="${Math.round(progressOf(it) * 100)}" aria-valuemin="0" aria-valuemax="100"><i></i></span>
-      </a>
+        ${progress}
+      </a>`
+          : html`<a class="np-textpost np-ep-text" href="#/s/${it.storyId}/${it.id}">
+        <small class="np-text-kicker">${it.season ? `Season ${it.season} · ` : ''}${ONE[it.kind] || 'Episode'}${it.location ? html` · ${icons.pin} ${it.location}` : ''}${it.unread ? ` · ${it.unread} new` : ''}${it.status === 'complete' ? html` · ${icons.check} Finished` : ''}</small>
+        <div class="body"><b class="np-text-title">${it.name}</b>${it.summary ? html`<span class="np-text-more">${it.summary}</span>` : ''}</div>
+        ${progress}
+      </a>`
+      }
       <div class="np-actions">
         <a class="np-act" href="#/s/${it.storyId}/${it.id}" aria-label="Read">${icons.episode}</a>
         ${
@@ -103,7 +112,7 @@ function threadPost(it) {
         }
         <a class="btn sm np-cta" href="#/s/${it.storyId}/${it.id}">${it.status === 'open' ? 'Join in' : it.status === 'complete' ? 'Rewatch' : 'Read'}</a>
       </div>
-      <div class="np-caption"><b>${it.name}</b> ${it.summary || (it.lastPost ? html`<span class="muted">${it.lastPost.by}: ${it.lastPost.text}</span>` : '')}</div>
+      <div class="np-caption">${pic ? html`<b>${it.name}</b> ${it.summary || ''}` : ''}${(!pic || !it.summary) && it.lastPost ? html`<span class="muted">${it.lastPost.by}: ${it.lastPost.text}</span>` : ''}</div>
       ${it.tags.length ? html`<div class="np-tags">${it.tags.map((t) => html`<span>#${t}</span>`)}</div>` : ''}
       <span class="np-time">${it.postCount} ${it.postCount === 1 ? 'post' : 'posts'} · ${timeAgo(it.createdAt)}</span>
     </article>`;
@@ -181,11 +190,18 @@ export function connectionPost(k) {
         ${writerHead(k.author || { id: k.userId, displayName: 'A writer', username: '' }, html`${icons.link} ${slots > 1 ? 'Group connection' : 'Connection'} for <a href="#/c/${ch.id}" class="np-handle c-name" data-color="${ch.color}"${gradAttr(ch)}>${handleOf(ch)}</a> · ${agoShort(k.createdAt)}`)}
         ${mineToo || imIn || state.user.isAdmin ? html`<button class="icon-btn sm np-more" data-k="more" aria-label="Connection options">${icons.more}</button>` : ''}
       </header>
-      <div class="np-media np-conn-card ${k.media.length ? '' : 'no-img'}">
-        ${k.media[0] ? html`<img src="${k.media[0]}" alt="" loading="lazy">` : ''}
+      ${
+        k.media.length
+          ? html`<div class="np-media np-conn-card">
+        <img src="${k.media[0]}" alt="" loading="lazy">
         <span class="np-conn-label">${label}</span>
         <span class="np-cover-title">${k.title}</span>
-      </div>
+      </div>`
+          : html`<div class="np-textpost np-conn-text">
+        <small class="np-text-kicker">${label}</small>
+        <div class="body"><b class="np-text-title">${k.title}</b>${k.body ? html`<div class="np-text-more">${formatPost(k.body)}</div>` : ''}</div>
+      </div>`
+      }
       ${slots > 1 ? html`<div class="np-slots" aria-label="${takers.length} of ${slots} spots taken">${Array.from({ length: slots }, (_, i) => html`<i class="${i < takers.length ? 'on' : ''}"></i>`)}</div>` : ''}
       <div class="np-actions">
         ${takers.length ? html`<span class="np-lock">${k.full ? icons.lock : icons.users} ${takers.map((t, i) => html`${i ? ', ' : ''}<a href="#/c/${t.character.id}">${handleOf(t.character)}</a>`)}${slots > 1 ? html` <span class="muted">· ${takers.length}/${slots}</span>` : ''}</span>` : ''}
@@ -197,7 +213,7 @@ export function connectionPost(k) {
               : ''
         }
       </div>
-      ${k.body ? html`<div class="np-caption">${k.author ? html`<a class="np-handle" href="#/u/${k.author.id}">${k.author.username}</a> ` : ''}<span class="body">${formatPost(k.body)}</span></div>` : ''}
+      ${k.body && k.media.length ? html`<div class="np-caption">${k.author ? html`<a class="np-handle" href="#/u/${k.author.id}">${k.author.username}</a> ` : ''}<span class="body">${formatPost(k.body)}</span></div>` : ''}
       ${k.tags.length ? html`<div class="np-tags">${k.tags.map((t) => html`<span>#${t}</span>`)}</div>` : ''}
       <span class="np-time">${timeAgo(k.createdAt)}</span>
     </article>`;
