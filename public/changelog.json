@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-73",
+    "date": "2026-10-20",
+    "title": "Pictures always fit their shape",
+    "items": [
+      "Character pictures in Meet The Cast now always fill their square, whatever shape the picture is. Tall pictures were showing only their top part.",
+      "Story icons in the left rail fit their circle the same way.",
+      "Every picture spot in the app was checked with very tall and very wide pictures, on phones and computers."
+    ]
+  },
+  {
     "code": "NV-72",
     "date": "2026-10-20",
     "title": "Thread icons in Meet The Cast",

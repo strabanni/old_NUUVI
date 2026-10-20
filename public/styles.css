@@ -875,6 +875,11 @@ body.guest #tabbar {
   border-radius: inherit;
   object-fit: cover;
 }
+/* Story icons: pinned to every edge and cropped from the middle, whatever shape the picture is. */
+.rail-item > img {
+  position: absolute;
+  inset: 0;
+}
 .rail-item > span[data-color] {
   --c: var(--accent);
   background: linear-gradient(140deg, color-mix(in srgb, var(--c) 75%, #fff), var(--c));
@@ -15845,10 +15850,18 @@ body.ph-full .ph-tabbar,
   margin-bottom: 4px;
   box-shadow: var(--shadow);
 }
+.ct-pic {
+  position: relative;
+}
+/* Pinned to every edge and cropped to fill, so tall and wide pictures both fit the tile. Like the
+   pictures beside episode posts, tall ones are cropped a little above the middle to keep faces in. */
 .ct-pic img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center 25%;
   display: block;
 }
 .ct-initial {
