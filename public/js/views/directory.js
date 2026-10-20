@@ -1,4 +1,4 @@
-// The directory: every writer on this NUUVI (by username), every character in their cast, the NPCs,
+// The directory: every writer on this NUUVI (you included) with the characters in their cast, the supporting cast,
 // and the Locations of Ardell City (places anyone can add).
 import {
   html,
@@ -25,18 +25,19 @@ export async function viewDirectory() {
   const alive = routeAlive();
   const [{ writers: everyone, anonymous = [] }, myAll] = await Promise.all([api('/api/directory'), myCharacters(true)]);
   ensureAlive(alive);
-  // The supporting cast (NPCs) only appears under Supporting Cast: Me, Meet The Cast and All
-  // characters show the main cast.
+  // The supporting cast (NPCs) only appears under Supporting Cast: Me and Meet The Cast show the
+  // main cast.
   const mine = myAll.filter((c) => !c.npc);
-  const writers = everyone.map((w) => ({ ...w, characters: w.characters.filter((c) => !c.npc) }));
-  // Other writers (you're under "Me").
-  const others = writers.filter((w) => w.id !== state.user.id);
-  const all = writers
-    .flatMap((w) => w.characters.map((c) => ({ ...c, writer: w })))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-  // The Directory opens on the characters (By writer, unless another characters view was picked);
-  // #/locations opens it on the Locations map once, and #/characters on "Me".
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  // Meet The Cast: every writer (you first) with their characters A to Z.
+  const writers = everyone
+    .map((w) => ({ ...w, characters: w.characters.filter((c) => !c.npc).sort(byName) }))
+    .sort((a, b) => (b.id === state.user.id) - (a.id === state.user.id));
+  const characterCount = writers.reduce((n, w) => n + w.characters.length, 0);
+  // The Directory opens on Meet The Cast (unless another view was picked); #/locations opens it on
+  // the Locations map once, and #/characters on "Me". ("All characters" is now part of Meet The Cast.)
   let view = sessionStorage.getItem('nuuvi:dir-once') || sessionStorage.getItem('nuuvi:dir-view') || 'writers';
+  if (view === 'characters') view = 'writers';
   sessionStorage.removeItem('nuuvi:dir-once');
   let q = '';
   let npcData = null;
@@ -49,14 +50,13 @@ export async function viewDirectory() {
     alive,
     title: 'Directory',
     banner: 'Writers and the characters they play',
-    subtitle: `${writers.length} writers · ${all.length} characters`,
+    subtitle: `${writers.length} writers · ${characterCount} characters`,
     body: html`
       <div class="dir-tools">
         <input type="search" class="search" id="dir-q" placeholder="Search names, usernames, taglines…" aria-label="Search the directory">
         <div class="seg dir-tabs no-swipe" role="group" aria-label="Show">
           <button type="button" data-view="me">Me</button>
           <button type="button" data-view="writers">Meet The Cast</button>
-          <button type="button" data-view="characters">All characters</button>
           <button type="button" data-view="npcs">Supporting Cast</button>
           <button type="button" data-view="brands">Brands</button>
           <button type="button" data-view="places">Locations</button>
@@ -91,10 +91,12 @@ export async function viewDirectory() {
         }`,
       );
     } else if (view === 'writers') {
-      const shown = others
+      const shown = writers
         .map((w) => ({
           ...w,
-          shownChars: match(w.username, w.displayName) ? w.characters : w.characters.filter((c) => match(c.name, c.tagline)),
+          shownChars: match(w.username, w.displayName)
+            ? w.characters
+            : w.characters.filter((c) => match(c.name, c.handle, c.tagline)),
         }))
         .filter((w) => match(w.username, w.displayName) || w.shownChars.length);
       render(
@@ -105,7 +107,7 @@ export async function viewDirectory() {
         <section class="dir-writer">
           <a class="dir-head" href="#/u/${w.id}">
             <span class="av-wrap ${state.online.includes(w.id) ? 'is-online' : ''}">${avatar({ name: w.displayName, src: w.avatar, color: '#48484A' })}<i class="online-dot"></i></span>
-            <span class="grow"><b>@${w.username}</b><small>${w.displayName !== w.username ? `${w.displayName} · ` : ''}${w.characters.length} ${w.characters.length === 1 ? 'character' : 'characters'}</small></span>
+            <span class="grow"><b>@${w.username}</b><small>${w.id === state.user.id ? 'You · ' : ''}${w.displayName !== w.username ? `${w.displayName} · ` : ''}${w.characters.length} ${w.characters.length === 1 ? 'character' : 'characters'}</small></span>
           </a>
           ${
             w.shownChars.length
@@ -266,24 +268,6 @@ export async function viewDirectory() {
             cardBox.hidden = false;
           },
         },
-      );
-    } else {
-      const shown = all.filter((c) => match(c.name, c.tagline, c.writer.username, c.writer.displayName));
-      const groups = new Map();
-      for (const c of shown) {
-        const letter = /^[a-z]/i.test(c.name) ? c.name[0].toUpperCase() : '#';
-        if (!groups.has(letter)) groups.set(letter, []);
-        groups.get(letter).push(c);
-      }
-      render(
-        list,
-        shown.length
-          ? html`${[...groups].map(
-              ([letter, chars]) => html`
-        <h2 class="section-title dir-letter">${letter}</h2>
-        <div class="char-grid compact">${chars.map((c) => characterCard(c))}</div>`,
-            )}`
-          : html`<div class="empty"><p>${q ? `Nobody matches “${q}”.` : 'No characters yet.'}</p></div>`,
       );
     }
     applyColors(list);

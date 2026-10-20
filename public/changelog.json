@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-70",
+    "date": "2026-10-20",
+    "title": "Meet The Cast shows everyone",
+    "items": [
+      "In the Directory, All characters is now part of Meet The Cast. Every main character is listed under their writer, A to Z.",
+      "You're included too: your own characters are at the top, marked You.",
+      "The search box still finds characters by name, username or tagline, and writers by name."
+    ]
+  },
+  {
     "code": "NV-69",
     "date": "2026-10-20",
     "title": "The Development hub",
