@@ -91,7 +91,7 @@ export async function viewDirectory() {
       );
     } else if (view === 'writers') {
       // Meet The Cast: every main character (yours included) A to Z under letter headings, four
-      // across, each with the writer who plays them.
+      // across, each with their thread icon and the writer who plays them.
       const shown = cast.filter((c) => match(c.name, c.handle, c.tagline, c.writer?.username, c.writer?.displayName));
       const groups = new Map();
       for (const c of shown) {
@@ -99,9 +99,11 @@ export async function viewDirectory() {
         if (!groups.has(letter)) groups.set(letter, []);
         groups.get(letter).push(c);
       }
+      // Their thread icon (what they look like in episodes), or their profile picture if they have none.
+      const pic = (c) => c.threadAvatar || c.avatar || c.portrait;
       const tile = (c) => html`
         <a class="cast-tile" href="#/c/${c.id}" data-color="${c.color}">
-          <span class="ct-pic">${c.avatar || c.portrait ? html`<img src="${c.avatar || c.portrait}" alt="" loading="lazy">` : html`<span class="ct-initial">${c.name.charAt(0).toUpperCase()}</span>`}</span>
+          <span class="ct-pic">${pic(c) ? html`<img src="${pic(c)}" alt="" loading="lazy">` : html`<span class="ct-initial">${c.name.charAt(0).toUpperCase()}</span>`}</span>
           <b class="ct-name">${c.name}</b>
           <small class="ct-writer">${c.writer ? (c.writer.id === state.user.id ? 'You' : `@${c.writer.username}`) : 'Anonymous'}</small>
         </a>`;

@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-72",
+    "date": "2026-10-20",
+    "title": "Thread icons in Meet The Cast",
+    "items": [
+      "Meet The Cast now shows each character's thread icon (how they look in episodes). Characters without a thread icon show their profile picture instead."
+    ]
+  },
+  {
     "code": "NV-71",
     "date": "2026-10-20",
     "title": "Meet The Cast, A to Z",
