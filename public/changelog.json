@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-78",
+    "date": "2026-10-20",
+    "title": "Typing on iPhone",
+    "items": [
+      "With the keyboard open, the message box now sits right on top of the keyboard, with no empty band in between, and the top of the app no longer slides under the clock."
+    ]
+  },
+  {
     "code": "NV-77",
     "date": "2026-10-20",
     "title": "Small sidebar fixes",

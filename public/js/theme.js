@@ -89,11 +89,14 @@
         root.style.removeProperty('--vv-top');
         return;
       }
-      // The app is pinned (position: fixed) while the keyboard is up, so only how far the visible
-      // area has slid inside the screen counts. Adding the page's scroll too pushed the app down
-      // twice on newer iPhones, leaving an empty band above the chat.
-      var top = Math.max(0, vv.offsetTop);
-      root.style.setProperty('--vv-top', top / zoom() + 'px');
+      // The app is pinned (position: fixed) while the keyboard is up. iPhones don't agree on where a
+      // pinned box sits while the visible area slides (some count the page's scroll, some don't),
+      // and guessing wrong pushed the app up under the status bar with an empty band above the
+      // keyboard (or down, with a band above the chat). So instead of guessing, measure where the
+      // app really is and move it so its top lines up with the top of the visible area.
+      var cur = parseFloat(root.style.getPropertyValue('--vv-top')) || 0;
+      var off = document.body.getBoundingClientRect().top - vv.offsetTop; // on-screen px
+      if (Math.abs(off) > 0.5) root.style.setProperty('--vv-top', cur - off / zoom() + 'px');
     };
     var schedule = function () {
       if (!raf) raf = requestAnimationFrame(follow);
