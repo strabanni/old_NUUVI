@@ -117,7 +117,7 @@ export async function openThreadForm({ storyId = null, channel = null, tag = [],
   document.body.classList.remove('drawer-open', 'members-open');
   const editing = !!channel;
   const sid = storyId ?? channel?.storyId;
-  const myStories = state.home.stories;
+  const myStories = state.home.stories.filter((s) => !s.watching); // only stories you're in
   if (!sid && !myStories.length) return toast('Join or start a story first');
   const [characters, storyDetail] = await Promise.all([myCharacters(true), sid ? api(`/api/stories/${sid}`) : null]);
   // Texts live in the Phone now, and out-of-character talk in Messages: no new comms or OOC channels

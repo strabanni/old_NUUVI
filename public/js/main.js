@@ -346,8 +346,8 @@ function renderRail() {
       .filter((s) => !s.completedAt)
       .map(
         (s) => html`
-      <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''}" data-story-id="${s.id}" draggable="false" title="${s.title}" aria-label="${s.title}">
-        <span class="pill"></span>${storyIcon(s)}
+      <a href="#/s/${s.id}" class="rail-item ${active === s.id ? 'active' : ''} ${s.unread ? 'unread' : ''} ${s.watching ? 'watching' : ''}" data-story-id="${s.id}" draggable="false" title="${s.title}" aria-label="${s.title}">
+        <span class="pill"></span>${storyIcon(s)}${s.watching ? html`<span class="watch-lock" aria-hidden="true">${icons.lock}</span>` : ''}
         ${s.mentions ? html`<span class="badge">${s.mentions}</span>` : ''}
       </a>`,
       )}
@@ -493,8 +493,8 @@ function renderSidebar() {
           state.home.stories.length
             ? state.home.stories.map(
                 (st) => html`
-          <a href="#/s/${st.id}" class="nav-link story-link ${st.unread ? 'unread' : ''}">
-            <span class="mini-icon">${storyIcon(st)}</span><span>${st.title}</span>
+          <a href="#/s/${st.id}" class="nav-link story-link ${st.unread ? 'unread' : ''} ${st.watching ? 'watching' : ''}" ${st.watching ? html`title="Private story by ${st.ownerName || 'another writer'}"` : ''}>
+            <span class="mini-icon">${storyIcon(st)}</span><span>${st.title}</span>${st.watching ? html`<span class="watch-lock" aria-label="private">${icons.lock}</span>` : ''}
             ${st.mentions ? html`<span class="badge">${st.mentions}</span>` : ''}
           </a>`,
               )
@@ -1417,7 +1417,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-76';
+export const APP_BUILD = 'NV-77';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog)

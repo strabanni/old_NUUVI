@@ -1229,6 +1229,10 @@ test('only the site owner sees every private story; admins only see the ones the
   assert.ok(browse.includes('Secret Garden') && browse.includes('Writer Secret'));
   assert.ok(!(await boss('/api/stories')).data.stories.some((x) => x.title === 'Writer Secret'));
   assert.equal((await boss(`/api/users/${ownerId}`)).data.user.isOwner, true);
+  // The owner's sidebar lists other writers' private stories too (to read, nothing unread); an admin's doesn't.
+  const side = (await owner('/api/home')).data.stories.find((x) => x.title === 'Writer Secret');
+  assert.deepEqual([side.watching, side.role, side.unread], [true, null, 0]);
+  assert.ok(!(await boss('/api/home')).data.stories.some((x) => x.title === 'Writer Secret'));
   // The story's owner adds people by username.
   const writerName = (await writer('/api/me')).data.user.username;
   assert.equal(

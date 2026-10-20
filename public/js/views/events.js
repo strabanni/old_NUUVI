@@ -62,7 +62,7 @@ export function eventFeedCard(e) {
 
 // New / edit event. Returns the saved event (or 'deleted').
 export async function openEventForm({ event = null, storyId = null } = {}) {
-  const stories = state.home.stories;
+  const stories = state.home.stories.filter((s) => !s.watching); // only stories you're in
   if (!event && !stories.length) {
     toast('Join or start a story first');
     return null;

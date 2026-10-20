@@ -1,5 +1,11 @@
 [
   {
+    "code": "NV-77",
+    "date": "2026-10-20",
+    "title": "Small sidebar fixes",
+    "items": ["Small fixes to the story list in the sidebar and the rail."]
+  },
+  {
     "code": "NV-76",
     "date": "2026-10-20",
     "title": "A size picker that works, and a smaller Messages list",

@@ -92,10 +92,11 @@ export function storyRoutes(r, ctx) {
         (SELECT COUNT(*) FROM notifications n WHERE n.story_id = s.id AND n.user_id = :u
            AND n.read_at IS NULL AND n.type IN ('mention', 'turn')) AS mentions
       FROM stories s JOIN users u ON u.id = s.owner_id
-      JOIN story_members me ON me.story_id = s.id AND me.user_id = :u
-      ORDER BY me.rail_pos IS NOT NULL, me.rail_pos, s.updated_at DESC, s.id DESC`,
+      LEFT JOIN story_members me ON me.story_id = s.id AND me.user_id = :u
+      WHERE me.user_id IS NOT NULL OR (:owner = 1 AND s.visibility = 'private')
+      ORDER BY me.user_id IS NULL, me.rail_pos IS NOT NULL, me.rail_pos, s.updated_at DESC, s.id DESC`,
       )
-      .all({ u: user.id });
+      .all({ u: user.id, owner: user.isOwner ? 1 : 0 });
     // The badge: new since the Notifications tab was last opened (and not already answered).
     const notificationsUnread = db
       .prepare('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND seen_at IS NULL')
@@ -103,7 +104,13 @@ export function storyRoutes(r, ctx) {
     const reportsOpen = user.isAdmin ? db.prepare("SELECT COUNT(*) AS n FROM reports WHERE status = 'open'").get().n : 0;
     return {
       data: {
-        stories: rows.map((row) => ({ ...toStory(row), role: row.my_role, unread: row.unread, mentions: row.mentions })),
+        // The site owner also gets every other writer's private story at the end of their list, to
+        // read (they're not in it, so nothing counts as unread).
+        stories: rows.map((row) =>
+          row.my_role
+            ? { ...toStory(row), role: row.my_role, unread: row.unread, mentions: row.mentions }
+            : { ...toStory(row), role: null, unread: 0, mentions: 0, watching: true },
+        ),
         notificationsUnread,
         reportsOpen,
         messagesUnread: ctx.messageUnread?.(user.id) ?? 0,
