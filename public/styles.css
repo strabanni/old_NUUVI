@@ -7604,8 +7604,8 @@ dialog.modal {
   width: min(540px, calc(100vw / var(--ui-zoom) - 24px));
   max-height: calc(100dvh / var(--ui-zoom) - 24px);
 }
-.scale-seg {
-  flex-wrap: wrap;
+.ui-size-pick {
+  max-width: 260px;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
@@ -16058,151 +16058,182 @@ body.ph-full .ph-tabbar,
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
-   §76  Update window: "Our newest additions"
+   §76  Update window: "Our newest additions" (NUUVI's own night-time card)
    ══════════════════════════════════════════════════════════════════════════════ */
 dialog.modal.wn-modal {
-  width: min(420px, calc(100vw - 24px));
-  padding: 14px 14px 18px;
-  border-radius: 34px;
-  background: #fff;
-  color: #1d1c22;
+  width: min(430px, calc(100vw - 24px));
+  padding: 10px 10px 14px;
+  border-radius: 32px;
+  background: #160f1c;
+  color: #fff;
 }
 .wn-card {
   position: relative;
   overflow: hidden;
-  border-radius: 26px;
-  padding: 30px 22px 26px;
-  text-align: center;
-  color: #fff;
-  /* White at the top, melting into lilac and pink, like the reference. */
-  background:
-    linear-gradient(180deg, #fff 0%, rgb(255 255 255 / 0.85) 18%, rgb(255 255 255 / 0) 52%),
-    linear-gradient(115deg, #c79ae6 0%, #dca2d6 45%, #f28daa 100%);
+  isolation: isolate;
+  border-radius: 24px;
+  padding: 26px 20px 20px;
+  background: linear-gradient(165deg, #2b1630 0%, #1a1121 55%, #120c17 100%);
+  border: 1px solid rgb(238 113 158 / 0.18);
 }
-.wn-title {
-  margin: 0;
-  font-size: 2.1rem;
-  line-height: 1.08;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  color: #1d1c22;
-}
-.wn-title span {
-  display: block;
-}
-.wn-grad {
-  background: linear-gradient(90deg, #b996e6, #f08aa8);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.wn-sub {
-  margin: 12px 0 0;
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #9c98a6;
-}
-/* The glowing flower in soft rings */
-.wn-orb {
-  position: relative;
-  height: 190px;
-  margin: 6px 0 0;
-  display: grid;
-  place-items: center;
-}
-.wn-orb i {
+/* Soft pink and lilac light drifting behind */
+.wn-glow {
   position: absolute;
+  z-index: -1;
   border-radius: 50%;
-  border: 1px solid rgb(255 255 255 / 0.28);
-  background: radial-gradient(circle, rgb(255 255 255 / 0.1), transparent 70%);
+  filter: blur(40px);
+  opacity: 0.7;
 }
-.wn-orb .r1 {
-  width: 110px;
-  height: 110px;
+.wn-glow.g1 {
+  width: 240px;
+  height: 240px;
+  top: -70px;
+  left: -60px;
+  background: #ee719e;
+  animation: wn-drift 9s ease-in-out infinite alternate;
 }
-.wn-orb .r2 {
-  width: 180px;
-  height: 180px;
+.wn-glow.g2 {
+  width: 220px;
+  height: 220px;
+  top: 40px;
+  right: -90px;
+  background: #b8a6db;
+  animation: wn-drift 11s ease-in-out infinite alternate-reverse;
 }
-.wn-orb .r3 {
-  width: 260px;
-  height: 260px;
+@keyframes wn-drift {
+  to {
+    transform: translate(30px, 24px) scale(1.1);
+  }
 }
-.wn-flower {
-  position: relative;
-  width: 70px;
-  height: 70px;
+/* The update number, like a ticket stamp */
+.wn-stamp {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1.5px dashed rgb(255 255 255 / 0.55);
+  border-radius: 10px;
+  transform: rotate(-8deg);
+  line-height: 1.1;
+}
+.wn-stamp b {
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+}
+.wn-stamp small {
+  font-size: 0.62rem;
+  opacity: 0.75;
+}
+/* The NUUVI sparkle, glowing */
+.wn-spark {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 18px auto 6px;
   color: #fff;
-  filter: drop-shadow(0 0 10px rgb(255 255 255 / 0.95)) drop-shadow(0 0 22px rgb(255 255 255 / 0.6));
-  animation: wn-breathe 3.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px #ee719e) drop-shadow(0 0 22px rgb(238 113 158 / 0.8));
+  animation: wn-twinkle 2.8s ease-in-out infinite;
 }
-.wn-flower svg {
+.wn-spark svg {
   width: 100%;
   height: 100%;
   display: block;
 }
-@keyframes wn-breathe {
+@keyframes wn-twinkle {
   50% {
-    transform: scale(1.07);
+    transform: scale(1.12) rotate(8deg);
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wn-flower {
+  .wn-spark,
+  .wn-glow {
     animation: none;
   }
 }
-.wn-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin: 4px 0 14px;
-  padding: 6px 14px;
-  border-radius: 999px;
+.wn-title {
+  margin: 0;
+  text-align: center;
+  line-height: 1;
+}
+.wn-title small {
+  display: block;
   font-size: 0.78rem;
-  background: rgb(255 255 255 / 0.22);
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  color: rgb(255 255 255 / 0.75);
 }
-.wn-pill i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #fff;
+.wn-title span {
+  display: block;
+  margin-top: 6px;
+  font-size: 2.3rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: linear-gradient(90deg, #ee719e, #c79ad8 60%, #b8a6db);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
+.wn-name {
+  margin: 10px 0 16px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: rgb(255 255 255 / 0.8);
+}
+/* The notes: numbered rows */
 .wn-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 34vh;
+  max-height: 36vh;
   overflow-y: auto;
-  font-size: 0.92rem;
-  line-height: 1.5;
-  text-shadow: 0 1px 8px rgb(150 80 150 / 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.wn-list li + li {
-  margin-top: 10px;
+.wn-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.07);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.wn-num {
+  flex: none;
+  font-weight: 800;
+  font-size: 0.8rem;
+  color: #ee719e;
+  padding-top: 2px;
 }
 .wn-continue {
   display: block;
   width: 100%;
-  margin-top: 16px;
-  padding: 16px;
+  margin-top: 12px;
+  padding: 15px;
   border: 0;
   border-radius: 999px;
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: #fff;
-  background: linear-gradient(180deg, #3a3844, #1d1c24);
-  box-shadow: 0 10px 24px rgb(29 28 36 / 0.25);
+  background: linear-gradient(90deg, #ee719e, #c79ad8);
+  box-shadow: 0 10px 26px rgb(238 113 158 / 0.35);
 }
 dialog.modal.wn-modal .modal-x {
   position: absolute;
-  top: 22px;
-  right: 22px;
+  top: 20px;
+  right: 20px;
   margin: 0;
   float: none;
   z-index: 6;
-  color: #1d1c22;
-  background: rgb(255 255 255 / 0.7);
+  color: #fff;
+  background: rgb(255 255 255 / 0.12);
 }
 /* Dark mode: the floating search bar, compose button and Edit pill in iPhone's dark grey. */
 [data-theme='dark'] .pm-search,
@@ -16213,4 +16244,101 @@ dialog.modal.wn-modal .modal-x {
 [data-theme='mono-dark'] .pm-pill {
   background: #2c2c2e;
   box-shadow: 0 8px 28px rgb(0 0 0 / 0.5);
+}
+/* Phones: the Messages list about two sizes smaller, so more fits on screen. */
+@media (max-width: 899px) {
+  .pm-app {
+    padding: 6px 12px 0;
+  }
+  .pm-top {
+    margin-bottom: 12px;
+  }
+  .pm-pill {
+    padding: 6px 13px;
+    font-size: 0.85rem;
+  }
+  .pm-title {
+    font-size: 0.98rem;
+  }
+  .pm-round .avatar {
+    width: 26px;
+    height: 26px;
+  }
+  .pm-pins {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .pm-pin-av .avatar,
+  .pm-pin-av .ph-gav {
+    font-size: clamp(1.1rem, 6vw, 2rem);
+  }
+  .pm-pin-name {
+    font-size: 0.76rem;
+  }
+  .pm-unpin {
+    width: 22px;
+    height: 22px;
+    font-size: 1rem;
+  }
+  .pm-row {
+    gap: 10px;
+    padding-top: 8px;
+  }
+  .pm-dot {
+    width: 8px;
+    height: 8px;
+    margin-top: 17px;
+  }
+  .pm-av,
+  .pm-av .avatar,
+  .pm-av .ph-gav {
+    width: 42px;
+    height: 42px;
+  }
+  .pm-text {
+    padding-bottom: 9px;
+  }
+  .pm-line b {
+    font-size: 0.9rem;
+  }
+  .pm-line small {
+    font-size: 0.76rem;
+  }
+  .pm-line svg {
+    width: 11px;
+    height: 11px;
+  }
+  .pm-prev {
+    font-size: 0.82rem;
+  }
+  .pm-pinbtn {
+    width: 30px;
+    height: 30px;
+  }
+  .pm-dock {
+    margin: 6px -12px 0;
+    padding: 8px 12px 10px;
+    gap: 8px;
+  }
+  .pm-search {
+    height: 40px;
+    padding: 0 13px;
+    gap: 8px;
+  }
+  .pm-search input {
+    font-size: 16px; /* 16px stops iPhone zooming in when you tap the search box */
+  }
+  .pm-search svg {
+    width: 17px;
+    height: 17px;
+  }
+  .pm-compose {
+    width: 40px;
+    height: 40px;
+  }
+  .pm-compose svg {
+    width: 18px;
+    height: 18px;
+  }
 }

@@ -1417,7 +1417,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-75';
+export const APP_BUILD = 'NV-76';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog)
@@ -1430,18 +1430,21 @@ export async function showWhatsNew(entry) {
   const list = await loadChangelog();
   const e = entry || list[0];
   if (!e) return;
-  // Looks like a little welcome card: soft lilac-to-pink, a glowing flower, and what's new.
-  const flower =
-    '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="currentColor"><circle cx="50" cy="27" r="20"/><circle cx="72" cy="43" r="20"/><circle cx="64" cy="69" r="20"/><circle cx="36" cy="69" r="20"/><circle cx="28" cy="43" r="20"/></g></svg>';
+  // NUUVI's own update card: a night-time plum card with pink and lilac light, the NUUVI sparkle,
+  // a ticket-style stamp with the update number, and the notes as a numbered list.
+  const spark =
+    '<svg viewBox="58 12 35 36" aria-hidden="true"><path fill="currentColor" d="M75.5 15C76.6 25 79.5 28.4 90.5 29.8C79.5 31.2 76.6 34.6 75.5 45C74.4 34.6 71.5 31.2 60.5 29.8C71.5 28.4 74.4 25 75.5 15Z"/></svg>';
+  const when = new Date(`${e.date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   modal(
     html`
-    <div class="whats-new wn">
+    <div class="wn">
       <div class="wn-card">
-        <h2 class="wn-title"><span>OUR NEWEST</span><span class="wn-grad">ADDITIONS</span></h2>
-        <p class="wn-sub">Update ${e.code} · ${new Date(`${e.date}T12:00:00`).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-        <div class="wn-orb" aria-hidden="true"><i class="r3"></i><i class="r2"></i><i class="r1"></i><span class="wn-flower">${raw(flower)}</span></div>
-        <span class="wn-pill"><i></i>${e.title}</span>
-        <ul class="wn-list">${e.items.map((it) => html`<li>${it}</li>`)}</ul>
+        <span class="wn-glow g1" aria-hidden="true"></span><span class="wn-glow g2" aria-hidden="true"></span>
+        <span class="wn-stamp"><b>${e.code}</b><small>${when}</small></span>
+        <span class="wn-spark" aria-hidden="true">${raw(spark)}</span>
+        <h2 class="wn-title"><small>OUR NEWEST</small><span>ADDITIONS</span></h2>
+        <p class="wn-name">${e.title}</p>
+        <ol class="wn-list">${e.items.map((it, i) => html`<li><span class="wn-num">${String(i + 1).padStart(2, '0')}</span><span>${it}</span></li>`)}</ol>
       </div>
       <button type="button" class="wn-continue" data-close>Continue</button>
     </div>`,

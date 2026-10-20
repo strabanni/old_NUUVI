@@ -321,9 +321,9 @@ export function threadRoutes(r, ctx) {
       .prepare(
         `SELECT location AS l, COUNT(*) AS n FROM (
         SELECT c.location FROM channels c JOIN stories s ON s.id = c.story_id
-          WHERE c.location IS NOT NULL AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
+          WHERE c.location IS NOT NULL AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u) OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = :u AND ou.is_owner = 1))
         UNION ALL SELECT p.location FROM posts p JOIN stories s ON s.id = p.story_id
-          WHERE p.location IS NOT NULL AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
+          WHERE p.location IS NOT NULL AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u) OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = :u AND ou.is_owner = 1))
         UNION ALL SELECT location FROM social_posts WHERE location IS NOT NULL)
       GROUP BY l COLLATE NOCASE ORDER BY n DESC, l LIMIT 200`,
       )
@@ -395,7 +395,7 @@ export function threadRoutes(r, ctx) {
            AND p.id > COALESCE((SELECT last_read_id FROM channel_reads r WHERE r.channel_id = c.id AND r.user_id = :u), 0)
            AND EXISTS (SELECT 1 FROM story_members m WHERE m.story_id = c.story_id AND m.user_id = :u)) AS unread
       FROM channels c JOIN stories s ON s.id = c.story_id
-      WHERE (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
+      WHERE (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u) OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = :u AND ou.is_owner = 1))
         ${where.map((w) => `AND (${w})`).join(' ')}
       ORDER BY COALESCE(c.last_post_at, c.created_at) DESC, c.id DESC LIMIT ${Number(limit)}`,
       )

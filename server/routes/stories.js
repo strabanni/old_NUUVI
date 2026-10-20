@@ -123,7 +123,8 @@ export function storyRoutes(r, ctx) {
       requireUser(user);
       where.push('s.id IN (SELECT story_id FROM story_members WHERE user_id = ?)');
       args.push(user.id);
-    } else {
+    } else if (!user?.isOwner) {
+      // Everyone sees public stories; the site owner sees private ones too.
       where.push("s.visibility = 'public'");
     }
     if (q) {
@@ -132,7 +133,7 @@ export function storyRoutes(r, ctx) {
       args.push(like, like, like);
     }
     const rows = db
-      .prepare(`${STORY_SELECT} WHERE ${where.join(' AND ')} ORDER BY s.updated_at DESC, s.id DESC LIMIT 100`)
+      .prepare(`${STORY_SELECT} WHERE ${where.join(' AND ') || '1'} ORDER BY s.updated_at DESC, s.id DESC LIMIT 100`)
       .all(...args);
     return { data: { stories: rows.map(toStory) } };
   });

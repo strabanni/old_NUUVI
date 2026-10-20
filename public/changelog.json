@@ -1,5 +1,17 @@
 [
   {
+    "code": "NV-76",
+    "date": "2026-10-20",
+    "title": "Owner sees everything, and a size picker that works",
+    "items": [
+      "The site owner's account now says Owner (not admin) on their profile and in Settings.",
+      "The owner sees every private story and its episodes everywhere: Discover, THE NU, the map and the calendar, including stories that belong to admins.",
+      "Interface size in Settings is now a drop-down that opens your phone's own picker, so it works every time in the home-screen app.",
+      "On phones, the Messages list is smaller: four pinned circles across and more conversations on screen.",
+      "Update notes have a new NUUVI look: a night-time card with the NUUVI sparkle and numbered notes."
+    ]
+  },
+  {
     "code": "NV-75",
     "date": "2026-10-20",
     "title": "A new look for Messages and updates",

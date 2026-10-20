@@ -1224,6 +1224,11 @@ test('only the site owner sees every private story; admins only see the ones the
   // The owner sees an admin's private story too.
   const { story } = await makeStory(boss, { title: 'Secret Garden', visibility: 'private' });
   assert.equal((await owner(`/api/stories/${story.id}`)).status, 200);
+  // ...and finds every private story when browsing, and is labelled owner (not just admin).
+  const browse = (await owner('/api/stories')).data.stories.map((x) => x.title);
+  assert.ok(browse.includes('Secret Garden') && browse.includes('Writer Secret'));
+  assert.ok(!(await boss('/api/stories')).data.stories.some((x) => x.title === 'Writer Secret'));
+  assert.equal((await boss(`/api/users/${ownerId}`)).data.user.isOwner, true);
   // The story's owner adds people by username.
   const writerName = (await writer('/api/me')).data.user.username;
   assert.equal(

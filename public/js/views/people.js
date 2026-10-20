@@ -83,7 +83,7 @@ export async function viewUser(id) {
           <div>
             <h1 class="big-name u-grad"${userGrad(u)}>${u.displayName}</h1>
             <div class="handle">@${u.username} · joined ${timeAgo(u.joinedAt)}
-              ${u.isAdmin ? html` · <span class="grad-text">admin</span>` : ''}${u.suspended ? html` · <span class="muted">suspended</span>` : ''}</div>
+              ${u.isOwner ? html` · <span class="grad-text">owner</span>` : u.isAdmin ? html` · <span class="grad-text">admin</span>` : ''}${u.suspended ? html` · <span class="muted">suspended</span>` : ''}</div>
           </div>
         </div>
       </section>
@@ -231,17 +231,17 @@ export async function viewSettings() {
             <button type="button" data-names="${k}" aria-pressed="${(document.documentElement.dataset.names || '') === k}">${label}</button>`,
           )}</div>
           <p class="hint">Match my theme shows every character's name in plain black (Light) or white (Dark) instead of their color or gradient.</p>
-          <label>Interface size</label>
-          <div class="seg scale-seg" role="group" aria-label="Interface size">${[
+          <label for="ui-size">Interface size</label>
+          <select id="ui-size" class="ui-size-pick">${[
             ['xsmall', 'Smallest'],
             ['compact', 'Small'],
             ['standard', 'Standard'],
             ['large', 'Large'],
             ['xlarge', 'Largest'],
           ].map(
-            ([k, label]) => html`
-            <button type="button" data-ui-size="${k}" aria-pressed="${document.documentElement.dataset.ui === k}">${label}</button>`,
-          )}</div>
+            ([k, label]) =>
+              html`<option value="${k}" ${document.documentElement.dataset.ui === k ? 'selected' : ''}>${label}</option>`,
+          )}</select>
           <p class="hint">Makes the whole app smaller or bigger on this device: buttons, text and pictures together.</p>
           <p class="hint">Light and Dark use pink (#EE719E) only for highlights. Auto follows your device's light or dark setting.</p>
           <p class="hint">Icons: <a href="https://framework7.io/icons/" target="_blank" rel="noopener noreferrer">Framework7 Icons</a> (iOS style, MIT licence).</p>
@@ -367,7 +367,7 @@ export async function viewSettings() {
 
         <section class="card">
           <h2>Account</h2>
-          <p class="muted small">Signed in as @${u.username}${u.isAdmin ? ' (admin)' : ''}.</p>
+          <p class="muted small">Signed in as @${u.username}${u.isOwner ? ' (owner)' : u.isAdmin ? ' (admin)' : ''}.</p>
           <button id="logout">${icons.back} Sign out</button>
         </section>
       </div>`,
@@ -463,29 +463,28 @@ export async function viewSettings() {
       body.querySelectorAll('[data-names]').forEach((b) => b.setAttribute('aria-pressed', String(b === nm)));
       return;
     }
-    const us = e.target.closest('[data-ui-size]');
-    if (us) {
-      if (us.dataset.uiSize === document.documentElement.dataset.ui) return;
-      try {
-        localStorage.setItem('nuuvi:ui', us.dataset.uiSize);
-      } catch {
-        /* ignore */
-      }
-      body.querySelectorAll('[data-ui-size]').forEach((b) => b.setAttribute('aria-pressed', String(b === us)));
-      // Phones and tablets (the home-screen app especially) don't fully re-measure the screen when
-      // the size changes, so parts of the page kept the old size. Reloading starts fresh at the new size.
-      if (window.nuuviScale?.touch) {
-        toast('Changing the size…');
-        setTimeout(() => location.reload(), 250);
-        return;
-      }
-      window.nuuviScale?.apply(us.dataset.uiSize);
-      return;
-    }
     const sw = e.target.closest('[data-theme-pick]');
     if (!sw) return;
     applyTheme(sw.dataset.themePick);
     body.querySelectorAll('[data-theme-pick]').forEach((b) => b.setAttribute('aria-pressed', String(b === sw)));
+  });
+  // Interface size: a drop-down (the phone's own picker), which every phone can tap reliably.
+  $('#ui-size', body).addEventListener('change', (e) => {
+    const size = e.target.value;
+    if (size === document.documentElement.dataset.ui) return;
+    try {
+      localStorage.setItem('nuuvi:ui', size);
+    } catch {
+      /* ignore */
+    }
+    // Phones and tablets (the home-screen app especially) don't fully re-measure the screen when
+    // the size changes, so parts of the page kept the old size. Reloading starts fresh at the new size.
+    if (window.nuuviScale?.touch) {
+      toast('Changing the size…');
+      setTimeout(() => location.reload(), 250);
+      return;
+    }
+    window.nuuviScale?.apply(size);
   });
   $('#whats-new', body).addEventListener('click', () => showWhatsNew());
   // Save sits at the top of the page, always in reach.

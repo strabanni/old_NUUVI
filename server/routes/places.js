@@ -90,7 +90,7 @@ export function placeRoutes(r, ctx) {
         COALESCE(c.last_post_at, c.created_at) AS active_at
       FROM channels c JOIN stories s ON s.id = c.story_id
       WHERE c.kind IN ('thread', 'para', 'event') AND c.status = 'open' AND s.completed_at IS NULL
-        AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))
+        AND (s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u) OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = :u AND ou.is_owner = 1))
       ORDER BY active_at DESC`,
       )
       .all({ u: userId });

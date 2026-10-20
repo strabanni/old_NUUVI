@@ -17,7 +17,7 @@ export function socialRoutes(r, ctx) {
   const { db } = ctx;
 
   // Channels in stories the viewer can see.
-  const VISIBLE = `(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :viewer))`;
+  const VISIBLE = `(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :viewer) OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = :viewer AND ou.is_owner = 1))`;
 
   function stats(characterId, viewerId) {
     return db

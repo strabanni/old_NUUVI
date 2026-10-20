@@ -60,7 +60,8 @@ export function worldRoutes(r, ctx) {
   const character = (id) => db.prepare('SELECT * FROM characters WHERE id = ?').get(id);
   const blockedEither = (a, b) => isBlocked(db, a, b) || isBlocked(db, b, a);
   // Stories the viewer may see (public, or ones they're in).
-  const VISIBLE = "(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :viewer))";
+  const VISIBLE =
+    "(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :viewer) OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = :viewer AND ou.is_owner = 1))";
 
   // ---------- Ties ----------
   const toTie = (t, other, mirror) => ({

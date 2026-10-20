@@ -13,7 +13,7 @@ function dateInput(value, field, { required = false } = {}) {
 
 export function eventRoutes(r, ctx) {
   const { db, hub } = ctx;
-  const VISIBLE = `(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u))`;
+  const VISIBLE = `(s.visibility = 'public' OR s.id IN (SELECT story_id FROM story_members WHERE user_id = :u) OR EXISTS (SELECT 1 FROM users ou WHERE ou.id = :u AND ou.is_owner = 1))`;
   const SELECT = `SELECT e.*, s.title AS story_title, s.color AS story_color, s.icon AS story_icon, s.banner AS story_banner,
       (SELECT COUNT(*) FROM channels c WHERE c.event_id = e.id) AS thread_count
     FROM events e JOIN stories s ON s.id = e.story_id`;
