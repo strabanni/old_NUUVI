@@ -29,11 +29,10 @@ export async function viewDirectory() {
   // main cast.
   const mine = myAll.filter((c) => !c.npc);
   const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-  // Meet The Cast: every writer (you first) with their characters A to Z.
-  const writers = everyone
-    .map((w) => ({ ...w, characters: w.characters.filter((c) => !c.npc).sort(byName) }))
-    .sort((a, b) => (b.id === state.user.id) - (a.id === state.user.id));
+  const writers = everyone.map((w) => ({ ...w, characters: w.characters.filter((c) => !c.npc) }));
   const characterCount = writers.reduce((n, w) => n + w.characters.length, 0);
+  // Everyone's main cast in one A to Z list, each with their writer (anonymous accounts too).
+  const cast = [...writers.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w }))), ...anonymous].sort(byName);
   // The Directory opens on Meet The Cast (unless another view was picked); #/locations opens it on
   // the Locations map once, and #/characters on "Me". ("All characters" is now part of Meet The Cast.)
   let view = sessionStorage.getItem('nuuvi:dir-once') || sessionStorage.getItem('nuuvi:dir-view') || 'writers';
@@ -91,38 +90,33 @@ export async function viewDirectory() {
         }`,
       );
     } else if (view === 'writers') {
-      const shown = writers
-        .map((w) => ({
-          ...w,
-          shownChars: match(w.username, w.displayName)
-            ? w.characters
-            : w.characters.filter((c) => match(c.name, c.handle, c.tagline)),
-        }))
-        .filter((w) => match(w.username, w.displayName) || w.shownChars.length);
+      // Meet The Cast: every main character (yours included) A to Z under letter headings, four
+      // across, each with the writer who plays them.
+      const shown = cast.filter((c) => match(c.name, c.handle, c.tagline, c.writer?.username, c.writer?.displayName));
+      const groups = new Map();
+      for (const c of shown) {
+        const letter = /^[a-z]/i.test(c.name) ? c.name[0].toUpperCase() : '#';
+        if (!groups.has(letter)) groups.set(letter, []);
+        groups.get(letter).push(c);
+      }
+      const tile = (c) => html`
+        <a class="cast-tile" href="#/c/${c.id}" data-color="${c.color}">
+          <span class="ct-pic">${c.avatar || c.portrait ? html`<img src="${c.avatar || c.portrait}" alt="" loading="lazy">` : html`<span class="ct-initial">${c.name.charAt(0).toUpperCase()}</span>`}</span>
+          <b class="ct-name">${c.name}</b>
+          <small class="ct-writer">${c.writer ? (c.writer.id === state.user.id ? 'You' : `@${c.writer.username}`) : 'Anonymous'}</small>
+        </a>`;
       render(
         list,
         shown.length
-          ? html`${shown.map(
-              (w) => html`
-        <section class="dir-writer">
-          <a class="dir-head" href="#/u/${w.id}">
-            <span class="av-wrap ${state.online.includes(w.id) ? 'is-online' : ''}">${avatar({ name: w.displayName, src: w.avatar, color: '#48484A' })}<i class="online-dot"></i></span>
-            <span class="grow"><b>@${w.username}</b><small>${w.id === state.user.id ? 'You · ' : ''}${w.displayName !== w.username ? `${w.displayName} · ` : ''}${w.characters.length} ${w.characters.length === 1 ? 'character' : 'characters'}</small></span>
-          </a>
-          ${
-            w.shownChars.length
-              ? html`<div class="char-grid compact">${w.shownChars.map((c) => characterCard(c))}</div>`
-              : html`<p class="muted small">No characters yet.</p>`
-          }
-        </section>`,
-            )}
-        ${
-          anonymous.length
-            ? html`<section class="dir-writer"><div class="dir-head"><span class="grow"><b>Accounts</b><small>Run anonymously</small></span></div>
-          <div class="char-grid compact">${anonymous.map((c) => characterCard(c))}</div></section>`
-            : ''
-        }`
-          : html`<div class="empty"><p>Nobody matches “${q}”.</p></div>`,
+          ? html`<nav class="cast-letters no-swipe" aria-label="Jump to a letter">${[...groups.keys()].map(
+              (l) => html`<a href="#" data-letter="${l}">${l}</a>`,
+            )}</nav>
+        ${[...groups].map(
+          ([letter, chars]) => html`
+        <h2 class="cast-letter" id="cast-${letter === '#' ? 'num' : letter}">${letter}</h2>
+        <div class="cast-four">${chars.map(tile)}</div>`,
+        )}`
+          : html`<div class="empty"><p>${q ? `Nobody matches “${q}”.` : 'No characters yet.'}</p></div>`,
       );
     } else if (view === 'brands') {
       // Brand accounts: shops, labels, cafés, magazines… that post on THE NU.
@@ -274,6 +268,13 @@ export async function viewDirectory() {
   }
   draw();
   body.addEventListener('click', async (e) => {
+    const jump = e.target.closest('[data-letter]');
+    if (jump) {
+      e.preventDefault();
+      const l = jump.dataset.letter;
+      $(`#cast-${l === '#' ? 'num' : l}`, list)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     const pt = e.target.closest('[data-ptag]');
     if (pt && view === 'places') {
       placeTag = pt.dataset.ptag === placeTag ? '' : pt.dataset.ptag;
