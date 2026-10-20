@@ -25,6 +25,7 @@ import { profileRoutes } from './routes/profiles.js';
 import { messageRoutes } from './routes/messages.js';
 import { aiRoutes } from './routes/ai.js';
 import { placeRoutes } from './routes/places.js';
+import { devRoutes } from './routes/dev.js';
 import { planRoutes } from './routes/plans.js';
 import { socialStoryRoutes } from './routes/social-stories.js';
 import { readClock, writeClock, storyNowSql, publicClock } from './clock.js';
@@ -232,21 +233,23 @@ export function createApp({
     url:
       row.type === 'report'
         ? '#/admin'
-        : row.type === 'dm' || row.type === 'call'
-          ? phoneUrl(row)
-          : row.social_id
-            ? `#/p/${row.social_id}`
-            : row.type === 'message'
-              ? `#/messages/${row.actor_id}`
-              : row.type === 'connection'
-                ? '#/nu'
-                : ['follow', 'followreq', 'tie', 'batch'].includes(row.type) && row.character_id
-                  ? `#/c/${row.character_id}`
-                  : row.type === 'added' && row.story_id
-                    ? `#/s/${row.story_id}`
-                    : row.story_id && row.channel_id
-                      ? `#/s/${row.story_id}/${row.channel_id}`
-                      : '#/notifications',
+        : row.type === 'dev'
+          ? `#/dev/${row.dev_id}`
+          : row.type === 'dm' || row.type === 'call'
+            ? phoneUrl(row)
+            : row.social_id
+              ? `#/p/${row.social_id}`
+              : row.type === 'message'
+                ? `#/messages/${row.actor_id}`
+                : row.type === 'connection'
+                  ? '#/nu'
+                  : ['follow', 'followreq', 'tie', 'batch'].includes(row.type) && row.character_id
+                    ? `#/c/${row.character_id}`
+                    : row.type === 'added' && row.story_id
+                      ? `#/s/${row.story_id}`
+                      : row.story_id && row.channel_id
+                        ? `#/s/${row.story_id}/${row.channel_id}`
+                        : '#/notifications',
   });
 
   const snippet = (post) => {
@@ -265,6 +268,7 @@ export function createApp({
     socialId = null,
     fromCharacterId = null,
     phoneThreadId = null,
+    devId = null,
     text = '',
   }) {
     let notificationId;
@@ -300,11 +304,23 @@ export function createApp({
       notificationId = Number(
         db
           .prepare(
-            `INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, character_id, social_id, from_character_id, phone_thread_id, text)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO notifications (user_id, type, actor_id, story_id, channel_id, post_id, character_id, social_id, from_character_id, phone_thread_id, dev_id, text)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(userId, type, actorId, storyId, channelId, postId, characterId, socialId, fromCharacterId, phoneThreadId, text)
-          .lastInsertRowid,
+          .run(
+            userId,
+            type,
+            actorId,
+            storyId,
+            channelId,
+            postId,
+            characterId,
+            socialId,
+            fromCharacterId,
+            phoneThreadId,
+            devId,
+            text,
+          ).lastInsertRowid,
       );
     }
     const n = ctx.toNotification(db.prepare(`${ctx.notificationSql} WHERE n.id = ?`).get(notificationId));
@@ -454,6 +470,7 @@ export function createApp({
   messageRoutes(router, ctx);
   aiRoutes(router, ctx);
   placeRoutes(router, ctx);
+  devRoutes(router, ctx);
   planRoutes(router, ctx);
   socialStoryRoutes(router, ctx);
   worldRoutes(router, ctx);

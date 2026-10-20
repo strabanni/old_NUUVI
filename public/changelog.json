@@ -1,5 +1,17 @@
 [
   {
+    "code": "NV-69",
+    "date": "2026-10-20",
+    "title": "The Development hub",
+    "items": [
+      "New in the sidebar: Development, one place for everyone's plot points, ideas and storyline concepts.",
+      "Tap New to add one. Pick Plot point, Idea or Storyline, give it a title and details, and set where it's at: Open, Developing, Used in a story or Shelved.",
+      "Tap any card to read it in full and talk it over in the comments. Whoever wrote a note gets a notification when someone comments.",
+      "Use the tabs, the search box, the status filter and Only mine to find things. The writer of a note can change it, pin it to the top, or remove it.",
+      "Tick Only me to keep a note as a private draft that nobody else can see."
+    ]
+  },
+  {
     "code": "NV-68",
     "date": "2026-10-19",
     "title": "Profile pictures no longer hidden by banners",

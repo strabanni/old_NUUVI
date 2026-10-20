@@ -38,6 +38,7 @@ import { viewDirectory } from './views/directory.js';
 import { viewPhone, viewPhoneThread } from './views/phone.js';
 import { viewLore } from './views/overview.js';
 import { viewArchive } from './views/archive.js';
+import { viewDev } from './views/dev.js';
 import { viewProfiles, viewProfile } from './views/profiles.js';
 import { viewNpcs, viewLocations } from './views/npcs.js';
 import { viewSocialPost } from './views/social.js';
@@ -482,6 +483,7 @@ function renderSidebar() {
         ${link('#/phone', 'Phone', icons.smartphone)}
         <span class="desk-only-block">${link('#/messages', 'Messages', icons.chat, state.home.messagesUnread)}</span>
         ${link('#/directory', 'Directory', icons.users)}
+        ${link('#/dev', 'Development', icons.sparkles)}
         ${link('#/archive', 'Archive', icons.archive)}
         ${link('#/lore', 'Lore', icons.book)}
         ${link('#/discover', 'Discover', icons.compass)}
@@ -1317,6 +1319,7 @@ const routes = [
   [/^#\/locations$/, viewLocations, true],
   [/^#\/lore$/, viewLore, true],
   [/^#\/archive$/, viewArchive, true],
+  [/^#\/dev(?:\/(\d+))?$/, viewDev, true],
   [/^#\/profiles$/, viewProfiles, true],
   [/^#\/profiles\/(\d+)$/, viewProfile, true],
   [/^#\/phone(?:\/(\d+))?$/, viewPhone, true],
@@ -1414,7 +1417,7 @@ export function signedOut() {
 // ---------- What's new ----------
 // Each update has a code (public/changelog.json, newest first). The first time you open NUUVI after an
 // update, a card shows what changed. If an update lands while NUUVI is open, a bar offers to refresh.
-export const APP_BUILD = 'NV-68';
+export const APP_BUILD = 'NV-69';
 let changelog = null;
 export async function loadChangelog() {
   if (!changelog)

@@ -80,6 +80,7 @@
    §71  Back-to-top button, banner fit, timeline and ties tweaks
    §72  Phone: Messages / Contacts tabs and an iPhone-style Contacts app
    §73  Photo batches for supporting cast
+   §74  Development hub (plot points, ideas, storylines)
 */
 
 /* NUUVI — frosted-glass design system in the NUUVI palette.
@@ -15633,4 +15634,194 @@ body.ph-full .ph-tabbar,
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 12px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   §74  Development hub (plot points, ideas, storylines)
+   ══════════════════════════════════════════════════════════════════════════════ */
+.dev-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.dev-bar .search {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.dev-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.dev-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dev-filters select {
+  width: auto;
+}
+.dev-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+/* Each kind has its own colour: plot points pink, ideas amber, storylines blue. */
+.kind-plot {
+  --dk: #e0446a;
+}
+.kind-idea {
+  --dk: #d99a1e;
+}
+.kind-storyline {
+  --dk: #3a7bd5;
+}
+.dev-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 14px 16px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border-radius: 18px;
+  border: 1px solid var(--glass-border);
+  border-top: 4px solid var(--dk);
+  background: var(--glass-solid, var(--glass-2));
+  cursor: pointer;
+  white-space: normal;
+  min-width: 0;
+}
+.dev-card:hover {
+  border-color: var(--dk);
+}
+.dev-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.dev-kind-tag,
+.dev-status,
+.dev-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.dev-kind-tag {
+  color: #fff;
+  background: var(--dk);
+}
+.dev-status {
+  background: var(--glass-3);
+  color: var(--text);
+}
+.dev-status.st-used {
+  background: rgba(46, 158, 110, 0.18);
+}
+.dev-status.st-shelved {
+  opacity: 0.7;
+}
+.dev-flag {
+  color: var(--muted);
+  padding: 2px 4px;
+}
+.dev-flag svg {
+  width: 13px;
+  height: 13px;
+}
+.dev-title {
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+.dev-snip {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.dev-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.dev-cc {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dev-cc svg {
+  width: 14px;
+  height: 14px;
+}
+.dev-empty svg {
+  width: 40px;
+  height: 40px;
+}
+.dev-kind {
+  margin-bottom: 6px;
+}
+.dev-open h2 {
+  margin: 10px 0 4px;
+}
+.dev-by {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+.dev-body {
+  overflow-wrap: anywhere;
+}
+.dev-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 4px;
+}
+.dev-c-head {
+  margin: 20px 0 8px;
+  font-size: 1rem;
+}
+.dev-comments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dev-comments li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.dev-c-body {
+  overflow-wrap: anywhere;
+}
+.dev-c-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+.dev-c-form textarea {
+  flex: 1;
+  min-width: 0;
 }

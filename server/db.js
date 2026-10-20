@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { capitalizeName } from './text.js';
 
-const SCHEMA_VERSION = 30;
+const SCHEMA_VERSION = 31;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -688,6 +688,31 @@ export const MIGRATIONS = [
      paused       INTEGER NOT NULL DEFAULT 0,
      created_at   TEXT NOT NULL DEFAULT (datetime('now'))
    );`,
+  // v31: the Development hub, where writers keep plot points, ideas and storyline concepts, and
+  // talk them over in comments.
+  `CREATE TABLE dev_notes (
+     id         INTEGER PRIMARY KEY,
+     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     kind       TEXT NOT NULL DEFAULT 'idea',
+     title      TEXT NOT NULL,
+     body       TEXT NOT NULL DEFAULT '',
+     status     TEXT NOT NULL DEFAULT 'open',
+     private    INTEGER NOT NULL DEFAULT 0,
+     pinned     INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX dev_notes_updated_idx ON dev_notes(updated_at);
+   CREATE TABLE dev_comments (
+     id         INTEGER PRIMARY KEY,
+     note_id    INTEGER NOT NULL REFERENCES dev_notes(id) ON DELETE CASCADE,
+     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     body       TEXT NOT NULL,
+     created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX dev_comments_note_idx ON dev_comments(note_id, id);
+   -- Notifications about a Development note (a comment on it) link straight to it.
+   ALTER TABLE notifications ADD COLUMN dev_id INTEGER;`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

@@ -27,6 +27,7 @@ A guide to where everything lives, in plain words. If you want to change somethi
 | Episodes and story chats | `public/js/views/channel.js`, `public/js/views/threads.js`, `server/routes/threads.js`, `server/routes/posts.js` |
 | Home | `public/js/views/home.js` |
 | Directory, Supporting Cast and Locations | `public/js/views/directory.js`, `npcs.js`, `map.js` |
+| The Development hub (plot points, ideas, storylines) | `public/js/views/dev.js` (screen) and `server/routes/dev.js` (saving) |
 | Calendar events and plans | `public/js/views/events.js`, `plans.js` |
 | Settings and user profiles | `public/js/views/people.js` |
 | Admin tools | `public/js/views/admin.js` and `server/routes/admin.js` |
@@ -74,6 +75,7 @@ A guide to where everything lives, in plain words. If you want to change somethi
 | `routes/messages.js` | Messages between writers. |
 | `routes/profiles.js` | Character profiles (About tab). |
 | `routes/world.js` | Ties (with their colours), the family-tree chart and the Timeline. |
+| `routes/dev.js` | The Development hub: plot points, ideas and storylines, with comments. |
 | `routes/batches.js` | Photo batches: pictures supporting cast post by themselves every few days. |
 | `routes/events.js` | Calendar events. |
 | `routes/plans.js` | Character plans on the calendar. |

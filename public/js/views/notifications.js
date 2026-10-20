@@ -48,7 +48,7 @@ function describe(n) {
 const GROUPS = {
   all: () => true,
   mentions: (n) => ['mention', 'reply', 'tag', 'socialtag', 'dm', 'call', 'message', 'turn', 'followreq'].includes(n.type),
-  activity: (n) => ['post', 'like', 'comment', 'follow', 'tie'].includes(n.type),
+  activity: (n) => ['post', 'like', 'comment', 'follow', 'tie', 'dev'].includes(n.type),
   system: (n) =>
     ['report'].includes(n.type) ||
     ![
@@ -66,6 +66,7 @@ const GROUPS = {
       'follow',
       'followreq',
       'tie',
+      'dev',
     ].includes(n.type),
 };
 const TAB_LABELS = [
@@ -130,7 +131,7 @@ export async function viewNotifications() {
         <span class="notif-icon">${iconFor(n)}</span>
         <span class="grow">
           <span>${describe(n)}</span>
-          ${n.text && !['report', 'follow', 'followreq', 'tie', 'call', 'tag', 'added', 'batch'].includes(n.type) ? html`<span class="notif-text">${n.text}</span>` : ''}
+          ${n.text && !['report', 'follow', 'followreq', 'tie', 'call', 'tag', 'added', 'batch', 'dev'].includes(n.type) ? html`<span class="notif-text">${n.text}</span>` : ''}
         </span>
         <span class="notif-when">${timeAgo(n.createdAt)}</span>
       </a>`,

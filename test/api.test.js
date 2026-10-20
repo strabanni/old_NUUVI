@@ -1964,3 +1964,39 @@ test('supporting cast post photo batches by themselves', async () => {
   assert.equal((await a(`/api/characters/${npc.id}/batch`, { method: 'DELETE' })).status, 200);
   assert.equal((await a(`/api/characters/${npc.id}/batch`)).data.batch, null);
 });
+
+test('development hub: plot points, ideas and storylines with comments', async () => {
+  const a = await app.signUp('dev_a');
+  const b = await app.signUp('dev_b');
+  assert.equal((await a('/api/dev', { method: 'POST', body: { title: '' } })).status, 400);
+  assert.equal((await a('/api/dev', { method: 'POST', body: { title: 'x', kind: 'recipe' } })).status, 400);
+  const plot = (
+    await a('/api/dev', {
+      method: 'POST',
+      body: { kind: 'plot', title: 'The blackout', body: 'The whole city loses power for a night.' },
+    })
+  ).data.note;
+  assert.deepEqual([plot.kind, plot.status, plot.private, plot.canEdit], ['plot', 'open', false, true]);
+  const secret = (await a('/api/dev', { method: 'POST', body: { title: 'Twist', private: true } })).data.note;
+  // Everyone sees shared notes; "only me" notes stay with their writer.
+  const seen = (await b('/api/dev')).data.notes.map((n) => n.title);
+  assert.ok(seen.includes('The blackout') && !seen.includes('Twist'));
+  assert.equal((await b(`/api/dev/${secret.id}`)).status, 404);
+  assert.equal((await b(`/api/dev/${plot.id}`)).data.note.canEdit, false);
+  // Only the writer changes it.
+  assert.equal((await b(`/api/dev/${plot.id}`, { method: 'PUT', body: { status: 'used' } })).status, 403);
+  const moved = await a(`/api/dev/${plot.id}`, { method: 'PUT', body: { status: 'developing', pinned: true } });
+  assert.deepEqual([moved.data.note.status, moved.data.note.pinned], ['developing', true]);
+  // Comments, and the writer hears about them (the notification opens the note).
+  await b(`/api/dev/${plot.id}/comments`, { method: 'POST', body: { body: 'Ooh, during the gala?' } });
+  const n = (await a('/api/notifications')).data.notifications.find((x) => x.type === 'dev');
+  assert.equal(n.url, `#/dev/${plot.id}`);
+  const full = (await a(`/api/dev/${plot.id}`)).data;
+  assert.deepEqual(
+    [full.comments.length, full.comments[0].body, full.comments[0].canDelete, full.note.commentCount],
+    [1, 'Ooh, during the gala?', true, 1],
+  );
+  assert.equal((await b(`/api/dev/${plot.id}`, { method: 'DELETE' })).status, 403);
+  assert.equal((await a(`/api/dev/${plot.id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await b(`/api/dev/${plot.id}`)).status, 404);
+});
