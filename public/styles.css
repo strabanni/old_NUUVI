@@ -10270,6 +10270,13 @@ dialog.sheet.closing {
 .dossier[data-grad] .ds-title {
   background-image: var(--g);
 }
+/* About → The basics: everything shown in capitals (what's typed is kept as it is). */
+.ds-facts,
+.ds-facts .ds-title,
+.ds-facts dt,
+.ds-facts dd {
+  text-transform: uppercase;
+}
 .ds-facts dl {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));

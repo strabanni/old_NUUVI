@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-81",
+    "date": "2026-10-21",
+    "title": "The basics in capitals",
+    "items": [
+      "In a character's About tab, everything in The basics now shows in capital letters automatically, however it was typed."
+    ]
+  },
+  {
     "code": "NV-80",
     "date": "2026-10-21",
     "title": "Directory: every character in the carousel",
