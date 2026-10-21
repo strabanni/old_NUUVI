@@ -20,6 +20,7 @@ import { forgetLocations } from './threads.js';
 import { mountCityMap, placeCard, dropMap as dropMapOf } from './map.js';
 import { state, page, routeAlive, ensureAlive, onLeave, myCharacters } from '../main.js';
 import { characterCard, editCharacter } from './characters.js';
+import { compact } from './social.js';
 
 // Characters A to Z under letter headings, four across, each with their thread icon (what they look
 // like in episodes; their profile picture if they have none) and a line under the name. Used by
@@ -49,6 +50,44 @@ function castAtoZ(chars, sub, empty) {
     )}`;
 }
 
+// The stage at the top of the Directory: a dark, violet-lit stage with MEET THE CAST in huge letters
+// behind a row of floating character cards (the most-followed, the biggest in the middle), little
+// labels around the edges and glass bubbles drifting by.
+const picOf = (c) => c.threadAvatar || c.avatar || c.portrait;
+const followersOf = (c) => c.followersDisplay ?? c.followers ?? 0;
+function castStage(cast, writerCount) {
+  const top = [...cast]
+    .filter((c) => c.writer)
+    .sort((a, b) => followersOf(b) - followersOf(a) || a.name.localeCompare(b.name))
+    .slice(0, 7);
+  // Biggest in the middle, then alternating left and right.
+  const row = [];
+  top.forEach((c, i) => (i % 2 ? row.push(c) : row.unshift(c)));
+  const mid = Math.floor(row.length / 2);
+  const bubble = (cls) => html`<span class="stage-bubble ${cls}" aria-hidden="true"></span>`;
+  return html`
+    <section class="cast-stage" aria-label="Meet the cast">
+      <span class="stage-word w1" aria-hidden="true">MEET THE</span>
+      <span class="stage-word w2" aria-hidden="true">CAST</span>
+      <span class="stage-tag t1">NUUVI</span>
+      <span class="stage-tag t2">${writerCount} ${writerCount === 1 ? 'WRITER' : 'WRITERS'}</span>
+      <span class="stage-tag t3">${cast.length} ${cast.length === 1 ? 'CHARACTER' : 'CHARACTERS'}</span>
+      <span class="stage-tag t4">ARDELL CITY</span>
+      ${bubble('b1')}${bubble('b2')}${bubble('b3')}
+      <div class="stage-row no-swipe">${row.map(
+        (c, i) => html`
+        <a class="stage-card" href="#/c/${c.id}" data-color="${c.color}" data-d="${Math.abs(i - mid)}">
+          ${picOf(c) ? html`<img src="${picOf(c)}" alt="" loading="lazy">` : html`<span class="stage-initial">${c.name.charAt(0).toUpperCase()}</span>`}
+          <span class="stage-chip">${icons.users} ${compact(followersOf(c))}</span>
+          <span class="stage-star" aria-hidden="true">${c.verified ? icons.verified : icons.starOutline}</span>
+          <span class="stage-who">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}
+            <span><b>${c.name}</b><small>PLAYED BY ${c.writer.id === state.user.id ? 'YOU' : `@${c.writer.username}`}</small></span></span>
+        </a>`,
+      )}</div>
+      <p class="stage-blurb">EVERY WRITER IN ARDELL CITY AND THE CHARACTERS THEY PLAY. TAP ANYONE TO MEET THEM.</p>
+    </section>`;
+}
+
 export async function viewDirectory() {
   const alive = routeAlive();
   const [{ writers: everyone, anonymous = [] }, myAll] = await Promise.all([api('/api/directory'), myCharacters(true)]);
@@ -76,9 +115,9 @@ export async function viewDirectory() {
   const body = page({
     alive,
     title: 'Directory',
-    banner: 'Writers and the characters they play',
     subtitle: `${writers.length} writers · ${characterCount} characters`,
     body: html`
+      ${cast.length ? castStage(cast, writers.length) : ''}
       <div class="dir-tools">
         <input type="search" class="search" id="dir-q" placeholder="Search names, usernames, taglines…" aria-label="Search the directory">
         <div class="seg dir-tabs no-swipe" role="group" aria-label="Show">
@@ -91,6 +130,11 @@ export async function viewDirectory() {
       </div>
       <div id="dir-list" class="no-swipe"></div>`,
   });
+  applyColors(body); // the stage's cards
+  // Start the row of cards on the biggest one, in the middle.
+  const stageRow = $('.stage-row', body);
+  const middle = $('.stage-card[data-d="0"]', body);
+  if (stageRow && middle) stageRow.scrollLeft = middle.offsetLeft - (stageRow.clientWidth - middle.offsetWidth) / 2;
   const list = $('#dir-list', body);
   const match = (...fields) => !q || fields.some((f) => (f || '').toLowerCase().includes(q));
 

@@ -83,6 +83,7 @@
    §74  Development hub (plot points, ideas, storylines)
    §75  Phone: the Messages list, like iPhone Messages
    §76  Update window: "Our newest additions"
+   §77  Directory stage: MEET THE CAST
 */
 
 /* NUUVI — frosted-glass design system in the NUUVI palette.
@@ -16370,4 +16371,385 @@ dialog.modal.wn-modal .modal-x {
 .rail-item .watch-lock svg {
   width: 11px;
   height: 11px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   §77  Directory stage: MEET THE CAST
+   ══════════════════════════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: 'Bebas Neue';
+  src: url('/fonts/bebas-neue.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+/* A dark stage lit violet from the middle, in light and dark mode alike. */
+.cast-stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-bottom: 18px;
+  padding: 44px 0 22px;
+  border-radius: 28px;
+  color: #fff;
+  background:
+    radial-gradient(ellipse 55% 70% at 50% 45%, rgb(150 110 255 / 0.85), rgb(84 46 196 / 0.45) 45%, transparent 75%),
+    radial-gradient(ellipse 30% 40% at 85% 75%, rgb(238 113 158 / 0.35), transparent 70%), #07060c;
+}
+/* The huge letters behind the cards */
+.stage-word {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: -1;
+  text-align: center;
+  font-family: 'Bebas Neue', 'Arial Narrow', Impact, sans-serif;
+  font-size: clamp(5rem, 17vw, 13rem);
+  line-height: 0.85;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  background: linear-gradient(180deg, #9d86ff 0%, #6e4fe0 55%, rgb(110 79 224 / 0.15) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  pointer-events: none;
+  user-select: none;
+}
+.stage-word.w1 {
+  top: 26px;
+}
+.stage-word.w2 {
+  bottom: 54px;
+  font-size: clamp(7rem, 26vw, 19rem);
+  background: linear-gradient(180deg, rgb(230 210 255 / 0.85), rgb(157 134 255 / 0.25));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+/* Little labels around the edges, each with a small bar */
+.stage-tag {
+  position: absolute;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'Bebas Neue', 'Arial Narrow', sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  color: rgb(255 255 255 / 0.85);
+}
+.stage-tag::before {
+  content: '';
+  width: 22px;
+  height: 9px;
+  background: linear-gradient(90deg, transparent, #fff);
+}
+.stage-tag.t1 {
+  top: 18px;
+  left: 22px;
+}
+.stage-tag.t2 {
+  top: 54px;
+  left: 18%;
+}
+.stage-tag.t3 {
+  bottom: 18px;
+  left: 22px;
+}
+.stage-tag.t4 {
+  bottom: 18px;
+  right: 22px;
+}
+/* The floating cards: tilted a touch, the middle one biggest, the rest stepping down */
+.stage-row {
+  display: flex;
+  justify-content: safe center;
+  align-items: center;
+  gap: 18px;
+  padding: 52px 24px 40px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+}
+.stage-row::-webkit-scrollbar {
+  display: none;
+}
+.stage-card {
+  --c: var(--accent);
+  position: relative;
+  flex: none;
+  width: 170px;
+  aspect-ratio: 3 / 4.3;
+  border-radius: 24px;
+  overflow: hidden;
+  scroll-snap-align: center;
+  color: #fff;
+  background: linear-gradient(160deg, var(--c), #1b1430);
+  box-shadow: 0 24px 50px rgb(0 0 0 / 0.45);
+  transition: transform 0.35s var(--ease, ease);
+}
+.stage-card:hover {
+  text-decoration: none;
+}
+.stage-card[data-d='0'] {
+  width: 210px;
+  transform: translateY(-34px);
+}
+.stage-card[data-d='1'] {
+  transform: translateY(6px);
+}
+.stage-card[data-d='2'] {
+  width: 150px;
+  transform: translateY(34px);
+}
+.stage-card[data-d='3'] {
+  width: 140px;
+  transform: translateY(-4px);
+  opacity: 0.9;
+}
+.stage-card:hover,
+.stage-card:focus-visible {
+  transform: translateY(-40px) scale(1.03);
+  z-index: 2;
+}
+.stage-card > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+}
+.stage-initial {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 5rem;
+  color: rgb(255 255 255 / 0.85);
+}
+.stage-chip,
+.stage-star {
+  position: absolute;
+  top: 10px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgb(255 255 255 / 0.22);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.stage-chip {
+  left: 10px;
+}
+.stage-star {
+  right: 10px;
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+.stage-chip svg,
+.stage-star svg {
+  width: 13px;
+  height: 13px;
+}
+/* Frosted name pill at the bottom */
+.stage-who {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 999px;
+  background: rgb(20 14 36 / 0.45);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+.stage-who .avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+.stage-who > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.stage-who b {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stage-who small {
+  font-size: 0.56rem;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stage-blurb {
+  max-width: 330px;
+  margin: 6px auto 0;
+  text-align: center;
+  font-family: 'Bebas Neue', 'Arial Narrow', sans-serif;
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+  color: rgb(255 255 255 / 0.85);
+}
+/* Glass bubbles drifting on the right */
+.stage-bubble {
+  position: absolute;
+  z-index: 2;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 30% 25%, rgb(255 255 255 / 0.55), transparent 22%),
+    radial-gradient(circle at 70% 80%, rgb(255 255 255 / 0.18), transparent 35%),
+    radial-gradient(circle, transparent 58%, rgb(255 255 255 / 0.22) 70%, rgb(255 255 255 / 0.05) 72%);
+  box-shadow:
+    inset 0 0 18px rgb(255 255 255 / 0.25),
+    0 10px 30px rgb(0 0 0 / 0.3);
+  animation: stage-float 9s ease-in-out infinite alternate;
+}
+.stage-bubble.b1 {
+  width: 120px;
+  height: 120px;
+  top: 14px;
+  right: 9%;
+}
+.stage-bubble.b2 {
+  width: 70px;
+  height: 70px;
+  top: 96px;
+  right: 3%;
+  animation-delay: -3s;
+}
+.stage-bubble.b3 {
+  width: 54px;
+  height: 54px;
+  top: 30px;
+  right: 25%;
+  animation-delay: -6s;
+}
+@keyframes stage-float {
+  to {
+    transform: translate(-14px, 18px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-bubble {
+    animation: none;
+  }
+}
+/* Phones: a swipeable row, smaller cards and type */
+@media (max-width: 899px) {
+  .cast-stage {
+    padding-top: 54px;
+    border-radius: 22px;
+  }
+  .stage-row {
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 30px 18px 34px;
+  }
+  .stage-card {
+    width: 128px;
+    border-radius: 18px;
+  }
+  .stage-card[data-d='0'] {
+    width: 150px;
+    transform: translateY(-18px);
+  }
+  .stage-card[data-d='2'],
+  .stage-card[data-d='3'] {
+    width: 118px;
+  }
+  .stage-card[data-d='2'] {
+    transform: translateY(18px);
+  }
+  .stage-tag {
+    font-size: 0.78rem;
+  }
+  .stage-tag.t2 {
+    left: auto;
+    right: 22px;
+    top: 18px;
+  }
+  .stage-tag.t3 {
+    display: none;
+  }
+  .stage-bubble.b1 {
+    width: 70px;
+    height: 70px;
+    right: 4%;
+    top: 40px;
+  }
+  .stage-bubble.b2,
+  .stage-bubble.b3 {
+    display: none;
+  }
+  .stage-blurb {
+    font-size: 0.88rem;
+    padding: 0 18px;
+  }
+}
+
+/* The A to Z tiles take on the stage's look: rounded portrait cards, condensed letter headings */
+.cast-letter {
+  font-family: 'Bebas Neue', 'Arial Narrow', Impact, sans-serif;
+  font-weight: 400;
+  font-size: 2.6rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #8f74ff, #ee719e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.cast-letters a {
+  font-family: 'Bebas Neue', 'Arial Narrow', sans-serif;
+  font-weight: 400;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+.ct-pic {
+  aspect-ratio: 3 / 4;
+  border-radius: 18px;
+  box-shadow: 0 12px 26px rgb(40 20 90 / 0.22);
+}
+.ct-name {
+  font-family: 'Bebas Neue', 'Arial Narrow', sans-serif;
+  font-weight: 400;
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+}
+.ct-writer {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.66rem;
+}
+@media (max-width: 899px) {
+  .ct-pic {
+    border-radius: 12px;
+  }
+  .ct-name {
+    font-size: 0.95rem;
+  }
+  .ct-writer {
+    font-size: 0.56rem;
+  }
 }
