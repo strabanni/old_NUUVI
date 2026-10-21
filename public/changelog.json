@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-80",
+    "date": "2026-10-21",
+    "title": "Directory: every character in the carousel",
+    "items": [
+      "The carousel at the top of the Directory now has every character on NUUVI. Swipe through it; the one in the middle is always the biggest.",
+      "Each card shows the character's name and the name of the writer who plays them. Deceased and missing characters are grayed out and labelled.",
+      "Meet The Cast and Me are back to the big character cards, and the supporting cast is now in Meet The Cast with everyone else."
+    ]
+  },
+  {
     "code": "NV-79",
     "date": "2026-10-21",
     "title": "A new stage for the Directory",

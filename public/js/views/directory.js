@@ -22,92 +22,59 @@ import { state, page, routeAlive, ensureAlive, onLeave, myCharacters } from '../
 import { characterCard, editCharacter } from './characters.js';
 import { compact } from './social.js';
 
-// Characters A to Z under letter headings, four across, each with their thread icon (what they look
-// like in episodes; their profile picture if they have none) and a line under the name. Used by
-// Me, Meet The Cast and Supporting Cast, so they all look the same.
-function castAtoZ(chars, sub, empty) {
-  if (!chars.length) return html`<div class="empty"><p>${empty}</p></div>`;
-  const groups = new Map();
-  for (const c of chars) {
-    const letter = /^[a-z]/i.test(c.name) ? c.name[0].toUpperCase() : '#';
-    if (!groups.has(letter)) groups.set(letter, []);
-    groups.get(letter).push(c);
-  }
-  const pic = (c) => c.threadAvatar || c.avatar || c.portrait;
-  const tile = (c) => html`
-    <a class="cast-tile" href="#/c/${c.id}" data-color="${c.color}">
-      <span class="ct-pic">${pic(c) ? html`<img src="${pic(c)}" alt="" loading="lazy">` : html`<span class="ct-initial">${c.name.charAt(0).toUpperCase()}</span>`}</span>
-      <b class="ct-name">${c.name}</b>
-      <small class="ct-writer">${sub(c)}</small>
-    </a>`;
-  return html`<nav class="cast-letters no-swipe" aria-label="Jump to a letter">${[...groups.keys()].map(
-    (l) => html`<a href="#" data-letter="${l}">${l}</a>`,
-  )}</nav>
-    ${[...groups].map(
-      ([letter, list]) => html`
-    <h2 class="cast-letter" id="cast-${letter === '#' ? 'num' : letter}">${letter}</h2>
-    <div class="cast-four">${list.map(tile)}</div>`,
-    )}`;
-}
-
-// The stage at the top of the Directory: a dark, violet-lit stage with MEET THE CAST in huge letters
-// behind a row of floating character cards (the most-followed, the biggest in the middle), little
-// labels around the edges and glass bubbles drifting by.
+// The carousel at the top of the Directory: every character (main and supporting cast, deceased and
+// missing included) on a swipeable row of cards. The card in the middle is the biggest; the others
+// step down and bob up and down beside it. Each card has their follower count (or Deceased /
+// Missing), a star, and their name with the writer who plays them.
 const picOf = (c) => c.threadAvatar || c.avatar || c.portrait;
 const followersOf = (c) => c.followersDisplay ?? c.followers ?? 0;
-function castStage(cast, writerCount) {
-  const top = [...cast]
-    .filter((c) => c.writer)
-    .sort((a, b) => followersOf(b) - followersOf(a) || a.name.localeCompare(b.name))
-    .slice(0, 7);
-  // Biggest in the middle, then alternating left and right.
-  const row = [];
-  top.forEach((c, i) => (i % 2 ? row.push(c) : row.unshift(c)));
-  const mid = Math.floor(row.length / 2);
-  const bubble = (cls) => html`<span class="stage-bubble ${cls}" aria-hidden="true"></span>`;
+const GONE = { deceased: 'Deceased', mia: 'Missing' };
+function castStage(cast) {
   return html`
-    <section class="cast-stage" aria-label="Meet the cast">
-      <span class="stage-word w1" aria-hidden="true">MEET THE</span>
-      <span class="stage-word w2" aria-hidden="true">CAST</span>
-      <span class="stage-tag t1">NUUVI</span>
-      <span class="stage-tag t2">${writerCount} ${writerCount === 1 ? 'WRITER' : 'WRITERS'}</span>
-      <span class="stage-tag t3">${cast.length} ${cast.length === 1 ? 'CHARACTER' : 'CHARACTERS'}</span>
-      <span class="stage-tag t4">ARDELL CITY</span>
-      ${bubble('b1')}${bubble('b2')}${bubble('b3')}
-      <div class="stage-row no-swipe">${row.map(
-        (c, i) => html`
-        <a class="stage-card" href="#/c/${c.id}" data-color="${c.color}" data-d="${Math.abs(i - mid)}">
+    <section class="cast-stage" aria-label="Every character">
+      <div class="stage-row no-swipe">${cast.map(
+        (c) => html`
+        <a class="stage-card ${c.status ? `gone gone-${c.status}` : ''}" href="#/c/${c.id}" data-color="${c.color}" data-d="3">
           ${picOf(c) ? html`<img src="${picOf(c)}" alt="" loading="lazy">` : html`<span class="stage-initial">${c.name.charAt(0).toUpperCase()}</span>`}
-          <span class="stage-chip">${icons.users} ${compact(followersOf(c))}</span>
+          ${
+            c.status
+              ? html`<span class="stage-chip stage-gone">${GONE[c.status] || c.status}</span>`
+              : html`<span class="stage-chip">${icons.users} ${compact(followersOf(c))}</span>`
+          }
           <span class="stage-star" aria-hidden="true">${c.verified ? icons.verified : icons.starOutline}</span>
           <span class="stage-who">${avatar({ name: c.name, src: c.avatar, color: c.color, size: 'xs' })}
-            <span><b>${c.name}</b><small>PLAYED BY ${c.writer.id === state.user.id ? 'YOU' : `@${c.writer.username}`}</small></span></span>
+            <span><b>${c.name}</b><small>${c.writer ? c.writer.displayName || c.writer.username : 'Anonymous'}</small></span></span>
         </a>`,
       )}</div>
-      <p class="stage-blurb">EVERY WRITER IN ARDELL CITY AND THE CHARACTERS THEY PLAY. TAP ANYONE TO MEET THEM.</p>
     </section>`;
+}
+// Sizes the cards by how far each is from the middle of the row (0 = the middle, biggest).
+function sizeStage(row) {
+  if (!row) return;
+  const mid = row.scrollLeft + row.clientWidth / 2;
+  for (const card of row.children) {
+    const d = Math.min(3, Math.round(Math.abs(card.offsetLeft + card.offsetWidth / 2 - mid) / card.offsetWidth));
+    if (card.dataset.d !== String(d)) card.dataset.d = d;
+  }
 }
 
 export async function viewDirectory() {
   const alive = routeAlive();
   const [{ writers: everyone, anonymous = [] }, myAll] = await Promise.all([api('/api/directory'), myCharacters(true)]);
   ensureAlive(alive);
-  // The supporting cast (NPCs) only appears under Supporting Cast: Me and Meet The Cast show the
-  // main cast.
-  const mine = myAll.filter((c) => !c.npc);
+  // Main and supporting cast together, everywhere in the Directory.
   const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-  const writers = everyone.map((w) => ({ ...w, characters: w.characters.filter((c) => !c.npc) }));
+  const mine = [...myAll].sort(byName);
+  const writers = everyone;
   const characterCount = writers.reduce((n, w) => n + w.characters.length, 0);
-  // Everyone's main cast in one A to Z list, each with their writer (anonymous accounts too).
+  // Every character in one list, each with their writer (anonymous accounts too).
   const cast = [...writers.flatMap((w) => w.characters.map((c) => ({ ...c, writer: w }))), ...anonymous].sort(byName);
   // The Directory opens on Meet The Cast (unless another view was picked); #/locations opens it on
   // the Locations map once, and #/characters on "Me". ("All characters" is now part of Meet The Cast.)
   let view = sessionStorage.getItem('nuuvi:dir-once') || sessionStorage.getItem('nuuvi:dir-view') || 'writers';
-  if (view === 'characters') view = 'writers';
+  if (view === 'characters' || view === 'npcs') view = 'writers'; // both are part of Meet The Cast now
   sessionStorage.removeItem('nuuvi:dir-once');
   let q = '';
-  let npcData = null;
-  let npcTag = '';
   let placeData = null;
   let placeTag = ''; // "b:<borough>"
   let placeVenue = '';
@@ -117,24 +84,35 @@ export async function viewDirectory() {
     title: 'Directory',
     subtitle: `${writers.length} writers · ${characterCount} characters`,
     body: html`
-      ${cast.length ? castStage(cast, writers.length) : ''}
+      ${cast.length ? castStage(cast) : ''}
       <div class="dir-tools">
         <input type="search" class="search" id="dir-q" placeholder="Search names, usernames, taglines…" aria-label="Search the directory">
         <div class="seg dir-tabs no-swipe" role="group" aria-label="Show">
           <button type="button" data-view="me">Me</button>
           <button type="button" data-view="writers">Meet The Cast</button>
-          <button type="button" data-view="npcs">Supporting Cast</button>
           <button type="button" data-view="brands">Brands</button>
           <button type="button" data-view="places">Locations</button>
         </div>
       </div>
       <div id="dir-list" class="no-swipe"></div>`,
   });
-  applyColors(body); // the stage's cards
-  // Start the row of cards on the biggest one, in the middle.
+  applyColors(body); // the carousel's cards
+  // The carousel: the card in the middle grows as you swipe.
   const stageRow = $('.stage-row', body);
-  const middle = $('.stage-card[data-d="0"]', body);
-  if (stageRow && middle) stageRow.scrollLeft = middle.offsetLeft - (stageRow.clientWidth - middle.offsetWidth) / 2;
+  if (stageRow) {
+    let ticking = 0;
+    stageRow.addEventListener(
+      'scroll',
+      () => {
+        if (!ticking) ticking = requestAnimationFrame(() => ((ticking = 0), sizeStage(stageRow)));
+      },
+      { passive: true },
+    );
+    // Open on the middle of the row, so there are characters on both sides.
+    const middle = stageRow.children[Math.floor(stageRow.children.length / 2)];
+    if (middle) stageRow.scrollLeft = middle.offsetLeft - (stageRow.clientWidth - middle.offsetWidth) / 2;
+    sizeStage(stageRow);
+  }
   const list = $('#dir-list', body);
   const match = (...fields) => !q || fields.some((f) => (f || '').toLowerCase().includes(q));
 
@@ -146,29 +124,29 @@ export async function viewDirectory() {
     dropMap();
     $$('[data-view]', body).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
     if (view === 'me') {
-      // Your own characters (your muses), A to Z. Open one to edit it, or add a new one.
-      const shown = mine.filter((c) => match(c.name, c.handle, c.tagline)).sort(byName);
+      // Your own characters (main and supporting cast), to open, edit or add to.
+      const shown = mine.filter((c) => match(c.name, c.handle, c.tagline));
       render(
         list,
         html`
         <div class="npc-head"><span class="muted small">${mine.length} ${mine.length === 1 ? 'character' : 'characters'} in your cast</span>
           <button type="button" class="primary sm" id="new-char">${icons.plus} New character</button></div>
         ${
-          mine.length
-            ? castAtoZ(shown, (c) => `@${c.handle || c.name}`, `Nobody matches “${q}”.`)
-            : html`<div class="card empty"><p class="script">every story needs a cast</p><p>Create your first character to start writing in character.</p></div>`
+          shown.length
+            ? html`<div class="char-grid">${shown.map((c) => characterCard(c, { editable: true }))}</div>`
+            : mine.length
+              ? html`<div class="empty"><p>Nobody matches “${q}”.</p></div>`
+              : html`<div class="card empty"><p class="script">every story needs a cast</p><p>Create your first character to start writing in character.</p></div>`
         }`,
       );
     } else if (view === 'writers') {
-      // Meet The Cast: every main character (yours included) and the writer who plays them.
+      // Meet The Cast: every character, main and supporting cast, as character cards.
       const shown = cast.filter((c) => match(c.name, c.handle, c.tagline, c.writer?.username, c.writer?.displayName));
       render(
         list,
-        castAtoZ(
-          shown,
-          (c) => (c.writer ? (c.writer.id === state.user.id ? 'You' : `@${c.writer.username}`) : 'Anonymous'),
-          q ? `Nobody matches “${q}”.` : 'No characters yet.',
-        ),
+        shown.length
+          ? html`<div class="char-grid">${shown.map((c) => characterCard(c))}</div>`
+          : html`<div class="empty"><p>${q ? `Nobody matches “${q}”.` : 'No characters yet.'}</p></div>`,
       );
     } else if (view === 'brands') {
       // Brand accounts: shops, labels, cafés, magazines… that post on THE NU.
@@ -189,38 +167,6 @@ export async function viewDirectory() {
               )}</div>`
             : html`<div class="empty"><p>${brands.length ? 'No brands match.' : 'No brand accounts yet.'}</p></div>`
         }`,
-      );
-    } else if (view === 'npcs') {
-      // NPCs: everyone's shared background characters, by category.
-      if (!npcData) {
-        render(list, html`<p class="muted small">Loading the supporting cast…</p>`);
-        api('/api/npcs')
-          .then((r) => {
-            npcData = r;
-            if (view === 'npcs') draw();
-          })
-          .catch(() => {});
-        return;
-      }
-      const { npcs, tags } = npcData;
-      const shown = npcs.filter(
-        (n) =>
-          (!npcTag || n.npcTags.includes(npcTag)) &&
-          match(n.name, n.handle, n.tagline, n.npcTags.join(' '), n.owner.username, n.owner.displayName),
-      );
-      render(
-        list,
-        html`
-        <div class="npc-head"><div class="chips no-swipe">${html`<button type="button" class="chip-btn" data-tag="" aria-pressed="${!npcTag}">Everyone</button>`}
-          ${tags.map((t) => html`<button type="button" class="chip-btn" data-tag="${t}" aria-pressed="${npcTag === t}">#${t}</button>`)}</div>
-          <button type="button" class="primary sm" id="new-npc">${icons.plus} Add supporting cast</button></div>
-        <p class="hint">The supporting cast: background characters anyone can tag into their episodes. To move one of your characters here, tick “This is supporting cast” in their editor.</p>
-        ${npcTag ? html`<h2 class="cat-title"><span>${npcTag}</span><small>${shown.length} ${shown.length === 1 ? 'character' : 'characters'}</small></h2>` : ''}
-        ${castAtoZ(
-          [...shown].sort(byName),
-          (n) => (n.owner.id === state.user.id ? 'You' : `@${n.owner.username}`),
-          npcs.length ? 'Nobody in the supporting cast matches.' : 'No supporting cast yet.',
-        )}`,
       );
     } else if (view === 'places') {
       // Locations: the guide to Ardell City. The map on top, then the boroughs and their spots.
@@ -313,13 +259,6 @@ export async function viewDirectory() {
   }
   draw();
   body.addEventListener('click', async (e) => {
-    const jump = e.target.closest('[data-letter]');
-    if (jump) {
-      e.preventDefault();
-      const l = jump.dataset.letter;
-      $(`#cast-${l === '#' ? 'num' : l}`, list)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
-    }
     const pt = e.target.closest('[data-ptag]');
     if (pt && view === 'places') {
       placeTag = pt.dataset.ptag === placeTag ? '' : pt.dataset.ptag;
@@ -368,13 +307,6 @@ export async function viewDirectory() {
       }
       return;
     }
-    const t = e.target.closest('[data-tag]');
-    if (t && view === 'npcs') {
-      e.preventDefault();
-      npcTag = t.dataset.tag === npcTag ? '' : t.dataset.tag;
-      draw();
-      return;
-    }
     // Me: make a character, or edit one of yours.
     if (e.target.closest('#new-char')) {
       if (await editCharacter()) {
@@ -393,22 +325,6 @@ export async function viewDirectory() {
         state.characters = null;
         sessionStorage.setItem('nuuvi:dir-once', view);
         viewDirectory();
-      }
-      return;
-    }
-    if (e.target.closest('#new-npc')) {
-      if (await editCharacter({ npc: true })) {
-        npcData = null;
-        draw();
-      }
-      return;
-    }
-    const ed = e.target.closest('[data-edit]');
-    if (ed && view === 'npcs') {
-      e.preventDefault();
-      if (await editCharacter(npcData.npcs.find((n) => n.id === Number(ed.dataset.edit)))) {
-        npcData = null;
-        draw();
       }
       return;
     }
