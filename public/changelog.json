@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-83",
+    "date": "2026-10-25",
+    "title": "Shipping status and permission to kill move to About",
+    "items": [
+      "Shipping status and permission to kill are now set in a character's profile details editor (the button in their About tab), at the bottom of the Identity section.",
+      "They show in the About tab just under that button. Instagram-style profiles no longer show a Written by line."
+    ]
+  },
+  {
     "code": "NV-82",
     "date": "2026-10-25",
     "title": "Profiles like Instagram",

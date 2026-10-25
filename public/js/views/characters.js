@@ -33,14 +33,6 @@ import { loadStoryGroups, openStoryViewer, openStoryComposer } from './stories.j
 import { drawTies, drawTimeline } from './world.js';
 import { openBatch } from './batches.js';
 
-// The two details every character has, each picked from a short list.
-const DETAILS = [
-  { key: 'ship', label: 'Shipping status', choices: ['Open to ships', 'Taken', 'Closed to ships', 'Ask the writer'] },
-  { key: 'kill', label: 'Permission to kill', choices: ['Yes', 'No', 'Ask first'] },
-];
-const detailOf = (c, label) => (c.details || []).find((d) => d.label === label)?.value || '';
-const shownDetails = (c) => DETAILS.map((d) => ({ label: d.label, value: detailOf(c, d.label) })).filter((d) => d.value);
-
 function characterForm(c = {}) {
   return html`
     <form class="char-form">
@@ -82,14 +74,6 @@ function characterForm(c = {}) {
       </div>
       <label for="c-tag">Tagline</label>
       <input id="c-tag" name="tagline" maxlength="140" placeholder="A wandering bard with a debt to pay" value="${c.tagline || ''}">
-      <div class="detail-picks">${DETAILS.map(
-        (d) => html`<div>
-        <label for="d-${d.key}">${d.label}</label>
-        <select id="d-${d.key}" name="detail-${d.key}">
-          <option value="">Not set</option>
-          ${d.choices.map((v) => html`<option ${detailOf(c, d.label) === v ? 'selected' : ''}>${v}</option>`)}
-        </select></div>`,
-      )}</div>
       <label for="c-aka">AKA line <span class="muted small">(shown under their name in episodes). Wrap words in **double stars** to show them in the character's color.</span></label>
       <input id="c-aka" name="aka" maxlength="200" value="${c.aka || ''}" placeholder="aka **the prodigy**, (he / him) ; twenty8 ; ceo of trinity healthcare">
       <div class="row">
@@ -262,8 +246,6 @@ export function editCharacter(c = {}) {
         ]),
       );
       if (!data.handle) delete data.handle;
-      data.details = DETAILS.map((x) => ({ label: x.label, value: data[`detail-${x.key}`] || '' })).filter((x) => x.value);
-      for (const x of DETAILS) delete data[`detail-${x.key}`];
       await api(c.id ? `/api/characters/${c.id}` : '/api/characters', { method: c.id ? 'PUT' : 'POST', body: data });
       return true;
     },
@@ -470,7 +452,6 @@ export async function viewCharacter(id) {
           pane,
           html`
           ${c.aka ? html`<div class="info wide"><span class="eyebrow">AKA</span><div class="aka-text">${raw(akaHtml(c.aka))}</div></div>` : ''}
-          ${shownDetails(c).length ? html`<div class="info-grid">${shownDetails(c).map((d) => html`<div class="info"><span class="eyebrow">${d.label}</span><div>${d.value}</div></div>`)}</div>` : ''}
           <div class="small-stats"><span><b>${compact(stats.posts)}</b> episode posts</span><span><b>${compact(stats.words)}</b> words written</span></div>
           ${prof ? dossierAbout(c, prof.dossier, { canEdit: prof.canEdit }) : html`<p class="muted small">Loading profile…</p>`}`,
         );

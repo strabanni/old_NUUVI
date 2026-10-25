@@ -2,7 +2,16 @@
 // facts, personality, history and a gallery), shown in the About tab on
 // their page. Everyone reads them; the writer (or an admin) edits.
 import { html, render, api, $, $$, toast, icons, modal, formatPost, gradAttr, attachSheet, formattingGuide } from '../lib.js';
-import { replaceHash } from '../main.js';
+import { state, replaceHash } from '../main.js';
+
+// The two details every character has, each picked from a short list. Shown and set in the About tab,
+// just under the profile editor button.
+const DETAILS = [
+  { key: 'ship', label: 'Shipping status', choices: ['Open to ships', 'Taken', 'Closed to ships', 'Ask the writer'] },
+  { key: 'kill', label: 'Permission to kill', choices: ['Yes', 'No', 'Ask first'] },
+];
+const detailOf = (c, label) => (c.details || []).find((x) => x.label === label)?.value || '';
+const shownDetails = (c) => DETAILS.map((x) => ({ label: x.label, value: detailOf(c, x.label) })).filter((x) => x.value);
 
 const FACT_LABELS = [
   ['fullName', 'Full name'],
@@ -44,8 +53,8 @@ export function viewProfile(idStr) {
   replaceHash(`#/c/${idStr}`);
 }
 
-// A character's profile, for the About tab on their page (their picture and banner are already
-// at the top of that page, so it starts with their quote and traits).
+// A character's profile, for the About tab on their page (their picture is already at the top of
+// that page, so it starts with their shipping status and permission to kill, then quote and traits).
 export function dossierAbout(c, d, { canEdit = false } = {}) {
   const facts = FACT_LABELS.filter(([k]) => d.facts?.[k]);
   const sections = SECTION_LABELS.filter(([k]) => d.sections?.[k]);
@@ -53,6 +62,11 @@ export function dossierAbout(c, d, { canEdit = false } = {}) {
     !facts.length && !sections.length && !d.quote && !d.gallery?.length && !d.traits?.length && !d.likes && !d.dislikes;
   return html`<div class="dossier about-dossier" data-color="${c.color}"${gradAttr(c)}>
     ${canEdit ? html`<div class="about-edit"><button type="button" class="sm" id="about-edit">${icons.quill} ${empty ? 'Fill in the profile' : 'Edit profile details'}</button></div>` : ''}
+    ${
+      shownDetails(c).length
+        ? html`<div class="info-grid ds-details">${shownDetails(c).map((x) => html`<div class="info"><span class="eyebrow">${x.label}</span><div>${x.value}</div></div>`)}</div>`
+        : ''
+    }
     ${
       d.quote || d.traits?.length
         ? html`<section class="ds-card ds-intro">
@@ -106,6 +120,7 @@ export function dossierAbout(c, d, { canEdit = false } = {}) {
 export async function editDossier(c, d) {
   const gallery = [...(d.gallery || [])];
   let cover = d.cover || null;
+  const ownChar = c.owner?.id === state.user?.id;
   return modal(
     html`<form class="ds-editor">
     <h2>${c.name}: profile details</h2>
@@ -123,6 +138,18 @@ export async function editDossier(c, d) {
       <label>Traits <small class="muted">(comma separated)</small></label><input name="traits" value="${(d.traits || []).join(', ')}" placeholder="loyal, reckless, night owl">
       <label>Loves</label><textarea name="likes" rows="2" maxlength="1000">${d.likes || ''}</textarea>
       <label>Can't stand</label><textarea name="dislikes" rows="2" maxlength="1000">${d.dislikes || ''}</textarea>
+      ${
+        ownChar
+          ? html`<div class="detail-picks">${DETAILS.map(
+              (x) => html`<div>
+        <label for="d-${x.key}">${x.label}</label>
+        <select id="d-${x.key}" name="detail-${x.key}">
+          <option value="">Not set</option>
+          ${x.choices.map((v) => html`<option ${detailOf(c, x.label) === v ? 'selected' : ''}>${v}</option>`)}
+        </select></div>`,
+            )}</div>`
+          : ''
+      }
     </div>
     <div data-pane="facts" hidden><div class="ds-fact-grid">${FACT_LABELS.map(
       ([k, l]) => html`
@@ -199,6 +226,16 @@ export async function editDossier(c, d) {
             };
             try {
               await api(`/api/profiles/${c.id}`, { method: 'PUT', body: { dossier } });
+              if (ownChar) {
+                const details = DETAILS.map((x) => ({ label: x.label, value: f[`detail-${x.key}`].value })).filter(
+                  (x) => x.value,
+                );
+                const before = DETAILS.map((x) => detailOf(c, x.label)).join('|');
+                if (DETAILS.map((x) => f[`detail-${x.key}`].value).join('|') !== before) {
+                  await api(`/api/characters/${c.id}`, { method: 'PUT', body: { details } });
+                  c.details = details; // so the About tab shows them straight away
+                }
+              }
               toast('Profile saved');
               close(true);
             } catch (err) {
