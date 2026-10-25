@@ -170,7 +170,19 @@
       if (!upright || !upright.matches) {
         root.style.removeProperty('--sat-min');
         root.style.removeProperty('--sab-min');
+        root.style.removeProperty('--full-h');
         return;
+      }
+      // The home-screen app should get the whole screen. Some iPhones hand it a shorter one (an empty
+      // band at the bottom, the size of the status bar) and report no status bar at all, so the app
+      // ran up under the clock. Fill the real screen, and leave the status bar its room.
+      var standalone = navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+      if (standalone && !root.classList.contains('kb-up')) {
+        var short = Math.round(screen.height - window.innerHeight);
+        if (short > 8 && short < 120) {
+          root.style.setProperty('--full-h', screen.height + 'px');
+          if (t < 1) t = Math.min(short, 62);
+        } else if (short <= 1) root.style.removeProperty('--full-h');
       }
       var seen = { t: 0, b: 0 };
       try {

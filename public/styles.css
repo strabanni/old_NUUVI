@@ -806,7 +806,7 @@ a.row-item:hover {
   padding: var(--gap);
   grid-template-columns: var(--rail-w) var(--side-w) minmax(0, 1fr);
   height: 100vh;
-  height: 100dvh;
+  height: var(--full-h, 100dvh);
 }
 body.has-members:not(.members-hidden) .app {
   grid-template-columns: var(--rail-w) var(--side-w) minmax(0, 1fr) var(--members-w);
@@ -2212,7 +2212,7 @@ dialog.modal {
   border-radius: 28px;
   padding: 24px;
   width: min(540px, calc(100vw - 24px));
-  max-height: calc(100dvh - 24px);
+  max-height: calc(var(--full-h, 100dvh) - 24px);
   overflow-y: auto;
   box-shadow: var(--shadow);
 }
@@ -2329,7 +2329,7 @@ dialog.modal h2 {
   }
   .main {
     height: 100vh;
-    height: 100dvh;
+    height: var(--full-h, 100dvh);
     background: transparent;
     border: 0;
     border-radius: 0;
@@ -2539,7 +2539,7 @@ body:not(.guest) {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  height: 100dvh;
+  height: var(--full-h, 100dvh);
 }
 body:not(.guest) .app {
   flex: 1;
@@ -4897,7 +4897,7 @@ a.song:hover .song-t {
    ══════════════════════════════════════════════════════════════════════════════ */
 .landing {
   min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--full-h, 100dvh);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -7594,17 +7594,17 @@ a.char-card,
   --sab: calc(max(env(safe-area-inset-bottom, 0px), var(--sab-min, 0px)) / var(--ui-zoom));
 }
 body:not(.guest) {
-  height: calc(100dvh / var(--ui-zoom));
+  height: calc(var(--full-h, 100dvh) / var(--ui-zoom));
 }
 .app {
-  height: calc(100dvh / var(--ui-zoom));
+  height: calc(var(--full-h, 100dvh) / var(--ui-zoom));
 }
 .landing {
-  min-height: calc(100dvh / var(--ui-zoom));
+  min-height: calc(var(--full-h, 100dvh) / var(--ui-zoom));
 }
 dialog.modal {
   width: min(540px, calc(100vw / var(--ui-zoom) - 24px));
-  max-height: calc(100dvh / var(--ui-zoom) - 24px);
+  max-height: calc(var(--full-h, 100dvh) / var(--ui-zoom) - 24px);
 }
 .ui-size-pick {
   max-width: 260px;
@@ -7777,7 +7777,7 @@ dialog.modal {
 }
 /* While the keyboard is up on a phone, the app fits the space above it (see theme.js). */
 body:not(.guest) {
-  height: var(--app-h, calc(100dvh / var(--ui-zoom)));
+  height: var(--app-h, calc(var(--full-h, 100dvh) / var(--ui-zoom)));
 }
 
 html:has(body:not(.guest)) {
@@ -9680,7 +9680,7 @@ dialog.modal[open]::backdrop {
     background: var(--base);
   }
   .main {
-    height: calc(var(--app-h, calc(100dvh / var(--ui-zoom))) - var(--sat));
+    height: calc(var(--app-h, calc(var(--full-h, 100dvh) / var(--ui-zoom))) - var(--sat));
   }
   .main-head {
     margin-top: 0;
@@ -9944,7 +9944,7 @@ img.fx-img,
   grid-template-rows: minmax(0, 1fr);
 }
 .lb-img {
-  max-height: calc(100dvh / var(--ui-zoom) - 120px - var(--sat) - var(--sab));
+  max-height: calc(var(--full-h, 100dvh) / var(--ui-zoom) - 120px - var(--sat) - var(--sab));
   max-width: min(100%, 1400px);
   width: auto;
   height: auto;
@@ -10466,7 +10466,7 @@ dialog.sheet.closing {
     padding-bottom: var(--sab);
   }
   .main {
-    height: calc(var(--app-h, calc(100dvh / var(--ui-zoom))) - var(--sat) - var(--sab));
+    height: calc(var(--app-h, calc(var(--full-h, 100dvh) / var(--ui-zoom))) - var(--sat) - var(--sab));
   }
   .rail,
   .sidebar {
@@ -12446,7 +12446,7 @@ button.ig-banner.own:hover .ig-cam {
     padding-bottom: 0;
   }
   .main {
-    height: calc(var(--app-h, calc(100dvh / var(--ui-zoom))) - var(--sat));
+    height: calc(var(--app-h, calc(var(--full-h, 100dvh) / var(--ui-zoom))) - var(--sat));
   }
   .rail,
   .sidebar,

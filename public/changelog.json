@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-87",
+    "date": "2026-10-25",
+    "title": "Room at the top, no gap at the bottom",
+    "items": [
+      "In the home-screen app on iPhone, the app now fills the whole screen (no empty band at the bottom) and keeps a band clear at the top for the clock and battery."
+    ]
+  },
+  {
     "code": "NV-86",
     "date": "2026-10-25",
     "title": "The app stays below the clock",
