@@ -7589,8 +7589,9 @@ a.char-card,
 :root {
   --ui-zoom: 1;
   /* The phone's safe areas (status bar, home bar), kept the right size at any Interface size. */
-  --sat: calc(env(safe-area-inset-top, 0px) / var(--ui-zoom));
-  --sab: calc(env(safe-area-inset-bottom, 0px) / var(--ui-zoom));
+  /* --sat-min / --sab-min: the real size remembered by theme.js, for when a phone briefly reports none. */
+  --sat: calc(max(env(safe-area-inset-top, 0px), var(--sat-min, 0px)) / var(--ui-zoom));
+  --sab: calc(max(env(safe-area-inset-bottom, 0px), var(--sab-min, 0px)) / var(--ui-zoom));
 }
 body:not(.guest) {
   height: calc(100dvh / var(--ui-zoom));

@@ -101,8 +101,14 @@
     var schedule = function () {
       if (!raf) raf = requestAnimationFrame(follow);
     };
+    // With the keyboard down the page itself never scrolls (each page scrolls inside the app), so if
+    // the phone has scrolled it anyway, put it back.
+    var unshift = function () {
+      if (!lastH && window.scrollY && !document.body.classList.contains('guest')) window.scrollTo(0, 0);
+    };
     vv.addEventListener('scroll', schedule);
     window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('scroll', unshift, { passive: true });
     var fit = function (e) {
       var keyboardUp = typing() && vv.height < window.innerHeight - 80;
       if (keyboardUp) {
@@ -119,6 +125,10 @@
         root.style.removeProperty('--vv-top');
         root.classList.remove('kb-up');
         if (window.scrollY) window.scrollTo(0, 0);
+        // iPhone sometimes puts its scroll back a moment after the keyboard has gone, which left the
+        // whole app shifted up under the clock. Check again once it has settled.
+        setTimeout(unshift, 200);
+        setTimeout(unshift, 600);
       }
     };
     vv.addEventListener('resize', fit);
@@ -138,6 +148,53 @@
     document.addEventListener('focusout', function () {
       setTimeout(fit, 120);
     });
+  }
+  // The space for the status bar (clock, battery) and the home bar. Some iPhones now and then report
+  // none (after the keyboard closes, or on coming back to the app), and the app ran up under the
+  // clock. So remember the real size, held upright, and never use less than that (see --sat in styles.css).
+  if (touch) {
+    var upright = window.matchMedia && window.matchMedia('(orientation: portrait)');
+    var measureSafe = function () {
+      if (!document.body) return;
+      var probe = document.createElement('div');
+      probe.style.setProperty('position', 'fixed');
+      probe.style.setProperty('visibility', 'hidden');
+      probe.style.setProperty('pointer-events', 'none');
+      probe.style.setProperty('padding-top', 'env(safe-area-inset-top, 0px)');
+      probe.style.setProperty('padding-bottom', 'env(safe-area-inset-bottom, 0px)');
+      document.body.appendChild(probe);
+      var cs = getComputedStyle(probe);
+      var t = parseFloat(cs.paddingTop) || 0;
+      var b = parseFloat(cs.paddingBottom) || 0;
+      probe.remove();
+      if (!upright || !upright.matches) {
+        root.style.removeProperty('--sat-min');
+        root.style.removeProperty('--sab-min');
+        return;
+      }
+      var seen = { t: 0, b: 0 };
+      try {
+        seen = JSON.parse(localStorage.getItem('nuuvi:safe') || '{}');
+      } catch (e) {
+        /* storage unavailable */
+      }
+      var best = { t: Math.max(seen.t || 0, t), b: Math.max(seen.b || 0, b) };
+      if (best.t !== seen.t || best.b !== seen.b) {
+        try {
+          localStorage.setItem('nuuvi:safe', JSON.stringify(best));
+        } catch (e) {
+          /* storage unavailable */
+        }
+      }
+      root.style.setProperty('--sat-min', best.t + 'px');
+      root.style.setProperty('--sab-min', best.b + 'px');
+    };
+    document.addEventListener('DOMContentLoaded', measureSafe);
+    window.addEventListener('resize', measureSafe);
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) setTimeout(measureSafe, 300);
+    });
+    if (upright && upright.addEventListener) upright.addEventListener('change', measureSafe);
   }
   window.nuuviScale = { apply: apply, touch: touch, mobile: mobile };
   if (window.matchMedia) {

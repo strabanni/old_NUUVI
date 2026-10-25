@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-86",
+    "date": "2026-10-25",
+    "title": "The app stays below the clock",
+    "items": [
+      "On iPhone, the app could sometimes slide up under the clock and battery (often after the keyboard closed). It now remembers how much room the status bar needs and always keeps that space, and puts the page back if the phone shifts it."
+    ]
+  },
+  {
     "code": "NV-85",
     "date": "2026-10-25",
     "title": "Portraits back on cards, not in episodes",
