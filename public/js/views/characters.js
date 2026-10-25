@@ -365,7 +365,6 @@ export async function viewCharacter(id) {
         <div class="ig-id">
           ${c.tagline ? html`<p class="ig-cat">${c.tagline}</p>` : ''}
           ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
-          ${c.owner ? html`<a class="ig-link" href="#/u/${c.owner.id}">${icons.user}<span>Written by ${c.owner.displayName || c.owner.username}</span></a>` : ''}
         </div>
         <div class="ig-actions">
           ${
