@@ -42,13 +42,16 @@ function characterForm(c = {}) {
         <div id="pic-preview">${avatar({ name: c.name || '?', src: c.avatar, color: c.color || '#EE719E', size: 'xl' })}</div>
         <div class="stack">
           <span class="row-inline"><label class="btn sm file-btn">Avatar picture<input type="file" accept="image/*" id="pic-file" hidden></label><button type="button" class="sm link-btn" data-link="avatar">Link</button></span>
-          <span class="hint size-hint">Best size: avatar 800 × 800 (square)</span>
+          <span class="row-inline"><label class="btn sm file-btn">Portrait (big picture)<input type="file" accept="image/*" id="portrait-file" hidden></label><button type="button" class="sm link-btn" data-link="portrait">Link</button></span>
+          <span class="hint" id="portrait-state">${c.portrait ? 'Portrait set ✓' : 'Shown large on their character card'}</span>
+          <span class="hint size-hint">Best sizes: avatar 800 × 800 (square) · portrait 1200 × 1500 (4:5, tall)</span>
           <span class="row-inline">
             <label class="btn sm file-btn">Thread picture<input type="file" accept="image/*" id="thread-file" hidden></label><button type="button" class="sm link-btn" data-link="threadAvatar">Link</button>
             <button type="button" class="sm" id="thread-clear" ${c.threadAvatar ? '' : 'hidden'}>Use avatar</button>
           </span>
           <span class="hint" id="thread-state">${c.threadAvatar ? 'Thread picture set ✓' : 'Optional. Shown on their thread posts instead of their social media avatar'}</span>
           <input type="hidden" name="avatar" value="${c.avatar || ''}">
+          <input type="hidden" name="portrait" value="${c.portrait || ''}">
           <input type="hidden" name="threadAvatar" value="${c.threadAvatar || ''}">
         </div>
       </div>
@@ -152,6 +155,14 @@ export function editCharacter(c = {}) {
           form.avatar.value = url;
           showPic();
         },
+        portrait: (url) => {
+          form.portrait.value = url;
+          $('#portrait-state', d).textContent = 'Portrait set ✓';
+          if (!form.avatar.value) {
+            form.avatar.value = url;
+            showPic();
+          }
+        },
         threadAvatar: (url) => {
           form.threadAvatar.value = url;
           $('#thread-state', d).textContent = 'Thread picture set ✓';
@@ -159,6 +170,7 @@ export function editCharacter(c = {}) {
         },
       };
       upload('#pic-file', 512, set.avatar);
+      upload('#portrait-file', 1400, set.portrait);
       upload('#thread-file', 800, set.threadAvatar);
       $('#thread-clear', d).addEventListener('click', (e) => {
         form.threadAvatar.value = '';
@@ -240,10 +252,11 @@ export function editCharacter(c = {}) {
   });
 }
 
+// Portrait card (Sophie Bennett reference): picture, name, tagline, counts, follow.
 // Creator-card style (stacked-cards reference): name and a badge at the top, the picture behind,
 // and a frosted strip at the bottom with their @username, tagline and a button.
 export function characterCard(c, { editable = false } = {}) {
-  const pic = c.avatar || c.portrait;
+  const pic = c.portrait || c.avatar;
   const followers = c.followersDisplay ?? c.followers;
   const badge =
     c.status === 'deceased'
@@ -302,7 +315,7 @@ export async function viewCharacter(id) {
   const storyGroup = storyGroups.find((g) => g.character.id === Number(id));
   ensureAlive(alive);
   const own = c.owner?.id === state.user?.id;
-  const pic = c.avatar || c.portrait;
+  const pic = c.portrait || c.avatar;
   const following = followedBy.length > 0;
   const followable = mine.filter((m) => m.id !== c.id && !m.status);
   let tab = sessionStorage.getItem('nuuvi:char-tab') || 'posts';
@@ -316,10 +329,10 @@ export async function viewCharacter(id) {
         <header class="ig-head">
           ${
             own
-              ? html`<button type="button" class="ig-avatar own ${storyGroup ? `has-story ${storyGroup.allSeen ? 'seen' : ''}` : ''}" id="pic-avatar" aria-label="Change the profile picture">${pic ? html`<img src="${pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}<span class="ig-cam">${icons.camera}</span></button>`
+              ? html`<button type="button" class="ig-avatar own ${storyGroup ? `has-story ${storyGroup.allSeen ? 'seen' : ''}` : ''}" id="pic-avatar" aria-label="Change the profile picture">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}<span class="ig-cam">${icons.camera}</span></button>`
               : storyGroup
-                ? html`<button type="button" class="ig-avatar has-story ${storyGroup.allSeen ? 'seen' : ''}" id="watch-story" aria-label="Watch ${c.name}'s story">${pic ? html`<img src="${pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</button>`
-                : html`<span class="ig-avatar">${pic ? html`<img src="${pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>`
+                ? html`<button type="button" class="ig-avatar has-story ${storyGroup.allSeen ? 'seen' : ''}" id="watch-story" aria-label="Watch ${c.name}'s story">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</button>`
+                : html`<span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>`
           }
           <div class="ig-side">
             <h1 class="ig-name">${c.name}${npcBadges(c)}</h1>

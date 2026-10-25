@@ -1,11 +1,18 @@
 [
   {
+    "code": "NV-85",
+    "date": "2026-10-25",
+    "title": "Portraits back on cards, not in episodes",
+    "items": [
+      "Episodes no longer use a character's portrait picture. Episode posts and episode cards show their thread picture or avatar instead.",
+      "Portrait pictures are back on character cards, and you can set them in the character editor again."
+    ]
+  },
+  {
     "code": "NV-84",
     "date": "2026-10-25",
     "title": "No more portrait pictures",
-    "items": [
-      "The portrait picture is gone from the character editor. Characters use their avatar everywhere, including their character card."
-    ]
+    "items": ["The portrait picture was taken out of the character editor."]
   },
   {
     "code": "NV-83",

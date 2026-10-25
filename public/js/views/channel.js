@@ -234,7 +234,7 @@ export async function viewChannel(storyIdStr, channelIdStr) {
   function threadPost(p, side = 'left') {
     const ch = p.kind === 'ic' ? p.character : null;
     const others = participants.filter((x) => x.id !== ch?.id);
-    const pic = ch?.threadAvatar || ch?.avatar || ch?.portrait;
+    const pic = ch?.threadAvatar || ch?.avatar; // never the portrait in episodes (that is for character cards)
     return html`
       <article class="tpost align-${side} ${p.userId === state.user?.id ? 'mine' : ''} ${starred.has(p.id) ? 'is-starred' : ''}" id="post-${p.id}" data-id="${p.id}" ${ch ? html`data-color="${ch.color}"${gradAttr(ch)}` : ''}>
         <header class="tp-head">
