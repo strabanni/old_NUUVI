@@ -16490,3 +16490,227 @@ dialog.modal.wn-modal .modal-x {
     font-size: 0.64rem;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   §78  Profiles like Instagram: no banner, a round picture (with the story ring)
+        beside the name and counts, then the bio, buttons, icon tabs and the grid
+   ══════════════════════════════════════════════════════════════════════════════ */
+.ig2 {
+  max-width: 760px;
+  padding-top: 8px;
+}
+.ig2 .ig-head {
+  margin-top: 0;
+  align-items: center;
+  gap: 28px;
+  padding: 6px 18px 0;
+}
+.ig2 .ig-avatar {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.ig2 .ig-avatar img,
+.ig2 .ig-avatar .avatar {
+  border-radius: 50%;
+  object-fit: cover;
+}
+/* The story ring: Instagram's warm gradient, grey once it's been watched. */
+.ig2 .ig-avatar.has-story {
+  padding: 4px;
+  background: linear-gradient(45deg, #feda75, #fa7e1e 30%, #d62976 60%, #962fbf 85%, #4f5bd5);
+  box-shadow: none;
+}
+.ig2 .ig-avatar.has-story.seen {
+  background: var(--glass-3);
+}
+.ig2 .ig-avatar.has-story > img,
+.ig2 .ig-avatar.has-story > .avatar {
+  border: 3px solid var(--base);
+}
+.ig2 button.ig-avatar.own .ig-cam {
+  right: 4px;
+  bottom: 4px;
+  border: 2px solid var(--base);
+}
+.ig2 .ig-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ig2 .ig-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  flex-wrap: wrap;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.ig2 .ig-stats {
+  display: flex;
+  gap: 32px;
+  padding: 0;
+  transform: none;
+}
+.ig2 .ig-stats > * {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: inherit;
+}
+.ig2 .ig-stats > button:hover {
+  background: transparent;
+  opacity: 0.75;
+}
+.ig2 .ig-stats b {
+  font-size: 1.15rem;
+}
+.ig2 .ig-stats b + span {
+  font-size: 0.86rem;
+  color: var(--text);
+}
+.ig2 .ig-id {
+  padding: 14px 18px 0;
+}
+.ig2 .ig-cat,
+.ig2 .ig-words {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.ig2 .ig-bio {
+  margin-top: 0;
+  font-size: calc(0.95rem * var(--read-scale));
+  line-height: 1.5;
+}
+.ig2 .ig-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.ig2 .ig-link svg {
+  width: 15px;
+  height: 15px;
+}
+.ig2 .ig-actions {
+  gap: 6px;
+  padding: 14px 18px 4px;
+}
+.ig2 .ig-actions button {
+  flex: 1;
+  min-height: 34px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--glass-2);
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ig2 .ig-actions button.primary {
+  background: var(--accent-strong);
+  color: var(--on-accent);
+}
+.ig2 .ig-actions .ig-sq {
+  flex: none;
+  width: 36px;
+  padding: 0;
+}
+.ig2 .ig-actions svg {
+  width: 16px;
+  height: 16px;
+}
+/* Tabs: icons only (the words stay for screen readers), a line under the open one. */
+.ig2 .ig-tabs {
+  margin-top: 14px;
+}
+.ig2 .ig-tabs button {
+  position: relative;
+  min-width: 52px;
+  padding: 12px 6px;
+}
+.ig2 .ig-tabs button span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ig2 .ig-tabs svg {
+  width: 24px;
+  height: 24px;
+}
+.ig2 .ig-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--text);
+}
+.ig2 #ig-pane {
+  padding-top: 2px;
+}
+.ig2 .ig-grid {
+  gap: 2px;
+}
+.ig2 .ig-tile {
+  border-radius: 0;
+}
+@media (max-width: 899px) {
+  .ig2 .ig-head {
+    gap: 22px;
+    padding: 4px 14px 0;
+  }
+  .ig2 .ig-avatar {
+    width: 88px;
+    height: 88px;
+  }
+  .ig2 .ig-avatar.has-story {
+    padding: 3px;
+  }
+  .ig2 .ig-avatar.has-story > img,
+  .ig2 .ig-avatar.has-story > .avatar {
+    border-width: 2px;
+  }
+  .ig2 button.ig-avatar.own .ig-cam {
+    right: -2px;
+    bottom: -2px;
+    padding: 5px;
+  }
+  .ig2 .ig-name {
+    font-size: 1rem;
+  }
+  .ig2 .ig-side {
+    gap: 8px;
+  }
+  .ig2 .ig-stats {
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .ig2 .ig-stats b {
+    font-size: 1rem;
+  }
+  .ig2 .ig-stats b + span {
+    font-size: 0.8rem;
+  }
+  .ig2 .ig-id {
+    padding: 12px 14px 0;
+  }
+  .ig2 .ig-actions {
+    padding: 12px 14px 4px;
+  }
+  .ig2 .ig-tabs button {
+    min-width: 0;
+    flex: 1;
+  }
+}

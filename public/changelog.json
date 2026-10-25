@@ -1,5 +1,15 @@
 [
   {
+    "code": "NV-82",
+    "date": "2026-10-25",
+    "title": "Profiles like Instagram",
+    "items": [
+      "Banners are gone from character and writer profiles.",
+      "A round profile picture sits beside the name and the posts, followers and following counts, with the story ring around it when there's a story up.",
+      "The bio, buttons and tabs are laid out like Instagram, with icon-only tabs and a tighter picture grid."
+    ]
+  },
+  {
     "code": "NV-81",
     "date": "2026-10-21",
     "title": "The basics in capitals",

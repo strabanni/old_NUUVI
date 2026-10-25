@@ -1,5 +1,5 @@
 // Characters: the create/edit form, the character cards in lists, and a character's own page
-// (banner, picture, numbers, bio, and the Posts / Tagged / Episodes / Ties / Timeline / About tabs).
+// (picture, numbers, bio, and the Posts / Tagged / Episodes / Ties / Timeline / About tabs).
 import {
   html,
   esc,
@@ -52,20 +52,14 @@ function characterForm(c = {}) {
           <span class="row-inline"><label class="btn sm file-btn">Avatar picture<input type="file" accept="image/*" id="pic-file" hidden></label><button type="button" class="sm link-btn" data-link="avatar">Link</button></span>
           <span class="row-inline"><label class="btn sm file-btn">Portrait (big picture)<input type="file" accept="image/*" id="portrait-file" hidden></label><button type="button" class="sm link-btn" data-link="portrait">Link</button></span>
           <span class="hint" id="portrait-state">${c.portrait ? 'Portrait set ✓' : 'Shown large on their character card'}</span>
-          <span class="hint size-hint">Best sizes: avatar 800 × 800 (square) · portrait 1200 × 1500 (4:5, tall) · banner 1800 × 600 (3:1)</span>
+          <span class="hint size-hint">Best sizes: avatar 800 × 800 (square) · portrait 1200 × 1500 (4:5, tall)</span>
           <span class="row-inline">
             <label class="btn sm file-btn">Thread picture<input type="file" accept="image/*" id="thread-file" hidden></label><button type="button" class="sm link-btn" data-link="threadAvatar">Link</button>
             <button type="button" class="sm" id="thread-clear" ${c.threadAvatar ? '' : 'hidden'}>Use avatar</button>
           </span>
           <span class="hint" id="thread-state">${c.threadAvatar ? 'Thread picture set ✓' : 'Optional. Shown on their thread posts instead of their social media avatar'}</span>
-          <span class="row-inline">
-            <label class="btn sm file-btn">Profile banner<input type="file" accept="image/*" id="banner-file" hidden></label><button type="button" class="sm link-btn" data-link="banner">Link</button>
-            <button type="button" class="sm" id="banner-clear" ${c.banner ? '' : 'hidden'}>Remove banner</button>
-          </span>
-          <span class="hint" id="banner-state">${c.banner ? 'Banner set ✓' : 'Optional. A wide picture across the top of their profile'}</span>
           <input type="hidden" name="avatar" value="${c.avatar || ''}">
           <input type="hidden" name="portrait" value="${c.portrait || ''}">
-          <input type="hidden" name="banner" value="${c.banner || ''}">
           <input type="hidden" name="threadAvatar" value="${c.threadAvatar || ''}">
         </div>
       </div>
@@ -190,15 +184,9 @@ export function editCharacter(c = {}) {
           $('#thread-state', d).textContent = 'Thread picture set ✓';
           $('#thread-clear', d).hidden = false;
         },
-        banner: (url) => {
-          form.banner.value = url;
-          $('#banner-state', d).textContent = 'Banner set ✓';
-          $('#banner-clear', d).hidden = false;
-        },
       };
       upload('#pic-file', 512, set.avatar);
       upload('#portrait-file', 1400, set.portrait);
-      upload('#banner-file', 1800, set.banner);
       upload('#thread-file', 800, set.threadAvatar);
       $('#thread-clear', d).addEventListener('click', (e) => {
         form.threadAvatar.value = '';
@@ -210,11 +198,6 @@ export function editCharacter(c = {}) {
         if (!b) return;
         const url = await askImageLink();
         if (url) set[b.dataset.link](url);
-      });
-      $('#banner-clear', d).addEventListener('click', (e) => {
-        form.banner.value = '';
-        $('#banner-state', d).textContent = 'No banner';
-        e.currentTarget.hidden = true;
       });
       form.color.addEventListener('input', showPic);
       const gbox = $('.grad-box', d);
@@ -356,18 +339,11 @@ export async function viewCharacter(id) {
   let tab = sessionStorage.getItem('nuuvi:char-tab') || 'posts';
   const body = page({
     alive,
-    title: c.name,
+    // The top bar, like Instagram: their @handle and blue tick (their name sits by the picture).
+    title: html`${c.private ? html`<span class="ig-lock" title="Private account" aria-label="Private account">${icons.lock}</span>` : ''}${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}`,
     actions: html`<button class="icon-btn" id="char-more" aria-label="More">${icons.more}</button>`,
     body: html`
-      ${
-        own
-          ? html`<button type="button" class="ig-banner own ${c.banner ? '' : 'empty'} ${c.status ? 'gone' : ''}" id="pic-banner" aria-label="${c.banner ? 'Change the banner' : 'Add a banner'}">
-          ${c.banner ? html`<img src="${c.banner}" alt="">` : ''}<span class="ig-cam">${icons.camera}<span>${c.banner ? 'Change banner' : 'Add a banner'}</span></span></button>`
-          : c.banner
-            ? html`<div class="ig-banner ${c.status ? 'gone' : ''}"><img src="${c.banner}" alt=""></div>`
-            : ''
-      }
-      <article class="ig-profile ${c.banner ? 'has-banner' : ''} ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
+      <article class="ig-profile ig2 ${c.status ? `gone gone-${c.status}` : ''}" data-color="${c.color}"${gradAttr(c)}>
         <header class="ig-head">
           ${
             own
@@ -376,27 +352,31 @@ export async function viewCharacter(id) {
                 ? html`<button type="button" class="ig-avatar has-story ${storyGroup.allSeen ? 'seen' : ''}" id="watch-story" aria-label="Watch ${c.name}'s story">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</button>`
                 : html`<span class="ig-avatar">${pic ? html`<img src="${c.avatar || pic}" alt="">` : avatar({ name: c.name, color: c.color, size: 'xxl' })}</span>`
           }
-          <div class="ig-stats">
-            <button type="button" data-tab-go="posts"><b>${compact(stats.socialPosts)}</b><span>Posts</span></button>
-            <button type="button" data-list="followers"><b>${compact(stats.followers)}</b><span>Followers</span></button>
-            <button type="button" data-list="following"><b>${compact(stats.following)}</b><span>Following</span></button>
-            <button type="button" data-tab-go="threads"><b>${compact(stats.threads)}</b><span>Threads</span></button>
+          <div class="ig-side">
+            <h1 class="ig-name">${c.name}${npcBadges(c)}</h1>
+            <div class="ig-stats">
+              <button type="button" data-tab-go="posts"><b>${compact(stats.socialPosts)}</b><span>posts</span></button>
+              <button type="button" data-list="followers"><b>${compact(stats.followers)}</b><span>followers</span></button>
+              <button type="button" data-list="following"><b>${compact(stats.following)}</b><span>following</span></button>
+            </div>
           </div>
         </header>
         ${c.status ? html`<div class="gone-ribbon" role="note"><b>${c.status === 'deceased' ? 'Deceased' : 'Missing in action'}</b><span>No longer playable${c.npc ? '' : ' · not supporting cast'}</span></div>` : ''}
         <div class="ig-id">
-          <h1 class="ig-name">${c.private ? html`<span class="ig-lock" title="Private account" aria-label="Private account">${icons.lock}</span>` : ''}${handleOf(c)}${c.verified ? html`<span class="verified" title="Verified">${icons.verified}</span>` : ''}${npcBadges(c)}</h1>
+          ${c.tagline ? html`<p class="ig-cat">${c.tagline}</p>` : ''}
           ${c.bio ? html`<div class="ig-bio prose">${formatPost(c.bio)}</div>` : ''}
+          ${c.owner ? html`<a class="ig-link" href="#/u/${c.owner.id}">${icons.user}<span>Written by ${c.owner.displayName || c.owner.username}</span></a>` : ''}
         </div>
         <div class="ig-actions">
           ${
             own
               ? html`<button id="edit">Edit profile</button>${c.status ? '' : html`<button class="primary" id="new-post">${icons.plus} New post</button>`}
               ${c.npc && !c.status ? html`<button id="photo-batch">${icons.image} Photo batch</button>` : ''}
-              ${followable.length ? html`<button id="follow">${following ? html`${icons.check} Following` : html`${icons.userAdd} Follow`}</button>` : ''}
-              ${c.private ? html`<button id="follow-requests">${icons.users} Requests${requestCount ? html` <span class="badge">${requestCount}</span>` : ''}</button>` : ''}`
-              : html`<button class="${following || requested.length ? '' : 'primary'}" id="follow">${following ? html`${icons.check} Following` : requested.length ? html`${icons.hourglass} Requested` : html`${icons.userAdd} Follow`}</button>
-              <button id="start-thread">${icons.episode} Start an episode</button>`
+              ${followable.length ? html`<button id="follow">${following ? 'Following' : 'Follow'}</button>` : ''}
+              ${c.private ? html`<button id="follow-requests">Requests${requestCount ? html` <span class="badge">${requestCount}</span>` : ''}</button>` : ''}`
+              : html`<button class="${following || requested.length ? '' : 'primary'}" id="follow">${following ? 'Following' : requested.length ? 'Requested' : 'Follow'}</button>
+              <button id="start-thread">Start an episode</button>
+              <button class="ig-sq" data-tab-go="threads" aria-label="Episodes" title="Episodes">${icons.episode}</button>`
           }
         </div>
         <nav class="ig-tabs" role="tablist">
@@ -544,7 +524,7 @@ export async function viewCharacter(id) {
     ),
   );
   const reload = () => viewCharacter(id);
-  // Your own character: tap the profile picture or the banner to change it right here.
+  // Your own character: tap the profile picture to change it right here.
   const changePic = (field, label) =>
     attachSheet({
       max: 1,
@@ -559,25 +539,8 @@ export async function viewCharacter(id) {
           toast(err.message);
         }
       },
-      extras: [
-        field === 'banner' &&
-          c.banner && {
-            label: 'Remove banner',
-            icon: icons.warning,
-            action: async () => {
-              try {
-                await api(`/api/characters/${c.id}`, { method: 'PUT', body: { banner: '' } });
-                toast('Banner removed');
-                reload();
-              } catch (err) {
-                toast(err.message);
-              }
-            },
-          },
-      ],
     });
   $('#pic-avatar', body)?.addEventListener('click', () => changePic('avatar', 'Profile picture'));
-  $('#pic-banner', body)?.addEventListener('click', () => changePic('banner', 'Banner'));
   async function newPost() {
     if (await openSocialComposer({ characterId: c.id })) {
       tab = 'posts';

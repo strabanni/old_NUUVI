@@ -76,23 +76,23 @@ export async function viewUser(id) {
           ? html`<a class="btn sm" id="open-settings" href="#/settings" aria-label="Settings">${icons.gear}<span class="lbl">Settings</span></a>`
           : '',
     body: html`
-      <section class="profile-hero ${u.banner ? '' : 'no-img'}">
-        ${u.banner ? html`<img class="hero-img" src="${u.banner}" alt="">` : ''}
-        <div class="hero-row">
-          ${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'xxl square' })}
-          <div>
-            <h1 class="big-name u-grad"${userGrad(u)}>${u.displayName}</h1>
-            <div class="handle">@${u.username} · joined ${timeAgo(u.joinedAt)}
-              ${u.isOwner ? html` · <span class="grad-text">owner</span>` : u.isAdmin ? html` · <span class="grad-text">admin</span>` : ''}${u.suspended ? html` · <span class="muted">suspended</span>` : ''}</div>
+      <section class="ig-profile ig2 ig-user">
+        <header class="ig-head">
+          <span class="ig-avatar">${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'xxl' })}</span>
+          <div class="ig-side">
+            <h1 class="ig-name u-grad"${userGrad(u)}>${u.displayName}</h1>
+            <div class="ig-stats">
+              <span><b>${fmt(stats.posts)}</b><span>posts</span></span>
+              <span><b>${fmt(stats.characters)}</b><span>characters</span></span>
+              <span><b>${fmt(stats.stories)}</b><span>stories</span></span>
+            </div>
           </div>
+        </header>
+        <div class="ig-id">
+          <p class="ig-cat">@${u.username} · joined ${timeAgo(u.joinedAt)}${u.isOwner ? html` · <span class="grad-text">owner</span>` : u.isAdmin ? html` · <span class="grad-text">admin</span>` : ''}${u.suspended ? ' · suspended' : ''}</p>
+          <p class="ig-words">${fmt(stats.words)} words written</p>
         </div>
       </section>
-      <div class="stat-row">
-        <div class="stat"><b>${fmt(stats.posts)}</b><span>Posts</span></div>
-        <div class="stat"><b>${fmt(stats.words)}</b><span>Words</span></div>
-        <div class="stat"><b>${fmt(stats.characters)}</b><span>Characters</span></div>
-        <div class="stat"><b>${fmt(stats.stories)}</b><span>Stories</span></div>
-      </div>
       ${info.length ? html`<div class="info-grid">${info.map(([k, v]) => html`<div class="info"><span class="eyebrow">${k}</span><div>${v}</div></div>`)}</div>` : ''}
       <div class="profile-cols">
         ${
@@ -255,11 +255,8 @@ export async function viewSettings() {
               <div id="me-pic">${avatar({ name: u.displayName, src: u.avatar, color: '#EE719E', size: 'xl square' })}</div>
               <div class="stack">
                 <span class="row-inline"><label class="btn sm file-btn">Profile picture<input type="file" accept="image/*" id="me-file" hidden></label><button type="button" class="sm link-btn" data-link="avatar">Link</button></span>
-                <span class="row-inline"><label class="btn sm file-btn">Banner<input type="file" accept="image/*" id="banner-file" hidden></label><button type="button" class="sm link-btn" data-link="banner">Link</button></span>
-                <span class="hint" id="banner-state">${u.banner ? 'Banner set ✓' : 'A wide picture for the top of your profile'}</span>
-                <span class="hint size-hint">Best sizes: picture 800 × 800 (square) · banner 1800 × 600 (3:1)</span>
+                <span class="hint size-hint">Best size: 800 × 800 (square)</span>
                 <input type="hidden" name="avatar" value="${u.avatar || ''}">
-                <input type="hidden" name="banner" value="${u.banner || ''}">
               </div>
             </div>
             <label for="p-name">Display name</label>
@@ -384,24 +381,13 @@ export async function viewSettings() {
       toast(err.message);
     }
   });
-  $('#banner-file', body).addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      profile.banner.value = await uploadImage(file, 1600);
-      $('#banner-state', body).textContent = 'Banner set ✓';
-    } catch (err) {
-      toast(err.message);
-    }
-  });
   profile.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-link]');
     if (!b) return;
     const url = await askImageLink();
     if (!url) return;
     profile[b.dataset.link].value = url;
-    if (b.dataset.link === 'avatar') render($('#me-pic', body), avatar({ name: u.displayName, src: url, size: 'xl square' }));
-    else $('#banner-state', body).textContent = 'Banner set ✓';
+    render($('#me-pic', body), avatar({ name: u.displayName, src: url, size: 'xl square' }));
   });
   // Your colors: presets, 2 or 3 stops, and a live preview.
   const gbox = $('.me-grad', body);
