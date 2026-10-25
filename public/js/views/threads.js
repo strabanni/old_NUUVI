@@ -28,7 +28,7 @@ export function avatarStack(chars, max = 4) {
 }
 
 export function feedCard(item) {
-  const pic = item.banner || item.story.banner || item.starter?.portrait || item.starter?.avatar;
+  const pic = item.banner || item.story.banner || item.starter?.avatar || item.starter?.portrait;
   const when = item.kind === 'event' && item.eventAt ? item.eventAt : item.lastPostAt || item.createdAt;
   return html`
     <a class="feed-card kind-${item.kind}" href="#/s/${item.storyId}/${item.id}" data-color="${item.story.color}">

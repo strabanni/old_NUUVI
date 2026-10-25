@@ -1,5 +1,13 @@
 [
   {
+    "code": "NV-84",
+    "date": "2026-10-25",
+    "title": "No more portrait pictures",
+    "items": [
+      "The portrait picture is gone from the character editor. Characters use their avatar everywhere, including their character card."
+    ]
+  },
+  {
     "code": "NV-83",
     "date": "2026-10-25",
     "title": "Shipping status and permission to kill move to About",
