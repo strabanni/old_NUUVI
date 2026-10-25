@@ -1,5 +1,14 @@
 [
   {
+    "code": "NV-88",
+    "date": "2026-10-25",
+    "title": "Full size on phones",
+    "items": [
+      "Phones now start at the Standard interface size instead of Small, so everything is full size and easier to read and tap. If you already picked a size in your profile, your choice stays.",
+      "Long page titles and profile buttons on phones now end in … instead of being cut off."
+    ]
+  },
+  {
     "code": "NV-87",
     "date": "2026-10-25",
     "title": "Room at the top, no gap at the bottom",

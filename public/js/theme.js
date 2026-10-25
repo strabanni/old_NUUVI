@@ -32,10 +32,10 @@
   }
   if (names === 'theme') root.dataset.names = 'theme';
 
-  // Interface size, on every device. Phones default to Small (closer to Discord's scale), computers
-  // to Standard. The whole page is zoomed (heights that use the screen size are divided back by
-  // --ui-zoom in styles.css), so the page always fills the screen exactly — including the
-  // home-screen app on iPhone.
+  // Interface size, on every device. Everyone starts at Standard (phones too: the layout is built for
+  // their screens, so it isn't shrunk down); anyone can pick another size in their profile. The whole
+  // page is zoomed (heights that use the screen size are divided back by --ui-zoom in styles.css), so
+  // the page always fills the screen exactly, including the home-screen app on iPhone.
   var SCALES = { xsmall: 0.78, compact: 0.86, standard: 1, large: 1.12, xlarge: 1.25 };
   var meta = document.querySelector('meta[name=viewport]');
   var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -52,7 +52,7 @@
       /* storage unavailable */
     }
     ui = ui || saved;
-    if (!SCALES[ui]) ui = mobile ? 'compact' : 'standard';
+    if (!SCALES[ui]) ui = 'standard';
     root.dataset.ui = ui;
     var scale = SCALES[ui];
     root.style.setProperty('--ui-zoom', String(scale));

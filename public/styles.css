@@ -16703,3 +16703,19 @@ dialog.modal.wn-modal .modal-x {
     flex: 1;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   §79  Phones at full size: long titles and buttons end in "…" instead of being cut off
+   ══════════════════════════════════════════════════════════════════════════════ */
+.head-title .topic,
+.head-title h1 {
+  max-width: 100%;
+}
+.head-title h1 {
+  min-width: 0;
+}
+.ig2 .ig-actions button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
