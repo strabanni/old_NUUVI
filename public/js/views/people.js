@@ -10,6 +10,7 @@ import {
   avatar,
   icons,
   confirmModal,
+  modal,
   promptModal,
   uploadImage,
   formatPost,
@@ -245,7 +246,7 @@ export async function viewSettings() {
           <p class="hint">Makes the whole app smaller or bigger on this device: buttons, text and pictures together.</p>
           <p class="hint">Light and Dark use pink (#EE719E) only for highlights. Auto follows your device's light or dark setting.</p>
           <p class="hint">Icons: <a href="https://framework7.io/icons/" target="_blank" rel="noopener noreferrer">Framework7 Icons</a> (iOS style, MIT licence).</p>
-          <p class="hint">You're on update <b>${APP_BUILD}</b>. <button type="button" class="link" id="whats-new">What's new?</button></p>
+          <p class="hint">You're on update <b>${APP_BUILD}</b>. <button type="button" class="link" id="whats-new">What's new?</button> · <button type="button" class="link" id="screen-check">Screen check</button></p>
         </section>
 
         <section class="card">
@@ -453,6 +454,47 @@ export async function viewSettings() {
     if (!sw) return;
     applyTheme(sw.dataset.themePick);
     body.querySelectorAll('[data-theme-pick]').forEach((b) => b.setAttribute('aria-pressed', String(b === sw)));
+  });
+  // Screen check: the sizes this device reports, to send when the app doesn't fit the screen.
+  $('#screen-check', body).addEventListener('click', () => {
+    const root = document.documentElement;
+    const probe = document.createElement('div');
+    probe.style.setProperty('position', 'fixed');
+    probe.style.setProperty('visibility', 'hidden');
+    probe.style.setProperty('padding-top', 'env(safe-area-inset-top, 0px)');
+    probe.style.setProperty('padding-bottom', 'env(safe-area-inset-bottom, 0px)');
+    document.body.appendChild(probe);
+    const cs = getComputedStyle(probe);
+    const env = `${cs.paddingTop} / ${cs.paddingBottom}`;
+    probe.remove();
+    const vv = window.visualViewport;
+    const box = (sel) => {
+      const r = document.querySelector(sel)?.getBoundingClientRect();
+      return r ? `${Math.round(r.top)}→${Math.round(r.bottom)}` : '-';
+    };
+    const lines = [
+      `update ${APP_BUILD} · size ${root.dataset.ui} (${root.style.getPropertyValue('--ui-zoom') || 1})`,
+      `home-screen app: ${navigator.standalone || matchMedia('(display-mode: standalone)').matches ? 'yes' : 'no'}`,
+      `screen ${screen.width}×${screen.height} · window ${innerWidth}×${innerHeight}`,
+      `visible ${vv ? `${Math.round(vv.width)}×${Math.round(vv.height)} at ${Math.round(vv.offsetTop)}` : '-'} · scrolled ${Math.round(scrollY)}`,
+      `safe area (phone says) ${env}`,
+      `safe area (used) ${root.style.getPropertyValue('--sat-min') || '-'} / ${root.style.getPropertyValue('--sab-min') || '-'} · full ${root.style.getPropertyValue('--full-h') || '-'}`,
+      `body ${box('body')} · page ${box('#main')} · rail ${box('.rail')}`,
+    ].join('\n');
+    modal(
+      html`<div><h2>Screen check</h2><p class="hint">Take a screenshot of this and send it over if the app doesn't fit your screen.</p>
+      <pre class="screen-check">${lines}</pre>
+      <div class="actions end"><button type="button" id="sc-copy">Copy</button><button type="button" class="primary" data-close>Done</button></div></div>`,
+      {
+        init: (d) =>
+          $('#sc-copy', d).addEventListener('click', () =>
+            navigator.clipboard?.writeText(lines).then(
+              () => toast('Copied'),
+              () => toast("Couldn't copy"),
+            ),
+          ),
+      },
+    );
   });
   // Interface size: a drop-down (the phone's own picker), which every phone can tap reliably.
   $('#ui-size', body).addEventListener('change', (e) => {

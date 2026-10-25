@@ -1,5 +1,16 @@
 [
   {
+    "code": "NV-89",
+    "date": "2026-10-25",
+    "title": "A simpler phone",
+    "items": [
+      "The Phone has its own simpler look. At the top: whose phone it is (tap to switch phones), a round button to text someone or add a contact, a Messages | Contacts switch and a search box.",
+      "Conversations sit in one soft card with a pink count for unread texts. Pin your favourites with Edit pins and they show as circles across the top.",
+      "On iPhone, the home-screen app now always leaves the right amount of room for the clock and battery.",
+      "New in Settings: Screen check, which shows the sizes your device reports. Send a screenshot of it if the app doesn't fit your screen."
+    ]
+  },
+  {
     "code": "NV-88",
     "date": "2026-10-25",
     "title": "Full size on phones",

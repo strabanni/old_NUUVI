@@ -287,10 +287,27 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     return `${p.last} ${p.first}`.toLowerCase();
   };
   const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
-  const tabBar = () => html`<nav class="ph-tabbar" aria-label="Phone">
-      <button type="button" data-view="messages" aria-pressed="${view === 'messages'}">${icons.chat}<span>Messages</span></button>
-      <button type="button" data-view="contacts" aria-pressed="${view === 'contacts'}">${icons.profile}<span>Contacts</span></button>
-    </nav>`;
+  // The top of the phone, on both tabs: whose phone it is (tap to switch), a round button (new
+  // message, or add a contact), a Messages | Contacts switch and the search box. NUUVI's own take on
+  // the iPhone apps: simpler, and everything in reach at the top.
+  const head = () => {
+    const waiting = data.threads.reduce((n, t) => n + (t.id === activeTid ? 0 : t.unread || 0), 0);
+    return html`<header class="px-head">
+        <button type="button" class="px-who ph-switch ${otherUnread() ? 'has-dot' : ''}" id="ph-switch" aria-label="Switch phone${otherUnread() ? ' (another phone has new texts)' : ''}" title="Switch phone">
+          ${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'sm' })}<span class="px-who-name"><b>${me.name}</b><small>@${me.handle}</small></span>${icons.chevron}<i class="ph-dot" aria-hidden="true"></i>
+        </button>
+        ${
+          view === 'contacts'
+            ? html`<button type="button" class="px-round" id="ph-add" aria-label="Add contacts" title="Add contacts">${icons.plus}</button>`
+            : html`<button type="button" class="px-round" id="ph-compose" aria-label="New message" title="New message">${icons.edit}</button>`
+        }
+      </header>
+      <div class="px-seg" role="tablist" aria-label="Phone">
+        <button type="button" role="tab" data-view="messages" aria-selected="${view === 'messages'}">Messages${waiting ? html`<i class="px-count">${waiting > 99 ? '99+' : waiting}</i>` : ''}</button>
+        <button type="button" role="tab" data-view="contacts" aria-selected="${view === 'contacts'}">Contacts</button>
+      </div>
+      <label class="px-search">${icons.search}<input type="search" id="ph-q" placeholder="${view === 'contacts' ? 'Search contacts' : 'Search messages'}" value="${q}" aria-label="Search"></label>`;
+  };
   const picOf = (c, size = '') => avatar({ name: c.name, src: c.character.avatar, color: c.character.color, size });
 
   function drawCard() {
@@ -324,7 +341,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
         <button type="button" class="ct-row" data-card-act="profile">View Profile</button>
       </div>
       <div class="ct-group"><button type="button" class="ct-row danger" data-card-act="remove">Delete Contact</button></div>
-    </section>${tabBar()}`,
+    </section>`,
     );
     applyColors(root);
   }
@@ -345,19 +362,14 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
       root,
       html`<section class="ct-app">
       <div class="ct-scroll" id="ct-scroll">
-        <header class="ct-top">
-          <button type="button" class="ph-switch ${otherUnread() ? 'has-dot' : ''}" id="ph-switch" aria-label="Switch phone" title="Switch phone">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'xs' })}${icons.chevron}<i class="ph-dot" aria-hidden="true"></i></button>
-          <button type="button" class="ct-plus" id="ph-add" aria-label="Add contacts">${icons.plus}</button>
-        </header>
-        <h1 class="ct-title">Contacts</h1>
-        <label class="ct-search">${icons.search}<input type="search" id="ph-q" placeholder="Search" value="${q}" aria-label="Search contacts"></label>
-        ${q ? '' : html`<a class="ct-me" href="#/c/${me.id}">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'lg' })}<span class="grow"><b>${me.name}</b><small>My Card</small></span></a>`}
+        ${head()}
+        ${q ? '' : html`<a class="ct-me px-card" href="#/c/${me.id}">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'lg' })}<span class="grow"><b>${me.name}</b><small>My Card</small></span></a>`}
         ${sections.map(
           (sec) => html`<div class="ct-sec" data-letter="${sec.l}"><h3>${sec.l}</h3>
-          ${sec.people.map((c) => {
+          <div class="px-card">${sec.people.map((c) => {
             const p = parts(c.name);
-            return html`<button type="button" class="ct-person" data-card="${c.id}">${p.first ? html`${p.first} ` : ''}<b>${p.last}</b></button>`;
-          })}</div>`,
+            return html`<button type="button" class="ct-person" data-card="${c.id}">${picOf(c, 'sm')}<span>${p.first ? html`${p.first} ` : ''}<b>${p.last}</b></span></button>`;
+          })}</div></div>`,
         )}
         ${
           list.length
@@ -366,12 +378,12 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
         }
       </div>
       ${list.length > 6 ? html`<nav class="ct-index" aria-label="Jump to letter">${LETTERS.map((l) => html`<button type="button" data-jump="${l}">${l}</button>`)}</nav>` : ''}
-    </section>${tabBar()}`,
+    </section>`,
     );
   }
 
-  // Pinned conversations (the big circles at the top, like iPhone Messages), kept on this device for
-  // each phone. Until someone picks their own, the six most recent conversations are pinned.
+  // Pinned conversations (the circles at the top), kept on this device for each phone. Nothing is
+  // pinned until you pin it (Edit pins), so every conversation shows in the list.
   const pinKey = `nuuvi:ph-pins:${cid}`;
   let editing = false;
   const readPins = () => {
@@ -389,7 +401,7 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
       /* ignore */
     }
   };
-  const pinnedIds = () => readPins() ?? data.threads.slice(0, 6).map((t) => t.id);
+  const pinnedIds = () => readPins() ?? [];
 
   function draw() {
     if (view === 'contacts') return card ? drawCard() : drawContacts();
@@ -408,62 +420,55 @@ export function mountPhoneList(root, { cid, mine, data: initial, activeTid = nul
     render(
       root,
       html`
-      <section class="pm-app">
-        <header class="pm-top">
-          <button type="button" class="pm-pill" id="pm-edit" aria-pressed="${editing}">${editing ? 'Done' : 'Edit'}</button>
-          <h1 class="pm-title">Messages</h1>
-          <button type="button" class="ph-switch pm-round ${otherUnread() ? 'has-dot' : ''}" id="ph-switch" aria-label="Switch phone${otherUnread() ? ' (another phone has new texts)' : ''}" title="Switch phone">${avatar({ name: me.name, src: me.avatar, color: me.color, size: 'xs' })}<i class="ph-dot" aria-hidden="true"></i></button>
-        </header>
+      <section class="px-app">
+        ${head()}
         ${
           pinned.length
-            ? html`<div class="pm-pins">${pinned.map(
+            ? html`<div class="px-pins no-swipe">${pinned.map(
                 (t) => html`
-          <div class="pm-pin ${t.unread ? 'unread' : ''}">
-            <a class="pm-pin-link" href="${href(t)}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
-              <span class="pm-pin-av">${picOfThread(t, 'xxl')}</span>
-              <span class="pm-pin-name">${t.unread ? html`<i class="pm-dot"></i>` : ''}${t.name}</span>
+          <div class="px-pin ${t.unread ? 'unread' : ''}">
+            <a class="px-pin-link" href="${href(t)}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
+              <span class="px-pin-av">${picOfThread(t, 'lg')}</span>
+              <span class="px-pin-name">${t.name}</span>
             </a>
-            ${editing ? html`<button type="button" class="pm-unpin" data-unpin="${t.id}" aria-label="Unpin ${t.name}">−</button>` : ''}
+            ${editing ? html`<button type="button" class="px-unpin" data-unpin="${t.id}" aria-label="Unpin ${t.name}">−</button>` : ''}
           </div>`,
               )}</div>`
             : ''
         }
         ${
           q && contacts.length
-            ? html`<div class="ph-contacts no-swipe">${contacts.map(
+            ? html`<div class="px-pins no-swipe">${contacts.map(
                 (c) => html`
-            <button type="button" class="ph-contact" data-open="${c.id}" title="${c.name}"><span class="ph-av">${avatar({ name: c.character.name, src: c.character.avatar, color: c.character.color })}</span><span>${c.name}</span></button>`,
+            <button type="button" class="px-pin px-pin-link" data-open="${c.id}" title="Text ${c.name}"><span class="px-pin-av">${avatar({ name: c.character.name, src: c.character.avatar, color: c.character.color, size: 'lg' })}</span><span class="px-pin-name">${c.name}</span></button>`,
               )}</div>`
             : ''
         }
-        <div class="pm-list">
+        <div class="px-sec">
+          <h3>${q ? 'Results' : 'Conversations'}</h3>
+          ${q ? '' : html`<button type="button" class="px-link" id="pm-edit" aria-pressed="${editing}">${editing ? 'Done' : 'Edit pins'}</button>`}
+        </div>
+        ${editing ? html`<p class="px-hint">Tap ${icons.pushpin} to pin a conversation to the top, or − to unpin it. Up to 9.</p>` : ''}
         ${
           threads.length
-            ? threads.map(
+            ? html`<div class="px-card px-list">${threads.map(
                 (t) => html`
-          <div class="pm-item ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}">
-            <a class="pm-row" href="${href(t)}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
-              <i class="pm-dot" aria-hidden="true"></i>
-              <span class="pm-av">${picOfThread(t)}</span>
-              <span class="pm-text">
-                <span class="pm-line"><b>${t.name}</b><small>${t.last?.at || t.lastAt ? shortWhen(t.last?.at || t.lastAt) : ''}</small>${icons.chevron}</span>
-                <span class="pm-prev">${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'No messages yet'}</span>
+          <div class="px-item ${t.unread ? 'unread' : ''} ${t.id === activeTid ? 'active' : ''}">
+            <a class="px-row" href="${href(t)}" ${t.group ? '' : html`data-contact="${t.other.id}"`}>
+              <span class="px-av">${picOfThread(t)}</span>
+              <span class="px-text">
+                <span class="px-line"><b>${t.name}</b><small>${t.last?.at || t.lastAt ? shortWhen(t.last?.at || t.lastAt) : ''}</small></span>
+                <span class="px-line"><span class="px-prev">${t.last ? `${t.last.mine ? 'You: ' : ''}${t.last.text}` : 'No messages yet'}</span>${t.unread ? html`<i class="px-count">${t.unread > 99 ? '99+' : t.unread}</i>` : ''}</span>
               </span>
             </a>
-            ${editing && !q ? html`<button type="button" class="pm-pinbtn" data-pin="${t.id}" aria-label="Pin ${t.name}" title="Pin">${icons.pushpin}</button>` : ''}
+            ${editing && !q ? html`<button type="button" class="px-pinbtn" data-pin="${t.id}" aria-label="Pin ${t.name}" title="Pin">${icons.pushpin}</button>` : ''}
           </div>`,
-              )
+              )}</div>`
             : pinned.length
-              ? ''
-              : html`<div class="ph-empty"><p>${q ? 'No results' : 'No messages yet.'}</p>${q ? '' : html`<p class="small">Tap the pencil to text one of your contacts, or open <b>Contacts</b> to save someone's number.</p>`}</div>`
+              ? html`<p class="px-hint">Every conversation is pinned above.</p>`
+              : html`<div class="px-card ph-empty"><p>${q ? 'No results' : 'No messages yet.'}</p>${q ? '' : html`<p class="small">Tap ${icons.edit} at the top to text one of your contacts, or open <b>Contacts</b> to save someone's number.</p>`}</div>`
         }
-        </div>
-        ${editing ? html`<p class="pm-hint">Tap ${icons.pushpin} to pin a conversation to the top, or − to unpin it. Up to 9.</p>` : ''}
-        <div class="pm-dock">
-          <label class="pm-search">${icons.search}<input type="search" id="ph-q" placeholder="Search" value="${q}" aria-label="Search contacts and messages">${icons.mic}</label>
-          <button type="button" class="pm-compose" id="ph-compose" aria-label="New message" title="New message">${icons.edit}</button>
-        </div>
-      </section>${tabBar()}`,
+      </section>`,
     );
     applyColors(root);
   }

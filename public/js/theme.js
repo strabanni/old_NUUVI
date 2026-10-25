@@ -177,6 +177,15 @@
       // band at the bottom, the size of the status bar) and report no status bar at all, so the app
       // ran up under the clock. Fill the real screen, and leave the status bar its room.
       var standalone = navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+      // In the home-screen app on iPhone the clock and battery always sit over the top of the app, and
+      // each iPhone's status bar is a known height. Never leave less room than that, whatever the phone
+      // reports (some report none, or too little, and the top of the app went under the clock).
+      if (standalone && /iPhone/.test(navigator.userAgent)) {
+        var h = Math.max(screen.width, screen.height);
+        var bar = { 667: 20, 736: 20, 812: 47, 844: 47, 926: 47, 852: 59, 932: 59, 874: 62, 956: 62 }[h] || (h > 812 ? 59 : 20);
+        if (t < bar) t = bar;
+        if (h >= 812 && b < 34) b = 34;
+      }
       if (standalone && !root.classList.contains('kb-up')) {
         var short = Math.round(screen.height - window.innerHeight);
         if (short > 8 && short < 120) {
