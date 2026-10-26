@@ -18,7 +18,7 @@ test('a version 1 database is upgraded through every migration in place and keep
   old.close();
 
   const db = openDb(path);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 32);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 33);
   const row = db.prepare("SELECT * FROM users WHERE username = 'old'").get();
   assert.equal(row.profile, '{}');
   assert.equal(row.banner, null);
@@ -48,7 +48,7 @@ test('upgrading to v24 keeps every text, read marker and contact when the phone 
   old.close();
 
   const db = openDb(path);
-  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 32);
+  assert.equal(db.prepare('PRAGMA user_version').get().user_version, 33);
   assert.equal(db.prepare('PRAGMA foreign_keys').get().foreign_keys, 1);
   assert.deepEqual(
     db

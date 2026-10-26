@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { capitalizeName } from './text.js';
 
-const SCHEMA_VERSION = 32;
+const SCHEMA_VERSION = 33;
 
 export const SCHEMA = `
 CREATE TABLE users (
@@ -722,6 +722,32 @@ export const MIGRATIONS = [
    UPDATE users SET is_owner = 1 WHERE id = COALESCE(
      (SELECT id FROM users WHERE username = 'coi' COLLATE NOCASE),
      (SELECT MIN(id) FROM users WHERE is_admin = 1));`,
+  // v33: (1) drafts: THE NU posts a writer saves for any of their characters, to post when they
+  // like; (2) the suggestion box, with votes and a reply from the team.
+  `CREATE TABLE post_drafts (
+     id           INTEGER PRIMARY KEY,
+     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+     payload      TEXT NOT NULL DEFAULT '{}',
+     created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+     updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE INDEX post_drafts_user_idx ON post_drafts(user_id, updated_at);
+   CREATE TABLE suggestions (
+     id         INTEGER PRIMARY KEY,
+     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     title      TEXT NOT NULL,
+     body       TEXT NOT NULL DEFAULT '',
+     status     TEXT NOT NULL DEFAULT 'open',
+     reply      TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL DEFAULT (datetime('now')),
+     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+   );
+   CREATE TABLE suggestion_votes (
+     suggestion_id INTEGER NOT NULL REFERENCES suggestions(id) ON DELETE CASCADE,
+     user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+     PRIMARY KEY (suggestion_id, user_id)
+   );`,
 ];
 
 // A character's @username: letters, numbers, dots and underscores, made unique with a number if needed.

@@ -26,6 +26,8 @@ import { messageRoutes } from './routes/messages.js';
 import { aiRoutes } from './routes/ai.js';
 import { placeRoutes } from './routes/places.js';
 import { devRoutes } from './routes/dev.js';
+import { draftRoutes } from './routes/drafts.js';
+import { suggestionRoutes } from './routes/suggestions.js';
 import { planRoutes } from './routes/plans.js';
 import { socialStoryRoutes } from './routes/social-stories.js';
 import { readClock, writeClock, storyNowSql, publicClock } from './clock.js';
@@ -234,21 +236,23 @@ export function createApp({
         ? '#/admin'
         : row.type === 'dev'
           ? `#/dev/${row.dev_id}`
-          : row.type === 'dm' || row.type === 'call'
-            ? phoneUrl(row)
-            : row.social_id
-              ? `#/p/${row.social_id}`
-              : row.type === 'message'
-                ? `#/messages/${row.actor_id}`
-                : row.type === 'connection'
-                  ? '#/nu'
-                  : ['follow', 'followreq', 'tie', 'batch'].includes(row.type) && row.character_id
-                    ? `#/c/${row.character_id}`
-                    : row.type === 'added' && row.story_id
-                      ? `#/s/${row.story_id}`
-                      : row.story_id && row.channel_id
-                        ? `#/s/${row.story_id}/${row.channel_id}`
-                        : '#/notifications',
+          : row.type === 'suggestion'
+            ? '#/suggestions'
+            : row.type === 'dm' || row.type === 'call'
+              ? phoneUrl(row)
+              : row.social_id
+                ? `#/p/${row.social_id}`
+                : row.type === 'message'
+                  ? `#/messages/${row.actor_id}`
+                  : row.type === 'connection'
+                    ? '#/nu'
+                    : ['follow', 'followreq', 'tie', 'batch'].includes(row.type) && row.character_id
+                      ? `#/c/${row.character_id}`
+                      : row.type === 'added' && row.story_id
+                        ? `#/s/${row.story_id}`
+                        : row.story_id && row.channel_id
+                          ? `#/s/${row.story_id}/${row.channel_id}`
+                          : '#/notifications',
   });
 
   const snippet = (post) => {
@@ -470,6 +474,8 @@ export function createApp({
   aiRoutes(router, ctx);
   placeRoutes(router, ctx);
   devRoutes(router, ctx);
+  draftRoutes(router, ctx);
+  suggestionRoutes(router, ctx);
   planRoutes(router, ctx);
   socialStoryRoutes(router, ctx);
   worldRoutes(router, ctx);

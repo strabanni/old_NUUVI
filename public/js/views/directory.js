@@ -72,7 +72,7 @@ export async function viewDirectory() {
   // The Directory opens on Meet The Cast (unless another view was picked); #/locations opens it on
   // the Locations map once, and #/characters on "Me". ("All characters" is now part of Meet The Cast.)
   let view = sessionStorage.getItem('nuuvi:dir-once') || sessionStorage.getItem('nuuvi:dir-view') || 'writers';
-  if (view === 'characters' || view === 'npcs') view = 'writers'; // both are part of Meet The Cast now
+  if (view === 'characters') view = 'writers'; // All characters is part of Meet The Cast now
   sessionStorage.removeItem('nuuvi:dir-once');
   let q = '';
   let placeData = null;
@@ -90,6 +90,7 @@ export async function viewDirectory() {
         <div class="seg dir-tabs no-swipe" role="group" aria-label="Show">
           <button type="button" data-view="me">Me</button>
           <button type="button" data-view="writers">Meet The Cast</button>
+          <button type="button" data-view="npcs">Supporting Cast</button>
           <button type="button" data-view="brands">Brands</button>
           <button type="button" data-view="places">Locations</button>
         </div>
@@ -140,13 +141,30 @@ export async function viewDirectory() {
         }`,
       );
     } else if (view === 'writers') {
-      // Meet The Cast: every character, main and supporting cast, as character cards.
-      const shown = cast.filter((c) => match(c.name, c.handle, c.tagline, c.writer?.username, c.writer?.displayName));
+      // Meet The Cast: every character, main and supporting cast, as character cards. Brands have
+      // their own tab.
+      const shown = cast
+        .filter((c) => !c.brand)
+        .filter((c) => match(c.name, c.handle, c.tagline, c.writer?.username, c.writer?.displayName));
       render(
         list,
         shown.length
           ? html`<div class="char-grid">${shown.map((c) => characterCard(c))}</div>`
           : html`<div class="empty"><p>${q ? `Nobody matches “${q}”.` : 'No characters yet.'}</p></div>`,
+      );
+    } else if (view === 'npcs') {
+      // Supporting Cast: the NPCs on their own (they're in Meet The Cast too).
+      const npcs = cast.filter((c) => c.npc && !c.brand);
+      const shown = npcs.filter((c) => match(c.name, c.handle, c.tagline, ...(c.npcTags || []), c.writer?.username));
+      render(
+        list,
+        html`
+        <p class="hint">Supporting cast are the extra characters who fill out Ardell City. Make one by ticking “This is supporting cast” in a character's editor.</p>
+        ${
+          shown.length
+            ? html`<div class="char-grid">${shown.map((c) => characterCard(c, { editable: c.writer?.id === state.user.id }))}</div>`
+            : html`<div class="empty"><p>${npcs.length ? 'Nobody matches.' : 'No supporting cast yet.'}</p></div>`
+        }`,
       );
     } else if (view === 'brands') {
       // Brand accounts: shops, labels, cafés, magazines… that post on THE NU.
@@ -158,13 +176,7 @@ export async function viewDirectory() {
         <p class="hint">Brand accounts post on THE NU like a business would. Make one by ticking “This is a brand account” in a character's editor.</p>
         ${
           shown.length
-            ? html`<div class="char-grid npc-grid">${shown.map(
-                (c) => html`
-          <div class="npc-item">
-            ${characterCard(c, { editable: c.writer.id === state.user.id })}
-            <div class="npc-meta"><span class="muted small">by @${c.writer.username}</span></div>
-          </div>`,
-              )}</div>`
+            ? html`<div class="char-grid">${shown.map((c) => characterCard(c, { editable: c.writer.id === state.user.id }))}</div>`
             : html`<div class="empty"><p>${brands.length ? 'No brands match.' : 'No brand accounts yet.'}</p></div>`
         }`,
       );

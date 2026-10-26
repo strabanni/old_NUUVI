@@ -1,5 +1,17 @@
 [
   {
+    "code": "NV-90",
+    "date": "2026-10-26",
+    "title": "Drafts, a suggestion box and a tidier Directory",
+    "items": [
+      "Drafts: write a post for any of your characters and tap Save as draft instead of Post. Find them all under Drafts in the menu, then post them whenever you like, change them, or delete them.",
+      "Suggestions: a new page in the menu for ideas that would make NUUVI better. Add yours, and tap the heart on the ones you'd like most. You'll hear when one of yours is planned, done or answered.",
+      "Directory: Brands now only show under Brands, and Supporting Cast has its own tab while still showing in Meet The Cast.",
+      "On phones, characters now show three to a row.",
+      "The glow behind the Directory carousel now uses NUUVI's pink and lilac, soft in Light mode and deep in Dark mode."
+    ]
+  },
+  {
     "code": "NV-89",
     "date": "2026-10-25",
     "title": "A simpler phone",

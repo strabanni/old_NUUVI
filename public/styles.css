@@ -17145,3 +17145,303 @@ button.px-pin {
   justify-content: flex-start;
   text-align: left;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   §81  Directory: three characters to a row on phones, and the carousel in NUUVI's colours
+   ══════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 899px) {
+  .char-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .char-grid .char-card {
+    border-radius: 16px;
+  }
+  .char-grid .char-card .cc-top {
+    padding: 8px 6px 0;
+  }
+  .char-grid .char-card .cc-name {
+    font-size: 0.68rem;
+    line-height: 1.15;
+  }
+  .char-grid .char-card .cc-badge {
+    font-size: 0.52rem;
+    padding: 2px 6px;
+  }
+  .char-grid .char-card .cc-badge svg {
+    width: 9px;
+    height: 9px;
+  }
+  /* The strip at the bottom: just their @username (no picture, tagline or button) at this size. */
+  .char-grid .char-card .cc-glass {
+    left: 4px;
+    right: 4px;
+    bottom: 4px;
+    padding: 5px 6px;
+    gap: 4px;
+    border-radius: 10px;
+  }
+  .char-grid .char-card .cc-glass > .avatar,
+  .char-grid .char-card .cc-who small,
+  .char-grid .char-card .cc-btn {
+    display: none;
+  }
+  .char-grid .char-card .cc-who b {
+    font-size: 0.6rem;
+  }
+  .char-grid .char-card .initial {
+    font-size: 2.6rem;
+  }
+}
+/* The carousel's backdrop: NUUVI pink and lilac glowing on the page colour, soft in Light, deep in Dark. */
+.cast-stage {
+  background:
+    radial-gradient(ellipse 60% 80% at 50% 55%, rgb(199 154 216 / 0.55), transparent 72%),
+    radial-gradient(ellipse 38% 55% at 12% 20%, rgb(238 113 158 / 0.4), transparent 70%),
+    radial-gradient(ellipse 38% 55% at 90% 85%, rgb(184 166 219 / 0.5), transparent 70%),
+    linear-gradient(135deg, #fbe7ef, #efe6f7);
+  border: 1px solid var(--glass-border);
+}
+[data-theme='dark'] .cast-stage {
+  background:
+    radial-gradient(ellipse 60% 80% at 50% 55%, rgb(199 154 216 / 0.35), transparent 72%),
+    radial-gradient(ellipse 38% 55% at 12% 20%, rgb(238 113 158 / 0.32), transparent 70%),
+    radial-gradient(ellipse 38% 55% at 90% 85%, rgb(184 166 219 / 0.28), transparent 70%),
+    linear-gradient(135deg, #161016, #120f18);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   §82  Drafts (posts saved for later) and the suggestion box
+   ══════════════════════════════════════════════════════════════════════════════ */
+.dr-who {
+  margin-bottom: 14px;
+}
+.dr-who .chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dr-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+.dr-card {
+  --c: var(--accent);
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background: var(--card, var(--glass));
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+}
+.dr-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+}
+.dr-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dr-head .grow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dr-head small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.dr-pics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+.dr-pics img,
+.dr-pics i {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.dr-pics i {
+  display: grid;
+  place-items: center;
+  background: var(--glass-2);
+  font-style: normal;
+  font-weight: 700;
+}
+.dr-title {
+  font-weight: 700;
+}
+.dr-body {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.dr-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 14px;
+}
+.dr-actions .primary {
+  flex: 1;
+}
+.dr-empty svg,
+.dr-empty + svg {
+  width: 40px;
+  height: 40px;
+  color: var(--faint);
+}
+
+.sg-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.sg-form label {
+  font-weight: 700;
+}
+.sg-tabs {
+  margin-bottom: 14px;
+}
+.sg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sg-card {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: var(--card, var(--glass));
+  border: 1px solid var(--glass-border);
+}
+.sg-vote {
+  flex: none;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 54px;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--glass-2);
+  color: var(--text);
+}
+.sg-vote svg {
+  width: 18px;
+  height: 18px;
+}
+.sg-vote[aria-pressed='true'] {
+  background: rgb(238 113 158 / 0.16);
+  color: #ee719e;
+}
+.sg-main {
+  flex: 1;
+  min-width: 0;
+}
+.sg-main h3 {
+  margin: 4px 0 2px;
+  font-size: 1.02rem;
+  overflow-wrap: anywhere;
+}
+.sg-body {
+  margin: 4px 0 0;
+  white-space: pre-line;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+.sg-by {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.sg-status {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--glass-2);
+  color: var(--muted);
+}
+.sg-status.st-planned {
+  background: rgb(199 154 216 / 0.22);
+  color: #8e5aa8;
+}
+.sg-status.st-done {
+  background: rgb(80 176 120 / 0.18);
+  color: #2f8a55;
+}
+.sg-status.st-declined {
+  background: rgb(150 150 150 / 0.18);
+}
+.sg-reply {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--glass-2);
+  font-size: 0.88rem;
+}
+.sg-reply b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+.sg-reply b svg {
+  width: 14px;
+  height: 14px;
+}
+.sg-reply p {
+  margin: 4px 0 0;
+  white-space: pre-line;
+}
+.sg-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.sg-tools select {
+  width: auto;
+}
+.dr-open {
+  align-items: stretch;
+}
+.dr-open > * {
+  text-align: left;
+  justify-content: flex-start;
+}
+@media (max-width: 899px) {
+  .char-grid .char-card .initial {
+    font-size: 2rem;
+    padding-top: 22%;
+  }
+}

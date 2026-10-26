@@ -10,6 +10,7 @@ import {
   icons,
   menu,
   modal,
+  formData,
   confirmModal,
   uploadImage,
   uploadFile,
@@ -959,7 +960,37 @@ async function tagPhotos(media, tags, ownerId) {
   );
 }
 
-export async function openSocialComposer({ characterId = null, category = 'post', edit = null } = {}) {
+// A saved draft, shaped like a post so the window can start from it.
+function draftSeed(p) {
+  const people = Array.isArray(p.people) ? p.people : [];
+  return {
+    kind: p.kind || 'text',
+    body: p.body || '',
+    media: Array.isArray(p.media) ? p.media : [],
+    title: p.title || '',
+    location: p.location || '',
+    category: p.category || 'post',
+    likesDisplay: p.likesDisplay ?? null,
+    commentsDisplay: p.commentsDisplay ?? null,
+    createdAt: p.postedAt || null,
+    poll: p.poll
+      ? { question: p.poll.question || '', options: (p.poll.options || []).map((t) => ({ text: t })), crowd: p.poll.crowd }
+      : null,
+    photoTags: (p.photoTags || []).map((t) => ({ ...t })),
+    meta: {
+      ...(p.meta || {}),
+      context: p.context || '',
+      music: p.music || {},
+      people: Object.fromEntries(
+        people.map((x) => [String(x.handle).toLowerCase(), { handle: x.handle, rel: x.rel || '', in: !!(x.in ?? x.inPicture) }]),
+      ),
+    },
+  };
+}
+
+// draft: a saved draft ({ id, payload }) to start from. Saving it again updates that draft; posting
+// it removes the draft.
+export async function openSocialComposer({ characterId = null, category = 'post', edit = null, draft = null } = {}) {
   const mine = edit ? await myCharacters(true) : await playableCharacters(true);
   if (!mine.length) {
     toast('Create a character first. Posts are made by characters');
@@ -971,18 +1002,24 @@ export async function openSocialComposer({ characterId = null, category = 'post'
     characterId = edit.character.id;
     category = edit.category || 'post';
   }
-  let kind = edit?.kind || 'text';
-  let media = edit ? [...edit.media] : [];
-  let duration = edit?.meta?.duration || 0;
+  // What the window starts from: the post being edited, or a saved draft.
+  const seed = edit || (draft ? draftSeed(draft.payload) : null);
+  if (draft) {
+    characterId = Number(draft.payload.characterId) || characterId;
+    category = seed.category;
+  }
+  let kind = seed?.kind || 'text';
+  let media = seed ? [...seed.media] : [];
+  let duration = seed?.meta?.duration || 0;
   let recorder = null;
   let peopleOf = () => [];
   // People tagged on the photos, kept with the photo's link so they follow it when photos move.
-  let photoTags = edit ? (edit.photoTags || []).map((t) => ({ ...t, url: edit.media[t.mediaIndex] })) : [];
+  let photoTags = seed ? (seed.photoTags || []).map((t) => ({ ...t, url: seed.media[t.mediaIndex] })) : [];
 
   const result = await modal(
     html`
     <form class="social-form">
-      <h2>${edit ? 'Edit post' : category === 'musing' ? 'New musing' : 'New post'}</h2>
+      <h2>${edit ? 'Edit post' : draft ? 'Draft' : category === 'musing' ? 'New musing' : 'New post'}</h2>
       <label for="s-char">${edit ? 'Posted by' : 'Post as'}</label>
       <select id="s-char" name="characterId" ${edit ? 'disabled' : ''}>${mine.map((c) => html`<option value="${c.id}" ${c.id === characterId ? 'selected' : ''}>${c.name}</option>`)}</select>
       ${edit ? html`<p class="hint">Tap a type to change what kind of post this is.</p>` : ''}
@@ -993,34 +1030,49 @@ export async function openSocialComposer({ characterId = null, category = 'post'
       <div id="s-media"></div>
       <div id="s-stream" hidden>
         <label for="s-title">Stream title</label>
-        <input id="s-title" name="title" maxlength="120" placeholder="late night q&a 🌙" value="${edit?.title || ''}">
+        <input id="s-title" name="title" maxlength="120" placeholder="late night q&a 🌙" value="${seed?.title || ''}">
         <label for="s-viewers">Viewers</label>
-        <input id="s-viewers" name="viewers" inputmode="numeric" placeholder="12,000" value="${edit?.meta?.viewers ?? ''}">
+        <input id="s-viewers" name="viewers" inputmode="numeric" placeholder="12,000" value="${seed?.meta?.viewers ?? ''}">
       </div>
       <label for="s-body" id="s-body-label">What's happening?</label>
-      <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work">${edit?.body || ''}</textarea>${checkBtn('s-body')}
+      <textarea id="s-body" name="body" rows="4" maxlength="5000" placeholder="Write a caption… @mentions and *formatting* work">${seed?.body || ''}</textarea>${checkBtn('s-body')}
       <div class="people-box" id="s-people" hidden></div>
-      <details class="poll-fields" id="s-poll" ${edit?.poll ? 'open' : ''}>
+      <details class="poll-fields" id="s-poll" ${seed?.poll ? 'open' : ''}>
         <summary>${icons.poll} Add a poll</summary>
         <label for="s-pq">Question</label>
-        <input id="s-pq" name="pollQ" maxlength="140" placeholder="e.g. which dress for tonight?" value="${edit?.poll?.question || ''}">
+        <input id="s-pq" name="pollQ" maxlength="140" placeholder="e.g. which dress for tonight?" value="${seed?.poll?.question || ''}">
         <label>Choices <span class="muted small">(2 to 4)</span></label>
-        ${[0, 1, 2, 3].map((i) => html`<input name="pollO${i}" maxlength="60" aria-label="Choice ${i + 1}" placeholder="${i < 2 ? `Choice ${i + 1}` : `Choice ${i + 1} (optional)`}" value="${edit?.poll?.options[i]?.text || ''}">`)}
-        <label class="check-row"><input type="checkbox" name="pollCrowd" ${edit?.poll ? (edit.poll.crowd ? 'checked' : '') : 'checked'}><span>Fans vote too <span class="muted small">(about 4 in 10 of the likes)</span></span></label>
+        ${[0, 1, 2, 3].map((i) => html`<input name="pollO${i}" maxlength="60" aria-label="Choice ${i + 1}" placeholder="${i < 2 ? `Choice ${i + 1}` : `Choice ${i + 1} (optional)`}" value="${seed?.poll?.options[i]?.text || ''}">`)}
+        <label class="check-row"><input type="checkbox" name="pollCrowd" ${seed?.poll ? (seed.poll.crowd ? 'checked' : '') : 'checked'}><span>Fans vote too <span class="muted small">(about 4 in 10 of the likes)</span></span></label>
         <button type="button" class="ghost sm" id="s-poll-off" ${edit?.poll ? '' : 'hidden'}>Remove the poll</button>
       </details>
       <label for="s-ctx">Behind the post <span class="muted small">(only you see this)</span></label>
-      <textarea id="s-ctx" name="context" rows="2" maxlength="600" placeholder="What's going on? e.g. first date at the pier, she's nervous but happy">${edit?.meta?.context || ''}</textarea>
+      <textarea id="s-ctx" name="context" rows="2" maxlength="600" placeholder="What's going on? e.g. first date at the pier, she's nervous but happy">${seed?.meta?.context || ''}</textarea>
       <p class="hint">Fan comments read this so they fit the moment. It's never shown on the post.</p>
-      ${locationField(edit?.location || '')}
-      ${songFields(edit?.meta?.music || {})}
-      ${edit ? extraFields({ category, likes: edit.likesDisplay, comments: edit.commentsDisplay, postedAt: edit.createdAt }) : extraFields({ category })}
+      ${locationField(seed?.location || '')}
+      ${songFields(seed?.meta?.music || {})}
+      ${seed ? extraFields({ category, likes: seed.likesDisplay, comments: seed.commentsDisplay, postedAt: seed.createdAt }) : extraFields({ category })}
       <div class="error"></div>
-      <div class="actions end"><button type="button" data-close>Cancel</button><button type="submit" class="primary">${edit ? 'Save' : 'Post'}</button></div>
+      <div class="actions end">${edit ? html`<button type="button" data-close>Cancel</button>` : html`<button type="button" id="s-draft">${icons.archive} ${draft?.id ? 'Save draft' : 'Save as draft'}</button>`}<button type="submit" class="primary">${edit ? 'Save' : draft ? 'Post now' : 'Post'}</button></div>
     </form>`,
     {
-      init: (d) => {
+      init: (d, close) => {
         const form = d.querySelector('form');
+        // Save as draft: keep everything as it is, to post later from Drafts.
+        $('#s-draft', d)?.addEventListener('click', async (e) => {
+          const btn = e.currentTarget;
+          btn.disabled = true;
+          try {
+            const payload = await build(formData(form), { forDraft: true });
+            const res = draft?.id
+              ? await api(`/api/drafts/${draft.id}`, { method: 'PUT', body: { payload } })
+              : await api('/api/drafts', { method: 'POST', body: { payload } });
+            close({ draft: res.draft });
+          } catch (err) {
+            $('.error', d).textContent = err.message;
+            btn.disabled = false;
+          }
+        });
         const box = $('#s-media', d);
         const drawMedia = () => {
           $('#s-stream', d).hidden = kind !== 'stream';
@@ -1184,7 +1236,7 @@ export async function openSocialComposer({ characterId = null, category = 'post'
         drawMedia();
         fillLocations($('#s-loc-list', d));
         mentionPicker(form.body);
-        peopleOf = wirePeople($('#s-people', d), form.body, edit);
+        peopleOf = wirePeople($('#s-people', d), form.body, seed);
         wireCheck(d);
         const pollBox = $('#s-poll', d);
         pollBox.addEventListener('toggle', () => {
@@ -1196,55 +1248,64 @@ export async function openSocialComposer({ characterId = null, category = 'post'
         form.body.focus();
       },
       submit: async (data) => {
-        const payload = {
-          characterId: Number(edit ? edit.character.id : data.characterId),
-          kind,
-          body: data.body,
-          media,
-          location: data.location || '',
-          people: peopleOf(),
-          context: data.context || '',
-          ...extrasFrom(data, edit?.createdAt ?? null),
-        };
-        if (kind === 'photo' && media[0]) {
-          const look = await analyzeLook(media[0]);
-          if (look) payload.meta = { look };
-        }
-        if (kind === 'photo' || edit) {
-          payload.photoTags =
-            kind !== 'photo'
-              ? []
-              : photoTags
-                  .filter((t) => media.includes(t.url))
-                  .map((t) => ({ characterId: t.characterId, mediaIndex: media.indexOf(t.url), x: t.x, y: t.y }));
-        }
-        const music = songFrom(data);
-        if (music || edit) payload.music = music;
-        // The poll: only when its box is open and has choices; closing it on an edit takes it off.
-        const pollOn = document.querySelector('#s-poll')?.open;
-        const options = [0, 1, 2, 3].map((i) => (data[`pollO${i}`] || '').trim()).filter(Boolean);
-        if (pollOn && (options.length || data.pollQ)) {
-          if (options.length < 2) throw new Error('A poll needs at least 2 choices');
-          payload.poll = { question: (data.pollQ || '').trim(), options, crowd: !!data.pollCrowd };
-        } else if (edit?.poll) payload.poll = null;
-        if (kind === 'stream') {
-          payload.title = data.title;
-          payload.meta = { viewers: Number(String(data.viewers || '0').replace(/[,\s]/g, '')) || 0, live: true };
-        }
-        if (kind === 'voice') payload.meta = { duration };
-        if (!payload.postedAt) delete payload.postedAt;
+        const payload = await build(data);
         if (edit) {
           // Saving an edit always writes fresh fan comments (the old ones are deleted).
           delete payload.characterId;
           if (kind === 'stream' && edit.kind === 'stream') payload.meta.live = edit.meta?.live !== false;
           return (await api(`/api/social/${edit.id}`, { method: 'PUT', body: { ...payload, freshComments: true } })).post;
         }
-        return (await api('/api/social', { method: 'POST', body: payload })).post;
+        const post = (await api('/api/social', { method: 'POST', body: payload })).post;
+        // Posted from a draft: the draft is done.
+        if (draft?.id) await api(`/api/drafts/${draft.id}`, { method: 'DELETE' }).catch(() => {});
+        return post;
       },
     },
   );
+  // Everything the window would send. A draft skips the picture check (that happens when it's posted).
+  async function build(data, { forDraft = false } = {}) {
+    const payload = {
+      characterId: Number(edit ? edit.character.id : data.characterId),
+      kind,
+      body: data.body,
+      media,
+      location: data.location || '',
+      people: peopleOf(),
+      context: data.context || '',
+      ...extrasFrom(data, edit?.createdAt ?? null),
+    };
+    if (kind === 'photo' && media[0] && !forDraft) {
+      const look = await analyzeLook(media[0]);
+      if (look) payload.meta = { look };
+    }
+    if (kind === 'photo' || edit) {
+      payload.photoTags =
+        kind !== 'photo'
+          ? []
+          : photoTags
+              .filter((t) => media.includes(t.url))
+              .map((t) => ({ characterId: t.characterId, mediaIndex: media.indexOf(t.url), x: t.x, y: t.y }));
+    }
+    const music = songFrom(data);
+    if (music || edit) payload.music = music;
+    // The poll: only when its box is open and has choices; closing it on an edit takes it off.
+    const pollOn = document.querySelector('#s-poll')?.open;
+    const options = [0, 1, 2, 3].map((i) => (data[`pollO${i}`] || '').trim()).filter(Boolean);
+    if (pollOn && (options.length || data.pollQ)) {
+      if (options.length < 2) throw new Error('A poll needs at least 2 choices');
+      payload.poll = { question: (data.pollQ || '').trim(), options, crowd: !!data.pollCrowd };
+    } else if (edit?.poll) payload.poll = null;
+    if (kind === 'stream') {
+      payload.title = data.title;
+      payload.meta = { viewers: Number(String(data.viewers || '0').replace(/[,\s]/g, '')) || 0, live: true };
+    }
+    if (kind === 'voice') payload.meta = { duration };
+    if (!payload.postedAt) delete payload.postedAt;
+    return payload;
+  }
   if (recorder) recorder.stop();
-  if (result) toast(edit ? 'Saved' : 'Posted');
+  if (result?.draft) toast('Saved to Drafts');
+  else if (result) toast(edit ? 'Saved' : 'Posted');
   return result;
 }
 
